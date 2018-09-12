@@ -165,6 +165,16 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         std::copy_n(b.data(), b.size(), specific_body_force.data());
     }
 
+    // has mass lumping
+    //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__mass_lumping}
+    auto mass_lumping = config.getConfigParameter<bool>("mass_lumping");
+
+    if (mass_lumping)
+    {
+        INFO(
+            "Mass Lumping implemented only for Picard");
+    }
+
     auto& temperature = findParameter<double>(
         config,
         //! \ogs_file_param_special{prj__processes__process__RICHARDS_MECHANICS__temperature}
@@ -201,6 +211,7 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         biot_coefficient,
         solid_density,
         solid_bulk_modulus,
+        mass_lumping,
         temperature,
         specific_body_force};
 
