@@ -44,6 +44,7 @@ struct RichardsMechanicsProcessData
         Parameter<double> const& biot_coefficient_,
         Parameter<double> const& solid_density_,
         Parameter<double> const& solid_bulk_modulus_,
+        bool const has_mass_lumping_,
         Parameter<double> const& temperature_,
         Eigen::Matrix<double, DisplacementDim, 1>
             specific_body_force_)
@@ -54,6 +55,7 @@ struct RichardsMechanicsProcessData
           biot_coefficient(biot_coefficient_),
           solid_density(solid_density_),
           solid_bulk_modulus(solid_bulk_modulus_),
+          has_mass_lumping(has_mass_lumping_),
           temperature(temperature_),
           specific_body_force(std::move(specific_body_force_))
     {
@@ -96,6 +98,8 @@ struct RichardsMechanicsProcessData
     double t = 0.0;
 
     MeshLib::PropertyVector<double>* element_saturation = nullptr;
+
+    bool const has_mass_lumping;
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 };

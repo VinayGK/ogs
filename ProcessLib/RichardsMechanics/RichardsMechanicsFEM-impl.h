@@ -247,6 +247,16 @@ void RichardsMechanicsLocalAssembler<
             .noalias() += N_p.transpose() * S_L * rho_LR * alpha *
                           identity2.transpose() * B * w;
     }
+    if (_process_data.has_mass_lumping)
+    {
+        for (int index_masslump = 0; index_masslump < M.cols();
+             index_masslump++)
+        {
+            double const mass_lump_val = M.col(index_masslump).sum();
+            M.col(index_masslump).setZero();
+            M(index_masslump, index_masslump) = mass_lump_val;
+        }
+    }  // end of mass lumping
 }
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
@@ -479,7 +489,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
         /* In the derivation there is a div(du/dt) term in the Jacobian, but
          * this implementation increases the total runtime by 1%. Maybe a very
-         * large step is needed to see the increase of efficiency.
+         * large step is needed to see the increase of efficiency.*/
         double div_u_dot = 0;
         for (int i = 0; i < DisplacementDim; ++i)
         {
@@ -493,7 +503,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                                           pressure_index)
             .noalias() -= N_p.transpose() * rho_LR * dS_L_dp_cap * alpha *
                           div_u_dot * N_p * w;
-         */
+         
 
         double const dk_rel_dS_l =
             _process_data.flow_material->getRelativePermeabilityDerivative(
