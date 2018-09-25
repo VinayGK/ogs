@@ -57,6 +57,12 @@ LinearElasticIsotropic<DisplacementDim>::getElasticTensor(
     return C;
 }
 
+template <int DisplacementDim>
+double LinearElasticIsotropic<DisplacementDim>::getBulkModulus(
+    double const t, ProcessLib::SpatialPosition const& x) const
+{
+return _mp.bulk_modulus(t, x);
+}
 template class LinearElasticIsotropic<2>;
 template class LinearElasticIsotropic<3>;
 
