@@ -126,6 +126,8 @@ public:
                                   ProcessLib::SpatialPosition const& x,
                                   double const T) const;
 
+    double getBulkModulus(double const t,
+                          ProcessLib::SpatialPosition const& x) const;
 
     MaterialProperties getMaterialProperties() { return _mp; }
 protected:

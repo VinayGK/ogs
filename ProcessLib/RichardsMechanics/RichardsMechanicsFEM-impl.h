@@ -85,6 +85,32 @@ RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
+std::size_t RichardsMechanicsLocalAssembler<
+    ShapeFunctionDisplacement, ShapeFunctionPressure, IntegrationMethod,
+    DisplacementDim>::setIPDataInitialConditions(std::string const& name,
+                                           double const* values,
+                                           int const integration_order)
+    {
+        if (integration_order !=
+            static_cast<int>(_integration_method.getIntegrationOrder()))
+        {
+            OGS_FATAL(
+                "Setting integration point initial conditions; The integration "
+                "order of the local assembler for element %d is different from "
+                "the integration order in the initial condition.",
+                _element.getID());
+        }
+
+        if (name == "sigma_eff_ip")
+        {
+            return setSigma(values);
+        }
+
+        return 0;
+    }
+
+template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
+          typename IntegrationMethod, int DisplacementDim>
 void RichardsMechanicsLocalAssembler<
     ShapeFunctionDisplacement, ShapeFunctionPressure, IntegrationMethod,
     DisplacementDim>::assemble(double const t,
@@ -573,6 +599,37 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         .noalias() += Kup * p_L;
 }
 
+// TODO  This method is same as getIntPtSigma but for arguments and
+    // the ordering of the cache_mat.
+    // There should be only one.
+template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
+          typename IntegrationMethod, int DisplacementDim>
+std::vector<double> RichardsMechanicsLocalAssembler<
+    ShapeFunctionDisplacement, ShapeFunctionPressure, IntegrationMethod,
+    DisplacementDim>::
+    getSigma() const
+    {
+        auto const kelvin_vector_size =
+            MathLib::KelvinVector::KelvinVectorDimensions<
+                DisplacementDim>::value;
+        unsigned const n_integration_points =
+            _integration_method.getNumberOfPoints();
+
+        std::vector<double> ip_sigma_values;
+        auto cache_mat = MathLib::createZeroedMatrix<Eigen::Matrix<
+            double, Eigen::Dynamic, kelvin_vector_size, Eigen::RowMajor>>(
+            ip_sigma_values, n_integration_points, kelvin_vector_size);
+
+        for (unsigned ip = 0; ip < n_integration_points; ++ip)
+        {
+            auto const& sigma = _ip_data[ip].sigma_eff;
+            cache_mat.row(ip) =
+                MathLib::KelvinVector::kelvinVectorToSymmetricTensor(sigma);
+        }
+
+        return ip_sigma_values;
+    }
+
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
 std::vector<double> const& RichardsMechanicsLocalAssembler<
@@ -601,6 +658,34 @@ std::vector<double> const& RichardsMechanicsLocalAssembler<
 
     return cache;
 }
+
+template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
+          typename IntegrationMethod, int DisplacementDim>
+    std::size_t RichardsMechanicsLocalAssembler<
+    ShapeFunctionDisplacement, ShapeFunctionPressure, IntegrationMethod,
+    DisplacementDim>::setSigma(double const* values)
+    {
+        auto const kelvin_vector_size =
+            MathLib::KelvinVector::KelvinVectorDimensions<
+                DisplacementDim>::value;
+        unsigned const n_integration_points =
+            _integration_method.getNumberOfPoints();
+
+        std::vector<double> ip_sigma_values;
+        auto sigma_values =
+            Eigen::Map<Eigen::Matrix<double, kelvin_vector_size, Eigen::Dynamic,
+                                     Eigen::ColMajor> const>(
+                values, kelvin_vector_size, n_integration_points);
+
+        for (unsigned ip = 0; ip < n_integration_points; ++ip)
+        {
+            _ip_data[ip].sigma_eff =
+                MathLib::KelvinVector::symmetricTensorToKelvinVector(
+                    sigma_values.col(ip));
+        }
+
+        return n_integration_points;
+    }
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>

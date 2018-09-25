@@ -64,6 +64,10 @@ public:
         unsigned const integration_order,
         RichardsMechanicsProcessData<DisplacementDim>& process_data);
 
+    std::size_t setIPDataInitialConditions(std::string const& name,
+                                           double const* values,
+                                           int const integration_order) override;
+ 
     void assemble(double const t, std::vector<double> const& local_x,
                   std::vector<double>& local_M_data,
                   std::vector<double>& local_K_data,
@@ -113,7 +117,7 @@ public:
         // assumes N is stored contiguously in memory
         return Eigen::Map<const Eigen::RowVectorXd>(N_u.data(), N_u.size());
     }
-
+    
     std::vector<double> const& getIntPtDarcyVelocity(
         const double t,
         GlobalVector const& current_solution,
@@ -207,6 +211,9 @@ private:
         LocalCoupledSolutions const& local_coupled_solutions);
 
 private:
+    std::size_t setSigma(double const* values);
+    std::vector<double> getSigma() const override;
+    
     RichardsMechanicsProcessData<DisplacementDim>& _process_data;
 
     using BMatricesType =
