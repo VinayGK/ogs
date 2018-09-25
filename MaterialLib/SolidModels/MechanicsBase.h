@@ -160,6 +160,14 @@ struct MechanicsBase
         return 0.0;
     }
 
+    virtual double getBulkModulus(
+        double const /*t*/,
+        ProcessLib::SpatialPosition const& /*x*/
+        ) const
+    {
+        return 0.0;
+    }
+
     virtual double computeFreeEnergyDensity(
         double const t,
         ProcessLib::SpatialPosition const& x,

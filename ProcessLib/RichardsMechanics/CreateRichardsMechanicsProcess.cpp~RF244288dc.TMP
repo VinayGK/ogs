@@ -167,19 +167,14 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
 
     // has mass lumping
     //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__mass_lumping}
-    auto has_mass_lumping = config.getConfigParameter<bool>("mass_lumping");
+    auto mass_lumping = config.getConfigParameter<bool>("mass_lumping");
 
-    if (has_mass_lumping)
+    if (mass_lumping)
     {
         INFO(
             "Mass Lumping implemented only for Picard");
     }
-    // has mass swelling
-    //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__swelling}
-    auto has_swelling = config.getConfigParameter<bool>("swelling");
 
-    INFO("current process: Richards mechanics with swelling");
-   
      // maximum swelling pressure
     auto& swelling_pressure = findParameter<double>(
         config,
@@ -187,14 +182,6 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         "swelling_pressure", parameters, 1);
     DBUG("Use \'%s\' as max. swelling pressure.",
          swelling_pressure.name.c_str());
-
-    // swelling law exponent
-    auto& swelling_exponent = findParameter<double>(
-        config,
-        //! \ogs_file_param_special{prj__processes__process__RICHARDS_MECHANICS__swelling_law_exponent}
-        "swelling_exponent", parameters, 1);
-    DBUG("Use \'%s\' as swelling law exponent.",
-         swelling_exponent.name.c_str());
 
     auto& temperature = findParameter<double>(
         config,
@@ -232,10 +219,7 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         biot_coefficient,
         solid_density,
         solid_bulk_modulus,
-        has_mass_lumping,
-        has_swelling,
-        swelling_pressure,
-        swelling_exponent,
+        mass_lumping,
         temperature,
         specific_body_force};
 
