@@ -19,3 +19,5 @@ CMakeLists.txt.user*
 *.pyc
 
 Tests/**/*.md5
+/ThirdParty/vtkGUISupportQt
+/ip_sigma_for_RichardsM.patch
