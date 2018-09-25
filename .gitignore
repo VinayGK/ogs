@@ -19,3 +19,4 @@ CMakeLists.txt.user*
 *.pyc
 
 Tests/**/*.md5
+/ip_sigma_for_RichardsM.patch
