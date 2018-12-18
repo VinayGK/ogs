@@ -47,6 +47,8 @@ struct RichardsMechanicsProcessData
         Parameter<double> const& biot_coefficient_,
         Parameter<double> const& solid_density_,
         Parameter<double> const& solid_bulk_modulus_,
+        Parameter<double> const& bishop_parameter_,
+        Parameter<double> const& bishop_saturation_,
         Parameter<double> const& temperature_,
         Eigen::Matrix<double, DisplacementDim, 1>
             specific_body_force_)
@@ -58,6 +60,8 @@ struct RichardsMechanicsProcessData
           biot_coefficient(biot_coefficient_),
           solid_density(solid_density_),
           solid_bulk_modulus(solid_bulk_modulus_),
+          bishop_parameter(bishop_parameter_),
+          bishop_saturation(bishop_saturation_),
           temperature(temperature_),
           specific_body_force(std::move(specific_body_force_))
     {
@@ -93,6 +97,13 @@ struct RichardsMechanicsProcessData
     Parameter<double> const& solid_density;
     /// Solid's bulk modulus. A scalar quantity, Parameter<double>.
     Parameter<double> const& solid_bulk_modulus;
+    /// Bishop's parameter. A scalar quantity,
+    /// Parameter<double>.
+    Parameter<double> const& bishop_parameter;
+    /// critial saturation for Bishop's parameter. A scalar quantity,
+    /// Parameter<double>.
+    Parameter<double> const& bishop_saturation;
+
     /// Reference temperature for material properties. A scalar quantity,
     /// Parameter<double>.
     Parameter<double> const& temperature;

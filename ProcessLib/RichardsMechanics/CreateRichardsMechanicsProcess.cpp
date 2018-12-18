@@ -164,6 +164,21 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         std::copy_n(b.data(), b.size(), specific_body_force.data());
     }
 
+     // Bishop's parameter
+    auto& bishop_parameter = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{prj__processes__process__RICHARDS_MECHANICS__bishop_parameter}
+        "bishop_parameter", parameters, 1);
+    DBUG("Use \'%s\' as Bishop's parameter.",
+         bishop_parameter.name.c_str());
+    // critical saturation for Bishop's parameter
+    auto& bishop_saturation = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{prj__processes__process__RICHARDS_MECHANICS__bishop_saturation}
+        "bishop_saturation", parameters, 1);
+    DBUG("Use \'%s\' as critical saturation for Bishop's parameter.",
+         bishop_saturation.name.c_str());
+
     auto& temperature = findParameter<double>(
         config,
         //! \ogs_file_param_special{prj__processes__process__RICHARDS_MECHANICS__temperature}
@@ -202,6 +217,8 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         biot_coefficient,
         solid_density,
         solid_bulk_modulus,
+        bishop_parameter,
+        bishop_saturation,
         temperature,
         specific_body_force};
 

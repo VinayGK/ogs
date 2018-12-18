@@ -412,6 +412,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         //
         eps.noalias() = B * u;
 
+		
+        auto const bishop_chi =
+            _process_data.bishop_parameter(t, x_position)[0];
+        auto const bishop_chi_S_L =
+            _process_data.bishop_saturation(t, x_position)[0];
         auto C = _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u,
                                                          temperature);
 
@@ -425,10 +430,16 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             .noalias() -=
             (B.transpose() * sigma_eff - N_u_op.transpose() * rho * b) * w;
 
+        auto chi = 0.0;
+        if (S_L > bishop_chi_S_L)
+            chi = pow((S_L - bishop_chi_S_L) / (1 - bishop_chi_S_L), bishop_chi);
+        else if (S_L == 1.0)
+            chi = 1.0;
         //
         // displacement equation, pressure part
         //
-        Kup.noalias() += B.transpose() * alpha * S_L * identity2 * N_p * w;
+        Kup.noalias() += B.transpose() * alpha * identity2 * N_p * w //S_L
+            *chi;
 
         /* For future implementation including swelling.
         double const dsigma_eff_dp_cap = -K_intrinsic * m_swell * n *
@@ -445,7 +456,13 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 displacement_index, pressure_index)
             .noalias() -= B.transpose() * alpha *
                           (S_L + p_cap_ip * dS_L_dp_cap) * identity2 * N_p * w;
-
+        else
+        local_Jac
+            .template block<displacement_size, pressure_size>(
+                displacement_index, pressure_index)
+            .noalias() -= B.transpose() * alpha * (chi + (p_cap_ip * bishop_chi
+                * pow((S_L - bishop_chi_S_L) / (1 - bishop_chi_S_L),
+                     bishop_chi - 1)) * dS_L_dp_cap) * identity2 * N_p * w;
         local_Jac
             .template block<displacement_size, pressure_size>(
                 displacement_index, pressure_index)
