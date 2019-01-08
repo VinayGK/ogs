@@ -186,6 +186,21 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
     DBUG("Use \'%s\' as swelling law exponent.",
          swelling_exponent.name.c_str());
 
+     // Bishop's parameter
+    auto& bishop_parameter = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{prj__processes__process__RICHARDS_MECHANICS__bishop_parameter}
+        "bishop_parameter", parameters, 1);
+    DBUG("Use \'%s\' as Bishop's parameter.",
+         bishop_parameter.name.c_str());
+    // critical saturation for Bishop's parameter
+    auto& bishop_saturation = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{prj__processes__process__RICHARDS_MECHANICS__bishop_saturation}
+        "bishop_saturation", parameters, 1);
+    DBUG("Use \'%s\' as critical saturation for Bishop's parameter.",
+         bishop_saturation.name.c_str());
+
     auto& temperature = findParameter<double>(
         config,
         //! \ogs_file_param_special{prj__processes__process__RICHARDS_MECHANICS__temperature}
@@ -227,6 +242,8 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         has_swelling,
         swelling_pressure,
         swelling_exponent,
+        bishop_parameter,
+        bishop_saturation,
         temperature,
         specific_body_force};
 

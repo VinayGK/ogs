@@ -50,6 +50,8 @@ struct RichardsMechanicsProcessData
         bool const has_swelling_,
         Parameter<double> const& swelling_pressure_,
         Parameter<double> const& swelling_exponent_,
+        Parameter<double> const& bishop_parameter_,
+        Parameter<double> const& bishop_saturation_,
         Parameter<double> const& temperature_,
         Eigen::Matrix<double, DisplacementDim, 1>
             specific_body_force_)
@@ -64,6 +66,8 @@ struct RichardsMechanicsProcessData
           has_swelling(has_swelling_),
           swelling_pressure(swelling_pressure_),
           swelling_exponent(swelling_exponent_),
+          bishop_parameter(bishop_parameter_),
+          bishop_saturation(bishop_saturation_),
           temperature(temperature_),
           specific_body_force(std::move(specific_body_force_))
     {
@@ -104,6 +108,13 @@ struct RichardsMechanicsProcessData
     /// exponent for the swelling pressure law. A scalar quantity,
     /// Parameter<double>.
     Parameter<double> const& swelling_exponent;
+    /// Bishop's parameter. A scalar quantity,
+    /// Parameter<double>.
+    Parameter<double> const& bishop_parameter;
+    /// critial saturation for Bishop's parameter. A scalar quantity,
+    /// Parameter<double>.
+    Parameter<double> const& bishop_saturation;
+
     /// Reference temperature for material properties. A scalar quantity,
     /// Parameter<double>.
     Parameter<double> const& temperature;
