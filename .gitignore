@@ -21,3 +21,8 @@ CMakeLists.txt.user*
 Tests/**/*.md5
 /ThirdParty/vtkGUISupportQt
 /ip_sigma_for_RichardsM.patch
+/.vs
+/mychanges.patch
+/get_k_s.patch
+/CMakeSettings.json
+/bishop_changes.patch
