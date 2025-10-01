@@ -1,0 +1,343 @@
+// DSL and behaviour declaration
+@DSL ImplicitGenericBehaviour;
+@Behaviour ModCamClay_semiExpl_coupled;
+@Author Aqeel Afzal Chaudhry, Christian Silbermann, Eric Simo, Miguel Mánica, Thomas Helfer, Thomas Nagel;
+@Date 01/09/2025;
+@Description{
+    The modified cam-clay model according to Callari (1998):
+    "A finite-strain cam-clay model in the framework of multiplicative elasto-plasticity"
+    but here in a consistent geometrically linear form (linearized volume ratio evolution)
+    semi-explicit due to explicit volume ratio update at the end of time step,
+    nonlinear hypoelastic behavior: pressure-dependent bulk modulus, constant Poisson ratio,
+    incremental formulation assuming constant elastic parameters over the time step,
+    normalized plastic flow direction, lower limit for a minimal pre-consolidation pressure, 
+    with hydraulic and thermal coupling, saturation dependent swelling,
+}
+
+@Theta 1.0;                     // time integration scheme
+@Epsilon 1e-14;                 // tolerance of local stress integration algorithm
+@MaximumNumberOfIterations 100;  // for local local stress integration algorithm
+@ModellingHypotheses{".+"};     // supporting all stress and strain states
+@Algorithm NewtonRaphson;       //_NumericalJacobian;_LevenbergMarquardt
+
+// Gradients and state variables
+@Gradient StrainStensor εᵗᵒ;
+εᵗᵒ.setGlossaryName("Strain");
+
+@ThermodynamicForce StressStensor σ;
+σ.setGlossaryName("Stress");
+
+@Gradient real pᴸᴿ;
+pᴸᴿ.setEntryName("LiquidPressure");
+
+@ThermodynamicForce real Sᴸ;
+Sᴸ.setEntryName("Saturation");
+
+@StateVariable StressStensor σˢʷ;
+σˢʷ.setEntryName("swelling_stress");
+
+@StateVariable StrainStensor εᵉˡ;
+εᵉˡ.setGlossaryName("ElasticStrain");
+
+@StateVariable real Λₚ;
+Λₚ.setGlossaryName("EquivalentPlasticStrain");
+
+@IntegrationVariable strain rpc;
+
+@AuxiliaryStateVariable stress pc;
+pc.setEntryName("PreConsolidationPressure");
+
+@AuxiliaryStateVariable real εᵛₚₗ;
+εᵛₚₗ.setEntryName("PlasticVolumetricStrain");
+
+@AuxiliaryStateVariable real vʳ;
+vʳ.setEntryName("VolumeRatio");
+
+
+@MaterialProperty real ν;
+ν.setGlossaryName("PoissonRatio");
+
+@MaterialProperty real M;
+M.setEntryName("CriticalStateLineSlope");
+
+@MaterialProperty real ka;
+ka.setEntryName("SwellingLineSlope");
+
+@MaterialProperty real la;
+la.setEntryName("VirginConsolidationLineSlope");
+
+@MaterialProperty stress pc_char;
+pc_char.setEntryName("CharacteristicPreConsolidationPressure");
+
+@MaterialProperty real vʳ⁰;
+vʳ⁰.setEntryName("InitialVolumeRatio");
+
+@MaterialProperty real α;
+α.setGlossaryName("ThermalExpansion");
+@MaterialProperty real αᵇ;
+αᵇ.setEntryName("BiotCoefficient");
+@MaterialProperty real Sᴸʳ;
+Sᴸʳ.setEntryName("ResidualLiquidSaturation");
+@MaterialProperty real Sᴳʳ;
+Sᴳʳ.setEntryName("ResidualGasSaturation");
+@MaterialProperty real pᵇ;
+pᵇ.setEntryName("BubblePressure");
+@MaterialProperty real mⱽᴳ;
+mⱽᴳ.setEntryName("VanGenuchtenExponent_m");
+
+@MaterialProperty real bishop_type;
+bishop_type.setEntryName("BishopsModelType");
+
+@MaterialProperty real bishop_value;
+bishop_value.setEntryName("BishopsModelValue");
+
+// Swelling properties (SaturationDependentSwelling as in OGS) but isotropic for the time being:
+@MaterialProperty real pˢʷ;
+pˢʷ.setEntryName("SwellingPressures");
+@MaterialProperty real mˢʷ;
+mˢʷ.setEntryName("Exponents");
+@MaterialProperty real Sᴸₗ;
+Sᴸₗ.setEntryName("LowerSaturationLimit");
+@MaterialProperty real Sᴸₕ;
+Sᴸₕ.setEntryName("UpperSaturationLimit");
+
+// local variables
+@LocalVariable real K;
+@LocalVariable real φ;
+@LocalVariable real φ₀;
+@LocalVariable real ∂φ∕∂Sᴸ;
+@LocalVariable real Δpˢʷ;
+@LocalVariable real χ;
+@LocalVariable real χ₀;
+@LocalVariable real ∂χ∕∂Sᴸ;
+@LocalVariable StressStensor σ₀;
+@LocalVariable StiffnessTensor ∂σ∕∂εᵉˡ;
+@LocalVariable bool withinElasticRange;
+@LocalVariable real M²;
+@LocalVariable real young;
+@LocalVariable real pc_min;
+@LocalVariable real rpc_min;
+
+//@TangentOperatorBlocks{∂σ∕∂Δεᵗᵒ, ∂σ∕∂Δpᴸᴿ, ∂Sᴸ∕∂Δpᴸᴿ};
+@TangentOperatorBlocks{∂σ∕∂Δεᵗᵒ, ∂σ∕∂ΔT, ∂σ∕∂Δpᴸᴿ, ∂Sᴸ∕∂Δpᴸᴿ};
+
+@InitializeLocalVariables
+{
+    // retention
+    const auto Sₑ = [&](const auto pᶜᵃᵖ) {
+        return std::pow(
+            std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ, 1.0 / (1.0 - mⱽᴳ)) + 1.0, -mⱽᴳ);
+    };
+    // previous
+    const double S₀ = Sₑ(-(pᴸᴿ)) ⋅ (1.0 - Sᴳʳ - Sᴸʳ) + Sᴸʳ;
+    const double Sᴸ₀ = std::clamp(S₀, Sᴸʳ, 1.0 - Sᴳʳ);
+    // new
+    const double S = Sₑ(-(pᴸᴿ + Δpᴸᴿ)) ⋅ (1.0 - Sᴳʳ - Sᴸʳ) + Sᴸʳ;
+    Sᴸ = std::clamp(S, Sᴸʳ, 1.0 - Sᴳʳ);
+
+    // Bishop power law or cutoff
+    const int model_type = static_cast<int>(bishop_type);
+    if (model_type == 0) {
+        χ = std::pow(Sᴸ, bishop_value);
+        ∂χ∕∂Sᴸ = bishop_value ⋅ std::pow(Sᴸ, bishop_value - 1);
+        χ₀ = std::pow(Sᴸ₀, bishop_value);
+    }
+    else if (model_type == 1) {
+        const double S_cut = bishop_value;
+        if (Sᴸ < S_cut) {
+        χ = 0.0;
+        ∂χ∕∂Sᴸ = 0.0;
+        } else if (Sᴸ > 1.0) {
+        χ = 1.0;
+        ∂χ∕∂Sᴸ = 0.0;
+        } else {
+        const double denom = std::max(1e-15, 1.0 - S_cut);
+        χ = (Sᴸ - S_cut) / denom;
+        ∂χ∕∂Sᴸ = 1.0 / denom;
+        }
+        χ₀ = (Sᴸ₀ < S_cut) ? 0.0 :
+                (Sᴸ₀ > 1.0) ? 1.0 :
+                (Sᴸ₀ - S_cut) / std::max(1e-15, 1.0 - S_cut);
+    }
+    else {
+        throw std::runtime_error("Invalid BishopsModelType: must be 0 (power law) or 1 (cutoff).");
+    }
+    
+    // SaturationDependentSwelling
+    if (Sᴸ <= Sᴸₗ)
+    {
+        φ = 0.0;
+        ∂φ∕∂Sᴸ = 0.0;
+    }
+    else if (Sᴸ >= Sᴸₕ)
+    {
+        φ = 1.0;
+        ∂φ∕∂Sᴸ = 0.0;
+    }
+    else
+    {
+        const double normalized = (Sᴸ - Sᴸₗ) / (Sᴸₕ - Sᴸₗ);
+        φ = std::pow(normalized, mˢʷ);
+        ∂φ∕∂Sᴸ = mˢʷ / (Sᴸₕ - Sᴸₗ) ⋅ std::pow(normalized, mˢʷ - 1);
+    }
+
+    φ₀ = std::pow((Sᴸ₀ - Sᴸₗ) / (Sᴸₕ - Sᴸₗ) , mˢʷ);
+                                    
+    // Swelling stress contribution:
+    Δpˢʷ = pˢʷ ⋅ (φ - φ₀);   
+
+    tfel::raise_if(la < ka, "Invalid parameters: la<ka");
+    M² = M ⋅ M;
+    
+    // update σ₀ --> effective
+    σ₀ = σ + αᵇ ⋅ χ₀ ⋅ pᴸᴿ ⋅ I₂;
+
+    // compute elastic stiffness (constant during time step)
+    pc_min = 0.5e-8 ⋅ pc_char;
+    const auto p = -trace(σ₀) / 3;
+    K = vʳ⁰ / ka ⋅ max(p , pc_char);
+    const auto E = 3.0 ⋅ K ⋅ (1.0 - 2 ⋅ ν);
+
+    young = E;
+    rpc = pc / young;
+    rpc_min = pc_min / young;
+
+    // stress derivative
+    ∂σ∕∂εᵉˡ = E / (1.0 + ν) ⋅ Stensor4::K() + K ⋅ Stensor4::IxI();
+
+    // elastic trial stress
+    const auto σᵉˡ = σ₀ + ∂σ∕∂εᵉˡ ⋅ Δεᵗᵒ - 3 ⋅ K ⋅ α ⋅ ΔT ⋅ I₂ - Δpˢʷ ⋅ I₂;
+
+    // elastic estimators
+    const auto sᵉˡ = deviator(σᵉˡ);
+    const auto qᵉˡ = sqrt(1.5 ⋅ sᵉˡ | sᵉˡ);
+    const auto pᵉˡ = -trace(σᵉˡ) / 3;
+
+    const auto pcᵉˡ = pc;
+    const auto fᵉˡ = qᵉˡ ⋅ qᵉˡ + M² ⋅ pᵉˡ ⋅ (pᵉˡ - pcᵉˡ);
+    withinElasticRange = fᵉˡ < 0;
+}
+
+@ComputeThermodynamicForces{
+    σ = σ₀ + θ ⋅ ∂σ∕∂εᵉˡ ⋅ Δεᵉˡ - 3 ⋅ K ⋅ α ⋅ ΔT ⋅ I₂ - Δpˢʷ ⋅ I₂;
+}
+
+@Integrator
+{
+    constexpr const auto Pr4 = Stensor4::K();
+    const auto the = vʳ⁰ / (la - ka);
+    // elastic range:
+    if (withinElasticRange)
+    {
+        fεᵉˡ -= Δεᵗᵒ;
+        //σ = σ₀ + ∂σ∕∂εᵉˡ ⋅ Δεᵉˡ - 3 ⋅ K ⋅ α ⋅ ΔT ⋅ I₂ - αᵇ ⋅ χ ⋅ (pᴸᴿ + Δpᴸᴿ) ⋅ I₂ - Δpˢʷ ⋅ I₂;
+        return true;
+    }
+    // plastic range:
+    const auto epsr = strain(1.e-12);
+    // calculate invariants from current stress sig
+    const auto s = deviator(σ);
+    const auto q = sqrt(1.5 ⋅ s | s);
+    const auto p = -trace(σ) / 3;
+    // update the internal (state) variables (rpc holds the old value!)
+    const auto rpc_new = rpc + θ ⋅ Δrpc;
+    const auto pc_new = rpc_new ⋅ young;
+    // calculate the direction of plastic flow
+    const auto f = q ⋅ q + M² ⋅ p ⋅ (p - pc_new);
+    const auto ∂f∕∂p = M² ⋅ (2 ⋅ p - pc_new);
+    const auto ∂f∕∂σ = eval(3 ⋅ s - ∂f∕∂p ⋅ I₂ / 3);
+    auto norm = sqrt(6 ⋅ q ⋅ q + ∂f∕∂p ⋅ ∂f∕∂p / 3);  // = sqrt(∂f∕∂σ|∂f∕∂σ);
+    norm = max(norm, epsr ⋅ young);
+    const auto n = ∂f∕∂σ / norm;
+    const auto ntr = -∂f∕∂p / norm;
+    // plastic strain and volumetric part
+    const auto Δεᵖˡ = eval(ΔΛₚ ⋅ n);
+    const auto Δεᵖˡᵛ = trace(Δεᵖˡ);
+
+    const auto fchar = pc_char ⋅ young;
+
+    // residual
+    fεᵉˡ = Δεᵉˡ + Δεᵖˡ - Δεᵗᵒ;
+    fΛₚ = f / fchar;
+    frpc = Δrpc + Δεᵖˡᵛ ⋅ the ⋅ (rpc_new - rpc_min);
+
+    // auxiliary derivatives
+    const auto ∂norm∕∂σ = (9 ⋅ s - 2 ⋅ M² / 9 ⋅ ∂f∕∂p ⋅ I₂) / norm;
+    const auto ∂n∕∂Δεᵉˡ = (3 ⋅ Pr4 + 2 ⋅ M² / 9 ⋅ (I₂ ⊗ I₂) - (n ⊗ ∂norm∕∂σ)) / norm ⋅ ∂σ∕∂εᵉˡ ⋅ θ;
+    const auto ∂n∕∂Δrpc = (I₂ + ∂f∕∂p ⋅ n / norm) ⋅ M² / (3 ⋅ norm) ⋅ θ ⋅ young;
+    const auto ∂frpc∕∂Δεᵖˡᵛ = the ⋅ (rpc_new - rpc_min);
+
+    // jacobian (all other parts are zero)
+    ∂fεᵉˡ∕∂Δεᵉˡ += ΔΛₚ ⋅ ∂n∕∂Δεᵉˡ;
+    ∂fεᵉˡ∕∂ΔΛₚ = n;
+    ∂fεᵉˡ∕∂Δrpc = ΔΛₚ ⋅ ∂n∕∂Δrpc;
+
+    ∂fΛₚ∕∂Δεᵉˡ = (∂f∕∂σ | ∂σ∕∂εᵉˡ) ⋅ θ / fchar;    // in case of problems with zero use:
+    ∂fΛₚ∕∂ΔΛₚ  = strain(0);                         // (q<epsr) ? strain(1) : strain(0);
+    ∂fΛₚ∕∂Δrpc = -M² ⋅ p ⋅ θ / fchar ⋅ young;
+
+    ∂frpc∕∂ΔΛₚ = ∂frpc∕∂Δεᵖˡᵛ ⋅ ntr;
+    ∂frpc∕∂Δεᵉˡ = ∂frpc∕∂Δεᵖˡᵛ ⋅ ΔΛₚ ⋅ (I₂ | ∂n∕∂Δεᵉˡ);
+    ∂frpc∕∂Δrpc = 1 + Δεᵖˡᵛ ⋅ the ⋅ θ + ∂frpc∕∂Δεᵖˡᵛ ⋅ ΔΛₚ ⋅ trace(∂n∕∂Δrpc);
+}
+
+@ComputeFinalThermodynamicForces{
+    σ = σ₀ + ∂σ∕∂εᵉˡ ⋅ Δεᵉˡ - 3 ⋅ K ⋅ α ⋅ ΔT ⋅ I₂ - αᵇ ⋅ χ ⋅ pᴸᴿ ⋅ I₂ - Δpˢʷ ⋅ I₂;
+}
+
+// explicit treatment as long as change of vʳ (or e) during time increment is small
+@UpdateAuxiliaryStateVariables
+{
+    σˢʷ -= Δpˢʷ ⋅ I₂;
+    pc += Δrpc ⋅ young;
+    εᵛₚₗ += trace(Δεᵗᵒ - Δεᵉˡ - α ⋅ ΔT ⋅ I₂); //Thermal strain subtracted
+    vʳ += vʳ⁰ ⋅ trace(Δεᵗᵒ - α ⋅ ΔT ⋅ I₂); //Thermal strain subtracted
+}
+
+@AdditionalConvergenceChecks
+{
+    if (converged)
+    {
+        if (!withinElasticRange)
+        {
+            if (ΔΛₚ < 0)
+            {
+                converged = false;
+                withinElasticRange = true;
+            }
+        }
+    }
+}
+
+@TangentOperator // because no Brick StandardElasticity
+{
+    const auto ∂Sᴸ∕∂pᶜᵃᵖ = [&](const auto pᶜᵃᵖ) {
+        return (1.0 - Sᴳʳ - Sᴸʳ)⋅(Sᴸ < (1 - Sᴳʳ) && Sᴸ > Sᴸʳ
+                    ? -mⱽᴳ / (pᵇ ⋅ (1 - mⱽᴳ)) ⋅ std::pow(
+                                std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ,
+                                        1.0 / (1.0 - mⱽᴳ)) +
+                                    1.0,
+                                -mⱽᴳ - 1) ⋅ std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ,
+                                                    1.0 / (1.0 - mⱽᴳ) - 1.0)
+                    : 0.);
+    };
+    ∂σ∕∂Δpᴸᴿ  = - αᵇ ⋅ (χ - (pᴸᴿ + Δpᴸᴿ) ⋅ ∂χ∕∂Sᴸ ⋅ ∂Sᴸ∕∂pᶜᵃᵖ(-(pᴸᴿ + Δpᴸᴿ))) ⋅ I₂ + pˢʷ ⋅ ∂φ∕∂Sᴸ ⋅ ∂Sᴸ∕∂pᶜᵃᵖ(-(pᴸᴿ + Δpᴸᴿ)) ⋅ I₂;
+    ∂σ∕∂ΔT    = -3 ⋅ K ⋅ α ⋅ I₂;
+    ∂Sᴸ∕∂Δpᴸᴿ = - ∂Sᴸ∕∂pᶜᵃᵖ( -(pᴸᴿ + Δpᴸᴿ));
+    
+    if ((smt == ELASTIC) || (smt == SECANTOPERATOR))
+    {
+        ∂σ∕∂Δεᵗᵒ = ∂σ∕∂εᵉˡ;
+    }
+    else if (smt == CONSISTENTTANGENTOPERATOR)
+    {
+        Stensor4 Je;
+        getPartialJacobianInvert(Je);
+        ∂σ∕∂Δεᵗᵒ = ∂σ∕∂εᵉˡ ⋅ Je;
+    }
+    else
+    {
+        return false;
+    }
+}
+
