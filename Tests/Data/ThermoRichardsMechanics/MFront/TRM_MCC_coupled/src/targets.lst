@@ -1,0 +1,40 @@
+{
+library : {
+name   : "Behaviour";
+type   : SHARED_LIBRARY;
+prefix : "lib";
+suffix : "so";
+install_path : "";
+sources : {
+"ModCamClay_semiExpl_coupled-generic.cxx",
+"ModCamClay_semiExpl_coupled.cxx"
+};
+cppflags : {
+"$(shell tfel-config --cppflags --compiler-flags)"
+};
+include_directories : {
+"$(shell tfel-config --include-path)"
+};
+link_directories : {
+"$(shell tfel-config --library-path)"
+};
+link_libraries : {
+"$(shell tfel-config --library-dependency --material --mfront-profiling)"
+};
+epts : {
+"ModCamClay_semiExpl_coupled_AxisymmetricalGeneralisedPlaneStrain",
+"ModCamClay_semiExpl_coupled_AxisymmetricalGeneralisedPlaneStress",
+"ModCamClay_semiExpl_coupled_Axisymmetrical",
+"ModCamClay_semiExpl_coupled_PlaneStress",
+"ModCamClay_semiExpl_coupled_PlaneStrain",
+"ModCamClay_semiExpl_coupled_GeneralisedPlaneStrain",
+"ModCamClay_semiExpl_coupled_Tridimensional"
+};
+};
+headers : {
+"MFront/GenericBehaviour/ModCamClay_semiExpl_coupled-generic.hxx",
+"TFEL/Material/ModCamClay_semiExpl_coupled.hxx",
+"TFEL/Material/ModCamClay_semiExpl_coupledBehaviourData.hxx",
+"TFEL/Material/ModCamClay_semiExpl_coupledIntegrationData.hxx"
+};
+};

@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<VTKFile type="Collection" version="0.1" byte_order="LittleEndian" compressor="vtkZLibDataCompressor">
+  <Collection>
+    <DataSet timestep="0" group="" part="0" file="saturation_0.000000.vtu"/>
+    <DataSet timestep="172800" group="" part="0" file="saturation_172800.000000.vtu"/>
+    <DataSet timestep="345600" group="" part="0" file="saturation_345600.000000.vtu"/>
+    <DataSet timestep="518400" group="" part="0" file="saturation_518400.000000.vtu"/>
+    <DataSet timestep="691200" group="" part="0" file="saturation_691200.000000.vtu"/>
+    <DataSet timestep="864000" group="" part="0" file="saturation_864000.000000.vtu"/>
+    <DataSet timestep="1036800" group="" part="0" file="saturation_1036800.000000.vtu"/>
+    <DataSet timestep="1209600" group="" part="0" file="saturation_1209600.000000.vtu"/>
+    <DataSet timestep="1382400" group="" part="0" file="saturation_1382400.000000.vtu"/>
+    <DataSet timestep="1555200" group="" part="0" file="saturation_1555200.000000.vtu"/>
+    <DataSet timestep="1728000" group="" part="0" file="saturation_1728000.000000.vtu"/>
+    <DataSet timestep="1900800" group="" part="0" file="saturation_1900800.000000.vtu"/>
+    <DataSet timestep="2073600" group="" part="0" file="saturation_2073600.000000.vtu"/>
+    <DataSet timestep="2246400" group="" part="0" file="saturation_2246400.000000.vtu"/>
+    <DataSet timestep="2419200" group="" part="0" file="saturation_2419200.000000.vtu"/>
+    <DataSet timestep="2592000" group="" part="0" file="saturation_2592000.000000.vtu"/>
+    <DataSet timestep="2764800" group="" part="0" file="saturation_2764800.000000.vtu"/>
+    <DataSet timestep="2937600" group="" part="0" file="saturation_2937600.000000.vtu"/>
+    <DataSet timestep="3110400" group="" part="0" file="saturation_3110400.000000.vtu"/>
+    <DataSet timestep="3283200" group="" part="0" file="saturation_3283200.000000.vtu"/>
+    <DataSet timestep="3456000" group="" part="0" file="saturation_3456000.000000.vtu"/>
+    <DataSet timestep="3628800" group="" part="0" file="saturation_3628800.000000.vtu"/>
+    <DataSet timestep="3801600" group="" part="0" file="saturation_3801600.000000.vtu"/>
+    <DataSet timestep="3974400" group="" part="0" file="saturation_3974400.000000.vtu"/>
+    <DataSet timestep="4147200" group="" part="0" file="saturation_4147200.000000.vtu"/>
+    <DataSet timestep="4320000" group="" part="0" file="saturation_4320000.000000.vtu"/>
+    <DataSet timestep="4492800" group="" part="0" file="saturation_4492800.000000.vtu"/>
+    <DataSet timestep="4665600" group="" part="0" file="saturation_4665600.000000.vtu"/>
+    <DataSet timestep="4838400" group="" part="0" file="saturation_4838400.000000.vtu"/>
+    <DataSet timestep="5011200" group="" part="0" file="saturation_5011200.000000.vtu"/>
+    <DataSet timestep="5184000" group="" part="0" file="saturation_5184000.000000.vtu"/>
+    <DataSet timestep="5356800" group="" part="0" file="saturation_5356800.000000.vtu"/>
+    <DataSet timestep="5529600" group="" part="0" file="saturation_5529600.000000.vtu"/>
+    <DataSet timestep="5702400" group="" part="0" file="saturation_5702400.000000.vtu"/>
+    <DataSet timestep="5875200" group="" part="0" file="saturation_5875200.000000.vtu"/>
+    <DataSet timestep="6048000" group="" part="0" file="saturation_6048000.000000.vtu"/>
+    <DataSet timestep="6220800" group="" part="0" file="saturation_6220800.000000.vtu"/>
+    <DataSet timestep="6393600" group="" part="0" file="saturation_6393600.000000.vtu"/>
+    <DataSet timestep="6566400" group="" part="0" file="saturation_6566400.000000.vtu"/>
+    <DataSet timestep="6739200" group="" part="0" file="saturation_6739200.000000.vtu"/>
+    <DataSet timestep="6912000" group="" part="0" file="saturation_6912000.000000.vtu"/>
+    <DataSet timestep="7084800" group="" part="0" file="saturation_7084800.000000.vtu"/>
+    <DataSet timestep="7257600" group="" part="0" file="saturation_7257600.000000.vtu"/>
+    <DataSet timestep="7430400" group="" part="0" file="saturation_7430400.000000.vtu"/>
+    <DataSet timestep="7603200" group="" part="0" file="saturation_7603200.000000.vtu"/>
+    <DataSet timestep="7776000" group="" part="0" file="saturation_7776000.000000.vtu"/>
+    <DataSet timestep="7948800" group="" part="0" file="saturation_7948800.000000.vtu"/>
+    <DataSet timestep="8121600" group="" part="0" file="saturation_8121600.000000.vtu"/>
+    <DataSet timestep="8294400" group="" part="0" file="saturation_8294400.000000.vtu"/>
+    <DataSet timestep="8467200" group="" part="0" file="saturation_8467200.000000.vtu"/>
+    <DataSet timestep="8640000" group="" part="0" file="saturation_8640000.000000.vtu"/>
+  </Collection>
+</VTKFile>
