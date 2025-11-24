@@ -11,6 +11,7 @@
 #pragma once
 
 #include "EquationSystem.h"
+#include "MathLib/LinAlg/LinAlgEnums.h"
 #include "MathLib/LinAlg/LinearSolverBehaviour.h"
 #include "Types.h"
 
@@ -46,6 +47,9 @@ public:
     /// vector that do not need initial non-equilibrium compensation.
     virtual std::vector<GlobalIndexType>
     getIndicesOfResiduumWithoutInitialCompensation() const = 0;
+
+    virtual void setReleaseNodalForces(GlobalVector const* /*r_neq*/,
+                                       int const /*process_id*/) = 0;
 
     /*! Writes the residual at point \c x to \c res.
      *
@@ -112,6 +116,9 @@ public:
     virtual std::vector<GlobalIndexType>
     getIndicesOfResiduumWithoutInitialCompensation() const = 0;
 
+    virtual void setReleaseNodalForces(GlobalVector const* /*r_neq*/,
+                                       int const /*process_id*/) = 0;
+
     //! Writes the linearized equation system matrix to \c A.
     //! \pre assemble() must have been called before.
     virtual void getA(GlobalMatrix& A) const = 0;
@@ -138,8 +145,9 @@ public:
     //! Apply known solutions to the linearized equation system
     //! \f$ A \cdot x = \mathit{rhs} \f$.
     //! \pre computeKnownSolutions() must have been called before.
-    virtual void applyKnownSolutionsPicard(GlobalMatrix& A, GlobalVector& rhs,
-                                           GlobalVector& x) const = 0;
+    virtual void applyKnownSolutionsPicard(
+        GlobalMatrix& A, GlobalVector& rhs, GlobalVector& x,
+        MathLib::DirichletBCApplicationMode const mode) const = 0;
 
     //! Returns whether the assembled matrix \f$A\f$ has changed and the linear
     //! solver must perform the MathLib::EigenLinearSolver::compute() step.

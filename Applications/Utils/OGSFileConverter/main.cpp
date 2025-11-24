@@ -12,6 +12,8 @@
 #include <QApplication>
 #include <clocale>
 
+#include "BaseLib/Logging.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "OGSFileConverter.h"
 
@@ -25,11 +27,15 @@ int main(int argc, char* argv[])
             "Copyright (c) 2012-2025, OpenGeoSys Community "
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
-    TCLAP::ValueArg<std::string> gmsh_path_arg("g", "gmsh-path",
-                                               "the path to the gmsh binary",
-                                               false, "", "path as string");
+    TCLAP::ValueArg<std::string> gmsh_path_arg(
+        "g", "gmsh-path",
+        "Input (.msh). The path to the input gmsh binary file", false, "",
+        "INPUT_FILE");
     cmd.add(gmsh_path_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
     QApplication app(argc, argv);
     setlocale(LC_NUMERIC, "C");
     auto* fc = new OGSFileConverter(gmsh_path_arg.getValue());

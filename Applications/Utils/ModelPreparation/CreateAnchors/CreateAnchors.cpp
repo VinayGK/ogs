@@ -7,9 +7,7 @@
  *
  */
 
-#include <spdlog/spdlog.h>
 #include <tclap/CmdLine.h>
-#include <vtkXMLUnstructuredGridReader.h>
 #include <vtkXMLUnstructuredGridWriter.h>
 
 #include <fstream>
@@ -17,31 +15,29 @@
 
 #include "BaseLib/FileTools.h"
 #include "BaseLib/Logging.h"
+#include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
+#include "ComputeIntersections.h"
 #include "ComputeNaturalCoordsAlgorithm.h"
 #include "InfoLib/GitInfo.h"
+#include "MeshLib/IO/VtkIO/VtuInterface.h"
 
 namespace AU = ApplicationUtils;
 
 vtkSmartPointer<vtkUnstructuredGrid> readGrid(std::string const& input_filename)
 {
-    if (!BaseLib::IsFileExisting(input_filename))
-    {
-        OGS_FATAL("'{:s}' file does not exist.", input_filename);
-    }
-
-    vtkNew<vtkXMLUnstructuredGridReader> reader;
-    reader->SetFileName(input_filename.c_str());
-    reader->Update();
-
-    if (!reader->GetOutput())
+    vtkSmartPointer<vtkUnstructuredGrid> grid =
+        MeshLib::IO::VtuInterface::readVtuFileToVtkUnstructuredGrid(
+            input_filename);
+    if (grid == nullptr)
     {
         OGS_FATAL("Could not open file '{}'", input_filename);
     }
-    if (reader->GetOutput()->GetNumberOfCells() == 0)
+    if (grid->GetNumberOfCells() == 0)
     {
         OGS_FATAL("Mesh file '{}' contains no cells.", input_filename);
     }
-    return reader->GetOutput();
+    return grid;
 }
 
 void writeGrid(vtkUnstructuredGrid* grid, std::string const& output_filename)
@@ -56,9 +52,9 @@ void checkJSONEntries(nlohmann::json const& data, size_t number_of_anchors)
 {
     std::vector<std::string> required_keys = {"anchor_stiffness",
                                               "anchor_cross_sectional_area"};
-    std::vector<std::string> optional_keys = {"maximum_anchor_stress",
-                                              "initial_anchor_stress",
-                                              "residual_anchor_stress"};
+    std::vector<std::string> optional_keys = {
+        "maximum_anchor_stress", "initial_anchor_stress",
+        "residual_anchor_stress", "free_fraction"};
     if (number_of_anchors == 0)
     {
         OGS_FATAL("No anchors found in the json.");
@@ -103,12 +99,28 @@ void checkJSONEntries(nlohmann::json const& data, size_t number_of_anchors)
                     OGS_FATAL("Non-numeric element in JSON array for key {}!",
                               key);
                 }
+                if (key == "free_fraction")
+                {
+                    double const free_fraction_number =
+                        data["free_fraction"][i].get<double>();
+                    if (free_fraction_number < 0.0 ||
+                        free_fraction_number > 1.0)
+                    {
+                        OGS_FATAL(
+                            "Free fraction must be in the range [0, 1] but is "
+                            "{} for anchor #{}.",
+                            free_fraction_number, i);
+                    }
+                }
             }
         }
     }
 }
 
-AU::ComputeNaturalCoordsResult readJSON(
+/// Reads a JSON file containing anchor start and end points and physical
+/// properties of the anchors. Also returns the free fraction of each anchor.
+/// If the free fraction is not given, it is set to 1.0 for all anchors.
+std::tuple<AU::ComputeNaturalCoordsResult, Eigen::VectorXd> readJSON(
     TCLAP::ValueArg<std::string> const& input_filename)
 {
     using json = nlohmann::json;
@@ -156,6 +168,7 @@ AU::ComputeNaturalCoordsResult readJSON(
     Eigen::VectorXd residual_anchor_stress(number_of_anchors);
     Eigen::VectorXd anchor_cross_sectional_area(number_of_anchors);
     Eigen::VectorXd anchor_stiffness(number_of_anchors);
+    Eigen::VectorXd free_fraction(number_of_anchors);
     if (!data.contains("initial_anchor_stress"))
     {
         initial_anchor_stress.setZero();
@@ -194,6 +207,18 @@ AU::ComputeNaturalCoordsResult readJSON(
                 data["residual_anchor_stress"][i].get<double>();
         }
     }
+    if (!data.contains("free_fraction"))
+    {
+        free_fraction = Eigen::VectorXd::Constant(number_of_anchors, 1.0);
+    }
+    else
+    {
+        for (size_t i = 0; i < number_of_anchors; ++i)
+        {
+            free_fraction(i) = data["free_fraction"][i].get<double>();
+        }
+    }
+
     for (size_t i = 0; i < number_of_anchors; ++i)
     {
         anchor_cross_sectional_area(i) =
@@ -207,7 +232,8 @@ AU::ComputeNaturalCoordsResult readJSON(
     json_data.residual_anchor_stress = residual_anchor_stress;
     json_data.anchor_cross_sectional_area = anchor_cross_sectional_area;
     json_data.anchor_stiffness = anchor_stiffness;
-    return json_data;
+    json_data.success = true;
+    return {json_data, free_fraction};
 }
 
 int main(int argc, char** argv)
@@ -224,27 +250,21 @@ int main(int argc, char** argv)
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
 
-    TCLAP::ValueArg<std::string> log_level_arg(
-        "l", "log-level",
-        "the verbosity of logging messages: none, error, warn, info, debug, "
-        "all",
-        false,
-#ifdef NDEBUG
-        "info",
-#else
-        "all",
-#endif
-        "LOG_LEVEL", cmd);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
 
     TCLAP::ValueArg<std::string> input_filename_arg(
-        "i", "input", "Input bulk mesh", true, "", "VTU_FILE", cmd);
+        "i", "input", "Input (.vtu) bulk mesh file", true, "", "INPUT_FILE",
+        cmd);
 
     TCLAP::ValueArg<std::string> output_filename_arg(
-        "o", "output", "Anchor mesh", true, "", "VTU_FILE", cmd);
+        "o", "output", "Output (.vtu). Anchor mesh file", true, "",
+        "OUTPUT_FILE", cmd);
 
     TCLAP::ValueArg<std::string> json_filename_arg(
-        "f", "json-file", "JSON file containing anchor start and end points",
-        true, "", "JSON_FILE", cmd);
+        "f", "json-file",
+        "Input (.json) JSON file containing anchor start and end points", true,
+        "", "INPUT_FILE", cmd);
 
     TCLAP::ValueArg<double> tolerance_arg(
         "", "tolerance", "Tolerance/Search length", false,
@@ -252,28 +272,31 @@ int main(int argc, char** argv)
 
     TCLAP::ValueArg<unsigned> max_iter_arg(
         "", "max-iter",
-        "maximum number of iterations of the internal root-finding algorithm",
-        false, 5, "int", cmd);
+        "maximum number of iterations of the internal root-finding "
+        "algorithm, (min = 0)",
+        false, 5, "MAX_ITER", cmd);
 
     cmd.parse(argc, argv);
 
-    BaseLib::setConsoleLogLevel(log_level_arg.getValue());
-    spdlog::set_pattern("%^%l:%$ %v");
-    spdlog::set_error_handler(
-        [](const std::string& msg)
-        {
-            std::cerr << "spdlog error: " << msg << std::endl;
-            OGS_FATAL("spdlog logger error occurred.");
-        });
+    BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
-    AU::ComputeNaturalCoordsResult const json_data =
-        readJSON(json_filename_arg);
+    auto const& [json_data, free_fraction] = readJSON(json_filename_arg);
     auto const bulk_mesh = readGrid(input_filename_arg.getValue());
 
+    auto split_anchor_coords =
+        getOrderedAnchorCoords(bulk_mesh, json_data.real_coords, free_fraction,
+                               tolerance_arg.getValue());
+
+    AU::ComputeNaturalCoordsResult const anchor_data =
+        setPhysicalPropertiesForIntersectionPoints(split_anchor_coords,
+                                                   json_data);
+    ///
+
     // Compute natural coordinates
-    AU::ComputeNaturalCoordsResult const result =
-        AU::computeNaturalCoords(bulk_mesh, json_data, tolerance_arg.getValue(),
-                                 max_iter_arg.getValue());
+    AU::ComputeNaturalCoordsResult const result = AU::computeNaturalCoords(
+        bulk_mesh, anchor_data, tolerance_arg.getValue(),
+        max_iter_arg.getValue());
     // Write output
     auto const output_mesh = AU::toVTKGrid(result);
     writeGrid(output_mesh, output_filename_arg.getValue());

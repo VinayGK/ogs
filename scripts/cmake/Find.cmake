@@ -2,7 +2,7 @@
 # Find tools
 # ##############################################################################
 
-find_package(Doxygen 1.9.2 OPTIONAL_COMPONENTS dot)
+find_package(Doxygen 1.14 OPTIONAL_COMPONENTS dot)
 if(TARGET Doxygen::dot)
     # Create dependency graph in build dir with:
     # ~~~
@@ -44,8 +44,7 @@ if(OGS_BUILD_GUI)
     if(LINUX)
         list(APPEND QT_MODULES X11Extras)
     endif()
-    find_package(Qt5 ${ogs.minimum_version.qt} REQUIRED ${QT_MODULES})
-    cmake_policy(SET CMP0020 NEW)
+    find_package(Qt5 ${ogs.minimum_version.qt} COMPONENTS ${QT_MODULES} REQUIRED)
     list(APPEND CMAKE_INSTALL_RPATH ${Qt5_DIR}/../..)
     list(APPEND CMAKE_BUILD_RPATH ${Qt5_DIR}/../..)
 endif()
@@ -70,8 +69,8 @@ set_property(
 )
 # cmake-lint: disable=C0103
 if(OGS_EIGEN_PARALLEL_BACKEND STREQUAL "OpenMP")
+    set(OpenMP_RUNTIME_MSVC experimental) # `llvm` is not redistributable
     # this pulls in libgomp dependency, when MKL is enabled libiomp5 is used.
-    set(OpenMP_RUNTIME_MSVC llvm)
     find_package(OpenMP COMPONENTS C CXX)
 endif()
 

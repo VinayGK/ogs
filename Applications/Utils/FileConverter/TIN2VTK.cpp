@@ -9,6 +9,8 @@
 
 #include <tclap/CmdLine.h>
 
+#include "BaseLib/TCLAPArguments.h"
+
 // STL
 #include <memory>
 #include <string>
@@ -26,6 +28,7 @@
 #include "MeshLib/IO/VtkIO/VtuInterface.h"
 
 // MeshLib
+#include "BaseLib/Logging.h"
 #include "MeshLib/Mesh.h"
 #include "MeshToolsLib/convertMeshToGeo.h"
 
@@ -39,17 +42,24 @@ int main(int argc, char* argv[])
             "Copyright (c) 2012-2025, OpenGeoSys Community "
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
-    TCLAP::ValueArg<std::string> inArg(
-        "i", "input-tin-file", "the name of the file containing the input TIN",
-        true, "", "string");
+    TCLAP::ValueArg<std::string> inArg("i", "input-tin-file",
+                                       "Input (.tin). The name "
+                                       "of the input file "
+                                       "containing the input TIN ",
+                                       true, "", "INPUT_FILE");
     cmd.add(inArg);
     TCLAP::ValueArg<std::string> outArg(
         "o", "output-vtu-file",
-        "the name of the file the mesh will be written to", true, "", "string");
+        "Output (.vtu). The name of the output file "
+        "the mesh will be written to",
+        true, "", "OUTPUT_FILE");
     cmd.add(outArg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     INFO("reading the TIN file...");
     const std::string tinFileName(inArg.getValue());

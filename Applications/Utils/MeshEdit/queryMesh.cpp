@@ -16,8 +16,10 @@
 #include <string>
 
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
 #include "BaseLib/StringTools.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/Elements/Element.h"
 #include "MeshLib/IO/readMeshFromFile.h"
@@ -35,22 +37,25 @@ int main(int argc, char* argv[])
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::UnlabeledValueArg<std::string> mesh_arg(
-        "mesh-file", "input mesh file", true, "", "string");
+        "mesh-file", "Input (.vtu) mesh file", true, "", "INPUT_FILE");
     cmd.add(mesh_arg);
     TCLAP::MultiArg<std::size_t> eleId_arg("e", "element-id", "element ID",
-                                           false, "number");
+                                           false, "ELEMENT_ID");
     cmd.add(eleId_arg);
     TCLAP::MultiArg<std::size_t> nodeId_arg("n", "node-id", "node ID", false,
-                                            "number");
+                                            "NODE_ID");
     cmd.add(nodeId_arg);
     TCLAP::SwitchArg showNodeWithMaxEle_arg(
         "", "show-node-with-max-elements",
         "show a node having the max number of connected elements", false);
     cmd.add(showNodeWithMaxEle_arg);
 
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     const std::string filename(mesh_arg.getValue());
 

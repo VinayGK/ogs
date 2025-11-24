@@ -14,7 +14,9 @@
 #include <memory>
 
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/readMeshFromFile.h"
 #include "MeshLib/IO/writeMeshToFile.h"
@@ -34,20 +36,23 @@ int main(int argc, char* argv[])
             "Copyright (c) 2012-2025, OpenGeoSys Community "
             "(https://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
-    TCLAP::ValueArg<std::string> mesh_arg(
-        "i", "input-mesh-file", "the name of the file containing the mesh",
-        true, "", "file name");
+    TCLAP::ValueArg<std::string> mesh_arg("i", "input-mesh-file",
+                                          "Input (.vtu). The name of the file "
+                                          "containing the mesh",
+                                          true, "", "INPUT_FILE");
     cmd.add(mesh_arg);
 
     TCLAP::ValueArg<std::string> mesh_out_arg(
         "o", "output-mesh-file",
-        "the name of the file the mesh should be written to (vtu format)", true,
-        "", "file name");
+        "Output (.vtu). The name of the file the mesh should be written to",
+        true, "", "OUTPUT_FILE");
     cmd.add(mesh_out_arg);
 
     TCLAP::ValueArg<double> layer_thickness_arg(
-        "t", "layer-tickness", "the thickness of the new layer", false, 10,
-        "floating point value");
+        "t", "layer-tickness",
+        "the thickness of the new layer, "
+        "(min = 0)",
+        false, 10, "LAYER_THICKNESS");
     cmd.add(layer_thickness_arg);
 
     TCLAP::SwitchArg layer_position_arg(
@@ -65,11 +70,16 @@ int main(int argc, char* argv[])
         false);
     cmd.add(copy_material_ids_arg);
 
-    TCLAP::ValueArg<int> set_material_arg("", "set-material-id",
-                                          "the material id of the new layer",
-                                          false, 0, "integer value");
+    TCLAP::ValueArg<int> set_material_arg(
+        "", "set-material-id", "the material id of the new layer, (min = 0)",
+        false, 0, "MATERIAL_ID");
     cmd.add(set_material_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
+
+    BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     if (set_material_arg.isSet() && copy_material_ids_arg.isSet())
     {
@@ -77,8 +87,6 @@ int main(int argc, char* argv[])
             "'--set-material-id'.");
         return EXIT_FAILURE;
     }
-
-    BaseLib::MPI::Setup mpi_setup(argc, argv);
 
     INFO("Reading mesh '{:s}' ... ", mesh_arg.getValue());
     auto subsfc_mesh = std::unique_ptr<MeshLib::Mesh>(

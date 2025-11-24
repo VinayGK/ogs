@@ -16,7 +16,9 @@
 #include <memory>
 #include <numeric>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/readMeshFromFile.h"
 #include "MeshLib/IO/writeMeshToFile.h"
@@ -37,10 +39,10 @@ int main(int argc, char* argv[])
     TCLAP::ValueArg<std::string> out_mesh_arg(
         "o",
         "out-mesh",
-        "the mesh is stored to a file of this name",
+        "Output (.vtu). The output mesh is stored to a file of this name",
         true,
         "",
-        "filename for mesh output");
+        "OUTPUT_FILE");
     cmd.add(out_mesh_arg);
 
     TCLAP::ValueArg<std::string> property_arg(
@@ -49,11 +51,12 @@ int main(int argc, char* argv[])
         "the name of the property the values are stored for",
         true,
         "",
-        "property name as string");
+        "PROP_NAME");
     cmd.add(property_arg);
 
     TCLAP::ValueArg<std::string> mesh_arg(
-        "m", "mesh", "the mesh is read from this file", true, "", "file name");
+        "m", "mesh", "Input (.vtu). The input mesh is read from this file",
+        true, "", "INPUT_FILE");
     cmd.add(mesh_arg);
 
     std::vector<std::string> allowed_units{"mm/a", "mm/month", "m/s"};
@@ -67,9 +70,12 @@ int main(int argc, char* argv[])
                                           &allowed_units_constraints);
     cmd.add(unit_arg);
 
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     std::unique_ptr<MeshLib::Mesh> mesh(
         MeshLib::IO::readMeshFromFile(mesh_arg.getValue()));

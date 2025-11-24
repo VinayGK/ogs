@@ -876,6 +876,20 @@ if(NOT OGS_USE_PETSC AND NOT WIN32)
     )
 endif()
 
+# TODO: does not work on m1-mac (mac-bilke-623)
+# see https://gitlab.opengeosys.org/ogs/ogs/-/merge_requests/5307
+# and https://github.com/pmgbergen/porepy/issues/1473
+if(NOT OGS_USE_PETSC AND
+   NOT WIN32 AND
+   NOT "${HOSTNAME}" MATCHES "mac-bilke-623")
+    NotebookTest(
+        NOTEBOOKFILE Parabolic/ComponentTransport/DFN_PorePy/DFNbyPorePy_to_OGS.py
+        RUNTIME 200
+        # numpy and scipy from Tests/Data env are newer, version requirements taken from porepy pyproject.toml
+        PYTHON_PACKAGES porepy@git+https://github.com/pmgbergen/porepy.git@v1.11 numpy<2.2 scipy<1.16
+    )
+endif()
+
 AddTest(
     NAME 2D_ReactiveMassTransport_Phreeqc_KineticReactantBlockTest_AllAsComponents
     PATH Parabolic/ComponentTransport/ReactiveTransport/KineticReactant_AllAsComponents
@@ -962,6 +976,7 @@ if(NOT OGS_USE_PETSC)
     NotebookTest(NOTEBOOKFILE Parabolic/ComponentTransport/DiffusionSorptionDecay/DiffusionSorptionDecay.py RUNTIME 16)
     NotebookTest(NOTEBOOKFILE Parabolic/ComponentTransport/elder_jupyter/elder_jupyter.py RUNTIME 25)
     NotebookTest(NOTEBOOKFILE Parabolic/ThermalTwoPhaseFlowPP/HeatPipe/heatpipe.py RUNTIME 10)
+    NotebookTest(NOTEBOOKFILE Parabolic/ComponentTransport/ThermalDiffusion/ThermalDiffusion.py RUNTIME 10)
 
 endif()
 

@@ -11,7 +11,9 @@
 
 #include <tclap/CmdLine.h>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/IO/AsciiRasterInterface.h"
 #include "GeoLib/Raster.h"
 #include "InfoLib/GitInfo.h"
@@ -29,16 +31,21 @@ int main(int argc, char* argv[])
         ' ', GitInfoLib::GitInfo::ogs_version);
 
     TCLAP::ValueArg<std::string> output_arg(
-        "o", "output", "filename for output raster", true, "", "output file");
+        "o", "output", "Output (.asc). Filename for output raster", true, "",
+        "OUTPUT_FILE");
     cmd.add(output_arg);
 
     TCLAP::ValueArg<std::string> input_arg(
-        "i", "input", "filename for input raster", true, "", "input file");
+        "i", "input", "Input (.grd | .xyz). Filename for input raster", true,
+        "", "INPUT_FILE");
     cmd.add(input_arg);
 
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     std::unique_ptr<GeoLib::Raster> raster(
         FileIO::AsciiRasterInterface::readRaster(input_arg.getValue()));

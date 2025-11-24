@@ -12,7 +12,9 @@
 
 #include <memory>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/Elements/Element.h"
 #include "MeshLib/IO/readMeshFromFile.h"
@@ -43,30 +45,39 @@ int main(int argc, char* argv[])
     cmd.xorAdd(vec_xors);
     TCLAP::ValueArg<std::string> mesh_in(
         "i", "mesh-input-file",
-        "the name of the file containing the input mesh", true, "",
-        "file name");
+        "Input (.vtu | .msh). The name of the file containing the input mesh",
+        true, "", "INPUT_FILE");
     cmd.add(mesh_in);
     TCLAP::ValueArg<std::string> mesh_out(
         "o", "mesh-output-file",
-        "the name of the file the mesh will be written to", true, "",
-        "file name");
+        "Output (.vtu | .msh). The name of the file the mesh will be written "
+        "to",
+        true, "", "OUTPUT_FILE");
     cmd.add(mesh_out);
     TCLAP::MultiArg<unsigned> matIDArg("m", "current-material-id",
                                        "current material id to be replaced",
-                                       false, "number");
+                                       false, "CURRENT_MATERIAL_ID");
     cmd.add(matIDArg);
-    TCLAP::ValueArg<unsigned> newIDArg("n", "new-material-id",
-                                       "new material id", false, 0, "number");
+    TCLAP::ValueArg<unsigned> newIDArg(
+        "n", "new-material-id", "new material id", false, 0, "NEW_MATERIAL_ID");
     cmd.add(newIDArg);
+
+    // TODO: FIND A BETTER SOLUTION FOR ALLOWED ELEM TYPES DEFINITION
     std::vector<std::string> eleList(MeshLib::getMeshElemTypeStringsShort());
     TCLAP::ValuesConstraint<std::string> allowedVals(eleList);
+    std::vector<std::string> allowed_elems_vector{
+        "point", "line", "quad", "hex", "tri", "tet", "pris", "pyra"};
+    TCLAP::ValuesConstraint<std::string> allowed_elems(allowed_elems_vector);
     TCLAP::ValueArg<std::string> eleTypeArg("e", "element-type", "element type",
-                                            false, "", &allowedVals);
+                                            false, "", &allowed_elems);
     cmd.add(eleTypeArg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
 
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     if (!replaceArg.isSet() && !condenseArg.isSet() && !specifyArg.isSet())
     {

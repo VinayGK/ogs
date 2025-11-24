@@ -10,7 +10,9 @@
 #include <tclap/CmdLine.h>
 
 #include "Applications/FileIO/SHPInterface.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/readMeshFromFile.h"
 #include "MeshLib/Mesh.h"
@@ -29,18 +31,21 @@ int main(int argc, char* argv[])
         ' ', GitInfoLib::GitInfo::ogs_version);
 
     TCLAP::ValueArg<std::string> output_arg("o", "output-file",
-                                            "Esri Shapefile (*.shp)", true, "",
-                                            "output_file.shp");
+                                            "Output (.shp). Esri Shapefile",
+                                            true, "", "OUTPUT_FILE");
     cmd.add(output_arg);
 
     TCLAP::ValueArg<std::string> input_arg("i", "input-file",
-                                           "OGS mesh file (*.vtu, *.msh)", true,
-                                           "", "input_file.vtu");
+                                           "Input (.vtu | .msh). OGS mesh file",
+                                           true, "", "INPUT_FILE");
     cmd.add(input_arg);
 
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     std::string const file_name(input_arg.getValue());
     std::unique_ptr<MeshLib::Mesh> const mesh(

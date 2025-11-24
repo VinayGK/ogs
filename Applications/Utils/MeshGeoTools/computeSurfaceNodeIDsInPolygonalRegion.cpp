@@ -22,7 +22,9 @@
 #include "Applications/FileIO/readGeometryFromFile.h"
 #include "BaseLib/Error.h"
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/GEOObjects.h"
 #include "GeoLib/Polygon.h"
 #include "InfoLib/GitInfo.h"
@@ -85,21 +87,25 @@ int main(int argc, char* argv[])
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<std::string> mesh_in(
         "m", "mesh-input-file",
-        "the name of the file containing the input mesh", true, "",
-        "file name of input mesh");
+        "Input (.vtu). The name of the file containing the input mesh", true,
+        "", "INPUT_FILE");
     cmd.add(mesh_in);
     TCLAP::ValueArg<std::string> geo_in(
-        "g", "geo-file", "the name of the gml file containing the polygons",
-        true, "", "file name of input geometry");
+        "g", "geo-file",
+        "Input (.gml). The name of the input file containing the polygons",
+        true, "", "INPUT_FILE");
     cmd.add(geo_in);
 
-    TCLAP::ValueArg<std::string> gmsh_path_arg("", "gmsh-path",
-                                               "the path to the gmsh binary",
-                                               false, "", "path as string");
+    TCLAP::ValueArg<std::string> gmsh_path_arg(
+        "", "gmsh-path", "Input (.msh). The path to the input binary file",
+        false, "", "INPUT_FILE");
     cmd.add(gmsh_path_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     std::unique_ptr<MeshLib::Mesh const> mesh(
         MeshLib::IO::readMeshFromFile(mesh_in.getValue()));

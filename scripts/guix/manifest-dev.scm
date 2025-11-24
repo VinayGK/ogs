@@ -3,6 +3,7 @@
              (guix build-system copy)
              (guix build utils)
              (guix gexp)
+             (guix git-download)
              (guix utils)
              (gnu packages base)
              ((guix licenses)
@@ -31,7 +32,29 @@
   (options->transformation `((with-commit . "eigen=9000b3767770f6dd0f4cfb12f4e19c71921885a4")
                              (without-tests . "eigen")
                              (with-configure-flag . "vtk=-DVTK_MODULE_USE_EXTERNAL_VTK_eigen=OFF")
-                             (with-source . "vtk=https://www.vtk.org/files/release/9.3/VTK-9.3.1.tar.gz"))))
+                             (with-commit . "vtk=v9.3.1")
+                             (with-git-url . "vtk=https://gitlab.kitware.com/vtk/vtk.git"))))
+
+(define autocheck
+  (package
+    (name "autocheck")
+    (version "0.0.1")
+    (source
+     (origin
+       (method git-fetch)
+       (uri (git-reference
+             (url "https://github.com/ufz/autocheck")
+             (commit "e388ecbb31c49fc2724c8d0436da313b6edca7fd")))
+       (file-name (git-file-name name version))
+       (sha256
+        (base32 "0skw2mk95d8mizzhfm29d5ka71a3y9c772c830yiwhanfpyslql0"))))
+    (build-system copy-build-system)
+    (arguments
+     '(#:install-plan '(("include/autocheck" "include/"))))
+    (synopsis "QuickCheck and SmallCheck clones for C++")
+    (description "QuickCheck and SmallCheck clones for C++")
+    (home-page "https://github.com/thejohnfreeman/autocheck")
+    (license license:isc)))
 
 (packages->manifest (list
                      ;; Base packages
@@ -77,8 +100,7 @@
                      (specification->package "xmlpatch")
                      (specification->package "metis")
                      (specification->package "googletest")
-                     (specification->package "autocheck")
+                     autocheck
                      ;; OGS sources inside container
                      ;; comment out for smaller dev containert without sources
-                     ogs-source-package
-                    ))
+                     ogs-source-package))

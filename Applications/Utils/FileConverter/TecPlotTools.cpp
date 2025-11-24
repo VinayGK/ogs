@@ -15,8 +15,10 @@
 #include <string_view>
 #include <vector>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
 #include "BaseLib/StringTools.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/Point.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/VtkIO/VtuInterface.h"
@@ -467,15 +469,20 @@ int main(int argc, char* argv[])
     TCLAP::SwitchArg convert_arg("c", "convert",
                                  "convert TecPlot data into OGS meshes");
     cmd.add(convert_arg);
-    TCLAP::ValueArg<std::string> output_arg(
-        "o", "output-file", "output mesh file", false, "", "string");
+    TCLAP::ValueArg<std::string> output_arg("o", "output-file",
+                                            "Output (.vtu). Output mesh file",
+                                            false, "", "OUTPUT_FILE");
     cmd.add(output_arg);
-    TCLAP::ValueArg<std::string> input_arg(
-        "i", "input-file", "TecPlot input file", true, "", "string");
+    TCLAP::ValueArg<std::string> input_arg("i", "input-file",
+                                           "Input (.plt). TecPlot input file",
+                                           true, "", "INPUT_FILE");
     cmd.add(input_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     if (!input_arg.isSet())
     {

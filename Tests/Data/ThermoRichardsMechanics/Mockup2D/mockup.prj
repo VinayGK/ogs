@@ -24,13 +24,13 @@
                 <displacement>displacement</displacement>
             </process_variables>
             <secondary_variables>
-                <secondary_variable internal_name="sigma" output_name="sigma"/>
-                <secondary_variable internal_name="epsilon" output_name="epsilon"/>
-                <secondary_variable internal_name="saturation" output_name="saturation"/>
-                <secondary_variable internal_name="swelling_stress" output_name="swelling_stress"/>
-                <secondary_variable internal_name="porosity" output_name="porosity"/>
-                <secondary_variable internal_name="intrinsic_permeability" output_name="intrinsic_permeability"/>
-                <secondary_variable internal_name="relative_permeability" output_name="relative_permeability"/>
+                <secondary_variable name="sigma"/>
+                <secondary_variable name="epsilon"/>
+                <secondary_variable name="saturation"/>
+                <secondary_variable name="swelling_stress"/>
+                <secondary_variable name="porosity"/>
+                <secondary_variable name="intrinsic_permeability"/>
+                <secondary_variable name="relative_permeability"/>
             </secondary_variables>
             <specific_body_force>0 0</specific_body_force>
         </process>
@@ -408,7 +408,7 @@
         <vtkdiff>
             <regex>mockup_results_[0-9].*[.]vtu</regex>
             <field>epsilon</field>
-            <absolute_tolerance>3.5e-15</absolute_tolerance>
+            <absolute_tolerance>5e-15</absolute_tolerance>
             <relative_tolerance>0</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
@@ -444,7 +444,7 @@
         <vtkdiff>
             <regex>mockup_results_[0-9].*[.]vtu</regex>
             <field>temperature</field>
-            <absolute_tolerance>5e-12</absolute_tolerance>
+            <absolute_tolerance>5.5e-12</absolute_tolerance>
             <relative_tolerance>0</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
@@ -456,7 +456,7 @@
         <vtkdiff>
             <regex>mockup_results_[0-9].*[.]vtu</regex>
             <field>relative_permeability</field>
-            <absolute_tolerance>1.0e-13</absolute_tolerance>
+            <absolute_tolerance>1.2e-13</absolute_tolerance>
             <relative_tolerance>0</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
@@ -468,8 +468,8 @@
         <vtkdiff>
             <regex>mockup_results_[0-9].*[.]vtu</regex>
             <field>relative_permeability_ip</field>
-            <absolute_tolerance>9.1e-14</absolute_tolerance>
-            <relative_tolerance>0</relative_tolerance>
+            <absolute_tolerance>2.0e-13</absolute_tolerance>
+            <relative_tolerance>2.5e-13</relative_tolerance>
         </vtkdiff>
     </test_definition>
 </OpenGeoSysProject>

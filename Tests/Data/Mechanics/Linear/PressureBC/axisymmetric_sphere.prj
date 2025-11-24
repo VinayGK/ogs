@@ -17,7 +17,7 @@
                 <process_variable>displacement</process_variable>
             </process_variables>
             <secondary_variables>
-                <secondary_variable internal_name="sigma" output_name="sigma"/>
+                <secondary_variable name="sigma"/>
             </secondary_variables>
         </process>
     </processes>
@@ -107,7 +107,7 @@
         <parameter>
             <name>pressure_outside</name>
             <type>Constant</type>
-            <value>1e5</value>
+            <value>-1e5</value>
         </parameter>
     </parameters>
     <process_variables>

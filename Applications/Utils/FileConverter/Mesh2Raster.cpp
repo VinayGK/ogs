@@ -14,7 +14,9 @@
 #include <memory>
 #include <string>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/AABB.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/readMeshFromFile.h"
@@ -36,20 +38,24 @@ int main(int argc, char* argv[])
             "Copyright (c) 2012-2025, OpenGeoSys Community "
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
-    TCLAP::ValueArg<double> cell_arg("c", "cellsize",
-                                     "edge length of raster cells in result",
-                                     false, 1, "real");
+    TCLAP::ValueArg<double> cell_arg(
+        "c", "cellsize", "edge length of raster cells in result. (min = 0)",
+        false, 1, "CELLSIZE");
     cmd.add(cell_arg);
-    TCLAP::ValueArg<std::string> output_arg(
-        "o", "output-file", "Raster output file (*.asc)", true, "", "string");
+    TCLAP::ValueArg<std::string> output_arg("o", "output-file",
+                                            "Output (.asc). Raster output file",
+                                            true, "", "OUTPUT_FILE");
     cmd.add(output_arg);
-    TCLAP::ValueArg<std::string> input_arg("i", "input-file",
-                                           "Mesh input file (*.vtu, *.msh)",
-                                           true, "", "string");
+    TCLAP::ValueArg<std::string> input_arg(
+        "i", "input-file", "Input (.vtu | .msh). Mesh input file", true, "",
+        "string");
     cmd.add(input_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     INFO("Rasterising mesh...");
     std::unique_ptr<MeshLib::Mesh> const mesh(

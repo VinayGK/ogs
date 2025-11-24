@@ -15,7 +15,9 @@
 #include <cstdlib>
 #include <vector>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/GEOObjects.h"
 #include "GeoLib/IO/XmlIO/Boost/BoostXmlGmlInterface.h"
 #include "InfoLib/GitInfo.h"
@@ -37,13 +39,14 @@ int main(int argc, char* argv[])
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<std::string> mesh_in(
-        "m", "mesh-file", "the name of the file containing the mesh", true, "",
-        "file name");
+        "m", "mesh-file",
+        "Input (.vtu). The name of the input file containing the mesh", true,
+        "", "INPUT_FILE");
     cmd.add(mesh_in);
     TCLAP::ValueArg<std::string> input_geometry_fname(
         "i", "input-geometry",
-        "the name of the file containing the input geometry", true, "",
-        "file name");
+        "Input (.gml). The name of the file containing the input geometry",
+        true, "", "INPUT_FILE");
     cmd.add(input_geometry_fname);
     TCLAP::SwitchArg additional_insert_mapping(
         "a", "additional-insert-mapping",
@@ -52,12 +55,15 @@ int main(int argc, char* argv[])
     cmd.add(additional_insert_mapping);
     TCLAP::ValueArg<std::string> output_geometry_fname(
         "o", "output-geometry",
-        "the name of the file containing the input geometry", true, "",
-        "file name");
+        "Output (.gml). The name of the file containing the output geometry",
+        true, "", "OUTPUT_FILE");
     cmd.add(output_geometry_fname);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     // *** read geometry
     GeoLib::GEOObjects geometries;

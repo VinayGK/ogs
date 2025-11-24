@@ -10,7 +10,8 @@ test linux wheel via notebooks:
         UV_ARGS: ""
       - OGS_GROUP: ogs-master
         UV_ARGS: "--upgrade-package ogs"
-      - OGS_GROUP: [ogs-master, ogs-pypi] # maintenance test upgrading all dependencies
+      # maintenance test upgrading all dependencies
+      - OGS_GROUP: [ogs-local, ogs-master, ogs-pypi]
         UV_ARGS: "--upgrade"
   rules:
     # don't test master on master
@@ -64,7 +65,7 @@ test linux wheel via notebooks:
         cd -
         echo "Running on all .py files (master branch)..."
         find . -type f -iname '*.py' \
-          | grep -vP '\.ci-skip|_out|\.venv|PhaseField|mtest|sen_shear|PETSc' \
+          | grep -vP '\.ci-skip|_out|\.venv|PhaseField|mtest|sen_shear|PETSc|PorePy' \
           | xargs grep -l "jupytext_version" \
           | xargs grep -L "ci skip" \
           | xargs uv run --group ${OGS_GROUP} ${UV_ARGS} python Notebooks/testrunner.py --out _out
@@ -74,8 +75,9 @@ test linux wheel via notebooks:
         base_ref="$CI_MERGE_REQUEST_TARGET_BRANCH_SHA"
         changed_py_files=$(git diff --name-only "$base_ref" "$CI_COMMIT_SHA" \
           | grep '^Tests/Data/.*\.py$' \
-          | sed 's|^Tests/Data/||' \
-          | grep -vP '\.ci-skip|_out|\.venv|PhaseField|mtest|sen_shear|PETSc' \
+          | sed 's%^Tests/Data/%%' \
+          | grep -Ev '(\.ci-skip|_out|\.venv|PhaseField|mtest|sen_shear|PETSc|PorePy)' \
+          | grep -v '(standard input)' \
           || true)
 
         if [[ -z "$changed_py_files" ]]; then
@@ -87,6 +89,7 @@ test linux wheel via notebooks:
         files=$(echo "$changed_py_files" \
           | xargs grep -l "jupytext_version" \
           | xargs grep -L "ci skip" \
+          | grep -v '(standard input)' \
           || true)
 
         if [[ -z "$files" ]]; then

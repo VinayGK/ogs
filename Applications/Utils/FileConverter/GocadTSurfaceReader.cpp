@@ -10,7 +10,9 @@
 #include <tclap/CmdLine.h>
 
 #include "Applications/FileIO/GocadIO/GocadAsciiReader.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/VtkIO/VtuInterface.h"
 #include "MeshLib/Mesh.h"
@@ -45,24 +47,28 @@ int main(int argc, char* argv[])
     cmd.add(export_surfaces_arg);
 
     TCLAP::SwitchArg export_lines_arg(
-        "l", "lines-only",
+        "", "lines-only",
         "if set, only PLine datasets will be parsed from the input file");
     cmd.add(export_lines_arg);
 
     TCLAP::ValueArg<std::string> output_arg(
-        "o", "output-dir", "output directory", true, "", "output dir");
+        "o", "output-dir", "Output directory", true, "", "OUTPUT_PATH");
     cmd.add(output_arg);
 
     TCLAP::ValueArg<std::string> input_arg(
         "i", "input-file",
-        "Gocad triangular surfaces file (*.ts). Provide a file with unix file "
+        "Input (.ts | .pl | .mx). Gocad triangular surfaces file"
+        "Provide a file with unix file "
         "endings under unix. Use dos2unix to convert. ",
-        true, "", "filename.ts");
+        true, "", "INPUT_FILE");
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.add(input_arg);
 
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     if (export_lines_arg.isSet() && export_surfaces_arg.isSet())
     {

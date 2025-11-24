@@ -94,6 +94,12 @@ public:
         return _ode.getIndicesOfResiduumWithoutInitialCompensation();
     }
 
+    void setReleaseNodalForces(GlobalVector const* r_neq,
+                               int const process_id) override
+    {
+        _ode.setReleaseNodalForces(r_neq, process_id);
+    }
+
     void getResidual(GlobalVector const& x_new_timestep,
                      GlobalVector const& x_prev,
                      GlobalVector& res) const override;
@@ -202,6 +208,12 @@ public:
         return _ode.getIndicesOfResiduumWithoutInitialCompensation();
     }
 
+    void setReleaseNodalForces(GlobalVector const* r_neq,
+                               int const process_id) override
+    {
+        _ode.setReleaseNodalForces(r_neq, process_id);
+    }
+
     void getA(GlobalMatrix& A) const override
     {
         _mat_trans->computeA(*_M, *_K, A);
@@ -222,8 +234,9 @@ public:
 
     void applyKnownSolutions(GlobalVector& x) const override;
 
-    void applyKnownSolutionsPicard(GlobalMatrix& A, GlobalVector& rhs,
-                                   GlobalVector& x) const override;
+    void applyKnownSolutionsPicard(
+        GlobalMatrix& A, GlobalVector& rhs, GlobalVector& x,
+        MathLib::DirichletBCApplicationMode const mode) const override;
 
     bool isLinear() const override { return _ode.isLinear(); }
 

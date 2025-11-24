@@ -11,7 +11,9 @@
 
 #include <unordered_map>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/readMeshFromFile.h"
 #include "MeshLib/IO/writeMeshToFile.h"
@@ -244,16 +246,20 @@ int main(int argc, char** argv)
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<std::string> arg_out_file(
-        "o", "output-file", "the output mesh (point cloud, VTU file)", true, "",
-        "path");
+        "o", "output-file", "Output (.vtu). The output mesh (point cloud)",
+        true, "", "OUTPUT_FILE");
     cmd.add(arg_out_file);
-    TCLAP::ValueArg<std::string> arg_in_file(
-        "i", "input-file", "the input mesh (VTU file)", true, "", "path");
+    TCLAP::ValueArg<std::string> arg_in_file("i", "input-file",
+                                             "Input (.vtu). The input mesh",
+                                             true, "", "INPUT_FILE");
     cmd.add(arg_in_file);
 
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     std::unique_ptr<MeshLib::Mesh const> mesh_in(
         MeshLib::IO::readMeshFromFile(arg_in_file.getValue()));

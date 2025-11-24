@@ -12,7 +12,9 @@
 #include <memory>
 #include <string>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/Elements/Element.h"
 #include "MeshLib/IO/readMeshFromFile.h"
@@ -128,15 +130,20 @@ int main(int argc, char* argv[])
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<std::string> mesh_in_arg(
-        "i", "input", "name of the input mesh file", true, "", "string");
+        "i", "input", "Input (.vtu). Name of the input mesh file", true, "",
+        "INPUT_FILE");
     cmd.add(mesh_in_arg);
     TCLAP::ValueArg<std::string> mesh_out_arg(
-        "o", "output", "name of the output mesh file", true, "", "string");
+        "o", "output", "Output (.vtu). Name of the output mesh file", true, "",
+        "OUTPUT_FILE");
     cmd.add(mesh_out_arg);
 
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     const std::string filename(mesh_in_arg.getValue());
 

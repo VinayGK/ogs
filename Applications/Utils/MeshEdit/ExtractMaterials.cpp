@@ -16,7 +16,9 @@
 #include <range/v3/view/iota.hpp>
 
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/VtkIO/VtuInterface.h"
 #include "MeshLib/IO/readMeshFromFile.h"
@@ -53,19 +55,22 @@ int main(int argc, char* argv[])
         "m", "material-id",
         "The MaterialID for which elements should be extracted into a new "
         "mesh.",
-        false, 0, "Number specifying the MaterialID");
+        false, 0, "MATERIAL_ID");
     cmd.add(arg_mat_id);
-    TCLAP::ValueArg<std::string> output_arg("o", "output",
-                                            "Name of the output mesh (*.vtu)",
-                                            true, "", "output file name");
+    TCLAP::ValueArg<std::string> output_arg(
+        "o", "output", "Output (.vtu). Name of the output mesh", true, "",
+        "OUTPUT_FILE");
     cmd.add(output_arg);
-    TCLAP::ValueArg<std::string> input_arg("i", "input",
-                                           "Name of the input mesh (*.vtu)",
-                                           true, "", "input file name");
+    TCLAP::ValueArg<std::string> input_arg(
+        "i", "input", "Input (.vtu). Name of the input mesh", true, "",
+        "INPUT_FILE");
     cmd.add(input_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     std::string const input_name = input_arg.getValue();
     std::string const output_name = output_arg.getValue();

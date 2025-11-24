@@ -18,7 +18,9 @@
 
 #include "Applications/FileIO/GocadIO/GenerateFaceSetMeshes.h"
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/Elements/Element.h"
 #include "MeshLib/IO/writeMeshToFile.h"
@@ -47,18 +49,21 @@ int main(int argc, char* argv[])
     cmd.add(face_set_arg);
 
     TCLAP::ValueArg<std::string> mesh_output_arg(
-        "o", "output-mesh", "vtk unstructured grid file name", true, "",
-        "file_name.vtu");
+        "o", "output-mesh", "Output (.vtu). Unstructured grid filename", true,
+        "", "OUTPUT_FILE");
     cmd.add(mesh_output_arg);
 
     TCLAP::ValueArg<std::string> sg_file_arg(
-        "s", "sg", "Gocad stratigraphic grid file name", true, "",
-        "file_name.sg");
+        "s", "sg", "Input (.sg). Gocad stratigraphic grid filename", true, "",
+        "INPUT_FILE");
     cmd.add(sg_file_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
 
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     // read the Gocad SGrid
     INFO("Start reading Gocad SGrid.");

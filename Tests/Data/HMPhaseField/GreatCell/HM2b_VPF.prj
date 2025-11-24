@@ -84,9 +84,9 @@
                 <displacement>displacement</displacement>
             </process_variables>
             <secondary_variables>
-                <secondary_variable internal_name="sigma" output_name="sigma"/>
-                <secondary_variable internal_name="epsilon" output_name="epsilon"/>
-                <secondary_variable internal_name="width_node" output_name="width_node"/>
+                <secondary_variable name="sigma"/>
+                <secondary_variable name="epsilon"/>
+                <secondary_variable name="width_node"/>
             </secondary_variables>
             <specific_body_force>0 0</specific_body_force>
         </process>
@@ -659,162 +659,162 @@
         <curve>
             <name>PEE1_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-7730000.0 -7730000.0 </values>
+            <values>7730000.0 7730000.0 </values>
         </curve>
         <curve>
             <name>PEE2_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-5700000.0 -5700000.0</values>
+            <values>5700000.0 5700000.0</values>
         </curve>
         <curve>
             <name>PEE3_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-4390000.0 -4390000.0</values>
+            <values>4390000.0 4390000.0</values>
         </curve>
         <curve>
             <name>PEE4_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-2400000.0 -2400000.0</values>
+            <values>2400000.0 2400000.0</values>
         </curve>
         <curve>
             <name>PEE5_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-2300000.0 -2300000.0</values>
+            <values>2300000.0 2300000.0</values>
         </curve>
         <curve>
             <name>PEE6_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-4000000.0 -4000000.0</values>
+            <values>4000000.0 4000000.0</values>
         </curve>
         <curve>
             <name>PEE7_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-6400000.0 -6400000.0</values>
+            <values>6400000.0 6400000.0</values>
         </curve>
         <curve>
             <name>PEE8_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-7700000.0 -7700000.0</values>
+            <values>7700000.0 7700000.0</values>
         </curve>
         <curve>
             <name>PEE1a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-7730000.0 -7730000.0</values>
+            <values>7730000.0 7730000.0</values>
         </curve>
         <curve>
             <name>PEE2a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-5700000.0 -5700000.0</values>
+            <values>5700000.0 5700000.0</values>
         </curve>
         <curve>
             <name>PEE3a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-4390000.0 -4390000.0</values>
+            <values>4390000.0 4390000.0</values>
         </curve>
         <curve>
             <name>PEE4a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-2400000.0 -2400000.0</values>
+            <values>2400000.0 2400000.0</values>
         </curve>
         <curve>
             <name>PEE5a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-2300000.0 -2300000.0</values>
+            <values>2300000.0 2300000.0</values>
         </curve>
         <curve>
             <name>PEE6a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-4000000.0 -4000000.0</values>
+            <values>4000000.0 4000000.0</values>
         </curve>
         <curve>
             <name>PEE7a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-6400000.0 -6400000.0</values>
+            <values>6400000.0 6400000.0</values>
         </curve>
         <curve>
             <name>PEE8a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-7700000.0 -7700000.0</values>
+            <values>7700000.0 7700000.0</values>
         </curve>
         <curve>
             <name>DSS1_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-6715000.0 -6715000.0</values>
+            <values>6715000.0 6715000.0</values>
         </curve>
         <curve>
             <name>DSS2_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-5045000.0 -5045000.0</values>
+            <values>5045000.0 5045000.0</values>
         </curve>
         <curve>
             <name>DSS3_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-3395000.0 -3395000.0</values>
+            <values>3395000.0 3395000.0</values>
         </curve>
         <curve>
             <name>DSS4_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-2350000.0 -2350000.0</values>
+            <values>2350000.0 2350000.0</values>
         </curve>
         <curve>
             <name>DSS5_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-3150000.0 -3150000.0</values>
+            <values>3150000.0 3150000.0</values>
         </curve>
         <curve>
             <name>DSS6_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-5200000.0 -5200000.0</values>
+            <values>5200000.0 5200000.0</values>
         </curve>
         <curve>
             <name>DSS7_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-7050000.0 -7050000.0</values>
+            <values>7050000.0 7050000.0</values>
         </curve>
         <curve>
             <name>DSS8_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-7715000.0 -7715000.0</values>
+            <values>7715000.0 7715000.0</values>
         </curve>
         <curve>
             <name>DSS1a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-6715000.0 -6715000.0</values>
+            <values>6715000.0 6715000.0</values>
         </curve>
         <curve>
             <name>DSS2a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-5045000.0 -5045000.0</values>
+            <values>5045000.0 5045000.0</values>
         </curve>
         <curve>
             <name>DSS3a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-3395000.0 -3395000.0</values>
+            <values>3395000.0 3395000.0</values>
         </curve>
         <curve>
             <name>DSS4a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-2350000.0 -2350000.0</values>
+            <values>2350000.0 2350000.0</values>
         </curve>
         <curve>
             <name>DSS5a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-3150000.0 -3150000.0</values>
+            <values>3150000.0 3150000.0</values>
         </curve>
         <curve>
             <name>DSS6a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-5200000.0 -5200000.0</values>
+            <values>5200000.0 5200000.0</values>
         </curve>
         <curve>
             <name>DSS7a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-7050000.0 -7050000.0</values>
+            <values>7050000.0 7050000.0</values>
         </curve>
         <curve>
             <name>DSS8a_SURFACE_CURVE</name>
             <coords>0 500</coords>
-            <values>-7715000.0 -7715000.0</values>
+            <values>7715000.0 7715000.0</values>
         </curve>
     </curves>
     <process_variables>
@@ -1458,7 +1458,7 @@
                 <error_tolerance>1e-16</error_tolerance>
             </eigen>
             <petsc>
-                <parameters>-ksp_type cg -pc_type bjacobi -ksp_atol 1e-12 -ksp_rtol 1e-12 -snes_type vinewtonrsls -snes_linesearch_type l2 -snes_atol 1.e-5 -snes_rtol 1.e-5 -snes_max_it 1000 -snes_monitor </parameters>
+                <parameters>-ksp_type bcgs -pc_type bjacobi -ksp_atol 1e-12 -ksp_rtol 1e-12 -snes_type vinewtonrsls -snes_linesearch_type l2 -snes_atol 1.e-5 -snes_rtol 1.e-5 -snes_max_it 1000 -snes_monitor </parameters>
             </petsc>
         </linear_solver>
         <linear_solver>
@@ -1471,7 +1471,7 @@
             </eigen>
             <petsc>
                 <prefix>u</prefix>
-                <parameters>-u_ksp_type cg -u_pc_type hypre -u_pc_hypre_type boomeramg -u_pc_hypre_boomeramg_strong_threshold 0.7 -u_ksp_atol 1e-12 -u_ksp_rtol 1e-12 </parameters>
+                <parameters>-u_ksp_type bcgs -u_pc_type hypre -u_pc_hypre_type boomeramg -u_pc_hypre_boomeramg_strong_threshold 0.7 -u_ksp_atol 1e-12 -u_ksp_rtol 1e-12 </parameters>
             </petsc>
         </linear_solver>
         <linear_solver>
@@ -1494,7 +1494,6 @@
                         -p_ksp_atol 1e-14
                         -p_ksp_rtol 1e-12
                         -p_ksp_max_it 10000
-                        -p_ksp_monitor_true_residual
                 </parameters>            
             </petsc>
         </linear_solver>

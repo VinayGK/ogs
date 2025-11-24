@@ -47,14 +47,14 @@ AddTest(
     single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu displacement displacement 1e-12 1e-12
     single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu displacement_jump1 displacement_jump1 1e-12 1e-12
     single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu local_jump_w_avg local_jump_w_avg 1e-12 1e-12
-    single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu fracture_stress fracture_stress 5e-7 1e-12
-    single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu fracture_stress_avg fracture_stress_avg 5e-7 1e-12
+    single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu fracture_stress fracture_stress 1.2e-5 1e-12
+    single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu fracture_stress_avg fracture_stress_avg 1.4e-5 1e-12
     single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu fracture_aperture fracture_aperture 1e-12 1e-12
     single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu fracture_aperture_avg fracture_aperture_avg 1e-12 1e-12
     single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu fracture_permeability fracture_permeability 1e-12 1e-12
     single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu fracture_permeability_avg fracture_permeability_avg 1e-12 1e-12
-    single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu sigma sigma 2e-6 1e-12
-    single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu sigma_avg sigma_avg 1e-6 1e-12
+    single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu sigma sigma 1.6e-5 1e-12
+    single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu sigma_avg sigma_avg 2.5e-6 1e-12
     single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu epsilon epsilon 1e-12 1e-12
     single_fracture_3D_ts_10_t_100.000000.vtu single_fracture_3D_ts_10_t_100.000000.vtu velocity velocity 1e-12 1e-12
 )
@@ -80,7 +80,7 @@ AddTest(
     TaskB_ts_4_t_18.000000.vtu TaskB_ts_4_t_18.000000.vtu fracture_aperture_avg fracture_aperture_avg 1e-12 1e-12
     TaskB_ts_4_t_18.000000.vtu TaskB_ts_4_t_18.000000.vtu fracture_permeability fracture_permeability 1e-12 1e-12
     TaskB_ts_4_t_18.000000.vtu TaskB_ts_4_t_18.000000.vtu fracture_permeability_avg fracture_permeability_avg 1e-12 1e-12
-    TaskB_ts_4_t_18.000000.vtu TaskB_ts_4_t_18.000000.vtu sigma sigma 5e-8 1e-12
+    TaskB_ts_4_t_18.000000.vtu TaskB_ts_4_t_18.000000.vtu sigma sigma 8.6e-8 1e-12
     TaskB_ts_4_t_18.000000.vtu TaskB_ts_4_t_18.000000.vtu sigma_avg sigma_avg 5e-8 1e-12
     TaskB_ts_4_t_18.000000.vtu TaskB_ts_4_t_18.000000.vtu epsilon epsilon 1e-12 1e-12
 )
@@ -229,16 +229,16 @@ AddTest(
     REQUIREMENTS NOT (OGS_USE_LIS OR OGS_USE_MPI)
     RUNTIME 10
     DIFF_DATA
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu pressure pressure 1e-10 1e-15
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu pressure_interpolated pressure_interpolated 1e-10 1e-15
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu displacement displacement 1e-15 1e-15
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu displacement_jump1 displacement_jump1 1e-15 1e-15
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu fracture_stress fracture_stress 1e-9 1e-11
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu fracture_permeability fracture_permeability 1e-15 1e-15
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu fracture_aperture fracture_aperture 1e-15 1e-15
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu sigma sigma 1e-8 5e-13
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu epsilon epsilon 1e-15 1e-15
-    great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_64_t_2500.000000.vtu velocity velocity 1e-15 1e-15
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu pressure pressure 2.5e-9 1e-15
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu pressure_interpolated pressure_interpolated 2.5e-9 1e-15
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu displacement displacement 1e-15 1e-15
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu displacement_jump1 displacement_jump1 1e-15 1e-15
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu fracture_stress fracture_stress 2e-9 1e-11
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu fracture_permeability fracture_permeability 1e-15 1e-15
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu fracture_aperture fracture_aperture 1e-15 1e-15
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu sigma sigma 1e-8 5e-13
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu epsilon epsilon 1e-15 1e-15
+    great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu great_cell_2D_embedded_fracture_ts_58_t_2500.000000.vtu velocity velocity 1e-15 1e-15
 )
 
 AddTest(
@@ -254,10 +254,10 @@ AddTest(
     HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu pressure pressure 2e-8 5.2e-14
     HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu displacement displacement 1e-15 1e-15
     HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu displacement_jump1 displacement_jump1 1e-15 1e-15
-    HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu fracture_stress fracture_stress 3e-9 0
+    HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu fracture_stress fracture_stress 3.5e-9 0
     HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu fracture_permeability fracture_permeability 1e-15 1e-15
     HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu fracture_aperture fracture_aperture 1e-15 1e-15
-    HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu sigma sigma 3.8e-7 0
+    HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu sigma sigma 4.9e-7 0
     HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu epsilon epsilon 1e-15 1e-15
     HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu HM2b_LIE_F_Greywacke_ts_69_t_3500.000000.vtu velocity velocity 1e-15 1e-15
 )

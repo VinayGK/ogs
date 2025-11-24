@@ -1,13 +1,11 @@
 check web links:
   stage: check
   allow_failure: true
-  tags: [envinf4, docker] # pinning for cache
+  tags: [envinf, shell]
   extends:
     - .rules-master-manual
-  needs: [meta, "build linux arch", "build mac petsc"]
+  needs: [meta, "build linux arch", "build linux petsc"]
   image: $WEB_IMAGE
-  variables:
-    HUGO_ENVIRONMENT: "staging"
   script:
     # Copy notebook pages
     - cp -rl build/*/web/content web/

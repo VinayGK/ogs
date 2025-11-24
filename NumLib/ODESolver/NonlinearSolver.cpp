@@ -117,6 +117,7 @@ void NonlinearSolver<NonlinearSolverTag::Picard>::
 
     std::vector<double> zero_entries(selected_global_indices.size(), 0.0);
     _r_neq->set(selected_global_indices, zero_entries);
+    _equation_system->setReleaseNodalForces(_r_neq, process_id);
 
     MathLib::LinAlg::finalizeAssembly(*_r_neq);
 
@@ -193,22 +194,39 @@ NonlinearSolverStatus NonlinearSolver<NonlinearSolverTag::Picard>::solve(
             LinAlg::axpy(rhs, -1, *_r_neq);
         }
 
+        auto const solver_needs_to_compute = sys.linearSolverNeedsToCompute();
+        bool const solver_will_compute =
+            _linear_solver.willCompute(solver_needs_to_compute);
+
         timer_dirichlet.start();
-        sys.applyKnownSolutionsPicard(A, rhs, x_new_process);
+        sys.applyKnownSolutionsPicard(
+            A, rhs, x_new_process,
+            solver_will_compute
+                ? MathLib::DirichletBCApplicationMode::COMPLETE_MATRIX_UPDATE
+                : MathLib::DirichletBCApplicationMode::
+                      FAST_INCOMPLETE_MATRIX_UPDATE);
         time_dirichlet += timer_dirichlet.elapsed();
         INFO("[time] Applying Dirichlet BCs took {:g} s.", time_dirichlet);
 
         if (!sys.isLinear() && _convergence_criterion->hasResidualCheck())
         {
+            if (!solver_will_compute)
+            {
+                // !solver_will_compute means that the Dirichlet BC application
+                // is incomplete (i.e., A not properly modified) and the
+                // computed residual is wrong.
+                OGS_FATAL(
+                    "Logic error. The solver skips the compute step for a "
+                    "non-linear equation system.");
+            }
             GlobalVector res;
             LinAlg::matMult(A, x_new_process, res);  // res = A * x_new
             LinAlg::axpy(res, -1.0, rhs);            // res -= rhs
             _convergence_criterion->checkResidual(res);
         }
 
-        bool iteration_succeeded =
-            detail::solvePicard(_linear_solver, A, rhs, x_new_process,
-                                sys.linearSolverNeedsToCompute());
+        bool iteration_succeeded = detail::solvePicard(
+            _linear_solver, A, rhs, x_new_process, solver_needs_to_compute);
 
         if (iteration_succeeded)
         {
@@ -325,6 +343,7 @@ void NonlinearSolver<NonlinearSolverTag::Newton>::
     std::vector<double> zero_entries(selected_global_indices.size(), 0.0);
 
     _r_neq->set(selected_global_indices, zero_entries);
+    _equation_system->setReleaseNodalForces(_r_neq, process_id);
 
     MathLib::LinAlg::finalizeAssembly(*_r_neq);
 }

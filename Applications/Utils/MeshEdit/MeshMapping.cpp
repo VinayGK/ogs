@@ -16,7 +16,9 @@
 #include <string>
 
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/AABB.h"
 #include "GeoLib/IO/AsciiRasterInterface.h"
 #include "GeoLib/Raster.h"
@@ -51,7 +53,6 @@ double getClosestPointElevation(MeshLib::Node const& p,
 
 int main(int argc, char* argv[])
 {
-    BaseLib::MPI::Setup mpi_setup(argc, argv);
     TCLAP::CmdLine cmd(
         "Changes the elevation of 2D mesh nodes based on either raster data or "
         "another 2D mesh. In addition, a low pass filter can be applied to "
@@ -62,6 +63,8 @@ int main(int argc, char* argv[])
             "Copyright (c) 2012-2025, OpenGeoSys Community "
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     TCLAP::SwitchArg lowpass_arg(
         "", "lowpass",
         "Applies a lowpass filter to elevation over connected nodes.", false);
@@ -71,31 +74,34 @@ int main(int argc, char* argv[])
         "Static elevation to map the input file to. This can be combined with "
         "mapping based on rasters or other meshes to deal with locations where "
         "no corresponding data exists.",
-        false, 0, "number");
+        false, 0, "MAP_STATIC");
     cmd.add(map_static_arg);
     TCLAP::ValueArg<double> max_dist_arg(
         "d", "distance",
         "Maximum distance to search for mesh nodes if there is no "
         "corresponding data for input mesh nodes on the mesh it should be "
-        "mapped on. (Default value: 1)",
-        false, 1, "number");
+        "mapped on. (min = 0)",
+        false, 1, "MAX_DISTANCE");
     cmd.add(max_dist_arg);
     TCLAP::ValueArg<std::string> map_mesh_arg(
-        "m", "mesh", "2D mesh file (*.vtu) to map the input file on.", false,
-        "", "string");
+        "m", "mesh", "Input (.vtu). 2D mesh file to map the input file on",
+        false, "", "INPUT_FILE");
     cmd.add(map_mesh_arg);
     TCLAP::ValueArg<std::string> map_raster_arg(
         "r", "raster",
-        "Raster file (*.asc *.grd *.xyz) to map the input file on.", false, "",
-        "string");
+        "Input (.asc | .grd | .xyz) Raster file to map the input file on",
+        false, "", "INPUT_FILE");
     cmd.add(map_raster_arg);
     TCLAP::ValueArg<std::string> output_arg(
-        "o", "output", "Output mesh file (*.vtu)", true, "", "string");
+        "o", "output", "Output (.vtu) mesh file", true, "", "OUTPUT_FILE");
     cmd.add(output_arg);
     TCLAP::ValueArg<std::string> input_arg(
-        "i", "input", "Input mesh file (*.vtu, *.msh)", true, "", "string");
+        "i", "input", "Input (.vtu | .msh) mesh file", true, "", "INPUT_FILE");
     cmd.add(input_arg);
     cmd.parse(argc, argv);
+
+    BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     std::unique_ptr<MeshLib::Mesh> mesh(
         MeshLib::IO::readMeshFromFile(input_arg.getValue()));

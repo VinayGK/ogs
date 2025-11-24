@@ -15,7 +15,9 @@
 
 #include "Applications/FileIO/readGeometryFromFile.h"
 #include "Applications/FileIO/writeGeometryToFile.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/GEOObjects.h"
 #include "InfoLib/GitInfo.h"
 
@@ -32,23 +34,28 @@ int main(int argc, char* argv[])
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<std::string> argInputFileName(
-        "i", "input-file", "the name of the geometry file to be converted",
-        true, "", "file name");
+        "i", "input-file",
+        "Input (.gml|.gli). The name of the geometry file to be converted",
+        true, "", "INPUT_FILE");
     cmd.add(argInputFileName);
     TCLAP::ValueArg<std::string> argOutputFileName(
         "o", "output-file",
-        "the name of the new geometry file whose file format is guessed from "
+        "Output. The name of the new geometry file whose file format is "
+        "guessed from "
         "its file extension",
-        true, "", "file name");
+        true, "", "OUTPUT_FILE");
     cmd.add(argOutputFileName);
 
-    TCLAP::ValueArg<std::string> gmsh_path_arg("g", "gmsh-path",
-                                               "the path to the gmsh binary",
-                                               false, "", "path as string");
+    TCLAP::ValueArg<std::string> gmsh_path_arg(
+        "g", "gmsh-path", "Input (.msh). The path to the gmsh binary file",
+        false, "", "INPUT_FILE");
     cmd.add(gmsh_path_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     GeoLib::GEOObjects geoObjects;
     FileIO::readGeometryFromFile(argInputFileName.getValue(), geoObjects,

@@ -13,7 +13,9 @@
 
 #include "Applications/FileIO/readGeometryFromFile.h"
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/GEOObjects.h"
 #include "GeoLib/PolylineVec.h"
 #include "InfoLib/GitInfo.h"
@@ -33,29 +35,34 @@ int main(int argc, char* argv[])
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<std::string> mesh_in(
         "i", "mesh-input-file",
-        "the name of the file containing the input mesh", true, "",
-        "file name of input mesh");
+        "Input (.vtu). The name of the file containing the input mesh", true,
+        "", "INPUT_FILE");
     cmd.add(mesh_in);
     TCLAP::ValueArg<std::string> mesh_out(
         "o", "mesh-output-file",
-        "the name of the file the mesh will be written to", true, "",
-        "file name of output mesh");
+        "Output (.vtu | .msh). The name of the file the mesh will be written "
+        "to",
+        true, "", "OUTPUT_FILE");
     cmd.add(mesh_out);
     TCLAP::ValueArg<std::string> geoFileArg(
         "g", "geo-file",
-        "the name of the geometry file which contains polylines", true, "",
-        "the name of the geometry file");
+        "Input (.gml). The name of the input geometry file which contains "
+        "polylines",
+        true, "", "INPUT_FILE");
     cmd.add(geoFileArg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
 
-    TCLAP::ValueArg<std::string> gmsh_path_arg("", "gmsh-path",
-                                               "the path to the gmsh binary",
-                                               false, "", "path as string");
+    TCLAP::ValueArg<std::string> gmsh_path_arg(
+        "", "gmsh-path", "Input (.msh). The path to the input gmsh binary file",
+        false, "", "INPUT_FILE");
     cmd.add(gmsh_path_arg);
 
     // parse arguments
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     // read GEO objects
     GeoLib::GEOObjects geo_objs;

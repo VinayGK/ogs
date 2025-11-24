@@ -10,15 +10,16 @@
 
 */
 
-#include <spdlog/spdlog.h>
 #include <tclap/CmdLine.h>
 #include <vtkMPIController.h>
 #include <vtkSmartPointer.h>
 
 #include "BaseLib/CPUTime.h"
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
 #include "BaseLib/RunTime.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/VtkIO/VtuInterface.h"
 #include "MeshLib/IO/readMeshFromFile.h"
@@ -36,10 +37,11 @@ int main(int argc, char* argv[])
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<std::string> mesh_input(
         "i", "mesh-input-file-base",
-        "the base name of the files containing the input mesh, i.e., the file "
-        "name without the string beginning with '_partitioned' and ending with "
-        "'.bin'",
-        true, "", "base_file_name_of_input_mesh");
+        "Input (.bin). The base name of the files containing the input mesh, "
+        "i.e., the file "
+        "name without the string beginning with '_partitioned' and ending "
+        "with ",
+        true, "", "BASE_FILENAME_INPUT_MESH");
     cmd.add(mesh_input);
 
     TCLAP::ValueArg<std::string> output_directory_arg(
@@ -48,41 +50,19 @@ int main(int argc, char* argv[])
         true, "", "directory/base_file_name_without_extensions");
     cmd.add(output_directory_arg);
 
-    TCLAP::ValueArg<std::string> log_level_arg(
-        "l", "log-level",
-        "the verbosity of logging messages: none, error, warn, info, debug, "
-        "all",
-        false,
-#ifdef NDEBUG
-        "info",
-#else
-        "all",
-#endif
-        "LOG_LEVEL");
+    auto log_level_arg = BaseLib::makeLogLevelArg();
     cmd.add(log_level_arg);
 
     cmd.parse(argc, argv);
 
-    BaseLib::setConsoleLogLevel(log_level_arg.getValue());
-    spdlog::set_pattern("%^%l:%$ %v");
-    spdlog::set_error_handler(
-        [](const std::string& msg)
-        {
-            std::cerr << "spdlog error: " << msg << std::endl;
-            OGS_FATAL("spdlog logger error occurred.");
-        });
-
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
+
     // start the timer
     BaseLib::RunTime run_timer;
     run_timer.start();
     BaseLib::CPUTime CPU_timer;
     CPU_timer.start();
-
-    // add mpi_rank to logger output
-    int mpi_rank;
-    MPI_Comm_rank(BaseLib::MPI::OGS_COMM_WORLD, &mpi_rank);
-    spdlog::set_pattern(fmt::format("[{}] %^%l:%$ %v", mpi_rank));
 
     // init vtkMPI
     vtkSmartPointer<vtkMPIController> controller =

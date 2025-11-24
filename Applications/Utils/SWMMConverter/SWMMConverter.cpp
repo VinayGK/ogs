@@ -11,8 +11,10 @@
 
 #include "Applications/FileIO/SWMM/SWMMInterface.h"
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
 #include "BaseLib/StringTools.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/GEOObjects.h"
 #include "GeoLib/IO/XmlIO/Boost/BoostXmlGmlInterface.h"
 #include "InfoLib/GitInfo.h"
@@ -169,17 +171,20 @@ int main(int argc, char* argv[])
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<std::string> mesh_output_arg(
-        "m", "mesh", "mesh output file (*.vtu)", false, "", "mesh output file");
+        "m", "mesh", "Output (.vtu). Mesh output file ", false, "",
+        "OUTPUT_FILE");
     cmd.add(mesh_output_arg);
     TCLAP::ValueArg<std::string> geo_output_arg(
-        "g", "geo", "geometry output file (*.gml)", false, "",
-        "geometry output file");
+        "g", "geo", "Output (.gml). Geometry output file ", false, "",
+        "OUTPUT_FILE");
     cmd.add(geo_output_arg);
     TCLAP::ValueArg<std::string> csv_output_arg(
-        "c", "csv", "csv output file (*.csv)", false, "", "CSV output file");
+        "c", "csv", "Output (.csv). csv output file", false, "", "OUTPUT_FILE");
     cmd.add(csv_output_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     TCLAP::ValueArg<std::string> swmm_input_arg(
-        "i", "input", "SWMM input file (*.inp)", true, "", "input file");
+        "i", "input", "Input (.inp). SWMM input file", true, "", "INPUT_FILE");
     cmd.add(swmm_input_arg);
     TCLAP::SwitchArg add_nodes_arg(
         "", "node_vars", "Read node variables and add to output mesh");
@@ -197,6 +202,7 @@ int main(int argc, char* argv[])
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     if (!(geo_output_arg.isSet() || mesh_output_arg.isSet() ||
           csv_output_arg.isSet()))

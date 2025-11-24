@@ -15,7 +15,9 @@
 
 #include <memory>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/Elements/Element.h"
 #include "MeshLib/IO/readMeshFromFile.h"
@@ -99,27 +101,27 @@ int main(int argc, char* argv[])
     cmd.add(invert_bounding_box_arg);
     TCLAP::ValueArg<double> zLargeArg(
         "", "z-max", "largest allowed extent in z-dimension", false,
-        std::numeric_limits<double>::max(), "value");
+        std::numeric_limits<double>::max(), "MAX_EXTENT_Z");
     cmd.add(zLargeArg);
     TCLAP::ValueArg<double> zSmallArg(
         "", "z-min", "smallest allowed extent in z-dimension", false,
-        -1 * std::numeric_limits<double>::max(), "value");
+        -1 * std::numeric_limits<double>::max(), "MIN_EXTENT_Z");
     cmd.add(zSmallArg);
     TCLAP::ValueArg<double> yLargeArg(
         "", "y-max", "largest allowed extent in y-dimension", false,
-        std::numeric_limits<double>::max(), "value");
+        std::numeric_limits<double>::max(), "MAX_EXTENT_Y");
     cmd.add(yLargeArg);
     TCLAP::ValueArg<double> ySmallArg(
         "", "y-min", "smallest allowed extent in y-dimension", false,
-        -1 * std::numeric_limits<double>::max(), "value");
+        -1 * std::numeric_limits<double>::max(), "MIN_EXTENT_Y");
     cmd.add(ySmallArg);
     TCLAP::ValueArg<double> xLargeArg(
         "", "x-max", "largest allowed extent in x-dimension", false,
-        std::numeric_limits<double>::max(), "value");
+        std::numeric_limits<double>::max(), "MAX_EXTENT_X");
     cmd.add(xLargeArg);
     TCLAP::ValueArg<double> xSmallArg(
         "", "x-min", "smallest allowed extent in x-dimension", false,
-        -1 * std::numeric_limits<double>::max(), "value");
+        -1 * std::numeric_limits<double>::max(), "MIN_EXTENT_X");
     cmd.add(xSmallArg);
 
     // Non-bounding-box params
@@ -131,31 +133,28 @@ int main(int argc, char* argv[])
         "point", "line", "tri", "quad", "hex", "prism", "tet", "pyramid"};
     TCLAP::ValuesConstraint<std::string> allowedVals{allowed_ele_types};
     TCLAP::MultiArg<std::string> eleTypeArg(
-        "t", "element-type",
-        "element type to be removed: point | line | tri | quad | hex | prism | "
-        "tet | pyramid",
-        false, &allowedVals);
+        "t", "element-type", "element type to be removed", false, &allowedVals);
     cmd.add(eleTypeArg);
 
     // scalar array params
     TCLAP::ValueArg<std::string> property_name_arg(
         "n", "property-name", "name of property in the mesh", false,
-        "MaterialIDs", "string");
+        "MaterialIDs", "PROPERTY_NAME");
     cmd.add(property_name_arg);
 
     TCLAP::MultiArg<int> property_arg(
         "", "property-value", "value of selected property to be removed", false,
-        "number");
+        "PROPERTY_VALUE");
     cmd.add(property_arg);
 
     TCLAP::ValueArg<double> min_property_arg(
         "", "min-value", "minimum value of range for selected property", false,
-        0, "number");
+        0, "MIN_RANGE");
     cmd.add(min_property_arg);
 
     TCLAP::ValueArg<double> max_property_arg(
         "", "max-value", "maximum value of range for selected property", false,
-        0, "number");
+        0, "MAX_RANGE");
     cmd.add(max_property_arg);
 
     TCLAP::SwitchArg outside_property_arg(
@@ -169,17 +168,20 @@ int main(int argc, char* argv[])
     // I/O params
     TCLAP::ValueArg<std::string> mesh_out(
         "o", "mesh-output-file",
-        "the name of the file the mesh will be written to", true, "",
-        "file name of output mesh");
+        "Output (.vtu). The name of the file the mesh will be written to", true,
+        "", "OUTPUT_FILE");
     cmd.add(mesh_out);
     TCLAP::ValueArg<std::string> mesh_in(
         "i", "mesh-input-file",
-        "the name of the file containing the input mesh", true, "",
-        "file name of input mesh");
+        "Input (.vtu). The name of the file containing the input mesh", true,
+        "", "INPUT_FILE");
     cmd.add(mesh_in);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     std::unique_ptr<MeshLib::Mesh const> mesh(
         MeshLib::IO::readMeshFromFile(mesh_in.getValue()));

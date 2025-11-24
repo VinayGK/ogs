@@ -7,13 +7,14 @@
  *              http://www.opengeosys.org/project/license
  */
 
+#include <tclap/CmdLine.h>
+
 #include <memory>
 #include <string>
 
-// ThirdParty
-#include <tclap/CmdLine.h>
-
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/IO/AsciiRasterInterface.h"
 #include "GeoLib/Raster.h"
 #include "InfoLib/GitInfo.h"
@@ -40,8 +41,10 @@ int main(int argc, char* argv[])
         ' ', GitInfoLib::GitInfo::ogs_version);
 
     TCLAP::ValueArg<double> nodata_arg(
-        "e", "nodata", "The no data value used for missing values", false, 0,
-        "a number");
+        "e", "nodata",
+        "The no data value used for missing values "
+        "(min = 0)",
+        false, 0, "NO_DATA");
     cmd.add(nodata_arg);
 
     TCLAP::SwitchArg set_cells_arg("c", "cell-array",
@@ -54,24 +57,27 @@ int main(int argc, char* argv[])
 
     TCLAP::ValueArg<std::string> array_name_arg(
         "s", "scalar-name", "The name of the newly created scalar array.", true,
-        "", "scalar array name");
+        "", "SCALAR_NAME");
     cmd.add(array_name_arg);
-    TCLAP::ValueArg<std::string> raster_arg("r", "raster",
-                                            "Name of the input raster (*.asc)",
-                                            true, "", "raster file name");
+    TCLAP::ValueArg<std::string> raster_arg(
+        "r", "raster", "Input (.asc). Name of the input raster file", true, "",
+        "INPUT_FILE");
     cmd.add(raster_arg);
 
-    TCLAP::ValueArg<std::string> output_arg("o", "output",
-                                            "Name of the output mesh (*.vtu)",
-                                            true, "", "output file name");
+    TCLAP::ValueArg<std::string> output_arg(
+        "o", "output", "Output (.vtu). Name of the output mesh file", true, "",
+        "OUTPUT_FILE");
     cmd.add(output_arg);
-    TCLAP::ValueArg<std::string> input_arg("i", "input",
-                                           "Name of the input mesh (*.vtu)",
-                                           true, "", "input file name");
+    TCLAP::ValueArg<std::string> input_arg(
+        "i", "input", "Input (.vtu). Name of the input mesh file", true, "",
+        "INPUT_FILE");
     cmd.add(input_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     bool const create_cell_array(set_cells_arg.isSet());
     bool const create_node_array =

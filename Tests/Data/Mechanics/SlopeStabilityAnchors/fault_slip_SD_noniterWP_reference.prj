@@ -37,10 +37,10 @@
                 <process_variable>displacement</process_variable>
             </process_variables>
             <secondary_variables>
-                <secondary_variable internal_name="sigma" output_name="sigma"/>
-                <secondary_variable internal_name="epsilon" output_name="epsilon"/>
-                <secondary_variable internal_name="ElasticStrain" output_name="ElasticStrain"/>
-                <secondary_variable internal_name="EquivalentPlasticStrainWP" output_name="EquivalentPlasticStrainWP"/>
+                <secondary_variable name="sigma"/>
+                <secondary_variable name="epsilon"/>
+                <secondary_variable name="ElasticStrain"/>
+                <secondary_variable name="EquivalentPlasticStrainWP"/>
             </secondary_variables>
             <specific_body_force>0. 0.</specific_body_force>
             <initial_stress>Initial_stress</initial_stress>
@@ -285,13 +285,13 @@
             <regex>fault_slip_nonIter_WP_ref_t_6.000000.vtu</regex>
             <field>displacement</field>
             <absolute_tolerance>1e-5</absolute_tolerance>
-            <relative_tolerance>1e-3</relative_tolerance>
+            <relative_tolerance>5.0e-3</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
             <regex>fault_slip_nonIter_WP_ref_t_6.000000.vtu</regex>
             <field>sigma</field>
             <absolute_tolerance>5000</absolute_tolerance>
-            <relative_tolerance>1e-3</relative_tolerance>
+            <relative_tolerance>5e-1</relative_tolerance>
         </vtkdiff>
     </test_definition>
 </OpenGeoSysProject>

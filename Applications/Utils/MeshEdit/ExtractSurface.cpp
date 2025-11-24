@@ -17,8 +17,10 @@
 #include <vector>
 
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
 #include "BaseLib/StringTools.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/VtkIO/VtuInterface.h"
 #include "MeshLib/IO/readMeshFromFile.h"
@@ -48,31 +50,36 @@ int main(int argc, char* argv[])
     cmd.add(use_ascii_arg);
     TCLAP::ValueArg<double> angle_arg(
         "a", "angle",
-        "tolerated angle (in degrees) between given normal and element normal",
-        false, 90, "floating point value");
+        "tolerated angle (in degrees) between given normal and "
+        "element normal, (min = 0), (max = 360)",
+        false, 90, "ANGLE");
     cmd.add(angle_arg);
     TCLAP::ValueArg<double> z("z", "z-component", "z component of the normal",
-                              false, -1.0, "floating point value");
+                              false, -1.0, "Z-COMPONENT");
     cmd.add(z);
     TCLAP::ValueArg<double> y("y", "y-component", "y component of the normal",
-                              false, 0, "floating point value");
+                              false, 0, "Y-COMPONENT");
     cmd.add(y);
     TCLAP::ValueArg<double> x("x", "x-component", "x component of the normal",
-                              false, 0, "floating point value");
+                              false, 0, "X-COMPONENT");
     cmd.add(x);
     TCLAP::ValueArg<std::string> mesh_out(
         "o", "mesh-output-file",
-        "the name of the file the surface mesh should be written to", false, "",
-        "file name of output mesh");
+        "Output (.vtu). The name of the file the surface mesh should be "
+        "written to",
+        false, "", "OUTPUT_FILE");
     cmd.add(mesh_out);
     TCLAP::ValueArg<std::string> mesh_in(
         "i", "mesh-input-file",
-        "the name of the file containing the input mesh", true, "",
-        "file name of input mesh");
+        "Input (.vtu). The name of the file containing the input mesh", true,
+        "", "INPUT_FILE");
     cmd.add(mesh_in);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     std::unique_ptr<MeshLib::Mesh const> mesh(MeshLib::IO::readMeshFromFile(
         mesh_in.getValue(), true /* compute_element_neighbors */));

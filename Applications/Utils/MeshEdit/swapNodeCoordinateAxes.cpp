@@ -15,6 +15,7 @@
 
 #include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/readMeshFromFile.h"
 #include "MeshLib/IO/writeMeshToFile.h"
@@ -97,21 +98,26 @@ int main(int argc, char* argv[])
             "Copyright (c) 2012-2025, OpenGeoSys Community "
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
-    TCLAP::ValueArg<std::string> input_arg(
-        "i", "input-mesh-file", "input mesh file", true, "", "string");
+    TCLAP::ValueArg<std::string> input_arg("i", "input-mesh-file",
+                                           "Input (.vtu) mesh file", true, "",
+                                           "INPUT_FILE");
     cmd.add(input_arg);
-    TCLAP::ValueArg<std::string> output_arg(
-        "o", "output-mesh-file", "output mesh file", true, "", "string");
+    TCLAP::ValueArg<std::string> output_arg("o", "output-mesh-file",
+                                            "Output (.vtu) mesh file", true, "",
+                                            "OUTPUT_FILE");
     cmd.add(output_arg);
     TCLAP::ValueArg<std::string> new_order_arg(
         "n", "new-order",
         "the new order of swapped coordinate values (e.g. 'xzy' for converting "
         "XYZ values to XZY values)",
-        true, "", "string");
+        true, "", "NEW_ORDER");
     cmd.add(new_order_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     const std::string str_order = new_order_arg.getValue();
     std::array<int, 3> new_order = {{}};

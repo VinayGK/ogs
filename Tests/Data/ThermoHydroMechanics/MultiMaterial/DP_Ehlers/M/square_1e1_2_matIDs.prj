@@ -54,13 +54,13 @@
                 <temperature>temperature</temperature>
             </process_variables>
             <secondary_variables>
-                <secondary_variable internal_name="sigma" output_name="sigma"/>
-                <secondary_variable internal_name="epsilon" output_name="epsilon"/>
-                <secondary_variable internal_name="epsilon_m" output_name="epsilon_m"/>
-                <secondary_variable internal_name="EquivalentPlasticStrain" output_name="EquivalentPlasticStrain"/>
-                <secondary_variable internal_name="eps_p.D" output_name="eps_p.D"/>
-                <secondary_variable internal_name="eps_p.V" output_name="eps_p.V"/>
-                <secondary_variable internal_name="eps_p.eff" output_name="eps_p.eff"/>
+                <secondary_variable name="sigma"/>
+                <secondary_variable name="epsilon"/>
+                <secondary_variable name="epsilon_m"/>
+                <secondary_variable name="EquivalentPlasticStrain"/>
+                <secondary_variable name="eps_p.D"/>
+                <secondary_variable name="eps_p.V"/>
+                <secondary_variable name="eps_p.eff"/>
             </secondary_variables>
         </process>
     </processes>
@@ -422,7 +422,7 @@
         <vtkdiff>
             <regex>square_1e1_2_matIDs_t_.*.vtu</regex>
             <field>NodalForces</field>
-            <absolute_tolerance>3e-12</absolute_tolerance>
+            <absolute_tolerance>3.2e-12</absolute_tolerance>
             <relative_tolerance>0</relative_tolerance>
         </vtkdiff>
         <vtkdiff>

@@ -18,7 +18,9 @@
 #include <numeric>
 
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "BaseLib/quicksort.h"
 #include "GeoLib/IO/AsciiRasterInterface.h"
 #include "GeoLib/Raster.h"
@@ -48,10 +50,10 @@ int main(int argc, char* argv[])
     TCLAP::ValueArg<std::string> out_mesh_arg(
         "o",
         "out-mesh",
-        "the mesh is stored to a file of this name",
+        "Output (.vtu). The output mesh is stored to a file of this name",
         false,
         "",
-        "filename for mesh output");
+        "OUTPUT_FILE");
     cmd.add(out_mesh_arg);
 
     TCLAP::SwitchArg refinement_raster_output_arg(
@@ -65,15 +67,17 @@ int main(int argc, char* argv[])
         "refinement factor that raises the resolution of the raster data",
         false,
         1,
-        "factor (default = 1)");
+        "REFINEMENT_FACTOR");
     cmd.add(refinement_arg);
 
-    TCLAP::ValueArg<std::string> raster_arg("",
-                                            "raster-file",
-                                            "the name of the ASC raster file",
-                                            true,
-                                            "",
-                                            "file name");
+    TCLAP::ValueArg<std::string> raster_arg(
+        "",
+        "raster-file",
+        "Input (.asc). The name of the input "
+        "ASC raster file",
+        true,
+        "",
+        "INPUT_FILE");
     cmd.add(raster_arg);
 
     TCLAP::ValueArg<std::string> property_arg(
@@ -82,16 +86,20 @@ int main(int argc, char* argv[])
         "the name of the property the values are stored for",
         true,
         "",
-        "property name as string");
+        "PROPERTY_NAME");
     cmd.add(property_arg);
 
     TCLAP::ValueArg<std::string> mesh_arg(
-        "m", "mesh", "the mesh is read from this file", true, "", "file name");
+        "m", "mesh", "Input (.vtu). The input mesh is read from this file",
+        true, "", "INPUT_FILE");
     cmd.add(mesh_arg);
 
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     // read mesh
     std::unique_ptr<MeshLib::Mesh> dest_mesh(

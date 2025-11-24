@@ -185,6 +185,10 @@ if(OGS_USE_PETSC)
         if(NOT "--download-fc" IN_LIST OGS_PETSC_CONFIG_OPTIONS)
             list(APPEND _configure_opts --with-fc=0)
         endif()
+        if(APPLE)
+            # fixes "error moving ...f2cblaslapack... libraries", uses newer make
+            list(APPEND _configure_opts --download-make)
+        endif()
 
         unset(ENV{PETSC_DIR})
         BuildExternalProject(
@@ -329,6 +333,9 @@ if(WIN32 OR HDF5_USE_STATIC_LIBRARIES)
     set(HDF5_USE_STATIC_LIBRARIES ON)
     list(APPEND _hdf5_options "-DBUILD_SHARED_LIBS=OFF")
 endif()
+if(APPLE)
+    list(APPEND _hdf5_options "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
 
 # With apple clang 15 there are errors when the cpm compiled hdf5 has a
 # different version than the one bundled with vtk, see
@@ -420,6 +427,9 @@ list(REMOVE_DUPLICATES VTK_OPTIONS)
 list(APPEND VTK_OPTIONS "-DBUILD_SHARED_LIBS=OFF"
      "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
 )
+if(APPLE)
+    list(APPEND VTK_OPTIONS "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
 message(STATUS "VTK_OPTIONS: ${VTK_OPTIONS}")
 if(OGS_USE_PETSC AND EXISTS ${build_dir_HDF5})
     # Use local hdf5 build
@@ -434,20 +444,14 @@ string(REPLACE "." "_" HDF5_TAG ${ogs.tested_version.hdf5})
 set(_vtk_source GIT_REPOSITORY https://github.com/kitware/vtk.git GIT_TAG
                 v${ogs.minimum_version.vtk}
 )
-if(APPLE AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 17)
-    # https://gitlab.kitware.com/vtk/vtk/-/merge_requests/11123 (in 9.4.0)
-    # https://gitlab.kitware.com/vtk/vtk/-/issues/19586 (will be in 9.5.0)
-    # https://gitlab.kitware.com/vtk/vtk/-/merge_requests/11882 (will be in 9.5.0)
-    set(_vtk_source GIT_REPOSITORY https://github.com/kitware/vtk.git
-        GIT_TAG c95d7374c53c3cdaed6269a2e3dad19077d4999b)
-    set(ogs.minimum_version.vtk "9.5.0")
-endif()
 set(_vtk_source_file
     ${OGS_EXTERNAL_DEPENDENCIES_CACHE}/vtk-v${ogs.minimum_version.vtk}.tar.gz
 )
-if(EXISTS ${_vtk_source_file})
+if(GUIX_BUILD)
+    find_package(VTK COMPONENTS ${VTK_COMPONENTS})
+elseif(EXISTS ${_vtk_source_file})
     set(_vtk_source URL ${_vtk_source_file})
-elseif(NOT OGS_BUILD_VTK AND (NOT OGS_USE_MKL OR GUIX_BUILD OR CONDA_BUILD))
+elseif(NOT OGS_BUILD_VTK AND (NOT OGS_USE_MKL OR CONDA_BUILD))
     # Typically VTK also pulls in libgomp dependency when found on system
     unset(VTK_COMPONENTS)
     foreach(opt ${VTK_OPTIONS})
@@ -461,23 +465,11 @@ endif()
 if(NOT VTK_FOUND)
     file(
         DOWNLOAD
-        https://gitlab.kitware.com/bilke/vtk/-/commit/b70e3e103cf711e080f23171201c7d030187146b.patch
-        ${PROJECT_SOURCE_DIR}/scripts/cmake/vtk-win.patch
-    )
-    file(
-        DOWNLOAD
         https://gitlab.kitware.com/bilke/vtk/-/commit/70b16fda87f82520fa29b48c6a62bafa405d8ee2.patch
         ${PROJECT_SOURCE_DIR}/scripts/cmake/vtk-mac.patch
     )
     if("${OGS_EXTERNAL_DEPENDENCIES_CACHE}" STREQUAL "")
         set(_vtk_patch PATCH_COMMAND git apply)
-        if(WIN32)
-            # Fixes https://gitlab.kitware.com/vtk/vtk/-/issues/19178
-            list(APPEND _vtk_patch
-                 "${PROJECT_SOURCE_DIR}/scripts/cmake/vtk-win.patch"
-            )
-            message(STATUS "Applying VTK Win patch")
-        endif()
         if(APPLE)
             # Fixes https://stackoverflow.com/questions/9894961
             list(APPEND _vtk_patch
@@ -485,12 +477,15 @@ if(NOT VTK_FOUND)
             )
             message(STATUS "Applying VTK Mac patch")
         endif()
-        if(LINUX)
-            # No patches on Linux
+        if(LINUX OR WIN32)
+            # No patches on Linux and Win
             unset(_vtk_patch)
         endif()
     endif()
 
+    if(OGS_BUILD_GUI)
+        list(APPEND VTK_OPTIONS "-DVTK_QT_VERSION=5")
+    endif()
     if(DEFINED Qt5_DIR)
         list(APPEND VTK_OPTIONS "-DQt5_DIR=${Qt5_DIR}")
     endif()

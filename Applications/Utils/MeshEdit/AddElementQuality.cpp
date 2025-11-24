@@ -12,8 +12,10 @@
 #include <array>
 #include <string>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
 #include "BaseLib/RunTime.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/readMeshFromFile.h"
 #include "MeshLib/IO/writeMeshToFile.h"
@@ -33,8 +35,9 @@ int main(int argc, char* argv[])
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
 
-    TCLAP::ValueArg<std::string> mesh_out_arg(
-        "o", "output_mesh_file", "output mesh file", true, "", "string");
+    TCLAP::ValueArg<std::string> mesh_out_arg("o", "output_mesh_file",
+                                              "Output (.vtu | .msh) mesh file ",
+                                              true, "", "OUTPUT_FILE");
     cmd.add(mesh_out_arg);
     std::vector<std::string> allowed_element_criterions{
         "ElementSize", "EdgeRatio", "EquiAngleSkew", "RadiusEdgeRatio",
@@ -45,12 +48,16 @@ int main(int argc, char* argv[])
         "c", "quality_criterion", "quality criterion", true,
         "",  &element_criterions};
     cmd.add(criterion_arg);
-    TCLAP::ValueArg<std::string> mesh_in_arg(
-        "i", "input_mesh_file", "input mesh file", true, "", "string");
+    TCLAP::ValueArg<std::string> mesh_in_arg("i", "input_mesh_file",
+                                             "Input (.vtu | .msh) mesh file",
+                                             true, "", "INPUT_FILE");
     cmd.add(mesh_in_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     // read the mesh file
     BaseLib::RunTime run_time;

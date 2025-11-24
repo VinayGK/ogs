@@ -28,9 +28,9 @@
             </process_variables>
             <specific_body_force>0 0</specific_body_force>
             <secondary_variables>
-                <secondary_variable internal_name="sigma" output_name="sigma"/>
-                <secondary_variable internal_name="epsilon" output_name="epsilon"/>
-                <secondary_variable internal_name="velocity" output_name="velocity"/>
+                <secondary_variable name="sigma"/>
+                <secondary_variable name="epsilon"/>
+                <secondary_variable name="velocity"/>
             </secondary_variables>
         </process>
     </processes>
@@ -173,12 +173,12 @@
         <parameter>
             <name>E_ice</name>
             <type>Constant</type>
-            <value>0</value>
+            <value>9.1e9</value>
         </parameter>
         <parameter>
             <name>nu_ice</name>
             <type>Constant</type>
-            <value>0</value>
+            <value>0.33</value>
         </parameter>
         <parameter>
             <name>T0</name>

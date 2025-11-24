@@ -10,8 +10,10 @@
 
 #include <tclap/CmdLine.h>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
 #include "BaseLib/RunTime.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshGeoToolsLib/IdentifySubdomainMesh.h"
 #include "MeshGeoToolsLib/MeshNodeSearcher.h"
@@ -67,35 +69,40 @@ int main(int argc, char* argv[])
     TCLAP::ValueArg<std::string> output_prefix_arg(
         "o",
         "output_prefix",
-        "Prefix the subdomain meshes' filenames with the output prefix/path.",
+        "Output. Prefix the subdomain meshes' filenames with the output "
+        "prefix/path.",
         false,
         "",
-        "path");
+        "BASE_FILENAME_OUTPUT");
     cmd.add(output_prefix_arg);
 
     TCLAP::ValueArg<double> search_length_arg(
         "s",
         "searchlength",
         "search length determining radius for the node search algorithm. "
-        "Non-negative floating point number (default 1e-16) ",
+        "Non-negative floating point number (min = 0) ",
         false,
         1e-16,
-        "float");
+        "SEARCH_LENGTH");
     cmd.add(search_length_arg);
 
     TCLAP::ValueArg<std::string> bulk_mesh_arg(
-        "m", "mesh", "the file name of the bulk mesh", true, "", "mesh file");
+        "m", "mesh", "Input (.vtu). The file name of the bulk mesh", true, "",
+        "INPUT_FILE");
     cmd.add(bulk_mesh_arg);
 
     // All the remaining arguments are used as file names for boundary/subdomain
     // meshes.
     TCLAP::UnlabeledMultiArg<std::string> subdomain_meshes_filenames_arg(
         "subdomain_meshes_filenames", "mesh file names.", true,
-        "subdomain mesh file");
+        "SUBDOMAIN_NAME");
     cmd.add(subdomain_meshes_filenames_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     //
     // The bulk mesh.

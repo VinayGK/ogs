@@ -12,19 +12,54 @@
 
 */
 
-#include <spdlog/spdlog.h>
 #include <tclap/CmdLine.h>
 
 #include "BaseLib/CPUTime.h"
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
 #include "BaseLib/RunTime.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/readMeshFromFile.h"
 #include "Metis.h"
 #include "NodeWiseMeshPartitioner.h"
 
 using namespace ApplicationUtils;
+
+void addGlobalIDsToMesh(MeshLib::Properties& mesh_properties,
+                        MeshLib::MeshItemType const mesh_item_type,
+                        std::size_t const number_of_items)
+{
+    if (!mesh_properties.existsPropertyVector<std::size_t>(
+            MeshLib::globalIDString(mesh_item_type), mesh_item_type, 1))
+    {
+        auto* global_ids = mesh_properties.createNewPropertyVector<std::size_t>(
+            MeshLib::globalIDString(mesh_item_type), mesh_item_type,
+            number_of_items, 1);
+        if (!global_ids)
+        {
+            OGS_FATAL("Could not create PropertyVector '{}'.",
+                      MeshLib::globalIDString(mesh_item_type));
+        }
+        global_ids->assign(ranges::views::iota(0u, number_of_items));
+    }
+}
+
+void addGlobalIDsToMesh(MeshLib::Mesh& mesh)
+{
+    auto& mesh_properties = mesh.getProperties();
+
+    addGlobalIDsToMesh(mesh_properties, MeshLib::MeshItemType::Node,
+                       mesh.getNumberOfNodes());
+    INFO("Property {} is added to mesh {}",
+         MeshLib::globalIDString(MeshLib::MeshItemType::Node), mesh.getName());
+
+    addGlobalIDsToMesh(mesh_properties, MeshLib::MeshItemType::Cell,
+                       mesh.getNumberOfElements());
+    INFO("Property {} is added to mesh {}",
+         MeshLib::globalIDString(MeshLib::MeshItemType::Cell), mesh.getName());
+}
 
 int main(int argc, char* argv[])
 {
@@ -46,26 +81,26 @@ int main(int argc, char* argv[])
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<std::string> mesh_input(
         "i", "mesh-input-file",
-        "the name of the file containing the input mesh", true, "",
-        "file name of input mesh");
+        "Input (.vtu). The name of the file containing the input mesh", true,
+        "", "INPUT_FILE");
     cmd.add(mesh_input);
 
     TCLAP::ValueArg<std::string> metis_mesh_input(
         "x", "metis-mesh-input-file",
-        "base name (without .mesh extension) of the file containing the metis "
-        "input mesh",
-        false, "",
-        "base name (without .mesh extension) of the file containing the metis "
-        "input mesh");
+        "Input (.mesh). Base name (without .mesh extension) of the file "
+        "containing the metis input mesh",
+        false, "", "BASE_FILENAME_INPUT");
     cmd.add(metis_mesh_input);
 
     TCLAP::ValueArg<std::string> output_directory_arg(
-        "o", "output", "directory name for the output files", false, "",
-        "directory");
+        "o", "output", "Output. Directory name for the output files", false, "",
+        "OUTPUT_PATH");
     cmd.add(output_directory_arg);
 
-    TCLAP::ValueArg<int> nparts("n", "np", "the number of partitions", false, 2,
-                                "integer");
+    TCLAP::ValueArg<int> nparts("n", "np",
+                                "the number of partitions, "
+                                "(min = 0)",
+                                false, 2, "N_PARTS");
     cmd.add(nparts);
 
     TCLAP::SwitchArg ogs2metis_flag(
@@ -78,17 +113,7 @@ int main(int argc, char* argv[])
         false);
     cmd.add(exe_metis_flag);
 
-    TCLAP::ValueArg<std::string> log_level_arg(
-        "l", "log-level",
-        "the verbosity of logging messages: none, error, warn, info, debug, "
-        "all",
-        false,
-#ifdef NDEBUG
-        "info",
-#else
-        "all",
-#endif
-        "LOG_LEVEL");
+    auto log_level_arg = BaseLib::makeLogLevelArg();
     cmd.add(log_level_arg);
 
     // All the remaining arguments are used as file names for boundary/subdomain
@@ -100,15 +125,7 @@ int main(int argc, char* argv[])
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
-
-    BaseLib::setConsoleLogLevel(log_level_arg.getValue());
-    spdlog::set_pattern("%^%l:%$ %v");
-    spdlog::set_error_handler(
-        [](const std::string& msg)
-        {
-            std::cerr << "spdlog error: " << msg << std::endl;
-            OGS_FATAL("spdlog logger error occurred.");
-        });
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     const auto output_directory = output_directory_arg.getValue();
     BaseLib::createOutputDirectory(output_directory);
@@ -126,6 +143,8 @@ int main(int argc, char* argv[])
          mesh_ptr->getName(),
          mesh_ptr->getNumberOfNodes(),
          mesh_ptr->getNumberOfElements());
+
+    addGlobalIDsToMesh(*mesh_ptr);
 
     std::string const output_file_name_wo_extension = BaseLib::joinPaths(
         output_directory,
@@ -208,6 +227,8 @@ int main(int argc, char* argv[])
         INFO("Mesh '{:s}' from file '{:s}' read: {:d} nodes, {:d} elements.",
              mesh->getName(), filename, mesh->getNumberOfNodes(),
              mesh->getNumberOfElements());
+
+        addGlobalIDsToMesh(*mesh);
 
         std::string const other_mesh_output_file_name_wo_extension =
             BaseLib::joinPaths(

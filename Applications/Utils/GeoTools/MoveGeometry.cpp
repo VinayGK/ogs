@@ -11,10 +11,11 @@
  *              http://www.opengeosys.org/project/license
  */
 
-// ThirdParty
 #include <tclap/CmdLine.h>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/GEOObjects.h"
 #include "GeoLib/IO/XmlIO/Boost/BoostXmlGmlInterface.h"
 #include "InfoLib/GitInfo.h"
@@ -30,23 +31,26 @@ int main(int argc, char* argv[])
             "(http://www.opengeosys.org)",
         ' ', GitInfoLib::GitInfo::ogs_version);
     TCLAP::ValueArg<double> z_arg("z", "z", "displacement in z direction",
-                                  false, 0.0, "z-displacement");
+                                  false, 0.0, "Z-DISPLACEMENT");
     cmd.add(z_arg);
     TCLAP::ValueArg<double> y_arg("y", "y", "displacement in y direction",
-                                  false, 0.0, "y-displacement");
+                                  false, 0.0, "Y-DISPLACEMENT");
     cmd.add(y_arg);
     TCLAP::ValueArg<double> x_arg("x", "x", "displacement in x direction",
-                                  false, 0.0, "x-displacement");
+                                  false, 0.0, "X-DISPLACEMENT");
     cmd.add(x_arg);
     TCLAP::ValueArg<std::string> geo_output_arg(
-        "o", "output", "output geometry file (*.gml)", true, "", "output file");
+        "o", "output", "Output (.gml) geometry file", true, "", "OUTPUT_FILE");
     cmd.add(geo_output_arg);
     TCLAP::ValueArg<std::string> geo_input_arg(
-        "i", "input", "input geometry file (*.gml)", true, "", "input file");
+        "i", "input", "Input (.gml) geometry file", true, "", "INPUT_FILE");
     cmd.add(geo_input_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     GeoLib::GEOObjects geo_objects;
     GeoLib::IO::BoostXmlGmlInterface xml(geo_objects);

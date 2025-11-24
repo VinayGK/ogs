@@ -28,8 +28,10 @@
 #include <vector>
 
 #include "BaseLib/FileTools.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
 #include "BaseLib/RunTime.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/AABB.h"
 #include "GeoLib/OctTree.h"
 #include "InfoLib/GitInfo.h"
@@ -376,66 +378,9 @@ makeNodesUnique(std::vector<MeshLib::Node*> const& all_merged_nodes_tmp,
     return {unique_merged_nodes, merged_node_map};
 }
 
-int main(int argc, char* argv[])
+std::unique_ptr<MeshLib::Mesh> mergeSubdomainMeshes(
+    std::vector<std::unique_ptr<MeshLib::Mesh>> const& meshes)
 {
-    TCLAP::CmdLine cmd(
-        "This tool merges VTU files of PVTU into one single VTU file. Apart "
-        "from the mesh data, all property data are merged as well"
-        "\n\nOpenGeoSys-6 software, version " +
-            GitInfoLib::GitInfo::ogs_version +
-            ".\n"
-            "Copyright (c) 2012-2025, OpenGeoSys Community "
-            "(http://www.opengeosys.org)",
-        ' ', GitInfoLib::GitInfo::ogs_version);
-
-    TCLAP::ValueArg<std::string> output_arg(
-        "o", "output", "the output mesh (*.vtu)", true, "", "output.vtu");
-    cmd.add(output_arg);
-
-    TCLAP::ValueArg<std::string> input_arg(
-        "i", "input", "the partitioned input mesh (*.pvtu)", true, "",
-        "input.pvtu");
-    cmd.add(input_arg);
-    cmd.parse(argc, argv);
-
-    BaseLib::MPI::Setup mpi_setup(argc, argv);
-
-    if (BaseLib::getFileExtension(input_arg.getValue()) != ".pvtu")
-    {
-        OGS_FATAL("The extension of input file name {:s} is not \"pvtu\"",
-                  input_arg.getValue());
-    }
-    if (BaseLib::getFileExtension(output_arg.getValue()) != ".vtu")
-    {
-        OGS_FATAL("The extension of output file name {:s} is not \"vtu\"",
-                  output_arg.getValue());
-    }
-
-    auto const vtu_file_names = readVtuFileNames(input_arg.getValue());
-
-    std::vector<std::unique_ptr<MeshLib::Mesh>> meshes;
-    meshes.reserve(vtu_file_names.size());
-
-    BaseLib::RunTime io_timer;
-    io_timer.start();
-    for (auto const& file_name : vtu_file_names)
-    {
-        auto mesh = std::unique_ptr<MeshLib::Mesh>(
-            MeshLib::IO::VtuInterface::readVTUFile(file_name));
-
-        MeshLib::Properties const& properties = mesh->getProperties();
-
-        if (!properties.existsPropertyVector<unsigned char>("vtkGhostType"))
-        {
-            OGS_FATAL(
-                "Property vector vtkGhostType does not exist in mesh {:s}.",
-                file_name);
-        }
-
-        meshes.emplace_back(std::move(mesh));
-    }
-    INFO("Reading meshes took {} s", io_timer.elapsed());
-
     BaseLib::RunTime merged_element_timer;
     merged_element_timer.start();
     // If structured binding is used for the returned tuple, Mac compiler gives
@@ -476,9 +421,9 @@ int main(int argc, char* argv[])
     mesh_creation_timer.start();
     // The Node pointers of 'merged_nodes' and Element pointers of
     // 'regular_elements' are shared with 'meshes', the partitioned meshes.
-    MeshLib::Mesh merged_mesh =
-        MeshLib::Mesh("pvtu_merged_mesh", unique_merged_nodes, regular_elements,
-                      false /* compute_element_neighbors */);
+    auto merged_mesh = std::make_unique<MeshLib::Mesh>(
+        "pvtu_merged_mesh", unique_merged_nodes, regular_elements,
+        false /* compute_element_neighbors */);
     INFO("creation of merged mesh took {} s", mesh_creation_timer.elapsed());
 
     auto const& properties = meshes[0]->getProperties();
@@ -492,15 +437,230 @@ int main(int argc, char* argv[])
                                                    auto const& property)
         {
             return createPropertyVector<decltype(type)>(
-                merged_mesh, meshes,
+                *merged_mesh, meshes,
                 dynamic_cast<MeshLib::PropertyVector<decltype(type)> const*>(
                     property),
                 properties, merged_node_map, merged_element_map);
         });
     INFO("merge properties into merged mesh took {} s",
          property_timer.elapsed());
+    return merged_mesh;
+}
 
-    MeshLib::IO::VtuInterface writer(&merged_mesh);
+template <typename T>
+bool transfer(MeshLib::Properties const& subdomain_properties,
+              MeshLib::Mesh& original_mesh,
+              MeshLib::PropertyVector<std::size_t> const& global_ids,
+              std::string_view const property_name,
+              MeshLib::MeshItemType const mesh_item_type)
+{
+    if (!subdomain_properties.existsPropertyVector<T>(property_name))
+    {
+        INFO("Skipping property '{}' since it is not from type '{}'.",
+             property_name, typeid(T).name());
+        return false;
+    }
+    auto const* subdomain_pv =
+        subdomain_properties.getPropertyVector<T>(property_name);
+    auto const number_of_components =
+        subdomain_pv->getNumberOfGlobalComponents();
+
+    auto* original_pv = MeshLib::getOrCreateMeshProperty<T>(
+        original_mesh, std::string(property_name), mesh_item_type,
+        number_of_components);
+
+    for (std::size_t i = 0; i < global_ids.size(); ++i)
+    {
+        auto const& global_id = global_ids[i];
+        for (std::remove_cvref_t<decltype(number_of_components)>
+                 component_number = 0;
+             component_number < number_of_components;
+             ++component_number)
+        {
+            original_pv->getComponent(global_id, component_number) =
+                subdomain_pv->getComponent(i, component_number);
+        }
+    }
+    INFO("Data array {} from data type '{}' transferred.", property_name,
+         typeid(T).name());
+    return true;
+}
+
+void transferPropertiesFromPartitionedMeshToUnpartitionedMesh(
+    MeshLib::Mesh const& subdomain_mesh, MeshLib::Mesh& original_mesh,
+    MeshLib::MeshItemType const mesh_item_type)
+{
+    auto const& subdomain_properties = subdomain_mesh.getProperties();
+    if (!subdomain_properties.existsPropertyVector<std::size_t>(
+            MeshLib::globalIDString(mesh_item_type), mesh_item_type, 1))
+    {
+        OGS_FATAL(
+            "The data array '{}' is required for the transfer of data from "
+            "subdomain mesh to the global mesh. But it doesn't exist in "
+            "subdomain mesh '{}'.",
+            MeshLib::globalIDString(mesh_item_type), subdomain_mesh.getName());
+    }
+    auto const* global_ids =
+        subdomain_properties.getPropertyVector<std::size_t>(
+            MeshLib::globalIDString(mesh_item_type), mesh_item_type, 1);
+    if (global_ids == nullptr)
+    {
+        OGS_FATAL("The data array '{}' is not available but required.",
+                  MeshLib::globalIDString(mesh_item_type));
+    }
+
+    auto const& property_names =
+        subdomain_properties.getPropertyVectorNames(mesh_item_type);
+
+    for (auto const& property_name : property_names)
+    {
+        if (property_name == MeshLib::globalIDString(mesh_item_type))
+        {
+            continue;
+        }
+        if (property_name == MeshLib::getBulkIDString(mesh_item_type))
+        {
+            INFO(
+                "Skipping property '{}' since it is adjusted locally in "
+                "NodeWiseMeshPartitioner::renumberBulkNodeIdsProperty().",
+                MeshLib::getBulkIDString(mesh_item_type));
+            continue;
+        }
+        if (property_name == "vtkGhostType")
+        {
+            INFO(
+                "Skipping property 'vtkGhostType' since it is only required "
+                "for parallel execution.");
+            continue;
+        }
+        if (transfer<double>(subdomain_properties, original_mesh, *global_ids,
+                             property_name, mesh_item_type) ||
+            transfer<float>(subdomain_properties, original_mesh, *global_ids,
+                            property_name, mesh_item_type) ||
+            transfer<unsigned>(subdomain_properties, original_mesh, *global_ids,
+                               property_name, mesh_item_type) ||
+            transfer<unsigned long>(subdomain_properties, original_mesh,
+                                    *global_ids, property_name,
+                                    mesh_item_type) ||
+            transfer<std::size_t>(subdomain_properties, original_mesh,
+                                  *global_ids, property_name, mesh_item_type) ||
+            transfer<int>(subdomain_properties, original_mesh, *global_ids,
+                          property_name, mesh_item_type) ||
+            transfer<long>(subdomain_properties, original_mesh, *global_ids,
+                           property_name, mesh_item_type))
+        {
+            INFO("Data array {} transferred from '{}' to'{}'", property_name,
+                 subdomain_mesh.getName(), original_mesh.getName());
+        }
+    }
+}
+
+void transferPropertiesFromPartitionedMeshToUnpartitionedMesh(
+    MeshLib::Mesh const& subdomain_mesh, MeshLib::Mesh& original_mesh)
+{
+    transferPropertiesFromPartitionedMeshToUnpartitionedMesh(
+        subdomain_mesh, original_mesh, MeshLib::MeshItemType::Node);
+
+    transferPropertiesFromPartitionedMeshToUnpartitionedMesh(
+        subdomain_mesh, original_mesh, MeshLib::MeshItemType::Cell);
+}
+
+int main(int argc, char* argv[])
+{
+    TCLAP::CmdLine cmd(
+        "This tool merges VTU files of PVTU into one single VTU file. Apart "
+        "from the mesh data, all property data are merged as well"
+        "\n\nOpenGeoSys-6 software, version " +
+            GitInfoLib::GitInfo::ogs_version +
+            ".\n"
+            "Copyright (c) 2012-2025, OpenGeoSys Community "
+            "(http://www.opengeosys.org)",
+        ' ', GitInfoLib::GitInfo::ogs_version);
+
+    TCLAP::ValueArg<std::string> output_arg(
+        "o", "output", "Output (.vtu). The output mesh file (format = *.vtu)",
+        true, "", "OUTPUT_FILE");
+    cmd.add(output_arg);
+
+    TCLAP::ValueArg<std::string> input_arg(
+        "i", "input", "Input (.pvtu). The partitioned input mesh file", true,
+        "", "INPUT_FILE");
+    cmd.add(input_arg);
+
+    TCLAP::ValueArg<std::string> original_mesh_input_arg(
+        "m", "original_mesh",
+        "optional, the original unpartitioned input mesh (*.vtu)", false, "",
+        "");
+    cmd.add(original_mesh_input_arg);
+
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+
+    cmd.add(log_level_arg);
+    cmd.parse(argc, argv);
+
+    BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
+
+    if (BaseLib::getFileExtension(input_arg.getValue()) != ".pvtu")
+    {
+        OGS_FATAL("The extension of input file name {:s} is not \"pvtu\"",
+                  input_arg.getValue());
+    }
+    if (BaseLib::getFileExtension(output_arg.getValue()) != ".vtu")
+    {
+        OGS_FATAL("The extension of output file name {:s} is not \"vtu\"",
+                  output_arg.getValue());
+    }
+
+    auto const vtu_file_names = readVtuFileNames(input_arg.getValue());
+
+    std::vector<std::unique_ptr<MeshLib::Mesh>> meshes;
+    meshes.reserve(vtu_file_names.size());
+
+    BaseLib::RunTime io_timer;
+    io_timer.start();
+    for (auto const& file_name : vtu_file_names)
+    {
+        auto mesh = std::unique_ptr<MeshLib::Mesh>(
+            MeshLib::IO::VtuInterface::readVTUFile(file_name));
+
+        MeshLib::Properties const& properties = mesh->getProperties();
+
+        if (!properties.existsPropertyVector<unsigned char>("vtkGhostType"))
+        {
+            OGS_FATAL(
+                "Property vector vtkGhostType does not exist in mesh {:s}.",
+                file_name);
+        }
+
+        meshes.emplace_back(std::move(mesh));
+    }
+    INFO("Reading meshes took {} s", io_timer.elapsed());
+
+    std::unique_ptr<MeshLib::Mesh> merged_mesh;
+    if (original_mesh_input_arg.getValue().empty())
+    {
+        // use old, slow method that generates node and element orderings not
+        // consistent with the original mesh
+        merged_mesh = mergeSubdomainMeshes(meshes);
+    }
+    else
+    {
+        BaseLib::RunTime io_timer;
+        io_timer.start();
+        merged_mesh = std::unique_ptr<MeshLib::Mesh>(
+            MeshLib::IO::VtuInterface::readVTUFile(
+                original_mesh_input_arg.getValue()));
+        INFO("Reading original unpartitioned mesh took {} s",
+             io_timer.elapsed());
+        for (auto const& subdomain_mesh : meshes)
+        {
+            transferPropertiesFromPartitionedMeshToUnpartitionedMesh(
+                *(subdomain_mesh.get()), *merged_mesh);
+        }
+    }
+
+    MeshLib::IO::VtuInterface writer(merged_mesh.get());
 
     BaseLib::RunTime writing_timer;
     writing_timer.start();
@@ -517,7 +677,7 @@ int main(int argc, char* argv[])
     // memory by these pointers are released by 'meshes' automatically.
     // Therefore, only node vector and element vector of merged_mesh should be
     // cleaned.
-    merged_mesh.shallowClean();
+    merged_mesh->shallowClean();
 
     return EXIT_SUCCESS;
 }

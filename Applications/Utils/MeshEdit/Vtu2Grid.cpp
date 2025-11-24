@@ -8,10 +8,12 @@
  */
 
 #include <tclap/CmdLine.h>
-#include <vtkXMLUnstructuredGridReader.h>
 
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "InfoLib/GitInfo.h"
+#include "MeshLib/IO/VtkIO/VtuInterface.h"
 #include "MeshLib/IO/writeMeshToFile.h"
 #include "MeshLib/Mesh.h"
 #include "MeshLib/MeshSearch/ElementSearch.h"
@@ -36,33 +38,39 @@ int main(int argc, char* argv[])
         ' ', GitInfoLib::GitInfo::ogs_version);
 
     TCLAP::ValueArg<double> z_arg("z", "cellsize-z",
-                                  "edge length of cubes in z-direction (depth)",
-                                  false, 1000, "floating point number");
+                                  "edge length of cubes in z-direction "
+                                  "(depth), (min = 0)",
+                                  false, 1000, "CELLSIZE_Z");
     cmd.add(z_arg);
 
-    TCLAP::ValueArg<double> y_arg(
-        "y", "cellsize-y", "edge length of cubes in y-direction (latitude)",
-        false, 1000, "floating point number");
+    TCLAP::ValueArg<double> y_arg("y", "cellsize-y",
+                                  "edge length of cubes in y-direction "
+                                  "(latitude), (min = 0)",
+                                  false, 1000, "CELLSIZE_Y");
     cmd.add(y_arg);
 
     TCLAP::ValueArg<double> x_arg(
         "x", "cellsize-x",
         "edge length of cubes in x-direction (longitude) or all directions, if "
-        "y and z are not set",
-        true, 1000, "floating point number");
+        "y and z are not set, (min = 0)",
+        true, 1000, "CELLSIZE_X");
     cmd.add(x_arg);
 
     TCLAP::ValueArg<std::string> output_arg(
-        "o", "output", "the output grid (*.vtu)", true, "", "output.vtu");
+        "o", "output", "Output (.vtu). The output grid file", true, "",
+        "OUTPUT_FILE");
     cmd.add(output_arg);
 
-    TCLAP::ValueArg<std::string> input_arg("i", "input",
-                                           "the 3D input mesh (*.vtu, *.msh)",
-                                           true, "", "input.vtu");
+    TCLAP::ValueArg<std::string> input_arg(
+        "i", "input", "Input (.vtu | .msh). The 3D input mesh file", true, "",
+        "INPUT_FILE");
     cmd.add(input_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     if ((y_arg.isSet() && !z_arg.isSet()) ||
         ((!y_arg.isSet() && z_arg.isSet())))
@@ -86,11 +94,13 @@ int main(int argc, char* argv[])
 
     std::array<double, 3> const cellsize = {x_size, y_size, z_size};
 
-    vtkSmartPointer<vtkXMLUnstructuredGridReader> reader =
-        vtkSmartPointer<vtkXMLUnstructuredGridReader>::New();
-    reader->SetFileName(input_arg.getValue().c_str());
-    reader->Update();
-    vtkSmartPointer<vtkUnstructuredGrid> mesh = reader->GetOutput();
+    vtkSmartPointer<vtkUnstructuredGrid> mesh =
+        MeshLib::IO::VtuInterface::readVtuFileToVtkUnstructuredGrid(
+            input_arg.getValue());
+    if (mesh == nullptr)
+    {
+        return EXIT_FAILURE;
+    }
 
     double* const bounds = mesh->GetBounds();
     MathLib::Point3d const min(

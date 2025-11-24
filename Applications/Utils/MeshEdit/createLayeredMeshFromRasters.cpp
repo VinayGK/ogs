@@ -23,7 +23,9 @@
 
 #include "BaseLib/FileTools.h"
 #include "BaseLib/IO/readStringListFromFile.h"
+#include "BaseLib/Logging.h"
 #include "BaseLib/MPI.h"
+#include "BaseLib/TCLAPArguments.h"
 #include "GeoLib/IO/AsciiRasterInterface.h"
 #include "InfoLib/GitInfo.h"
 #include "MeshLib/IO/VtkIO/VtuInterface.h"
@@ -87,15 +89,16 @@ int main(int argc, char* argv[])
     TCLAP::ValueArg<double> min_thickness_arg(
         "t", "thickness",
         "The minimum thickness of a layer to be integrated at any given "
-        "location.",
-        false, min_thickness, "floating point number");
+        "location, (min = 0)",
+        false, min_thickness, "MIN_THICKNESS");
     cmd.add(min_thickness_arg);
 
     TCLAP::ValueArg<std::string> raster_path_arg(
         "r", "raster-list",
-        "An ascii-file containing a list of raster files, starting from top "
-        "(DEM) to bottom.",
-        true, "", "file name");
+        "Input (.vtu). An ascii-file containing a list of input "
+        "raster files, starting from"
+        "top (DEM) to bottom",
+        true, "", "INPUT_FILE_LIST");
     cmd.add(raster_path_arg);
 
     TCLAP::SwitchArg keep_materials_arg(
@@ -106,18 +109,23 @@ int main(int argc, char* argv[])
     cmd.add(keep_materials_arg);
 
     TCLAP::ValueArg<std::string> mesh_out_arg(
-        "o", "output-mesh-file", "The file name of the resulting 3D mesh.",
-        true, "", "file name");
+        "o", "output-mesh-file",
+        "Output (.vtu). The file name of the resulting 3D mesh", true, "",
+        "OUTPUT_FILE");
     cmd.add(mesh_out_arg);
 
-    TCLAP::ValueArg<std::string> mesh_arg("i", "input-mesh-file",
-                                          "The file name of the 2D input mesh.",
-                                          true, "", "file name");
+    TCLAP::ValueArg<std::string> mesh_arg(
+        "i", "input-mesh-file",
+        "Input (.vtu). The file name of the 2D input mesh", true, "",
+        "INPUT_FILE");
     cmd.add(mesh_arg);
+    auto log_level_arg = BaseLib::makeLogLevelArg();
+    cmd.add(log_level_arg);
 
     cmd.parse(argc, argv);
 
     BaseLib::MPI::Setup mpi_setup(argc, argv);
+    BaseLib::initOGSLogger(log_level_arg.getValue());
 
     if (min_thickness_arg.isSet())
     {

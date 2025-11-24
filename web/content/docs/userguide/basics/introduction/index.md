@@ -13,7 +13,7 @@ The different operating systems and installation methods give you the feature ma
 
 | Operating system / Installation method                                                                                       | [Processes](/docs/userguide/blocks/processes/)                                    | [MFront](/docs/userguide/features/mfront/) | [PETSc]({{< ref "parallel_computing_mpi" >}})
 | ---------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------: | :----------------------------------------: | :-------------------------------------------:
-| <i class="fab fa-windows"></i> Windows / [pip](#install-via-pip) & [binary download](#alternative-install-via-binary-downloads) | `TH2M` disabled, [see issue](https://gitlab.opengeosys.org/ogs/ogs/-/issues/3197) |                     ❌                      |                       ❌
+| <i class="fab fa-windows"></i> Windows / [pip](#install-via-pip) & [binary download](#alternative-install-via-binary-downloads) | All |                     ❌                      |                       ❌
 | <i class="fab fa-apple"></i> macOS / [pip](#install-via-pip)                                                                    |                                        All                                        |                     ✅                      |                       ❌
 | <i class="fab fa-linux"></i> Linux / [pip](#install-via-pip) & [Serial Container]({{< ref "container.md" >}})                   |                                        All                                        |                     ✅                      |                       ❌
 | <i class="fab fa-linux"></i> Linux / [PETSc Container]({{< ref "container.md" >}})                                              |                                        All                                        |                     ✅                      |                       ✅
@@ -39,13 +39,15 @@ A straightforward way of installing OGS is via Python's [`pip`-tool](https://pac
 ```powershell
 # Optional: create a Python virtual environment, see below
 python -m venv .venv
-.\venv\Scripts\Activate.ps1
+.\venv\Scripts\Activate.ps1 # for PowerShell OR
+.\venv\Scripts\activate.bat # for Command Prompt
 
-# Install latest ogs release ({{< ogs-last-release >}}) via pip:
-pip install ogs
+
+# Install latest ogstools and ogs release ({{< ogs-last-release >}}) via pip:
+pip install ogstools[ogs]
 
 # OR: Install latest ogs master (weekly) via pip:
-pip install --pre --index-url https://gitlab.opengeosys.org/api/v4/projects/120/packages/pypi/simple ogs
+pip install --pre --index-url https://gitlab.opengeosys.org/api/v4/projects/120/packages/pypi/simple ogstools[ogs]
 ```
 
 If you get errors when calling the `Activate.ps1` script you have to run the following command once:
@@ -63,11 +65,11 @@ Set-Execution-Policy Unrestricted -Scope CurrentUser
 python -m venv .venv      # or `python3 -m venv .venv`
 source .venv/bin/activate
 
-# Install latest ogs release ({{< ogs-last-release >}}) via pip:
-pip install ogs
+# Install latest ogstools and ogs release ({{< ogs-last-release >}}) via pip:
+pip install ogstools[ogs]
 
 # OR: Install latest ogs master (weekly) via pip:
-pip install --pre --index-url https://gitlab.opengeosys.org/api/v4/projects/120/packages/pypi/simple ogs
+pip install --pre --index-url https://gitlab.opengeosys.org/api/v4/projects/120/packages/pypi/simple ogstools[ogs]
 ```
 
 </div>
@@ -76,7 +78,7 @@ pip install --pre --index-url https://gitlab.opengeosys.org/api/v4/projects/120/
 See Linux-tab!
 </div>
 
-Please note that this requires a Python installation (version 3.8 - 3.11) with the `pip`-tool.
+Please note that this requires a Python installation (version 3.10 - 3.13) with the `pip`-tool.
 
 We recommend using Python within a [virtual environment](https://docs.python.org/3/library/venv.html) to keep possible
 conflicts of different Python-packages localised. If you use `pip` for installation of OGS in a virtual environment and you
