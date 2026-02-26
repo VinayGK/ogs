@@ -57,6 +57,7 @@
       "name": "_petsc",
       "hidden": true,
       "cacheVariables": {
+        "BUILD_SHARED_LIBS": "ON",
         "OGS_USE_PETSC": "ON"
       },
       "environment": {
@@ -174,6 +175,13 @@
       }
     },
     {
+      "name": "ci-simplest",
+      "inherits": "release",
+      "cacheVariables": {
+        "OGS_BUILD_UTILS": "OFF"
+      }
+    },
+    {
       "name": "ci-no-unity",
       "inherits": [
         "release-all",
@@ -202,15 +210,18 @@
         "HDF5_USE_STATIC_LIBRARIES": "ON",
         "OGS_BUILD_HDF5": "ON",
         "OGS_BUILD_WHEEL": "ON",
+        "OGS_BUILD_TESTING": "OFF",
         "OGS_INSTALL_DEPENDENCIES": "OFF",
         "OGS_USE_PIP": "OFF",
-        "OGS_USE_MFRONT": "ON"
+        "OGS_USE_MFRONT": "ON",
+        "BUILD_SHARED_LIBS": "ON"
       }
     },
     {
       "name": "sanitizer",
       "inherits": "debug-all",
       "cacheVariables": {
+        "BUILD_SHARED_LIBS": "ON",
         "OGS_CXX_FLAGS": "-O3;-fno-var-tracking",
         "OGS_EIGEN_DYNAMIC_SHAPE_MATRICES": "OFF",
         "ENABLE_ASAN": "ON",
@@ -226,9 +237,30 @@
         "UBSAN_OPTIONS": "print_stacktrace=1",
         "LSAN_OPTIONS": "suppressions=${sourceDir}/scripts/test/leak_sanitizer.suppressions"
       }
+    },
+  {
+      "name": "release-omp-mfront",
+      "inherits": [
+        "release"
+      ],
+      "cacheVariables": {
+        "OGS_USE_MFRONT" :"ON",
+        "OpenMP_CXX_FLAGS": "-Xclang -fopenmp",
+        "OpenMP_CXX_INCLUDE_DIR": "/opt/homebrew/opt/libomp/include/",
+        "OpenMP_CXX_LIB_NAMES": "libomp",
+        "OpenMP_C_FLAGS": "-Xclang -fopenmp",
+        "OpenMP_C_INCLUDE_DIR": "/opt/homebrew/opt/libomp/include/",
+        "OpenMP_C_LIB_NAMES": "libomp",
+        "OpenMP_libomp_LIBRARY": "/opt/homebrew/opt/libomp/lib/libomp.dylib",
+        "CPM_SOURCE_CACHE": "/Users/vinaykumar/.cache/CPM"
+      }
     }
   ],
   "buildPresets": [
+    {
+      "name": "release-omp-mfront",
+      "configurePreset": "release-omp-mfront"
+    },
     {
       "name": "_win",
       "hidden": true,
@@ -303,6 +335,10 @@
     {
       "name": "coverage",
       "configurePreset": "coverage"
+    },
+    {
+      "name": "ci-simplest",
+      "configurePreset": "ci-simplest"
     },
     {
       "name": "ci-no-unity",
@@ -420,3 +456,4 @@
     }
   ]
 }
+
