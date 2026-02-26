@@ -5,6 +5,8 @@
 
 #include <cassert>
 
+#include "BaseLib/DemangleTypeInfo.h"
+#include "InfoLib/GitInfo.h"
 #include "MaterialLib/MPL/CreateMaterialSpatialDistributionMap.h"
 #include "MaterialLib/MPL/MaterialSpatialDistributionMap.h"
 #include "MaterialLib/MPL/Medium.h"
@@ -22,6 +24,103 @@ namespace ProcessLib
 {
 namespace RichardsMechanics
 {
+namespace
+{
+char const* toString(MaterialLib::Solids::ConstitutiveModel const model)
+{
+    using MaterialLib::Solids::ConstitutiveModel;
+    switch (model)
+    {
+        case ConstitutiveModel::Ehlers:
+            return "Ehlers";
+        case ConstitutiveModel::LinearElasticIsotropic:
+            return "LinearElasticIsotropic";
+        case ConstitutiveModel::Lubby2:
+            return "Lubby2";
+        case ConstitutiveModel::CreepBGRa:
+            return "CreepBGRa";
+        case ConstitutiveModel::Invalid:
+            return "Invalid";
+    }
+    return "Unknown";
+}
+
+template <int DisplacementDim>
+void logPhase0TransitionAudit(
+    std::string const& process_name,
+    bool const use_monolithic_scheme,
+    ProcessVariable const& pressure_process_variable,
+    ProcessVariable const& displacement_process_variable,
+    std::map<int, std::shared_ptr<MaterialPropertyLib::Medium>> const& media,
+    std::map<int,
+             std::shared_ptr<MaterialLib::Solids::MechanicsBase<DisplacementDim>>> const&
+        solid_constitutive_relations,
+    std::optional<MicroPorosityParameters> const& micro_porosity_parameters)
+{
+    namespace MPL = MaterialPropertyLib;
+
+    INFO(
+        "[RM Phase0 audit] process='{}', OGS='{}', scheme='{}', pressure PV='{}' (1 comp), displacement PV='{}' ({} comp).",
+        process_name, GitInfoLib::GitInfo::ogs_version,
+        use_monolithic_scheme ? "monolithic" : "staggered",
+        pressure_process_variable.getName(), displacement_process_variable.getName(),
+        displacement_process_variable.getNumberOfGlobalComponents());
+
+    INFO(
+        "[RM Phase0 audit] Hydraulic convention in DS-RM local assembler: capillary pressure is derived from the FE pressure variable as p_c = -p_L (e.g. interpolate(-p_L, ...)); the process config has no explicit gas-pressure parameter.");
+
+    INFO(
+        "[RM Phase0 audit] Current DS-RM implementation also sets MPL variable gas_phase_pressure = 1.0e5 Pa in RichardsMechanicsFEM-impl.h (hardcoded, with TODO comment).");
+
+    if (micro_porosity_parameters)
+    {
+        INFO(
+            "[RM Phase0 audit] Micro-porosity constitutive hook: ENABLED (mass_exchange_coefficient = {}).",
+            micro_porosity_parameters->mass_exchange_coefficient);
+    }
+    else
+    {
+        INFO("[RM Phase0 audit] Micro-porosity constitutive hook: DISABLED.");
+    }
+
+    INFO(
+        "[RM Phase0 audit] Output/postprocessing note: the RM primary process variable named '{}' is the FE pressure variable (liquid-pressure convention in the current DS-RM code path); capillary pressure is an internal derived quantity.",
+        pressure_process_variable.getName());
+
+    for (auto const& [material_id, medium] : media)
+    {
+        auto const& solid_phase = medium->phase("Solid");
+        bool const has_swelling =
+            solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate);
+        bool const has_saturation_micro =
+            medium->hasProperty(MPL::PropertyType::saturation_micro);
+
+        auto const cr_it = solid_constitutive_relations.find(material_id);
+        char const* solid_model_name = "Missing";
+        std::string solid_model_type = "Missing";
+        if (cr_it != solid_constitutive_relations.end() && cr_it->second)
+        {
+            solid_model_name = toString(cr_it->second->getConstitutiveModel());
+            solid_model_type = BaseLib::demangle(typeid(*cr_it->second).name());
+        }
+
+        INFO(
+            "[RM Phase0 audit] material_id={} solid_model_enum={} solid_model_type='{}' swelling_stress_rate={} saturation_micro={} bishops_effective_stress={} saturation={} porosity={} relative_permeability={}.",
+            material_id, solid_model_name, solid_model_type,
+            has_swelling ? "yes" : "no",
+            has_saturation_micro ? "yes" : "no",
+            medium->hasProperty(MPL::PropertyType::bishops_effective_stress)
+                ? "yes"
+                : "no",
+            medium->hasProperty(MPL::PropertyType::saturation) ? "yes" : "no",
+            medium->hasProperty(MPL::PropertyType::porosity) ? "yes" : "no",
+            medium->hasProperty(MPL::PropertyType::relative_permeability)
+                ? "yes"
+                : "no");
+    }
+}
+}  // namespace
+
 void checkMPLProperties(
     std::map<int, std::shared_ptr<MaterialPropertyLib::Medium>> const& media)
 {
@@ -193,6 +292,10 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
 
     bool const use_numerical_jacobian =
         jacobian_assembler->isPerturbationEnabled();
+
+    logPhase0TransitionAudit<DisplacementDim>(
+        name, use_monolithic_scheme, *variable_p, *variable_u, media,
+        solid_constitutive_relations, micro_porosity_parameters);
 
     RichardsMechanicsProcessData<DisplacementDim> process_data{
         materialIDs(mesh),
