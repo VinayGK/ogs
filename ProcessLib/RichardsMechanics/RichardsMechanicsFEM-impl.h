@@ -10,6 +10,7 @@
 #include "BaseLib/Logging.h"
 #include "ComputeMicroPorosity.h"
 #include "ConstitutiveRelations/ConstitutiveModels.h"
+#include "ConstitutiveRelations/VKExchangePotentials.h"
 #include "IntegrationPointData.h"
 #include "MaterialLib/MPL/Medium.h"
 #include "MaterialLib/MPL/Utils/FormEigenTensor.h"
@@ -87,6 +88,24 @@ void maybeLogVKPhase1HydraulicAdapter(
             state.p_L_ip, state.p_L_prev_ip, state.p_cap_ip, state.pLR,
             state.pLR_prev, state.pLR_dot, state.grad_pL.norm(),
             state.grad_pLR.norm(), richards_pc_identity_valid);
+    });
+}
+
+inline void maybeLogVKPhase2BMacroPotential(double const p_L_ip,
+                                            double const rho_LR,
+                                            double const pressure_tolerance)
+{
+    static std::once_flag once;
+    std::call_once(once, [=]()
+    {
+        auto const mu_data = computeYoungLaplaceMacroPotential(
+            p_L_ip, rho_LR, pressure_tolerance);
+        INFO(
+            "[RM Phase2B macro-potential] audit-only helper: pLR={} Pa "
+            "(Phase1 mapping pLR:=pL), rho_LR={} kg/m^3, ptol={} Pa, "
+            "mu_LR={} J/kg, dmu/dpLR={} (J/kg)/Pa, saturated_branch={}.",
+            p_L_ip, rho_LR, pressure_tolerance, mu_data.mu_LR,
+            mu_data.dmu_LR_dpLR, mu_data.saturated_branch);
     });
 }
 
@@ -561,6 +580,7 @@ void RichardsMechanicsLocalAssembler<
             liquid_phase.property(MPL::PropertyType::density)
                 .template value<double>(variables, x_position, t, dt);
         variables.density = rho_LR;
+        maybeLogVKPhase2BMacroPotential(-p_cap_ip, rho_LR, 0.0);
 
         auto const& b = this->process_data_.specific_body_force;
 
@@ -1343,6 +1363,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         double const phi =
             std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(CD).phi;
         double const rho_LR = *std::get<LiquidDensity>(CD);
+        maybeLogVKPhase2BMacroPotential(-p_cap_ip, rho_LR, 0.0);
         local_Jac
             .template block<displacement_size, pressure_size>(
                 displacement_index, pressure_index)
