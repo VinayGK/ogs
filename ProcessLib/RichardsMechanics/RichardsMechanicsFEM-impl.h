@@ -109,6 +109,107 @@ inline void maybeLogVKPhase2BMacroPotential(double const p_L_ip,
     });
 }
 
+struct VKPhase2CPlaceholderExchangeData
+{
+    YoungLaplaceMacroPotentialData macro_potential;
+    PotentialDrivenMassExchangeData exchange;
+
+    double alpha_M_effective = 0.0;
+    double mu_LR_active_placeholder = 0.0;
+    double mu_lR_placeholder = 0.0;
+
+    // Direct macro derivative (with density dependence through rho_LR), while
+    // keeping the microscale state lagged.
+    double drho_L_hat_dpL_direct = 0.0;
+};
+
+inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
+    double const alpha_bar, double const mu, double const p_L_ip,
+    double const p_L_m, double const rho_LR, double const beta_LR,
+    double const pressure_tolerance = 0.0)
+{
+    if (!(mu > 0.0))
+    {
+        OGS_FATAL(
+            "computeVKPhase2CPlaceholderExchange requires mu > 0, got {:g}.",
+            mu);
+    }
+
+    VKPhase2CPlaceholderExchangeData out;
+
+    // Transitional coefficient mapping: recover the dimensional scaling of the
+    // legacy pressure-difference exchange when potentials are represented as
+    // p/rho. This keeps Phase 2C reversible while activating the helper-based
+    // source path.
+    out.alpha_M_effective = alpha_bar * rho_LR / mu;
+
+    out.macro_potential =
+        computeYoungLaplaceMacroPotential(p_L_ip, rho_LR, pressure_tolerance);
+
+    // Phase 2C placeholder microscale potential: derived from the existing OGS
+    // microscale pressure state. The vdW helper remains available and will be
+    // wired in a later step once user-facing vdW parameters are introduced.
+    out.mu_lR_placeholder = p_L_m / rho_LR;
+
+    // Phase 2C compatibility slice: activate the potential-driven source
+    // helper path while preserving the current OGS double-structure exchange
+    // behavior. The active macro and microscale potentials are represented as
+    // p/rho placeholders, which makes the source equivalent to the legacy
+    // pressure-difference law. The notebook Young-Laplace helper value is still
+    // computed above and logged for audit purposes.
+    out.mu_LR_active_placeholder = p_L_ip / rho_LR;
+
+    out.exchange = computePotentialDrivenMassExchange(out.alpha_M_effective,
+                                                      out.mu_LR_active_placeholder,
+                                                      out.mu_lR_placeholder);
+
+    // rho_LR depends on liquid pressure in RM through beta_LR = (1/rho) drho/dp.
+    double const drho_LR_dpL = rho_LR * beta_LR;
+
+    // alpha_M_effective = alpha_bar * rho_LR / mu (mu dependence is lagged).
+    double const dalpha_M_effective_dpL = alpha_bar / mu * drho_LR_dpL;
+
+    // Direct macro derivative through mu_LR helper, including rho_LR(p_L).
+    double const dmu_LR_dpL =
+        1.0 / rho_LR - p_L_ip / (rho_LR * rho_LR) * drho_LR_dpL;
+
+    // Placeholder mu_lR depends on rho_LR only; p_L_m is treated as lagged in
+    // Phase 2C.
+    double const dmu_lR_placeholder_dpL =
+        -p_L_m / (rho_LR * rho_LR) * drho_LR_dpL;
+
+    double const drho_l_hat_dpL_direct =
+        out.exchange.drho_l_hat_dalpha_M * dalpha_M_effective_dpL +
+        out.exchange.drho_l_hat_dmu_LR * dmu_LR_dpL +
+        out.exchange.drho_l_hat_dmu_lR * dmu_lR_placeholder_dpL;
+
+    out.drho_L_hat_dpL_direct = -drho_l_hat_dpL_direct;
+    return out;
+}
+
+inline void maybeLogVKPhase2CExchangeSource(
+    double const p_L_ip, double const p_L_m, double const rho_LR,
+    double const alpha_bar, double const mu,
+    VKPhase2CPlaceholderExchangeData const& data)
+{
+    static std::once_flag once;
+    std::call_once(once, [=]()
+    {
+        INFO(
+            "[RM Phase2C exchange] active placeholder path: pL_ip={} Pa, "
+            "pL_m={} Pa, rho_LR={} kg/m^3, alpha_bar={}, mu={} Pa*s, "
+            "alpha_M_eff={}, mu_LR(active placeholder)={} J/kg, "
+            "mu_LR(helper audit)={} J/kg, mu_lR(placeholder)={} J/kg, "
+            "rho_L_hat={} kg/(m^3 s), drho_L_hat/dpL (direct)={} "
+            "(kg/(m^3 s))/Pa, saturated_branch={}, note='micro state lagged; "
+            "vdW helper not yet active in assembly'.",
+            p_L_ip, p_L_m, rho_LR, alpha_bar, mu, data.alpha_M_effective,
+            data.mu_LR_active_placeholder, data.macro_potential.mu_LR,
+            data.mu_lR_placeholder, data.exchange.rho_L_hat,
+            data.drho_L_hat_dpL_direct, data.macro_potential.saturated_branch);
+    });
+}
+
 template <int DisplacementDim>
 void updateSwellingStressAndVolumetricStrain(
     MaterialPropertyLib::Medium const& medium,
@@ -1525,14 +1626,32 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     ->mass_exchange_coefficient;
             auto const p_L_m =
                 *std::get<MicroPressure>(this->current_states_[ip]);
-            local_rhs.template segment<pressure_size>(pressure_index)
-                .noalias() -=
-                N_p.transpose() * alpha_bar / mu * (-p_cap_ip - p_L_m) * w;
+            double const p_L_ip = -p_cap_ip;
+            auto const vk_exchange = computeVKPhase2CPlaceholderExchange(
+                alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR, 0.0);
+            maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
+                                            mu, vk_exchange);
 
+            // Phase 2C: activate potential-driven exchange source in the macro
+            // balance. The microscale state is still lagged and represented by
+            // the existing OGS micro-pressure placeholder potential p_L_m/rho.
+            local_rhs.template segment<pressure_size>(pressure_index)
+                .noalias() += N_p.transpose() * vk_exchange.exchange.rho_L_hat *
+                              w;
+
+            // Minimal Jacobian slice for Phase 2C: direct derivative w.r.t. the
+            // macro hydraulic unknown p_L (including rho_LR(p_L) dependence),
+            // while keeping the microscale state dependence lagged.
             local_Jac
                 .template block<pressure_size, pressure_size>(pressure_index,
                                                               pressure_index)
-                .noalias() += N_p.transpose() * alpha_bar / mu * N_p * w;
+                .noalias() -= N_p.transpose() *
+                              vk_exchange.drho_L_hat_dpL_direct * N_p * w;
+
+            // Keep the microscale pressure-state sensitivity lagged via the
+            // same secant term used in the legacy OGS exchange block, so the
+            // Phase 2C compatibility slice remains close to the current RM
+            // behavior while the new helper path is exercised.
             if (p_cap_ip != p_cap_prev_ip)
             {
                 auto const p_L_m_prev = **std::get<PrevState<MicroPressure>>(
