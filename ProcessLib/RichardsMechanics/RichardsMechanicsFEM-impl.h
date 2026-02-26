@@ -5,7 +5,9 @@
 
 #include <Eigen/LU>
 #include <cassert>
+#include <mutex>
 
+#include "BaseLib/Logging.h"
 #include "ComputeMicroPorosity.h"
 #include "ConstitutiveRelations/ConstitutiveModels.h"
 #include "IntegrationPointData.h"
@@ -23,6 +25,71 @@ namespace ProcessLib
 {
 namespace RichardsMechanics
 {
+// Phase 1 (reversible, audit-only): adapt OGS RM hydraulic variables to the
+// current VK notebook notation under the Richards convention.
+template <int DisplacementDim>
+struct VKPhase1HydraulicAdapterState
+{
+    double p_L_ip = 0.0;
+    double p_L_prev_ip = 0.0;
+    double p_cap_ip = 0.0;
+    double pLR = 0.0;
+    double pLR_prev = 0.0;
+    double pLR_dot = 0.0;
+    Eigen::Vector<double, DisplacementDim> grad_pL =
+        Eigen::Vector<double, DisplacementDim>::Zero();
+    Eigen::Vector<double, DisplacementDim> grad_pLR =
+        Eigen::Vector<double, DisplacementDim>::Zero();
+};
+
+template <int DisplacementDim, typename DShapePressureMatrix,
+          typename PressureVector>
+VKPhase1HydraulicAdapterState<DisplacementDim> makeVKPhase1HydraulicAdapterState(
+    double const p_cap_ip, double const p_cap_prev_ip,
+    DShapePressureMatrix const& dNdx_p, PressureVector const& p_L,
+    double const dt)
+{
+    VKPhase1HydraulicAdapterState<DisplacementDim> state;
+
+    // OGS RichardsMechanics currently interpolates p_cap = -p_L in the local
+    // assembler. Phase 1 keeps the same variables and introduces only a naming
+    // adapter for the notebook integration work.
+    state.p_cap_ip = p_cap_ip;
+    state.p_L_ip = -p_cap_ip;
+    state.p_L_prev_ip = -p_cap_prev_ip;
+
+    // Richards-adhering Phase 1 mapping used in the transition note:
+    // pLR := pL, dpLR/dt := dpL/dt, grad(pLR) := grad(pL).
+    state.pLR = state.p_L_ip;
+    state.pLR_prev = state.p_L_prev_ip;
+    state.pLR_dot =
+        dt > 0.0 ? (state.pLR - state.pLR_prev) / dt : 0.0;
+
+    state.grad_pL.noalias() = dNdx_p * p_L;
+    state.grad_pLR = state.grad_pL;
+
+    return state;
+}
+
+template <int DisplacementDim>
+void maybeLogVKPhase1HydraulicAdapter(
+    VKPhase1HydraulicAdapterState<DisplacementDim> const& state)
+{
+    static std::once_flag once;
+    std::call_once(once, [&state]()
+    {
+        bool const richards_pc_identity_valid = state.p_L_ip <= 0.0;
+        INFO(
+            "[RM Phase1 adapter] Richards->VK mapping (audit-only): pL_ip={} "
+            "Pa, pL_prev_ip={} Pa, pc_ip={} Pa, pLR={} Pa, pLR_prev={} Pa, "
+            "pLR_dot={} Pa/s, |grad pL|={}, |grad pLR|={}, pc=-pL valid={} "
+            "(valid on unsaturated branch pL<=0).",
+            state.p_L_ip, state.p_L_prev_ip, state.p_cap_ip, state.pLR,
+            state.pLR_prev, state.pLR_dot, state.grad_pL.norm(),
+            state.grad_pLR.norm(), richards_pc_identity_valid);
+    });
+}
+
 template <int DisplacementDim>
 void updateSwellingStressAndVolumetricStrain(
     MaterialPropertyLib::Medium const& medium,
@@ -459,6 +526,11 @@ void RichardsMechanicsLocalAssembler<
         // setting pG to 1 atm
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
+
+        [[maybe_unused]] auto const vk_phase1_hydraulic_adapter =
+            makeVKPhase1HydraulicAdapterState<DisplacementDim>(
+                p_cap_ip, p_cap_prev_ip, dNdx_p, p_L, dt);
+        maybeLogVKPhase1HydraulicAdapter(vk_phase1_hydraulic_adapter);
 
         auto const temperature =
             medium->property(MPL::PropertyType::reference_temperature)
@@ -1195,6 +1267,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         // setting pG to 1 atm
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
+
+        [[maybe_unused]] auto const vk_phase1_hydraulic_adapter =
+            makeVKPhase1HydraulicAdapterState<DisplacementDim>(
+                p_cap_ip, p_cap_prev_ip, dNdx_p, p_L, dt);
+        maybeLogVKPhase1HydraulicAdapter(vk_phase1_hydraulic_adapter);
 
         auto const temperature =
             medium->property(MPL::PropertyType::reference_temperature)
