@@ -45,6 +45,29 @@ char const* toString(MaterialLib::Solids::ConstitutiveModel const model)
     return "Unknown";
 }
 
+char const* toString(VKPotentialExchangeMode const mode)
+{
+    switch (mode)
+    {
+        case VKPotentialExchangeMode::FullPotential:
+            return "full_potential";
+    }
+    return "unknown";
+}
+
+VKPotentialExchangeMode parseVKPotentialExchangeMode(std::string const& mode)
+{
+    if (mode == "full_potential")
+    {
+        return VKPotentialExchangeMode::FullPotential;
+    }
+
+    OGS_FATAL(
+        "RichardsMechanics: unsupported vk_potential_exchange mode '{}'. "
+        "Currently supported: 'full_potential'.",
+        mode);
+}
+
 template <int DisplacementDim>
 void logPhase0TransitionAudit(
     std::string const& process_name,
@@ -55,7 +78,9 @@ void logPhase0TransitionAudit(
     std::map<int,
              std::shared_ptr<MaterialLib::Solids::MechanicsBase<DisplacementDim>>> const&
         solid_constitutive_relations,
-    std::optional<MicroPorosityParameters> const& micro_porosity_parameters)
+    std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
+    std::optional<VKPotentialExchangeParameters> const&
+        vk_potential_exchange_parameters)
 {
     namespace MPL = MaterialPropertyLib;
 
@@ -81,6 +106,24 @@ void logPhase0TransitionAudit(
     else
     {
         INFO("[RM Phase0 audit] Micro-porosity constitutive hook: DISABLED.");
+    }
+
+    if (vk_potential_exchange_parameters)
+    {
+        auto const& vkp = *vk_potential_exchange_parameters;
+        INFO(
+            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, initial_n_l={} ).",
+            vkp.enabled ? "true" : "false", toString(vkp.mode),
+            vkp.pressure_tolerance, vkp.hamaker_constant, vkp.specific_surface,
+            vkp.micro_solid_density_reference,
+            vkp.micro_solid_volume_fraction_reference,
+            vkp.initial_micro_water_content
+                ? std::to_string(*vkp.initial_micro_water_content)
+                : std::string{"<unset>"});
+    }
+    else
+    {
+        INFO("[RM Phase0 audit] VK potential-exchange config block: ABSENT.");
     }
 
     INFO(
@@ -277,6 +320,118 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
                 "mass_exchange_coefficient")};
     }
 
+    std::optional<VKPotentialExchangeParameters> vk_potential_exchange_parameters;
+    if (auto const vk_potential_exchange_config =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange}
+            config.getConfigSubtreeOptional("vk_potential_exchange"))
+    {
+        auto const enabled =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__enabled}
+            vk_potential_exchange_config->getConfigParameter<bool>("enabled",
+                                                                   false);
+
+        auto const mode = parseVKPotentialExchangeMode(
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__mode}
+            vk_potential_exchange_config->getConfigParameter<std::string>(
+                "mode", "full_potential"));
+
+        auto const pressure_tolerance =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__pressure_tolerance}
+            vk_potential_exchange_config->getConfigParameter<double>(
+                "pressure_tolerance", 0.0);
+
+        if (pressure_tolerance < 0.0)
+        {
+            OGS_FATAL(
+                "RichardsMechanics: vk_potential_exchange.pressure_tolerance "
+                "must be >= 0, got {:g}.",
+                pressure_tolerance);
+        }
+
+        auto get_positive_required = [&](char const* const key)
+        {
+            double const value =
+                vk_potential_exchange_config->getConfigParameter<double>(key);
+            if (!(value > 0.0))
+            {
+                OGS_FATAL(
+                    "RichardsMechanics: vk_potential_exchange.{} must be > 0, "
+                    "got {:g}.",
+                    key, value);
+            }
+            return value;
+        };
+
+        auto get_positive_optional = [&](char const* const key)
+            -> std::optional<double>
+        {
+            auto const value =
+                vk_potential_exchange_config->getConfigParameterOptional<double>(
+                    key);
+            if (value && !(*value > 0.0))
+            {
+                OGS_FATAL(
+                    "RichardsMechanics: vk_potential_exchange.{} must be > 0 "
+                    "if provided, got {:g}.",
+                    key, *value);
+            }
+            return value;
+        };
+
+        // Parse required values when the opt-in mode is enabled. If the block
+        // is present but disabled, keep values optional to allow staged
+        // configuration in project files without forcing full parameter input.
+        double hamaker_constant = 0.0;
+        double specific_surface = 0.0;
+        double micro_solid_density_reference = 0.0;
+        double micro_solid_volume_fraction_reference = 0.0;
+
+        if (enabled)
+        {
+            hamaker_constant = get_positive_required("hamaker_constant");
+            specific_surface = get_positive_required("specific_surface");
+            micro_solid_density_reference =
+                get_positive_required("micro_solid_density_reference");
+            micro_solid_volume_fraction_reference =
+                get_positive_required("micro_solid_volume_fraction_reference");
+        }
+        else
+        {
+            if (auto const v = get_positive_optional("hamaker_constant"))
+            {
+                hamaker_constant = *v;
+            }
+            if (auto const v = get_positive_optional("specific_surface"))
+            {
+                specific_surface = *v;
+            }
+            if (auto const v =
+                    get_positive_optional("micro_solid_density_reference"))
+            {
+                micro_solid_density_reference = *v;
+            }
+            if (auto const v = get_positive_optional(
+                    "micro_solid_volume_fraction_reference"))
+            {
+                micro_solid_volume_fraction_reference = *v;
+            }
+        }
+
+        auto const initial_micro_water_content =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__initial_micro_water_content}
+            get_positive_optional("initial_micro_water_content");
+
+        vk_potential_exchange_parameters = VKPotentialExchangeParameters{
+            enabled,
+            mode,
+            pressure_tolerance,
+            hamaker_constant,
+            specific_surface,
+            micro_solid_density_reference,
+            micro_solid_volume_fraction_reference,
+            initial_micro_water_content};
+    }
+
     auto const mass_lumping =
         //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__mass_lumping}
         config.getConfigParameter<bool>("mass_lumping", false);
@@ -295,7 +450,8 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
 
     logPhase0TransitionAudit<DisplacementDim>(
         name, use_monolithic_scheme, *variable_p, *variable_u, media,
-        solid_constitutive_relations, micro_porosity_parameters);
+        solid_constitutive_relations, micro_porosity_parameters,
+        vk_potential_exchange_parameters);
 
     RichardsMechanicsProcessData<DisplacementDim> process_data{
         materialIDs(mesh),
@@ -304,6 +460,7 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         initial_stress,
         specific_body_force,
         micro_porosity_parameters,
+        vk_potential_exchange_parameters,
         mass_lumping,
         explicit_hm_coupling_in_unsaturated_zone,
         use_numerical_jacobian};

@@ -11,6 +11,7 @@
 #include "MaterialLib/MPL/MaterialSpatialDistributionMap.h"
 #include "ParameterLib/Parameter.h"
 #include "ProcessLib/Common/HydroMechanics/InitialStress.h"
+#include "VKPotentialExchangeParameters.h"
 
 namespace MaterialLib
 {
@@ -44,6 +45,7 @@ struct RichardsMechanicsProcessData
     Eigen::Matrix<double, DisplacementDim, 1> const specific_body_force;
 
     std::optional<MicroPorosityParameters> micro_porosity_parameters;
+    std::optional<VKPotentialExchangeParameters> vk_potential_exchange_parameters;
 
     bool const apply_mass_lumping;
 
