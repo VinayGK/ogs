@@ -159,6 +159,8 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
     bool const use_vdw_micro_potential_for_active_exchange = false,
     double const mu_lR_vdw = 0.0,
     double const dmu_lR_vdw_drho_lR = 0.0,
+    bool const use_custom_dmu_lR_vdw_dpL = false,
+    double const dmu_lR_vdw_dpL = 0.0,
     bool const use_fd_jacobian_for_direct_macro_derivative = false,
     double const fd_jacobian_perturbation = 1e-8)
 {
@@ -277,7 +279,9 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
     // algebraic form).
     double const dmu_lR_placeholder_dpL =
         use_vdw_micro_potential_for_active_exchange
-            ? dmu_lR_vdw_drho_lR * drho_LR_dpL
+            ? (use_custom_dmu_lR_vdw_dpL
+                   ? dmu_lR_vdw_dpL
+                   : dmu_lR_vdw_drho_lR * drho_LR_dpL)
             : -p_L_m / (rho_LR * rho_LR) * drho_LR_dpL;
 
     double const drho_l_hat_dpL_direct =
@@ -315,7 +319,7 @@ inline void maybeLogVKPhase2CExchangeSource(
             "mu_LR(helper audit)={} J/kg, mu_lR(active)={} J/kg, "
             "rho_L_hat={} kg/(m^3 s), drho_L_hat/dpL (direct)={} "
             "(kg/(m^3 s))/Pa, jacobian_mode='{}', fd_perturbation={}, saturated_branch={}, "
-            "note='micro state lagged; vdW helper may be active for opt-in mode'.",
+            "note='vdW helper may be active for opt-in mode; n_l update is explicit BE-style'.",
             mode_name, micro_mode_name, p_L_ip, p_L_m, rho_LR, alpha_bar, mu,
             data.alpha_M_effective, data.mu_LR_active,
             data.macro_potential.mu_LR, data.mu_lR_placeholder,
@@ -1821,6 +1825,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             bool use_vdw_micro_potential_for_active_exchange = false;
             double mu_lR_vdw = 0.0;
             double dmu_lR_vdw_drho_lR = 0.0;
+            bool use_custom_dmu_lR_vdw_dpL = false;
+            double dmu_lR_vdw_dpL = 0.0;
             bool use_fd_jacobian_for_direct_macro_derivative = false;
             double fd_jacobian_perturbation = 1e-8;
             if (vk_potential_exchange_enabled)
@@ -1831,6 +1837,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     std::max(1e-16,
                              *std::get<VKMicroWaterContent>(
                                  this->current_states_[ip]));
+                auto const n_l_prev =
+                    std::max(1e-16,
+                             **std::get<PrevState<VKMicroWaterContent>>(
+                                 this->prev_states_[ip]));
 
                 auto const micro_potential = computeVanDerWaalsMicroPotential(
                     n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
@@ -1842,13 +1852,66 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 use_fd_jacobian_for_direct_macro_derivative =
                     vkp.use_fd_jacobian_for_exchange;
                 fd_jacobian_perturbation = vkp.fd_jacobian_perturbation;
+
+                // Complete the analytic Jacobian chain in the VK opt-in path:
+                // mu_lR_active depends on n_l, and n_l is explicitly updated
+                // from the previous state with a BE-style step in the
+                // constitutive setting. Derive dmu_lR_active/dpL through
+                // dn_l/dpL to include this coupling in J_pp.
+                if (!use_fd_jacobian_for_direct_macro_derivative)
+                {
+                    double const drho_LR_dpL = rho_LR * beta_LR;
+                    dmu_lR_vdw_dpL = dmu_lR_vdw_drho_lR * drho_LR_dpL;
+
+                    double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
+                    if (dt_safe > 0.0)
+                    {
+                        auto const macro_potential_prev = computeYoungLaplaceMacroPotential(
+                            p_L_ip, rho_LR, pressure_tolerance);
+                        auto const micro_potential_prev = computeVanDerWaalsMicroPotential(
+                            n_l_prev, rho_LR,
+                            vkp.micro_solid_volume_fraction_reference,
+                            vkp.micro_solid_density_reference, vkp.hamaker_constant,
+                            vkp.specific_surface);
+
+                        double const alpha_M_effective = alpha_bar * rho_LR / mu;
+                        auto const exchange_prev = computePotentialDrivenMassExchange(
+                            alpha_M_effective, macro_potential_prev.mu_LR,
+                            micro_potential_prev.mu_lR);
+
+                        double const dalpha_M_effective_dpL =
+                            alpha_bar / mu * drho_LR_dpL;
+                        double const dmu_LR_prev_dpL =
+                            macro_potential_prev.dmu_LR_dpLR +
+                            macro_potential_prev.dmu_LR_drho_LR * drho_LR_dpL;
+                        double const dmu_lR_prev_dpL =
+                            micro_potential_prev.dmu_lR_drho_lR * drho_LR_dpL;
+                        double const drho_l_hat_prev_dpL =
+                            exchange_prev.drho_l_hat_dalpha_M *
+                                dalpha_M_effective_dpL +
+                            exchange_prev.drho_l_hat_dmu_LR * dmu_LR_prev_dpL +
+                            exchange_prev.drho_l_hat_dmu_lR * dmu_lR_prev_dpL;
+
+                        double const dn_l_dpL =
+                            dt_safe *
+                            (drho_l_hat_prev_dpL / rho_LR -
+                             exchange_prev.rho_l_hat / (rho_LR * rho_LR) *
+                                 drho_LR_dpL);
+
+                        dmu_lR_vdw_dpL = micro_potential.dmu_lR_dnl * dn_l_dpL +
+                                         micro_potential.dmu_lR_drho_lR *
+                                             drho_LR_dpL;
+                        use_custom_dmu_lR_vdw_dpL = true;
+                    }
+                }
             }
 
             auto const vk_exchange = computeVKPhase2CPlaceholderExchange(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
                 pressure_tolerance, vk_potential_exchange_enabled,
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
-                dmu_lR_vdw_drho_lR,
+                dmu_lR_vdw_drho_lR, use_custom_dmu_lR_vdw_dpL,
+                dmu_lR_vdw_dpL,
                 use_fd_jacobian_for_direct_macro_derivative,
                 fd_jacobian_perturbation);
             maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
