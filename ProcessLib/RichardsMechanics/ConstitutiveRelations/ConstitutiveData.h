@@ -8,6 +8,7 @@
 #include "LiquidDensity.h"
 #include "MicroPressure.h"
 #include "MicroSaturation.h"
+#include "VKMicroWaterContent.h"
 #include "ProcessLib/ConstitutiveRelations/Base.h"
 #include "ProcessLib/ConstitutiveRelations/EffectiveStressData.h"
 #include "ProcessLib/ConstitutiveRelations/MechanicalStrainData.h"
@@ -37,7 +38,7 @@ using StatefulData = std::tuple<
     ProcessLib::ThermoRichardsMechanics::SaturationData,
     ProcessLib::ThermoRichardsMechanics::PorosityData,
     ProcessLib::ThermoRichardsMechanics::TransportPorosityData, MicroPressure,
-    MicroSaturation>;
+    MicroSaturation, VKMicroWaterContent>;
 
 template <int DisplacementDim>
 using StatefulDataPrev = ProcessLib::ConstitutiveRelations::PrevStateOf<

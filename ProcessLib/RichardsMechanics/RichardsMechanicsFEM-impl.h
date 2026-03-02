@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <Eigen/LU>
 #include <cassert>
 #include <mutex>
@@ -140,6 +141,7 @@ struct VKPhase2CPlaceholderExchangeData
     double mu_LR_active = 0.0;
     double mu_lR_placeholder = 0.0;
     bool use_macro_potential_for_active_exchange = false;
+    bool use_vdw_micro_potential_for_active_exchange = false;
 
     // Direct macro derivative (with density dependence through rho_LR), while
     // keeping the microscale state lagged.
@@ -150,7 +152,10 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
     double const alpha_bar, double const mu, double const p_L_ip,
     double const p_L_m, double const rho_LR, double const beta_LR,
     double const pressure_tolerance = 0.0,
-    bool const use_macro_potential_for_active_exchange = false)
+    bool const use_macro_potential_for_active_exchange = false,
+    bool const use_vdw_micro_potential_for_active_exchange = false,
+    double const mu_lR_vdw = 0.0,
+    double const dmu_lR_vdw_drho_lR = 0.0)
 {
     if (!(mu > 0.0))
     {
@@ -171,11 +176,14 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
         computeYoungLaplaceMacroPotential(p_L_ip, rho_LR, pressure_tolerance);
     out.use_macro_potential_for_active_exchange =
         use_macro_potential_for_active_exchange;
+    out.use_vdw_micro_potential_for_active_exchange =
+        use_vdw_micro_potential_for_active_exchange;
 
-    // Phase 2C placeholder microscale potential: derived from the existing OGS
-    // microscale pressure state. The vdW helper remains available and will be
-    // wired in a later step once user-facing vdW parameters are introduced.
-    out.mu_lR_placeholder = p_L_m / rho_LR;
+    // Default Phase 2C compatibility microscale potential: derived from the
+    // existing OGS microscale pressure state.
+    out.mu_lR_placeholder = use_vdw_micro_potential_for_active_exchange
+                                ? mu_lR_vdw
+                                : p_L_m / rho_LR;
 
     // Phase 2C compatibility slice: activate the potential-driven source
     // helper path while preserving the current OGS double-structure exchange
@@ -204,10 +212,14 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
                   out.macro_potential.dmu_LR_drho_LR * drho_LR_dpL
             : 1.0 / rho_LR - p_L_ip / (rho_LR * rho_LR) * drho_LR_dpL;
 
-    // Placeholder mu_lR depends on rho_LR only; p_L_m is treated as lagged in
-    // Phase 2C.
+    // Microscale derivative contribution. In the legacy placeholder path
+    // mu_lR = p_L_m/rho_LR with lagged p_L_m. In the vdW path the helper
+    // derivative w.r.t. rho_LR can be used (currently zero in the reduced
+    // algebraic form).
     double const dmu_lR_placeholder_dpL =
-        -p_L_m / (rho_LR * rho_LR) * drho_LR_dpL;
+        use_vdw_micro_potential_for_active_exchange
+            ? dmu_lR_vdw_drho_lR * drho_LR_dpL
+            : -p_L_m / (rho_LR * rho_LR) * drho_LR_dpL;
 
     double const drho_l_hat_dpL_direct =
         out.exchange.drho_l_hat_dalpha_M * dalpha_M_effective_dpL +
@@ -229,15 +241,19 @@ inline void maybeLogVKPhase2CExchangeSource(
         auto const* const mode_name = data.use_macro_potential_for_active_exchange
                                           ? "opt-in-macro-helper"
                                           : "legacy-placeholder";
+        auto const* const micro_mode_name =
+            data.use_vdw_micro_potential_for_active_exchange
+                ? "vdw-from-n_l"
+                : "placeholder-pm_over_rho";
         INFO(
-            "[RM Phase2C exchange] active path (mode='{}'): pL_ip={} Pa, "
+            "[RM Phase2C exchange] active path (mode='{}', micro='{}'): pL_ip={} Pa, "
             "pL_m={} Pa, rho_LR={} kg/m^3, alpha_bar={}, mu={} Pa*s, "
             "alpha_M_eff={}, mu_LR(active)={} J/kg, "
-            "mu_LR(helper audit)={} J/kg, mu_lR(placeholder)={} J/kg, "
+            "mu_LR(helper audit)={} J/kg, mu_lR(active)={} J/kg, "
             "rho_L_hat={} kg/(m^3 s), drho_L_hat/dpL (direct)={} "
             "(kg/(m^3 s))/Pa, saturated_branch={}, note='micro state lagged; "
-            "vdW helper not yet active in assembly'.",
-            mode_name, p_L_ip, p_L_m, rho_LR, alpha_bar, mu,
+            "vdW helper may be active for opt-in mode'.",
+            mode_name, micro_mode_name, p_L_ip, p_L_m, rho_LR, alpha_bar, mu,
             data.alpha_M_effective, data.mu_LR_active,
             data.macro_potential.mu_LR, data.mu_lR_placeholder,
             data.exchange.rho_L_hat, data.drho_L_hat_dpL_direct,
@@ -529,6 +545,33 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             *S_L_m = medium->property(MPL::PropertyType::saturation_micro)
                          .template value<double>(vars, x_position, t, dt);
             *S_L_m_prev = S_L_m;
+        }
+
+        {
+            auto& n_l = std::get<VKMicroWaterContent>(this->current_states_[ip]);
+            auto& n_l_prev =
+                std::get<PrevState<VKMicroWaterContent>>(this->prev_states_[ip]);
+
+            // Default fallback keeps state positive for vdW algebra.
+            double n_l_initial = 1e-6;
+            if (medium->hasProperty(MPL::PropertyType::saturation_micro))
+            {
+                auto const S_L_m_init =
+                    *std::get<MicroSaturation>(this->current_states_[ip]);
+                n_l_initial = std::max(1e-12, S_L_m_init);
+            }
+
+            if (isVKPotentialExchangeEnabled(
+                    this->process_data_.vk_potential_exchange_parameters))
+            {
+                auto const& vkp =
+                    *this->process_data_.vk_potential_exchange_parameters;
+                n_l_initial =
+                    vkp.initial_micro_water_content.value_or(n_l_initial);
+            }
+
+            *n_l = n_l_initial;
+            **n_l_prev = n_l_initial;
         }
 
         // Set eps_m_prev from potentially non-zero eps and sigma_sw from
@@ -1021,6 +1064,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         StatefulData<DisplacementDim>& SD,
         StatefulDataPrev<DisplacementDim> const& SD_prev,
         std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
+        std::optional<VKPotentialExchangeParameters> const&
+            vk_potential_exchange_parameters,
         MaterialLib::Solids::MechanicsBase<DisplacementDim> const&
             solid_material,
         ProcessLib::ThermoRichardsMechanics::MaterialStateData<DisplacementDim>&
@@ -1190,6 +1235,39 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             alpha, phi, p_cap_ip, variables, variables_prev, x_position, t, dt,
             sigma_sw, sigma_sw_prev, transport_porosity_prev, phi_prev,
             transport_porosity, p_L_m_prev, S_L_m_prev, p_L_m, S_L_m);
+    }
+
+    {
+        auto& n_l = std::get<VKMicroWaterContent>(SD);
+        auto const n_l_prev = std::get<PrevState<VKMicroWaterContent>>(SD_prev);
+
+        double const n_l_prev_value = std::max(1e-16, **n_l_prev);
+        *n_l = n_l_prev_value;
+
+        bool const vk_potential_exchange_enabled =
+            isVKPotentialExchangeEnabled(vk_potential_exchange_parameters);
+        if (vk_potential_exchange_enabled && micro_porosity_parameters)
+        {
+            auto const& vkp = *vk_potential_exchange_parameters;
+            auto const macro_potential = computeYoungLaplaceMacroPotential(
+                -p_cap_ip, rho_LR, vkp.pressure_tolerance);
+            auto const micro_potential = computeVanDerWaalsMicroPotential(
+                n_l_prev_value, rho_LR,
+                vkp.micro_solid_volume_fraction_reference,
+                vkp.micro_solid_density_reference, vkp.hamaker_constant,
+                vkp.specific_surface);
+
+            double const alpha_M_effective =
+                micro_porosity_parameters->mass_exchange_coefficient * rho_LR /
+                mu;
+            auto const exchange = computePotentialDrivenMassExchange(
+                alpha_M_effective, macro_potential.mu_LR,
+                micro_potential.mu_lR);
+
+            double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
+            *n_l = std::max(1e-16,
+                            n_l_prev_value + dt_safe * exchange.rho_l_hat / rho_LR);
+        }
     }
 
     if (medium->hasProperty(MPL::PropertyType::transport_porosity))
@@ -1446,6 +1524,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 p_cap_ip, p_cap_prev_ip,
                 Eigen::Vector<double, DisplacementDim>::Zero()},
             CD, SD, SD_prev, this->process_data_.micro_porosity_parameters,
+            this->process_data_.vk_potential_exchange_parameters,
             this->solid_material_, this->material_states_[ip]);
 
         {
@@ -1674,9 +1753,33 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             double const pressure_tolerance =
                 getVKPotentialPressureTolerance(
                     this->process_data_.vk_potential_exchange_parameters);
+
+            bool use_vdw_micro_potential_for_active_exchange = false;
+            double mu_lR_vdw = 0.0;
+            double dmu_lR_vdw_drho_lR = 0.0;
+            if (vk_potential_exchange_enabled)
+            {
+                auto const& vkp =
+                    *this->process_data_.vk_potential_exchange_parameters;
+                auto const n_l =
+                    std::max(1e-16,
+                             *std::get<VKMicroWaterContent>(
+                                 this->current_states_[ip]));
+
+                auto const micro_potential = computeVanDerWaalsMicroPotential(
+                    n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
+                    vkp.micro_solid_density_reference, vkp.hamaker_constant,
+                    vkp.specific_surface);
+                use_vdw_micro_potential_for_active_exchange = true;
+                mu_lR_vdw = micro_potential.mu_lR;
+                dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
+            }
+
             auto const vk_exchange = computeVKPhase2CPlaceholderExchange(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
-                pressure_tolerance, vk_potential_exchange_enabled);
+                pressure_tolerance, vk_potential_exchange_enabled,
+                use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
+                dmu_lR_vdw_drho_lR);
             maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
                                             mu, vk_exchange);
 
@@ -1697,10 +1800,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                               vk_exchange.drho_L_hat_dpL_direct * N_p * w;
 
             // Keep the microscale pressure-state sensitivity lagged via the
-            // same secant term used in the legacy OGS exchange block, so the
-            // Phase 2C compatibility slice remains close to the current RM
-            // behavior while the new helper path is exercised.
-            if (p_cap_ip != p_cap_prev_ip)
+            // secant term only in the placeholder microscale path. In the
+            // vdW+ n_l opt-in path this term is intentionally omitted because
+            // the active microscale potential is no longer p_L_m/rho_LR.
+            if (!use_vdw_micro_potential_for_active_exchange &&
+                p_cap_ip != p_cap_prev_ip)
             {
                 auto const p_L_m_prev = **std::get<PrevState<MicroPressure>>(
                     this->prev_states_[ip]);

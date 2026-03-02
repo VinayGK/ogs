@@ -230,6 +230,8 @@ private:
         StatefulData<DisplacementDim>& SD,
         StatefulDataPrev<DisplacementDim> const& SD_prev,
         std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
+        std::optional<VKPotentialExchangeParameters> const&
+            vk_potential_exchange_parameters,
         MaterialLib::Solids::MechanicsBase<DisplacementDim> const&
             solid_material,
         ProcessLib::ThermoRichardsMechanics::MaterialStateData<DisplacementDim>&
