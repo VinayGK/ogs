@@ -190,6 +190,52 @@ void checkMPLProperties(
     }
 }
 
+void validateMicroPorosityAndVKConfiguration(
+    std::map<int, std::shared_ptr<MaterialPropertyLib::Medium>> const& media,
+    std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
+    std::optional<VKPotentialExchangeParameters> const&
+        vk_potential_exchange_parameters)
+{
+    namespace MPL = MaterialPropertyLib;
+
+    bool const micro_porosity_enabled = micro_porosity_parameters.has_value();
+    bool any_saturation_micro = false;
+
+    for (auto const& [material_id, medium] : media)
+    {
+        bool const has_saturation_micro =
+            medium->hasProperty(MPL::PropertyType::saturation_micro);
+        any_saturation_micro = any_saturation_micro || has_saturation_micro;
+
+        if (has_saturation_micro && !micro_porosity_enabled)
+        {
+            OGS_FATAL(
+                "RichardsMechanics: medium {} defines 'saturation_micro' but "
+                "the process has no <micro_porosity> block. Define "
+                "<micro_porosity> or remove 'saturation_micro'.",
+                material_id);
+        }
+    }
+
+    if (micro_porosity_enabled && !any_saturation_micro)
+    {
+        OGS_FATAL(
+            "RichardsMechanics: <micro_porosity> is configured, but no medium "
+            "defines 'saturation_micro'. Define 'saturation_micro' in at least "
+            "one medium or remove <micro_porosity>.");
+    }
+
+    bool const vk_enabled = vk_potential_exchange_parameters &&
+                            vk_potential_exchange_parameters->enabled;
+    if (vk_enabled && (!micro_porosity_enabled || !any_saturation_micro))
+    {
+        OGS_FATAL(
+            "RichardsMechanics: vk_potential_exchange.enabled=true requires "
+            "both a <micro_porosity> process block and medium property "
+            "'saturation_micro'.");
+    }
+}
+
 template <int DisplacementDim>
 std::unique_ptr<Process> createRichardsMechanicsProcess(
     std::string const& name,
@@ -452,6 +498,9 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
             use_fd_jacobian_for_exchange,
             fd_jacobian_perturbation};
     }
+
+    validateMicroPorosityAndVKConfiguration(
+        media, micro_porosity_parameters, vk_potential_exchange_parameters);
 
     auto const mass_lumping =
         //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__mass_lumping}
