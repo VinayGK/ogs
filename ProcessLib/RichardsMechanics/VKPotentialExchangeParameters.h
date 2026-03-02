@@ -28,5 +28,11 @@ struct VKPotentialExchangeParameters
 
     // Optional GP-local n_l initialization (future full 2C path).
     std::optional<double> initial_micro_water_content;
+
+    // Optional Jacobian approximation for VK exchange contribution only.
+    // If true, drho_L_hat/dp_L is computed by finite difference in the local
+    // helper path.
+    bool use_fd_jacobian_for_exchange = false;
+    double fd_jacobian_perturbation = 1e-8;
 };
 }  // namespace ProcessLib::RichardsMechanics

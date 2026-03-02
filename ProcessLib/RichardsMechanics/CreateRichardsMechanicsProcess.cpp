@@ -112,14 +112,16 @@ void logPhase0TransitionAudit(
     {
         auto const& vkp = *vk_potential_exchange_parameters;
         INFO(
-            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, initial_n_l={} ).",
+            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={} ).",
             vkp.enabled ? "true" : "false", toString(vkp.mode),
             vkp.pressure_tolerance, vkp.hamaker_constant, vkp.specific_surface,
             vkp.micro_solid_density_reference,
             vkp.micro_solid_volume_fraction_reference,
             vkp.initial_micro_water_content
                 ? std::to_string(*vkp.initial_micro_water_content)
-                : std::string{"<unset>"});
+                : std::string{"<unset>"},
+            vkp.use_fd_jacobian_for_exchange ? "true" : "false",
+            vkp.fd_jacobian_perturbation);
     }
     else
     {
@@ -421,6 +423,23 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
             //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__initial_micro_water_content}
             get_positive_optional("initial_micro_water_content");
 
+        auto const use_fd_jacobian_for_exchange =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__fd_jacobian_for_exchange}
+            vk_potential_exchange_config->getConfigParameter<bool>(
+                "fd_jacobian_for_exchange", false);
+
+        auto const fd_jacobian_perturbation =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__fd_jacobian_perturbation}
+            vk_potential_exchange_config->getConfigParameter<double>(
+                "fd_jacobian_perturbation", 1e-8);
+        if (!(fd_jacobian_perturbation > 0.0))
+        {
+            OGS_FATAL(
+                "RichardsMechanics: vk_potential_exchange.fd_jacobian_perturbation "
+                "must be > 0, got {:g}.",
+                fd_jacobian_perturbation);
+        }
+
         vk_potential_exchange_parameters = VKPotentialExchangeParameters{
             enabled,
             mode,
@@ -429,7 +448,9 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
             specific_surface,
             micro_solid_density_reference,
             micro_solid_volume_fraction_reference,
-            initial_micro_water_content};
+            initial_micro_water_content,
+            use_fd_jacobian_for_exchange,
+            fd_jacobian_perturbation};
     }
 
     auto const mass_lumping =

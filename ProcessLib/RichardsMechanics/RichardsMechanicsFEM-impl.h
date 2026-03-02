@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <Eigen/LU>
 #include <cassert>
 #include <mutex>
@@ -142,6 +143,8 @@ struct VKPhase2CPlaceholderExchangeData
     double mu_lR_placeholder = 0.0;
     bool use_macro_potential_for_active_exchange = false;
     bool use_vdw_micro_potential_for_active_exchange = false;
+    bool use_fd_jacobian_for_direct_macro_derivative = false;
+    double fd_jacobian_perturbation = 0.0;
 
     // Direct macro derivative (with density dependence through rho_LR), while
     // keeping the microscale state lagged.
@@ -155,7 +158,9 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
     bool const use_macro_potential_for_active_exchange = false,
     bool const use_vdw_micro_potential_for_active_exchange = false,
     double const mu_lR_vdw = 0.0,
-    double const dmu_lR_vdw_drho_lR = 0.0)
+    double const dmu_lR_vdw_drho_lR = 0.0,
+    bool const use_fd_jacobian_for_direct_macro_derivative = false,
+    double const fd_jacobian_perturbation = 1e-8)
 {
     if (!(mu > 0.0))
     {
@@ -178,6 +183,9 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
         use_macro_potential_for_active_exchange;
     out.use_vdw_micro_potential_for_active_exchange =
         use_vdw_micro_potential_for_active_exchange;
+    out.use_fd_jacobian_for_direct_macro_derivative =
+        use_fd_jacobian_for_direct_macro_derivative;
+    out.fd_jacobian_perturbation = fd_jacobian_perturbation;
 
     // Default Phase 2C compatibility microscale potential: derived from the
     // existing OGS microscale pressure state.
@@ -199,6 +207,57 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
 
     // rho_LR depends on liquid pressure in RM through beta_LR = (1/rho) drho/dp.
     double const drho_LR_dpL = rho_LR * beta_LR;
+
+    if (use_fd_jacobian_for_direct_macro_derivative)
+    {
+        auto const compute_rho_L_hat = [&](double const p_L_ip_eval,
+                                           double const rho_LR_eval)
+        {
+            auto const macro_potential_eval = computeYoungLaplaceMacroPotential(
+                p_L_ip_eval, rho_LR_eval, pressure_tolerance);
+            double const alpha_M_effective_eval =
+                alpha_bar * rho_LR_eval / mu;
+            double const mu_LR_active_eval =
+                use_macro_potential_for_active_exchange
+                    ? macro_potential_eval.mu_LR
+                    : p_L_ip_eval / rho_LR_eval;
+            double const mu_lR_active_eval =
+                use_vdw_micro_potential_for_active_exchange
+                    ? mu_lR_vdw
+                    : p_L_m / rho_LR_eval;
+            auto const exchange_eval = computePotentialDrivenMassExchange(
+                alpha_M_effective_eval, mu_LR_active_eval, mu_lR_active_eval);
+            return -exchange_eval.rho_l_hat;
+        };
+
+        double const h =
+            fd_jacobian_perturbation * std::max(1.0, std::abs(p_L_ip));
+        if (!(h > 0.0) || !std::isfinite(h))
+        {
+            OGS_FATAL(
+                "computeVKPhase2CPlaceholderExchange requires finite h > 0 for FD Jacobian, got {:g} (from fd_jacobian_perturbation={:g}, p_L_ip={:g}).",
+                h, fd_jacobian_perturbation, p_L_ip);
+        }
+
+        constexpr double rho_floor = 1e-16;
+        double const rho_plus = std::max(rho_floor, rho_LR + drho_LR_dpL * h);
+        double const rho_minus = rho_LR - drho_LR_dpL * h;
+        double const rho_L_hat_plus = compute_rho_L_hat(p_L_ip + h, rho_plus);
+        if (rho_minus > rho_floor)
+        {
+            double const rho_L_hat_minus =
+                compute_rho_L_hat(p_L_ip - h, rho_minus);
+            out.drho_L_hat_dpL_direct =
+                (rho_L_hat_plus - rho_L_hat_minus) / (2.0 * h);
+        }
+        else
+        {
+            double const rho_L_hat = -out.exchange.rho_l_hat;
+            out.drho_L_hat_dpL_direct = (rho_L_hat_plus - rho_L_hat) / h;
+        }
+
+        return out;
+    }
 
     // alpha_M_effective = alpha_bar * rho_LR / mu (mu dependence is lagged).
     double const dalpha_M_effective_dpL = alpha_bar / mu * drho_LR_dpL;
@@ -245,18 +304,23 @@ inline void maybeLogVKPhase2CExchangeSource(
             data.use_vdw_micro_potential_for_active_exchange
                 ? "vdw-from-n_l"
                 : "placeholder-pm_over_rho";
+        auto const* const jac_mode_name =
+            data.use_fd_jacobian_for_direct_macro_derivative
+                ? "finite-difference"
+                : "analytic-chain-rule";
         INFO(
             "[RM Phase2C exchange] active path (mode='{}', micro='{}'): pL_ip={} Pa, "
             "pL_m={} Pa, rho_LR={} kg/m^3, alpha_bar={}, mu={} Pa*s, "
             "alpha_M_eff={}, mu_LR(active)={} J/kg, "
             "mu_LR(helper audit)={} J/kg, mu_lR(active)={} J/kg, "
             "rho_L_hat={} kg/(m^3 s), drho_L_hat/dpL (direct)={} "
-            "(kg/(m^3 s))/Pa, saturated_branch={}, note='micro state lagged; "
-            "vdW helper may be active for opt-in mode'.",
+            "(kg/(m^3 s))/Pa, jacobian_mode='{}', fd_perturbation={}, saturated_branch={}, "
+            "note='micro state lagged; vdW helper may be active for opt-in mode'.",
             mode_name, micro_mode_name, p_L_ip, p_L_m, rho_LR, alpha_bar, mu,
             data.alpha_M_effective, data.mu_LR_active,
             data.macro_potential.mu_LR, data.mu_lR_placeholder,
-            data.exchange.rho_L_hat, data.drho_L_hat_dpL_direct,
+            data.exchange.rho_L_hat, data.drho_L_hat_dpL_direct, jac_mode_name,
+            data.fd_jacobian_perturbation,
             data.macro_potential.saturated_branch);
     });
 }
@@ -1757,6 +1821,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             bool use_vdw_micro_potential_for_active_exchange = false;
             double mu_lR_vdw = 0.0;
             double dmu_lR_vdw_drho_lR = 0.0;
+            bool use_fd_jacobian_for_direct_macro_derivative = false;
+            double fd_jacobian_perturbation = 1e-8;
             if (vk_potential_exchange_enabled)
             {
                 auto const& vkp =
@@ -1773,13 +1839,18 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 use_vdw_micro_potential_for_active_exchange = true;
                 mu_lR_vdw = micro_potential.mu_lR;
                 dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
+                use_fd_jacobian_for_direct_macro_derivative =
+                    vkp.use_fd_jacobian_for_exchange;
+                fd_jacobian_perturbation = vkp.fd_jacobian_perturbation;
             }
 
             auto const vk_exchange = computeVKPhase2CPlaceholderExchange(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
                 pressure_tolerance, vk_potential_exchange_enabled,
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
-                dmu_lR_vdw_drho_lR);
+                dmu_lR_vdw_drho_lR,
+                use_fd_jacobian_for_direct_macro_derivative,
+                fd_jacobian_perturbation);
             maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
                                             mu, vk_exchange);
 
