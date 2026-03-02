@@ -319,7 +319,7 @@ inline void maybeLogVKPhase2CExchangeSource(
             "mu_LR(helper audit)={} J/kg, mu_lR(active)={} J/kg, "
             "rho_L_hat={} kg/(m^3 s), drho_L_hat/dpL (direct)={} "
             "(kg/(m^3 s))/Pa, jacobian_mode='{}', fd_perturbation={}, saturated_branch={}, "
-            "note='vdW helper may be active for opt-in mode; n_l update is explicit BE-style'.",
+            "note='vdW helper may be active for opt-in mode; n_l update uses a local implicit solve with explicit fallback'.",
             mode_name, micro_mode_name, p_L_ip, p_L_m, rho_LR, alpha_bar, mu,
             data.alpha_M_effective, data.mu_LR_active,
             data.macro_potential.mu_LR, data.mu_lR_placeholder,
@@ -327,6 +327,157 @@ inline void maybeLogVKPhase2CExchangeSource(
             data.fd_jacobian_perturbation,
             data.macro_potential.saturated_branch);
     });
+}
+
+struct VKImplicitMicroWaterContentUpdateData
+{
+    double n_l = 0.0;
+    VanDerWaalsMicroPotentialData micro_potential;
+    PotentialDrivenMassExchangeData exchange;
+    bool converged = true;
+};
+
+inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
+    double const n_l_prev, double const dt, double const rho_LR,
+    double const alpha_bar, double const mu,
+    YoungLaplaceMacroPotentialData const& macro_potential,
+    VKPotentialExchangeParameters const& vkp)
+{
+    constexpr double n_l_floor = 1e-16;
+    double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
+    double const alpha_M_effective = alpha_bar * rho_LR / mu;
+
+    auto eval_at = [&](double const n_l)
+    {
+        auto const micro_potential = computeVanDerWaalsMicroPotential(
+            n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
+            vkp.micro_solid_density_reference, vkp.hamaker_constant,
+            vkp.specific_surface);
+        auto const exchange = computePotentialDrivenMassExchange(
+            alpha_M_effective, macro_potential.mu_LR, micro_potential.mu_lR);
+        return std::pair{micro_potential, exchange};
+    };
+
+    VKImplicitMicroWaterContentUpdateData out;
+    if (dt_safe <= 0.0)
+    {
+        out.n_l = std::max(n_l_floor, n_l_prev);
+        auto const [micro_potential, exchange] = eval_at(out.n_l);
+        out.micro_potential = micro_potential;
+        out.exchange = exchange;
+        return out;
+    }
+
+    double n_l = std::max(n_l_floor, n_l_prev);
+    constexpr int max_iterations = 25;
+    constexpr double residual_tolerance = 1e-12;
+    constexpr double increment_tolerance = 1e-12;
+    bool converged = false;
+
+    for (int iter = 0; iter < max_iterations; ++iter)
+    {
+        auto const [micro_potential, exchange] = eval_at(n_l);
+        double const residual = n_l - n_l_prev - dt_safe * exchange.rho_l_hat / rho_LR;
+        double const drho_l_hat_dn_l =
+            exchange.drho_l_hat_dmu_lR * micro_potential.dmu_lR_dnl;
+        double const jacobian = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
+
+        if (std::abs(residual) <=
+            residual_tolerance * std::max(1.0, std::abs(n_l_prev)))
+        {
+            converged = true;
+            out.n_l = n_l;
+            out.micro_potential = micro_potential;
+            out.exchange = exchange;
+            break;
+        }
+
+        if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
+        {
+            break;
+        }
+
+        double const delta_n_l = -residual / jacobian;
+        double const n_l_candidate = std::max(n_l_floor, n_l + delta_n_l);
+        if (std::abs(n_l_candidate - n_l) <=
+            increment_tolerance * std::max(1.0, std::abs(n_l)))
+        {
+            auto const [micro_potential_candidate, exchange_candidate] =
+                eval_at(n_l_candidate);
+            out.n_l = n_l_candidate;
+            out.micro_potential = micro_potential_candidate;
+            out.exchange = exchange_candidate;
+            converged = true;
+            break;
+        }
+
+        n_l = n_l_candidate;
+    }
+
+    if (!converged)
+    {
+        // Fallback to explicit update if local scalar Newton does not converge.
+        auto const [micro_potential_prev, exchange_prev] =
+            eval_at(std::max(n_l_floor, n_l_prev));
+        out.n_l = std::max(
+            n_l_floor,
+            n_l_prev + dt_safe * exchange_prev.rho_l_hat / rho_LR);
+        auto const [micro_potential_fallback, exchange_fallback] =
+            eval_at(out.n_l);
+        out.micro_potential = micro_potential_fallback;
+        out.exchange = exchange_fallback;
+        out.converged = false;
+
+        static std::once_flag once;
+        std::call_once(once, []
+        {
+            WARN(
+                "[RM Phase2C] local implicit n_l solve did not converge at least once; falling back to explicit n_l update for robustness.");
+        });
+        return out;
+    }
+
+    out.converged = true;
+    return out;
+}
+
+inline double computeVKImplicitNlDpL(
+    double const dt, double const rho_LR, double const drho_LR_dpL,
+    double const alpha_bar, double const mu,
+    YoungLaplaceMacroPotentialData const& macro_potential,
+    VanDerWaalsMicroPotentialData const& micro_potential,
+    PotentialDrivenMassExchangeData const& exchange)
+{
+    double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
+    if (dt_safe <= 0.0)
+    {
+        return 0.0;
+    }
+
+    double const dalpha_M_effective_dpL = alpha_bar / mu * drho_LR_dpL;
+    double const dmu_LR_dpL =
+        macro_potential.dmu_LR_dpLR +
+        macro_potential.dmu_LR_drho_LR * drho_LR_dpL;
+    double const dmu_lR_dpL_fixed_n =
+        micro_potential.dmu_lR_drho_lR * drho_LR_dpL;
+
+    double const drho_l_hat_dpL_fixed_n =
+        exchange.drho_l_hat_dalpha_M * dalpha_M_effective_dpL +
+        exchange.drho_l_hat_dmu_LR * dmu_LR_dpL +
+        exchange.drho_l_hat_dmu_lR * dmu_lR_dpL_fixed_n;
+    double const drho_l_hat_dn_l =
+        exchange.drho_l_hat_dmu_lR * micro_potential.dmu_lR_dnl;
+
+    double const dr_dn_l = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
+    if (!(std::isfinite(dr_dn_l) && std::abs(dr_dn_l) > 1e-20))
+    {
+        return 0.0;
+    }
+
+    double const dr_dp_l =
+        -dt_safe * (drho_l_hat_dpL_fixed_n / rho_LR -
+                    exchange.rho_l_hat / (rho_LR * rho_LR) * drho_LR_dpL);
+    return -dr_dp_l / dr_dn_l;
 }
 
 template <int DisplacementDim>
@@ -1319,22 +1470,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             auto const& vkp = *vk_potential_exchange_parameters;
             auto const macro_potential = computeYoungLaplaceMacroPotential(
                 -p_cap_ip, rho_LR, vkp.pressure_tolerance);
-            auto const micro_potential = computeVanDerWaalsMicroPotential(
-                n_l_prev_value, rho_LR,
-                vkp.micro_solid_volume_fraction_reference,
-                vkp.micro_solid_density_reference, vkp.hamaker_constant,
-                vkp.specific_surface);
-
-            double const alpha_M_effective =
-                micro_porosity_parameters->mass_exchange_coefficient * rho_LR /
-                mu;
-            auto const exchange = computePotentialDrivenMassExchange(
-                alpha_M_effective, macro_potential.mu_LR,
-                micro_potential.mu_lR);
-
-            double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
-            *n_l = std::max(1e-16,
-                            n_l_prev_value + dt_safe * exchange.rho_l_hat / rho_LR);
+            auto const n_l_update = solveVKImplicitMicroWaterContent(
+                n_l_prev_value, dt, rho_LR,
+                micro_porosity_parameters->mass_exchange_coefficient, mu,
+                macro_potential, vkp);
+            *n_l = n_l_update.n_l;
         }
     }
 
@@ -1837,10 +1977,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     std::max(1e-16,
                              *std::get<VKMicroWaterContent>(
                                  this->current_states_[ip]));
-                auto const n_l_prev =
-                    std::max(1e-16,
-                             **std::get<PrevState<VKMicroWaterContent>>(
-                                 this->prev_states_[ip]));
 
                 auto const micro_potential = computeVanDerWaalsMicroPotential(
                     n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
@@ -1853,56 +1989,25 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     vkp.use_fd_jacobian_for_exchange;
                 fd_jacobian_perturbation = vkp.fd_jacobian_perturbation;
 
-                // Complete the analytic Jacobian chain in the VK opt-in path:
-                // mu_lR_active depends on n_l, and n_l is explicitly updated
-                // from the previous state with a BE-style step in the
-                // constitutive setting. Derive dmu_lR_active/dpL through
-                // dn_l/dpL to include this coupling in J_pp.
+                // In analytic mode, include implicit n_l(p_L) chain coupling
+                // in dmu_lR/dp_L for the active exchange Jacobian term.
                 if (!use_fd_jacobian_for_direct_macro_derivative)
                 {
                     double const drho_LR_dpL = rho_LR * beta_LR;
-                    dmu_lR_vdw_dpL = dmu_lR_vdw_drho_lR * drho_LR_dpL;
+                    auto const macro_potential = computeYoungLaplaceMacroPotential(
+                        p_L_ip, rho_LR, pressure_tolerance);
+                    double const alpha_M_effective = alpha_bar * rho_LR / mu;
+                    auto const exchange = computePotentialDrivenMassExchange(
+                        alpha_M_effective, macro_potential.mu_LR,
+                        micro_potential.mu_lR);
+                    double const dn_l_dpL = computeVKImplicitNlDpL(
+                        dt, rho_LR, drho_LR_dpL, alpha_bar, mu,
+                        macro_potential, micro_potential, exchange);
 
-                    double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
-                    if (dt_safe > 0.0)
-                    {
-                        auto const macro_potential_prev = computeYoungLaplaceMacroPotential(
-                            p_L_ip, rho_LR, pressure_tolerance);
-                        auto const micro_potential_prev = computeVanDerWaalsMicroPotential(
-                            n_l_prev, rho_LR,
-                            vkp.micro_solid_volume_fraction_reference,
-                            vkp.micro_solid_density_reference, vkp.hamaker_constant,
-                            vkp.specific_surface);
-
-                        double const alpha_M_effective = alpha_bar * rho_LR / mu;
-                        auto const exchange_prev = computePotentialDrivenMassExchange(
-                            alpha_M_effective, macro_potential_prev.mu_LR,
-                            micro_potential_prev.mu_lR);
-
-                        double const dalpha_M_effective_dpL =
-                            alpha_bar / mu * drho_LR_dpL;
-                        double const dmu_LR_prev_dpL =
-                            macro_potential_prev.dmu_LR_dpLR +
-                            macro_potential_prev.dmu_LR_drho_LR * drho_LR_dpL;
-                        double const dmu_lR_prev_dpL =
-                            micro_potential_prev.dmu_lR_drho_lR * drho_LR_dpL;
-                        double const drho_l_hat_prev_dpL =
-                            exchange_prev.drho_l_hat_dalpha_M *
-                                dalpha_M_effective_dpL +
-                            exchange_prev.drho_l_hat_dmu_LR * dmu_LR_prev_dpL +
-                            exchange_prev.drho_l_hat_dmu_lR * dmu_lR_prev_dpL;
-
-                        double const dn_l_dpL =
-                            dt_safe *
-                            (drho_l_hat_prev_dpL / rho_LR -
-                             exchange_prev.rho_l_hat / (rho_LR * rho_LR) *
-                                 drho_LR_dpL);
-
-                        dmu_lR_vdw_dpL = micro_potential.dmu_lR_dnl * dn_l_dpL +
-                                         micro_potential.dmu_lR_drho_lR *
-                                             drho_LR_dpL;
-                        use_custom_dmu_lR_vdw_dpL = true;
-                    }
+                    dmu_lR_vdw_dpL = micro_potential.dmu_lR_dnl * dn_l_dpL +
+                                     micro_potential.dmu_lR_drho_lR *
+                                         drho_LR_dpL;
+                    use_custom_dmu_lR_vdw_dpL = true;
                 }
             }
 
@@ -1918,15 +2023,13 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                             mu, vk_exchange);
 
             // Phase 2C: activate potential-driven exchange source in the macro
-            // balance. The microscale state is still lagged and represented by
-            // the existing OGS micro-pressure placeholder potential p_L_m/rho.
+            // balance.
             local_rhs.template segment<pressure_size>(pressure_index)
                 .noalias() += N_p.transpose() * vk_exchange.exchange.rho_L_hat *
                               w;
 
-            // Minimal Jacobian slice for Phase 2C: direct derivative w.r.t. the
-            // macro hydraulic unknown p_L (including rho_LR(p_L) dependence),
-            // while keeping the microscale state dependence lagged.
+            // Direct macro Jacobian term for the exchange source. In analytic
+            // mode this includes the implicit n_l(p_L) chain contribution.
             local_Jac
                 .template block<pressure_size, pressure_size>(pressure_index,
                                                               pressure_index)
