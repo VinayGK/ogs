@@ -1242,6 +1242,58 @@ void RichardsMechanicsLocalAssembler<
         rhs.template segment<pressure_size>(pressure_index).noalias() +=
             dNdx_p.transpose() * rho_LR * rho_K_over_mu * b * w;
 
+        if (medium->hasProperty(MPL::PropertyType::saturation_micro) &&
+            this->process_data_.micro_porosity_parameters)
+        {
+            double const alpha_bar =
+                this->process_data_.micro_porosity_parameters
+                    ->mass_exchange_coefficient;
+            auto const p_L_m =
+                *std::get<MicroPressure>(this->current_states_[ip]);
+            double const p_L_ip = -p_cap_ip;
+            bool const vk_potential_exchange_enabled =
+                isVKPotentialExchangeEnabled(
+                    this->process_data_.vk_potential_exchange_parameters);
+            double const pressure_tolerance =
+                getVKPotentialPressureTolerance(
+                    this->process_data_.vk_potential_exchange_parameters);
+
+            bool use_vdw_micro_potential_for_active_exchange = false;
+            double mu_lR_vdw = 0.0;
+            double dmu_lR_vdw_drho_lR = 0.0;
+
+            if (vk_potential_exchange_enabled)
+            {
+                auto const& vkp =
+                    *this->process_data_.vk_potential_exchange_parameters;
+                auto const n_l =
+                    std::max(1e-16,
+                             *std::get<VKMicroWaterContent>(
+                                 this->current_states_[ip]));
+                auto const micro_potential = computeVanDerWaalsMicroPotential(
+                    n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
+                    vkp.micro_solid_density_reference, vkp.hamaker_constant,
+                    vkp.specific_surface);
+                use_vdw_micro_potential_for_active_exchange = true;
+                mu_lR_vdw = micro_potential.mu_lR;
+                dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
+            }
+
+            auto const vk_exchange = computeVKPhase2CPlaceholderExchange(
+                alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
+                pressure_tolerance, vk_potential_exchange_enabled,
+                use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
+                dmu_lR_vdw_drho_lR,
+                /*use_custom_dmu_lR_vdw_dpL=*/false, /*dmu_lR_vdw_dpL=*/0.0,
+                /*use_fd_jacobian_for_direct_macro_derivative=*/false,
+                /*fd_jacobian_perturbation=*/1e-8);
+            maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
+                                            mu, vk_exchange);
+
+            rhs.template segment<pressure_size>(pressure_index).noalias() +=
+                N_p.transpose() * vk_exchange.exchange.rho_L_hat * w;
+        }
+
         //
         // displacement equation, pressure part
         //
