@@ -15,7 +15,7 @@
     </add>
 
     <replace msel="/*/time_loop/processes/process/time_stepping/t_end/text()">
-        1e3
+        1e4
     </replace>
     <replace msel="/*/time_loop/processes/process/time_stepping/initial_dt/text()">
         1

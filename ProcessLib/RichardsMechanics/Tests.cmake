@@ -45,6 +45,25 @@ AddTest(
 )
 
 AddTest(
+    NAME RichardsMechanics_double_porosity_swelling_vk_optin_reference
+    PATH RichardsMechanics
+    EXECUTABLE ogs
+    RUNTIME 20
+    EXECUTABLE_ARGS double_porosity_swelling_vk_optin.xml
+    WRAPPER time
+    TESTER vtkdiff
+    REQUIREMENTS NOT OGS_USE_MPI
+    DIFF_DATA
+    vk_optin_reference_t_10000.000000.vtu double_porosity_swelling_vk_optin_t_10000.000000.vtu displacement displacement 1e-16 0
+    vk_optin_reference_t_10000.000000.vtu double_porosity_swelling_vk_optin_t_10000.000000.vtu pressure pressure 1e-16 1e-12
+    vk_optin_reference_t_10000.000000.vtu double_porosity_swelling_vk_optin_t_10000.000000.vtu sigma sigma 5e-8 0
+    vk_optin_reference_t_10000.000000.vtu double_porosity_swelling_vk_optin_t_10000.000000.vtu epsilon epsilon 5e-14 0
+    vk_optin_reference_t_10000.000000.vtu double_porosity_swelling_vk_optin_t_10000.000000.vtu saturation saturation 4e-15 0
+    vk_optin_reference_t_10000.000000.vtu double_porosity_swelling_vk_optin_t_10000.000000.vtu micro_pressure micro_pressure 1e-16 1e-12
+    vk_optin_reference_t_10000.000000.vtu double_porosity_swelling_vk_optin_t_10000.000000.vtu micro_saturation micro_saturation 4e-15 0
+)
+
+AddTest(
     NAME RichardsMechanics_square_1e2_confined_compression_restart
     PATH RichardsMechanics
     EXECUTABLE ogs
