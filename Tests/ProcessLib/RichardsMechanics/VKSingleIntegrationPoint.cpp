@@ -174,6 +174,123 @@ double referenceDrhoLHatDpL(double const p_L, double const n_l_prev,
     return ((-plus.exchange.rho_l_hat) - (-minus.exchange.rho_l_hat)) /
            (2.0 * h);
 }
+
+enum class CoupledExchangeReferenceMode
+{
+    legacy_placeholder,
+    full_potential_vdw
+};
+
+struct RepresentativeCoupledExchangeState
+{
+    char const* name = "";
+    CoupledExchangeReferenceMode mode =
+        CoupledExchangeReferenceMode::legacy_placeholder;
+    double p_L = 0.0;
+    double p_L_m = 0.0;
+    double pressure_tolerance = 0.0;
+    double n_l_prev = 0.0;
+    double dt = 0.0;
+    double rho_LR = 0.0;
+    double drho_LR_dpL = 0.0;
+    double alpha_bar = 0.0;
+    double mu = 0.0;
+    double phi = 0.0;
+};
+
+double linearizedDensityAtPressure(double const p_L_eval, double const p_L_ref,
+                                   double const rho_LR_ref,
+                                   double const drho_LR_dpL)
+{
+    return std::max(1e-16, rho_LR_ref + drho_LR_dpL * (p_L_eval - p_L_ref));
+}
+
+double referenceCoupledRhoLHat(
+    RepresentativeCoupledExchangeState const& state, double const p_L_eval,
+    VKPotentialExchangeParameters const& vkp)
+{
+    double const rho_LR_eval = linearizedDensityAtPressure(
+        p_L_eval, state.p_L, state.rho_LR, state.drho_LR_dpL);
+
+    if (state.mode == CoupledExchangeReferenceMode::legacy_placeholder)
+    {
+        double const alpha_M_effective = state.alpha_bar * rho_LR_eval / state.mu;
+        double const mu_LR_active = p_L_eval / rho_LR_eval;
+        double const mu_lR_active = state.p_L_m / rho_LR_eval;
+        auto const exchange = computePotentialDrivenMassExchange(
+            alpha_M_effective, mu_LR_active, mu_lR_active);
+        return exchange.rho_L_hat;
+    }
+
+    auto vkp_eval = vkp;
+    vkp_eval.pressure_tolerance = state.pressure_tolerance;
+    auto const reference = solveReferenceVKSinglePoint(
+        p_L_eval, state.n_l_prev, state.dt, rho_LR_eval, state.alpha_bar,
+        state.mu, state.phi, vkp_eval);
+    return reference.exchange.rho_L_hat;
+}
+
+double referenceCoupledDrhoLHatDpL(
+    RepresentativeCoupledExchangeState const& state,
+    VKPotentialExchangeParameters const& vkp)
+{
+    double const h = 1e-8 * std::max(1.0, std::abs(state.p_L));
+    double const plus = referenceCoupledRhoLHat(state, state.p_L + h, vkp);
+    double const minus = referenceCoupledRhoLHat(state, state.p_L - h, vkp);
+    return (plus - minus) / (2.0 * h);
+}
+
+struct ProductionCoupledExchangeData
+{
+    double rho_L_hat = 0.0;
+    double drho_L_hat_dpL = 0.0;
+    bool converged = true;
+};
+
+ProductionCoupledExchangeData productionCoupledExchangeData(
+    RepresentativeCoupledExchangeState const& state,
+    VKPotentialExchangeParameters const& vkp)
+{
+    double const beta_LR = state.drho_LR_dpL / state.rho_LR;
+
+    if (state.mode == CoupledExchangeReferenceMode::legacy_placeholder)
+    {
+        auto const data = computeVKPhase2CPlaceholderExchange(
+            state.alpha_bar, state.mu, state.p_L, state.p_L_m, state.rho_LR,
+            beta_LR, state.pressure_tolerance, false, false, 0.0, 0.0, false,
+            0.0, false, vkp.fd_jacobian_perturbation);
+        return {
+            .rho_L_hat = data.exchange.rho_L_hat,
+            .drho_L_hat_dpL = data.drho_L_hat_dpL_direct,
+            .converged = true,
+        };
+    }
+
+    auto const macro_potential = computeYoungLaplaceMacroPotential(
+        state.p_L, state.rho_LR, state.pressure_tolerance);
+    auto const n_l_update = solveVKImplicitMicroWaterContent(
+        state.n_l_prev, state.dt, state.rho_LR, state.alpha_bar, state.mu,
+        macro_potential, vkp);
+    double const dn_l_dpL = computeVKImplicitNlDpL(
+        state.dt, state.rho_LR, state.drho_LR_dpL, state.alpha_bar, state.mu,
+        macro_potential, n_l_update.micro_potential, n_l_update.exchange);
+    double const dmu_lR_vdw_dpL =
+        n_l_update.micro_potential.dmu_lR_dnl * dn_l_dpL +
+        n_l_update.micro_potential.dmu_lR_drho_lR * state.drho_LR_dpL;
+
+    auto const data = computeVKPhase2CPlaceholderExchange(
+        state.alpha_bar, state.mu, state.p_L, state.p_L_m, state.rho_LR,
+        beta_LR, state.pressure_tolerance, true, true,
+        n_l_update.micro_potential.mu_lR,
+        n_l_update.micro_potential.dmu_lR_drho_lR, true, dmu_lR_vdw_dpL,
+        false, vkp.fd_jacobian_perturbation);
+
+    return {
+        .rho_L_hat = data.exchange.rho_L_hat,
+        .drho_L_hat_dpL = data.drho_L_hat_dpL_direct,
+        .converged = n_l_update.converged,
+    };
+}
 }  // namespace
 
 TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
@@ -407,5 +524,82 @@ TEST(RichardsMechanics, VKBranchSensitivityNearMacroPotentialTransition)
             results[i - 1].rho_l_hat, results[i].rho_l_hat, 1e-10, 1e-18);
         EXPECT_LE(results[i - 1].rho_l_hat,
                   results[i].rho_l_hat + rho_l_hat_tolerance);
+    }
+}
+
+TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.pressure_tolerance = 0.0;
+    vkp.hamaker_constant = 1e-30;
+    vkp.specific_surface = 1.0;
+    vkp.micro_solid_density_reference = 2650.0;
+    vkp.micro_solid_volume_fraction_reference = 0.6;
+    vkp.initial_micro_water_content = 0.1;
+    vkp.fd_jacobian_perturbation = 1e-8;
+
+    std::array<RepresentativeCoupledExchangeState, 3> const states = {{
+        {
+            .name = "legacy_placeholder_unsaturated",
+            .mode = CoupledExchangeReferenceMode::legacy_placeholder,
+            .p_L = -1.0e7,
+            .p_L_m = -2.0e7,
+            .pressure_tolerance = 0.0,
+            .n_l_prev = 0.1,
+            .dt = 100.0,
+            .rho_LR = 1000.0,
+            .drho_LR_dpL = 1.0e-7,
+            .alpha_bar = 1.0e-13,
+            .mu = 1.0e-3,
+            .phi = 0.4,
+        },
+        {
+            .name = "vk_full_potential_unsaturated",
+            .mode = CoupledExchangeReferenceMode::full_potential_vdw,
+            .p_L = -1.0e7,
+            .p_L_m = 0.0,
+            .pressure_tolerance = 0.0,
+            .n_l_prev = 0.1,
+            .dt = 100.0,
+            .rho_LR = 1000.0,
+            .drho_LR_dpL = 1.0e-7,
+            .alpha_bar = 1.0e-13,
+            .mu = 1.0e-3,
+            .phi = 0.4,
+        },
+        {
+            .name = "vk_full_potential_saturated_helper_branch",
+            .mode = CoupledExchangeReferenceMode::full_potential_vdw,
+            .p_L = -50.0,
+            .p_L_m = 0.0,
+            .pressure_tolerance = 100.0,
+            .n_l_prev = 0.1,
+            .dt = 100.0,
+            .rho_LR = 1000.0,
+            .drho_LR_dpL = 1.0e-7,
+            .alpha_bar = 1.0e-13,
+            .mu = 1.0e-3,
+            .phi = 0.4,
+        },
+    }};
+
+    for (auto const& state : states)
+    {
+        auto const reference_rho_L_hat =
+            referenceCoupledRhoLHat(state, state.p_L, vkp);
+        auto const reference_drho_L_hat_dpL =
+            referenceCoupledDrhoLHatDpL(state, vkp);
+        auto const production = productionCoupledExchangeData(state, vkp);
+
+        ASSERT_TRUE(production.converged) << state.name;
+        EXPECT_NEAR(production.rho_L_hat, reference_rho_L_hat,
+                    comparisonTolerance(production.rho_L_hat,
+                                        reference_rho_L_hat, 1e-10, 1e-18))
+            << state.name;
+        EXPECT_NEAR(production.drho_L_hat_dpL, reference_drho_L_hat_dpL,
+                    comparisonTolerance(production.drho_L_hat_dpL,
+                                        reference_drho_L_hat_dpL, 5e-5, 1e-16))
+            << state.name;
     }
 }
