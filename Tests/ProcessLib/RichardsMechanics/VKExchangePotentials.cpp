@@ -30,6 +30,22 @@ TEST(RichardsMechanics, VKYoungLaplaceMacroPotential)
     }
 
     {
+        double const pLR = -ptol;
+        auto const mu = computeYoungLaplaceMacroPotential(pLR, rho, ptol);
+        EXPECT_FALSE(mu.saturated_branch);
+        EXPECT_DOUBLE_EQ(mu.mu_LR, pLR / rho);
+        EXPECT_DOUBLE_EQ(mu.dmu_LR_dpLR, 1.0 / rho);
+    }
+
+    {
+        double const pLR = -ptol + 1e-6;
+        auto const mu = computeYoungLaplaceMacroPotential(pLR, rho, ptol);
+        EXPECT_TRUE(mu.saturated_branch);
+        EXPECT_DOUBLE_EQ(mu.mu_LR, 0.0);
+        EXPECT_DOUBLE_EQ(mu.dmu_LR_dpLR, 0.0);
+    }
+
+    {
         double const pLR = -1.0e4;
         auto const mu = computeYoungLaplaceMacroPotential(pLR, rho, ptol);
         EXPECT_FALSE(mu.saturated_branch);

@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -268,4 +269,143 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
                 comparisonTolerance(fd_diagnostic.fd_drho_L_hat_dpL,
                                     reference_drho_L_hat_dpL,
                                     5e-5, 1e-18));
+}
+
+TEST(RichardsMechanics, VKBranchSensitivityNearMacroPotentialTransition)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.pressure_tolerance = 100.0;
+    vkp.hamaker_constant = 1e-30;
+    vkp.specific_surface = 1.0;
+    vkp.micro_solid_density_reference = 2650.0;
+    vkp.micro_solid_volume_fraction_reference = 0.6;
+    vkp.initial_micro_water_content = 0.1;
+    vkp.local_jacobian_perturbation = 1e-8;
+
+    double const n_l_prev = 0.1;
+    double const dt = 100.0;
+    double const rho_LR = 1000.0;
+    double const alpha_bar = 1.0e-13;
+    double const mu = 1.0e-3;
+    double const phi = 0.4;
+
+    std::array<double, 5> const pressures = {
+        -150.0,
+        -100.0,
+        -99.999,
+        -50.0,
+        0.0,
+    };
+    std::array<bool, 5> const saturated_expectation = {
+        false,
+        false,
+        true,
+        true,
+        true,
+    };
+
+    struct CaseResult
+    {
+        double p_L = 0.0;
+        bool saturated_branch = false;
+        double mu_LR = 0.0;
+        double n_l = 0.0;
+        double rho_l_hat = 0.0;
+        double p_L_m = 0.0;
+        double S_L_m = 0.0;
+    };
+
+    std::array<CaseResult, 5> results;
+
+    for (std::size_t i = 0; i < pressures.size(); ++i)
+    {
+        double const p_L = pressures[i];
+        auto const macro_potential = computeYoungLaplaceMacroPotential(
+            p_L, rho_LR, vkp.pressure_tolerance);
+
+        EXPECT_EQ(macro_potential.saturated_branch, saturated_expectation[i]);
+        if (saturated_expectation[i])
+        {
+            EXPECT_DOUBLE_EQ(macro_potential.mu_LR, 0.0);
+            EXPECT_DOUBLE_EQ(macro_potential.dmu_LR_dpLR, 0.0);
+        }
+        else
+        {
+            EXPECT_LT(macro_potential.mu_LR, 0.0);
+            EXPECT_DOUBLE_EQ(macro_potential.mu_LR, p_L / rho_LR);
+        }
+
+        auto const ogs_update = solveVKImplicitMicroWaterContent(
+            n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential, vkp);
+        ASSERT_TRUE(ogs_update.converged);
+
+        auto const reference = solveReferenceVKSinglePoint(
+            p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp);
+        auto const compatibility_output =
+            computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR,
+                                                       vkp);
+
+        EXPECT_NEAR(ogs_update.n_l, reference.n_l,
+                    comparisonTolerance(ogs_update.n_l, reference.n_l));
+        EXPECT_NEAR(ogs_update.exchange.rho_l_hat, reference.exchange.rho_l_hat,
+                    comparisonTolerance(ogs_update.exchange.rho_l_hat,
+                                        reference.exchange.rho_l_hat,
+                                        1e-10, 1e-18));
+        EXPECT_NEAR(compatibility_output.p_L_m, reference.p_L_m,
+                    comparisonTolerance(compatibility_output.p_L_m,
+                                        reference.p_L_m, 1e-10, 1e-12));
+        EXPECT_NEAR(compatibility_output.S_L_m, reference.S_L_m,
+                    comparisonTolerance(compatibility_output.S_L_m,
+                                        reference.S_L_m));
+
+        // Current kept VK branch: mu_LR <= 0 on the macro side, mu_lR > 0 on
+        // the vdW microscale side. The exchange law therefore stays
+        // sign-locked to non-increasing micro water content.
+        EXPECT_LE(ogs_update.exchange.rho_l_hat, 0.0);
+        EXPECT_LE(ogs_update.n_l,
+                  n_l_prev + comparisonTolerance(ogs_update.n_l, n_l_prev,
+                                                 0.0, 1e-18));
+
+        results[i] = {
+            .p_L = p_L,
+            .saturated_branch = macro_potential.saturated_branch,
+            .mu_LR = macro_potential.mu_LR,
+            .n_l = ogs_update.n_l,
+            .rho_l_hat = ogs_update.exchange.rho_l_hat,
+            .p_L_m = compatibility_output.p_L_m,
+            .S_L_m = compatibility_output.S_L_m,
+        };
+    }
+
+    // Once the macro state is on the saturated helper branch, the active macro
+    // potential is identically zero, so the local VK update becomes invariant
+    // with respect to further increases in p_L as long as rho_LR stays fixed.
+    for (std::size_t i = 3; i < results.size(); ++i)
+    {
+        EXPECT_NEAR(results[2].n_l, results[i].n_l,
+                    comparisonTolerance(results[2].n_l, results[i].n_l));
+        EXPECT_NEAR(results[2].rho_l_hat, results[i].rho_l_hat,
+                    comparisonTolerance(results[2].rho_l_hat,
+                                        results[i].rho_l_hat, 1e-10, 1e-18));
+        EXPECT_NEAR(results[2].p_L_m, results[i].p_L_m,
+                    comparisonTolerance(results[2].p_L_m, results[i].p_L_m,
+                                        1e-10, 1e-12));
+        EXPECT_NEAR(results[2].S_L_m, results[i].S_L_m,
+                    comparisonTolerance(results[2].S_L_m, results[i].S_L_m));
+    }
+
+    // The kept branch remains monotone with respect to p_L: less negative
+    // pressures produce less drying, but never net wetting.
+    for (std::size_t i = 1; i < results.size(); ++i)
+    {
+        double const n_l_tolerance =
+            comparisonTolerance(results[i - 1].n_l, results[i].n_l);
+        EXPECT_LE(results[i - 1].n_l, results[i].n_l + n_l_tolerance);
+
+        double const rho_l_hat_tolerance = comparisonTolerance(
+            results[i - 1].rho_l_hat, results[i].rho_l_hat, 1e-10, 1e-18);
+        EXPECT_LE(results[i - 1].rho_l_hat,
+                  results[i].rho_l_hat + rho_l_hat_tolerance);
+    }
 }
