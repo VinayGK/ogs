@@ -368,6 +368,32 @@ computeVKCompatibilityMicroHydraulicOutput(
     };
 }
 
+struct VKTransportPorosityUpdateData
+{
+    double phi_M = 0.0;
+    double phi_M_prev = 0.0;
+    double phi_m = 0.0;
+    double phi_m_prev = 0.0;
+};
+
+inline VKTransportPorosityUpdateData computeVKTransportPorosityUpdate(
+    double const phi, double const phi_prev, double const n_l,
+    double const n_l_prev)
+{
+    double const phi_safe = std::max(0.0, phi);
+    double const phi_prev_safe = std::max(0.0, phi_prev);
+
+    double const phi_m = std::clamp(n_l, 0.0, phi_safe);
+    double const phi_m_prev = std::clamp(n_l_prev, 0.0, phi_prev_safe);
+
+    return {
+        .phi_M = phi_safe - phi_m,
+        .phi_M_prev = phi_prev_safe - phi_m_prev,
+        .phi_m = phi_m,
+        .phi_m_prev = phi_m_prev,
+    };
+}
+
 inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     double const n_l_prev, double const dt, double const rho_LR,
     double const alpha_bar, double const mu,
@@ -547,6 +573,103 @@ inline void updateVKMicroscaleHydraulicState(
         n_l_update.n_l, rho_LR, vkp);
     *p_L_m = compatibility_output.p_L_m;
     *S_L_m = compatibility_output.S_L_m;
+}
+
+template <int DisplacementDim>
+inline void updateVKTransportPorosityState(
+    StatefulData<DisplacementDim>& SD,
+    StatefulDataPrev<DisplacementDim> const& SD_prev, double const phi,
+    MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
+    std::optional<VKPotentialExchangeParameters> const&
+        vk_potential_exchange_parameters)
+{
+    if (!isVKPotentialExchangeEnabled(vk_potential_exchange_parameters))
+    {
+        return;
+    }
+
+    auto& transport_porosity =
+        std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(SD)
+            .phi;
+    auto const phi_prev =
+        std::get<
+            PrevState<ProcessLib::ThermoRichardsMechanics::PorosityData>>(
+            SD_prev)
+            ->phi;
+    auto const n_l = std::max(1e-16, *std::get<VKMicroWaterContent>(SD));
+    auto const n_l_prev =
+        std::max(1e-16,
+                 **std::get<PrevState<VKMicroWaterContent>>(SD_prev));
+
+    auto const transport_porosity_update =
+        computeVKTransportPorosityUpdate(phi, phi_prev, n_l, n_l_prev);
+
+    transport_porosity = transport_porosity_update.phi_M;
+    variables.transport_porosity = transport_porosity_update.phi_M;
+    variables_prev.transport_porosity = transport_porosity_update.phi_M_prev;
+}
+
+template <int DisplacementDim>
+inline void updateVKSwellingState(
+    MaterialPropertyLib::Phase const& solid_phase,
+    MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
+    StatefulData<DisplacementDim>& SD,
+    StatefulDataPrev<DisplacementDim> const& SD_prev,
+    MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
+    ParameterLib::SpatialPosition const& x_position, double const t,
+    double const dt,
+    std::optional<VKPotentialExchangeParameters> const&
+        vk_potential_exchange_parameters)
+{
+    if (!isVKPotentialExchangeEnabled(vk_potential_exchange_parameters) ||
+        !solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate))
+    {
+        return;
+    }
+
+    auto const S_L_m_prev =
+        **std::get<PrevState<MicroSaturation>>(SD_prev);
+    auto const S_L_m = *std::get<MicroSaturation>(SD);
+
+    // Keep the compatibility swelling update one-way in this transition
+    // phase; the direct reversible reuse trial was not stable.
+    double const S_L_m_swelling = std::max(S_L_m_prev, S_L_m);
+
+    auto& sigma_sw =
+        std::get<ProcessLib::ThermoRichardsMechanics::
+                     ConstitutiveStress_StrainTemperature::
+                         SwellingDataStateful<DisplacementDim>>(SD);
+    auto const& sigma_sw_prev = std::get<
+        PrevState<ProcessLib::ThermoRichardsMechanics::
+                      ConstitutiveStress_StrainTemperature::
+                          SwellingDataStateful<DisplacementDim>>>(SD_prev);
+
+    MPL::VariableArray swelling_variables = variables;
+    MPL::VariableArray swelling_variables_prev = variables_prev;
+    swelling_variables.liquid_saturation = S_L_m_swelling;
+    swelling_variables_prev.liquid_saturation = S_L_m_prev;
+
+    auto const sigma_sw_dot =
+        MathLib::KelvinVector::tensorToKelvin<DisplacementDim>(
+            MPL::formEigenTensor<3>(
+                solid_phase[MPL::PropertyType::swelling_stress_rate].value(
+                    swelling_variables, swelling_variables_prev, x_position, t,
+                    dt)));
+
+    sigma_sw = *sigma_sw_prev;
+    sigma_sw.sigma_sw += sigma_sw_dot * dt;
+
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(
+            DisplacementDim)>::identity2;
+    auto const C_el_inverse = C_el.inverse().eval();
+
+    variables.volumetric_mechanical_strain =
+        variables.volumetric_strain +
+        identity2.transpose() * C_el_inverse * sigma_sw.sigma_sw;
+    variables_prev.volumetric_mechanical_strain =
+        variables_prev.volumetric_strain +
+        identity2.transpose() * C_el_inverse * sigma_sw_prev->sigma_sw;
 }
 
 template <int DisplacementDim>
@@ -874,6 +997,16 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             if (isVKPotentialExchangeEnabled(
                     this->process_data_.vk_potential_exchange_parameters))
             {
+                auto const porosity =
+                    std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(
+                        this->current_states_[ip])
+                        .phi;
+                auto const transport_porosity =
+                    std::get<ProcessLib::ThermoRichardsMechanics::
+                                 TransportPorosityData>(this->current_states_[ip])
+                        .phi;
+                n_l_initial = std::max(1e-12, porosity - transport_porosity);
+
                 auto const& vkp =
                     *this->process_data_.vk_potential_exchange_parameters;
                 n_l_initial =
@@ -908,6 +1041,25 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 **p_L_m_prev = compatibility_output.p_L_m;
                 *S_L_m = compatibility_output.S_L_m;
                 **S_L_m_prev = compatibility_output.S_L_m;
+
+                auto& transport_porosity =
+                    std::get<ProcessLib::ThermoRichardsMechanics::
+                                 TransportPorosityData>(
+                        this->current_states_[ip])
+                        .phi;
+                auto& transport_porosity_prev = std::get<PrevState<
+                    ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(
+                    this->prev_states_[ip]);
+                auto const porosity =
+                    std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(
+                        this->current_states_[ip])
+                        .phi;
+                auto const transport_porosity_update =
+                    computeVKTransportPorosityUpdate(
+                        porosity, porosity, n_l_initial, n_l_initial);
+                transport_porosity = transport_porosity_update.phi_M;
+                transport_porosity_prev->phi =
+                    transport_porosity_update.phi_M_prev;
             }
         }
 
@@ -1629,6 +1781,12 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
     updateVKMicroscaleHydraulicState<DisplacementDim>(
         SD, SD_prev, p_cap_ip, rho_LR, mu, dt, micro_porosity_parameters,
+        vk_potential_exchange_parameters);
+    updateVKSwellingState<DisplacementDim>(
+        solid_phase, C_el, SD, SD_prev, variables, variables_prev, x_position,
+        t, dt, vk_potential_exchange_parameters);
+    updateVKTransportPorosityState<DisplacementDim>(
+        SD, SD_prev, phi, variables, variables_prev,
         vk_potential_exchange_parameters);
 
     if (medium->hasProperty(MPL::PropertyType::transport_porosity))
@@ -2477,6 +2635,14 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         updateVKMicroscaleHydraulicState<DisplacementDim>(
             this->current_states_[ip], this->prev_states_[ip], p_cap_ip,
             rho_LR, mu, dt, this->process_data_.micro_porosity_parameters,
+            this->process_data_.vk_potential_exchange_parameters);
+        updateVKSwellingState<DisplacementDim>(
+            solid_phase, C_el, this->current_states_[ip],
+            this->prev_states_[ip], variables, variables_prev, x_position, t,
+            dt, this->process_data_.vk_potential_exchange_parameters);
+        updateVKTransportPorosityState<DisplacementDim>(
+            this->current_states_[ip], this->prev_states_[ip], phi, variables,
+            variables_prev,
             this->process_data_.vk_potential_exchange_parameters);
 
         if (medium->hasProperty(MPL::PropertyType::transport_porosity))

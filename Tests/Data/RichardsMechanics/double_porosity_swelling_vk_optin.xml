@@ -9,7 +9,7 @@
             <specific_surface>1.0</specific_surface>
             <micro_solid_density_reference>2650</micro_solid_density_reference>
             <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
-            <initial_micro_water_content>0.6</initial_micro_water_content>
+            <initial_micro_water_content>0.1</initial_micro_water_content>
             <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
         </vk_potential_exchange>
     </add>
