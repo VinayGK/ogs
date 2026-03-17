@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<OpenGeoSysProjectDiff base_file="double_porosity_swelling.prj">
+    <add sel="/*/processes/process[1]">
+        <vk_potential_exchange>
+            <enabled>true</enabled>
+            <mode>full_potential</mode>
+            <pressure_tolerance>0.0</pressure_tolerance>
+            <hamaker_constant>1e-30</hamaker_constant>
+            <specific_surface>1.0</specific_surface>
+            <micro_solid_density_reference>2650</micro_solid_density_reference>
+            <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
+            <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
+        </vk_potential_exchange>
+    </add>
+    <replace msel="/*/processes/process[1]/micro_porosity/mass_exchange_coefficient/text()">
+        1e-13
+    </replace>
+
+    <replace msel="/*/parameters/parameter[name='pressure_ic']/values/text()">
+        -1e7
+    </replace>
+    <replace msel="/*/parameters/parameter[name='phi_tr0']/value/text()">
+        0.395
+    </replace>
+    <replace msel="/*/media/medium/properties/property[name='permeability']/value/text()">
+        1e-16
+    </replace>
+    <replace msel="/*/parameters/parameter[name='dirichlet_pressure']/value/text()">
+        1
+    </replace>
+    <replace msel="/*/process_variables/process_variable[name='pressure']/boundary_conditions/boundary_condition[1]/parameter/text()">
+        dirichlet_pressure_ramp
+    </replace>
+    <replace msel="/*/curves/curve[name='pressure_ramp']/coords/text()">
+        0.0 1e2 3e2 5e2
+    </replace>
+    <replace msel="/*/curves/curve[name='pressure_ramp']/values/text()">
+        -1e7 -1e7 -1e6 1e5
+    </replace>
+
+    <replace msel="/*/time_loop/processes/process/time_stepping/t_end/text()">
+        1e3
+    </replace>
+    <replace msel="/*/time_loop/processes/process/time_stepping/initial_dt/text()">
+        1
+    </replace>
+    <replace msel="/*/time_loop/processes/process/time_stepping/maximum_dt/text()">
+        50
+    </replace>
+    <replace msel="/*/time_loop/output/fixed_output_times/text()">
+        1e3
+    </replace>
+    <replace msel="/*/time_loop/output/prefix/text()">
+        double_porosity_swelling_vk_wetting
+    </replace>
+</OpenGeoSysProjectDiff>
