@@ -112,7 +112,7 @@ void logPhase0TransitionAudit(
     {
         auto const& vkp = *vk_potential_exchange_parameters;
         INFO(
-            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={} ).",
+            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={} ).",
             vkp.enabled ? "true" : "false", toString(vkp.mode),
             vkp.pressure_tolerance, vkp.hamaker_constant, vkp.specific_surface,
             vkp.micro_solid_density_reference,
@@ -121,7 +121,10 @@ void logPhase0TransitionAudit(
                 ? std::to_string(*vkp.initial_micro_water_content)
                 : std::string{"<unset>"},
             vkp.use_fd_jacobian_for_exchange ? "true" : "false",
-            vkp.fd_jacobian_perturbation);
+            vkp.fd_jacobian_perturbation,
+            vkp.check_local_jacobian ? "true" : "false",
+            vkp.local_jacobian_perturbation,
+            vkp.local_jacobian_relative_tolerance);
     }
     else
     {
@@ -486,6 +489,35 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
                 fd_jacobian_perturbation);
         }
 
+        auto const check_local_jacobian =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__check_local_jacobian}
+            vk_potential_exchange_config->getConfigParameter<bool>(
+                "check_local_jacobian", false);
+
+        auto const local_jacobian_perturbation =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__local_jacobian_perturbation}
+            vk_potential_exchange_config->getConfigParameter<double>(
+                "local_jacobian_perturbation", 1e-8);
+        if (!(local_jacobian_perturbation > 0.0))
+        {
+            OGS_FATAL(
+                "RichardsMechanics: vk_potential_exchange.local_jacobian_perturbation "
+                "must be > 0, got {:g}.",
+                local_jacobian_perturbation);
+        }
+
+        auto const local_jacobian_relative_tolerance =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__local_jacobian_relative_tolerance}
+            vk_potential_exchange_config->getConfigParameter<double>(
+                "local_jacobian_relative_tolerance", 1e-3);
+        if (!(local_jacobian_relative_tolerance >= 0.0))
+        {
+            OGS_FATAL(
+                "RichardsMechanics: vk_potential_exchange.local_jacobian_relative_tolerance "
+                "must be >= 0, got {:g}.",
+                local_jacobian_relative_tolerance);
+        }
+
         vk_potential_exchange_parameters = VKPotentialExchangeParameters{
             enabled,
             mode,
@@ -496,7 +528,10 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
             micro_solid_volume_fraction_reference,
             initial_micro_water_content,
             use_fd_jacobian_for_exchange,
-            fd_jacobian_perturbation};
+            fd_jacobian_perturbation,
+            check_local_jacobian,
+            local_jacobian_perturbation,
+            local_jacobian_relative_tolerance};
     }
 
     validateMicroPorosityAndVKConfiguration(

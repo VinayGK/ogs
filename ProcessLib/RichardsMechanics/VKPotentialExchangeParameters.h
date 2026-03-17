@@ -34,5 +34,11 @@ struct VKPotentialExchangeParameters
     // helper path.
     bool use_fd_jacobian_for_exchange = false;
     double fd_jacobian_perturbation = 1e-8;
+
+    // Optional diagnostic self-check for the local implicit n_l chain rule.
+    // If enabled, the code compares analytic and FD local derivatives once.
+    bool check_local_jacobian = false;
+    double local_jacobian_perturbation = 1e-8;
+    double local_jacobian_relative_tolerance = 1e-3;
 };
 }  // namespace ProcessLib::RichardsMechanics

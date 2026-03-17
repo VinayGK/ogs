@@ -537,6 +537,112 @@ inline double computeVKImplicitNlDpL(
     return -dr_dp_l / dr_dn_l;
 }
 
+struct VKLocalJacobianDiagnosticData
+{
+    double fd_dn_l_dpL = 0.0;
+    double fd_drho_L_hat_dpL = 0.0;
+    double perturbation = 0.0;
+};
+
+inline VKLocalJacobianDiagnosticData computeVKLocalJacobianDiagnosticData(
+    double const n_l_prev, double const p_L_ip, double const dt,
+    double const rho_LR, double const drho_LR_dpL, double const alpha_bar,
+    double const mu, double const pressure_tolerance,
+    VKPotentialExchangeParameters const& vkp)
+{
+    constexpr double rho_floor = 1e-16;
+    double const perturbation =
+        vkp.local_jacobian_perturbation * std::max(1.0, std::abs(p_L_ip));
+    if (!(perturbation > 0.0) || !std::isfinite(perturbation))
+    {
+        OGS_FATAL(
+            "VK local Jacobian diagnostic requires finite h > 0, got {:g} "
+            "(from local_jacobian_perturbation={:g}, p_L_ip={:g}).",
+            perturbation, vkp.local_jacobian_perturbation, p_L_ip);
+    }
+
+    auto const eval_at = [&](double const p_L_eval, double const rho_LR_eval)
+    {
+        auto const macro_potential_eval = computeYoungLaplaceMacroPotential(
+            p_L_eval, rho_LR_eval, pressure_tolerance);
+        auto const n_l_update_eval = solveVKImplicitMicroWaterContent(
+            n_l_prev, dt, rho_LR_eval, alpha_bar, mu, macro_potential_eval,
+            vkp);
+        return std::pair{n_l_update_eval.n_l, -n_l_update_eval.exchange.rho_l_hat};
+    };
+
+    double const rho_plus =
+        std::max(rho_floor, rho_LR + drho_LR_dpL * perturbation);
+    auto const [n_l_plus, rho_L_hat_plus] =
+        eval_at(p_L_ip + perturbation, rho_plus);
+
+    double const rho_minus = rho_LR - drho_LR_dpL * perturbation;
+    if (rho_minus > rho_floor)
+    {
+        auto const [n_l_minus, rho_L_hat_minus] =
+            eval_at(p_L_ip - perturbation, rho_minus);
+        return {
+            .fd_dn_l_dpL = (n_l_plus - n_l_minus) / (2.0 * perturbation),
+            .fd_drho_L_hat_dpL =
+                (rho_L_hat_plus - rho_L_hat_minus) / (2.0 * perturbation),
+            .perturbation = perturbation,
+        };
+    }
+
+    auto const [n_l_center, rho_L_hat_center] = eval_at(p_L_ip, rho_LR);
+    return {
+        .fd_dn_l_dpL = (n_l_plus - n_l_center) / perturbation,
+        .fd_drho_L_hat_dpL =
+            (rho_L_hat_plus - rho_L_hat_center) / perturbation,
+        .perturbation = perturbation,
+    };
+}
+
+inline void maybeLogVKLocalJacobianDiagnostic(
+    double const p_L_ip, double const n_l_prev, double const n_l,
+    double const analytic_dn_l_dpL, double const analytic_drho_L_hat_dpL,
+    VKLocalJacobianDiagnosticData const& fd_data,
+    VKPotentialExchangeParameters const& vkp)
+{
+    static std::once_flag once;
+    std::call_once(once, [=]()
+    {
+        auto const relative_error = [](double const analytic, double const fd)
+        {
+            double const scale =
+                std::max({1.0, std::abs(analytic), std::abs(fd)});
+            return std::abs(analytic - fd) / scale;
+        };
+
+        double const rel_dn_l =
+            relative_error(analytic_dn_l_dpL, fd_data.fd_dn_l_dpL);
+        double const rel_drho = relative_error(
+            analytic_drho_L_hat_dpL, fd_data.fd_drho_L_hat_dpL);
+        bool const mismatch =
+            rel_dn_l > vkp.local_jacobian_relative_tolerance ||
+            rel_drho > vkp.local_jacobian_relative_tolerance;
+
+        auto const* const level_prefix = mismatch ? "[RM Phase3D]" : "[RM Phase3D]";
+        if (mismatch)
+        {
+            WARN(
+                "{} local Jacobian diagnostic: pL_ip={} Pa, n_l_prev={}, n_l={}, h={}, analytic dn_l/dpL={}, FD dn_l/dpL={}, rel_err_nl={}, analytic drho_L_hat/dpL={}, FD drho_L_hat/dpL={}, rel_err_exchange={}, tolerance={}.",
+                level_prefix, p_L_ip, n_l_prev, n_l, fd_data.perturbation,
+                analytic_dn_l_dpL, fd_data.fd_dn_l_dpL, rel_dn_l,
+                analytic_drho_L_hat_dpL, fd_data.fd_drho_L_hat_dpL, rel_drho,
+                vkp.local_jacobian_relative_tolerance);
+            return;
+        }
+
+        INFO(
+            "{} local Jacobian diagnostic: pL_ip={} Pa, n_l_prev={}, n_l={}, h={}, analytic dn_l/dpL={}, FD dn_l/dpL={}, rel_err_nl={}, analytic drho_L_hat/dpL={}, FD drho_L_hat/dpL={}, rel_err_exchange={}, tolerance={}.",
+            level_prefix, p_L_ip, n_l_prev, n_l, fd_data.perturbation,
+            analytic_dn_l_dpL, fd_data.fd_dn_l_dpL, rel_dn_l,
+            analytic_drho_L_hat_dpL, fd_data.fd_drho_L_hat_dpL, rel_drho,
+            vkp.local_jacobian_relative_tolerance);
+    });
+}
+
 template <int DisplacementDim>
 inline void updateVKMicroscaleHydraulicState(
     StatefulData<DisplacementDim>& SD,
@@ -2319,6 +2425,29 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                      micro_potential.dmu_lR_drho_lR *
                                          drho_LR_dpL;
                     use_custom_dmu_lR_vdw_dpL = true;
+
+                    auto const n_l_prev =
+                        std::max(1e-16,
+                                 **std::get<PrevState<VKMicroWaterContent>>(
+                                     this->prev_states_[ip]));
+                    if (vkp.check_local_jacobian)
+                    {
+                        auto const fd_data =
+                            computeVKLocalJacobianDiagnosticData(
+                                n_l_prev, p_L_ip, dt, rho_LR, drho_LR_dpL,
+                                alpha_bar, mu, pressure_tolerance, vkp);
+                        auto const analytic_drho_L_hat_dpL =
+                            -exchange.drho_l_hat_dalpha_M *
+                                (alpha_bar / mu * drho_LR_dpL) -
+                            exchange.drho_l_hat_dmu_LR *
+                                (macro_potential.dmu_LR_dpLR +
+                                 macro_potential.dmu_LR_drho_LR *
+                                     drho_LR_dpL) -
+                            exchange.drho_l_hat_dmu_lR * dmu_lR_vdw_dpL;
+                        maybeLogVKLocalJacobianDiagnostic(
+                            p_L_ip, n_l_prev, n_l, dn_l_dpL,
+                            analytic_drho_L_hat_dpL, fd_data, vkp);
+                    }
                 }
             }
 
