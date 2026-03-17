@@ -12,6 +12,32 @@ enum class VKPotentialExchangeMode
     FullPotential
 };
 
+enum class VKMicroPotentialConvention
+{
+    PositiveReduced,
+    NegativeAttractive
+};
+
+inline constexpr char const* toString(
+    VKMicroPotentialConvention const convention)
+{
+    switch (convention)
+    {
+        case VKMicroPotentialConvention::PositiveReduced:
+            return "positive_reduced";
+        case VKMicroPotentialConvention::NegativeAttractive:
+            return "negative_attractive";
+    }
+    return "unknown";
+}
+
+inline constexpr double microPotentialSignFactor(
+    VKMicroPotentialConvention const convention)
+{
+    return convention == VKMicroPotentialConvention::NegativeAttractive ? -1.0
+                                                                       : 1.0;
+}
+
 struct VKPotentialExchangeParameters
 {
     bool enabled = false;
@@ -25,6 +51,8 @@ struct VKPotentialExchangeParameters
     double specific_surface = 0.0;
     double micro_solid_density_reference = 0.0;          // rho_SR
     double micro_solid_volume_fraction_reference = 0.0;  // n_S
+    VKMicroPotentialConvention micro_potential_convention =
+        VKMicroPotentialConvention::PositiveReduced;
 
     // Optional GP-local n_l initialization (future full 2C path).
     std::optional<double> initial_micro_water_content;

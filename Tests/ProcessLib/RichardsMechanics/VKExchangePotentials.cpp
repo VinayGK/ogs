@@ -104,6 +104,49 @@ TEST(RichardsMechanics, VKVanDerWaalsMicroPotential)
     EXPECT_NEAR(mu.dmu_lR_drho_SR, centralDiff(f_rhoSR, rho_SR, 1e-4), 1e-6);
 }
 
+TEST(RichardsMechanics, VKVanDerWaalsMicroPotentialNegativeAttractiveConvention)
+{
+    double const n_l = 0.03;
+    double const rho_lR = 1000.0;
+    double const nS = 0.6;
+    double const rho_SR = 2700.0;
+    double const A = 6.0e-20;
+    double const Sa = 1000.0;
+
+    auto const mu = computeVanDerWaalsMicroPotential(
+        n_l, rho_lR, nS, rho_SR, A, Sa, -1.0);
+
+    EXPECT_GT(mu.omega_l, 0.0);
+    EXPECT_LT(mu.mu_lR, 0.0);
+    EXPECT_GT(mu.dmu_lR_dnl, 0.0);
+    EXPECT_LT(mu.dmu_lR_dnS, 0.0);
+    EXPECT_LT(mu.dmu_lR_drho_SR, 0.0);
+    EXPECT_DOUBLE_EQ(mu.dmu_lR_drho_lR, 0.0);
+
+    auto f_nl = [=](double const x)
+    {
+        return computeVanDerWaalsMicroPotential(
+                   x, rho_lR, nS, rho_SR, A, Sa, -1.0)
+            .mu_lR;
+    };
+    auto f_nS = [=](double const x)
+    {
+        return computeVanDerWaalsMicroPotential(
+                   n_l, rho_lR, x, rho_SR, A, Sa, -1.0)
+            .mu_lR;
+    };
+    auto f_rhoSR = [=](double const x)
+    {
+        return computeVanDerWaalsMicroPotential(
+                   n_l, rho_lR, nS, x, A, Sa, -1.0)
+            .mu_lR;
+    };
+
+    EXPECT_NEAR(mu.dmu_lR_dnl, centralDiff(f_nl, n_l, 1e-8), 1e-4);
+    EXPECT_NEAR(mu.dmu_lR_dnS, centralDiff(f_nS, nS, 1e-8), 1e-3);
+    EXPECT_NEAR(mu.dmu_lR_drho_SR, centralDiff(f_rhoSR, rho_SR, 1e-4), 1e-6);
+}
+
 TEST(RichardsMechanics, VKPotentialDrivenMassExchange)
 {
     double const alpha_M = 2.5e-10;

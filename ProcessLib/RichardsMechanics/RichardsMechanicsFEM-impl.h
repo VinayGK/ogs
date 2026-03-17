@@ -345,6 +345,12 @@ struct VKCompatibilityMicroHydraulicOutputData
     VanDerWaalsMicroPotentialData micro_potential;
 };
 
+inline double vkMicroPotentialSignFactor(
+    VKPotentialExchangeParameters const& vkp)
+{
+    return microPotentialSignFactor(vkp.micro_potential_convention);
+}
+
 inline VKCompatibilityMicroHydraulicOutputData
 computeVKCompatibilityMicroHydraulicOutput(
     double const n_l, double const rho_LR,
@@ -358,7 +364,7 @@ computeVKCompatibilityMicroHydraulicOutput(
     auto const micro_potential = computeVanDerWaalsMicroPotential(
         n_l_safe, rho_LR, vkp.micro_solid_volume_fraction_reference,
         vkp.micro_solid_density_reference, vkp.hamaker_constant,
-        vkp.specific_surface);
+        vkp.specific_surface, vkMicroPotentialSignFactor(vkp));
 
     return {
         .p_L_m = -rho_LR * micro_potential.mu_lR,
@@ -409,7 +415,7 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
         auto const micro_potential = computeVanDerWaalsMicroPotential(
             n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
             vkp.micro_solid_density_reference, vkp.hamaker_constant,
-            vkp.specific_surface);
+            vkp.specific_surface, vkMicroPotentialSignFactor(vkp));
         auto const exchange = computePotentialDrivenMassExchange(
             alpha_M_effective, macro_potential.mu_LR, micro_potential.mu_lR);
         return std::pair{micro_potential, exchange};
@@ -1649,7 +1655,7 @@ void RichardsMechanicsLocalAssembler<
                 auto const micro_potential = computeVanDerWaalsMicroPotential(
                     n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
                     vkp.micro_solid_density_reference, vkp.hamaker_constant,
-                    vkp.specific_surface);
+                    vkp.specific_surface, vkMicroPotentialSignFactor(vkp));
                 use_vdw_micro_potential_for_active_exchange = true;
                 mu_lR_vdw = micro_potential.mu_lR;
                 dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
@@ -2398,7 +2404,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 auto const micro_potential = computeVanDerWaalsMicroPotential(
                     n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
                     vkp.micro_solid_density_reference, vkp.hamaker_constant,
-                    vkp.specific_surface);
+                    vkp.specific_surface, vkMicroPotentialSignFactor(vkp));
                 use_vdw_micro_potential_for_active_exchange = true;
                 mu_lR_vdw = micro_potential.mu_lR;
                 dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;

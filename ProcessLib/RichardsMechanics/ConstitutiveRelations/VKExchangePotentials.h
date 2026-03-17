@@ -72,7 +72,8 @@ struct VanDerWaalsMicroPotentialData
 //       = (A * Sa^3 / (6*pi)) * (nS^3 * rho_SR^3) / n_l^3
 inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     double const n_l, double const rho_lR, double const nS, double const rho_SR,
-    double const hamaker_constant, double const specific_surface)
+    double const hamaker_constant, double const specific_surface,
+    double const potential_sign_factor = 1.0)
 {
     if (!(n_l > 0.0))
     {
@@ -125,8 +126,8 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     double const prefactor = hamaker_constant * specific_surface *
                                  specific_surface * specific_surface /
                              (6.0 * pi);
-    out.mu_lR = prefactor * (nS * nS * nS) * (rho_SR * rho_SR * rho_SR) /
-                (n_l * n_l * n_l);
+    out.mu_lR = potential_sign_factor * prefactor * (nS * nS * nS) *
+                (rho_SR * rho_SR * rho_SR) / (n_l * n_l * n_l);
 
     out.dmu_lR_dnl = -3.0 * out.mu_lR / n_l;
     out.dmu_lR_drho_lR = 0.0;
@@ -161,4 +162,3 @@ inline PotentialDrivenMassExchangeData computePotentialDrivenMassExchange(
     return out;
 }
 }  // namespace ProcessLib::RichardsMechanics
-

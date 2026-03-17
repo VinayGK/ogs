@@ -48,7 +48,8 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
         auto const micro_potential = computeVanDerWaalsMicroPotential(
             n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
             vkp.micro_solid_density_reference, vkp.hamaker_constant,
-            vkp.specific_surface);
+            vkp.specific_surface,
+            microPotentialSignFactor(vkp.micro_potential_convention));
         auto const exchange = computePotentialDrivenMassExchange(
             alpha_M_effective, macro_potential.mu_LR, micro_potential.mu_lR);
         return std::pair{micro_potential, exchange};
@@ -525,6 +526,62 @@ TEST(RichardsMechanics, VKBranchSensitivityNearMacroPotentialTransition)
         EXPECT_LE(results[i - 1].rho_l_hat,
                   results[i].rho_l_hat + rho_l_hat_tolerance);
     }
+}
+
+TEST(RichardsMechanics, VKNegativeAttractiveMicroPotentialAdmitsWetting)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.pressure_tolerance = 1.0;
+    vkp.hamaker_constant = 6.0e-20;
+    vkp.specific_surface = 1000.0;
+    vkp.micro_solid_density_reference = 2650.0;
+    vkp.micro_solid_volume_fraction_reference = 0.6;
+    vkp.micro_potential_convention =
+        VKMicroPotentialConvention::NegativeAttractive;
+    vkp.initial_micro_water_content = 0.03;
+    vkp.local_jacobian_perturbation = 1e-8;
+
+    double const p_L = 0.0;
+    double const n_l_prev = 0.03;
+    double const dt = 1.0;
+    double const rho_LR = 1000.0;
+    double const alpha_bar = 1.0e-9;
+    double const mu = 1.0e-3;
+    double const phi = 0.4;
+
+    auto const macro_potential =
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, vkp.pressure_tolerance);
+    ASSERT_TRUE(macro_potential.saturated_branch);
+    ASSERT_DOUBLE_EQ(macro_potential.mu_LR, 0.0);
+
+    auto const ogs_update = solveVKImplicitMicroWaterContent(
+        n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential, vkp);
+    ASSERT_TRUE(ogs_update.converged);
+
+    auto const reference = solveReferenceVKSinglePoint(
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp);
+    auto const compatibility_output =
+        computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, vkp);
+
+    EXPECT_LT(ogs_update.micro_potential.mu_lR, 0.0);
+    EXPECT_GT(ogs_update.exchange.rho_l_hat, 0.0);
+    EXPECT_LT(ogs_update.exchange.rho_L_hat, 0.0);
+    EXPECT_GT(ogs_update.n_l, n_l_prev);
+    EXPECT_GT(compatibility_output.p_L_m, 0.0);
+
+    EXPECT_NEAR(ogs_update.n_l, reference.n_l,
+                comparisonTolerance(ogs_update.n_l, reference.n_l));
+    EXPECT_NEAR(ogs_update.exchange.rho_l_hat, reference.exchange.rho_l_hat,
+                comparisonTolerance(ogs_update.exchange.rho_l_hat,
+                                    reference.exchange.rho_l_hat,
+                                    1e-10, 1e-18));
+    EXPECT_NEAR(compatibility_output.p_L_m, reference.p_L_m,
+                comparisonTolerance(compatibility_output.p_L_m,
+                                    reference.p_L_m, 1e-10, 1e-12));
+    EXPECT_NEAR(compatibility_output.S_L_m, reference.S_L_m,
+                comparisonTolerance(compatibility_output.S_L_m,
+                                    reference.S_L_m));
 }
 
 TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)

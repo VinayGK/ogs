@@ -55,6 +55,25 @@ char const* toString(VKPotentialExchangeMode const mode)
     return "unknown";
 }
 
+VKMicroPotentialConvention parseVKMicroPotentialConvention(
+    std::string const& convention)
+{
+    if (convention == "positive_reduced")
+    {
+        return VKMicroPotentialConvention::PositiveReduced;
+    }
+    if (convention == "negative_attractive")
+    {
+        return VKMicroPotentialConvention::NegativeAttractive;
+    }
+
+    OGS_FATAL(
+        "RichardsMechanics: unsupported vk_potential_exchange "
+        "micro_potential_convention '{}'. Currently supported: "
+        "'positive_reduced', 'negative_attractive'.",
+        convention);
+}
+
 VKPotentialExchangeMode parseVKPotentialExchangeMode(std::string const& mode)
 {
     if (mode == "full_potential")
@@ -112,11 +131,12 @@ void logPhase0TransitionAudit(
     {
         auto const& vkp = *vk_potential_exchange_parameters;
         INFO(
-            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={} ).",
+            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, micro_potential_convention='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={} ).",
             vkp.enabled ? "true" : "false", toString(vkp.mode),
             vkp.pressure_tolerance, vkp.hamaker_constant, vkp.specific_surface,
             vkp.micro_solid_density_reference,
             vkp.micro_solid_volume_fraction_reference,
+            toString(vkp.micro_potential_convention),
             vkp.initial_micro_water_content
                 ? std::to_string(*vkp.initial_micro_water_content)
                 : std::string{"<unset>"},
@@ -391,6 +411,12 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
             vk_potential_exchange_config->getConfigParameter<double>(
                 "pressure_tolerance", 0.0);
 
+        auto const micro_potential_convention =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange__micro_potential_convention}
+            parseVKMicroPotentialConvention(
+                vk_potential_exchange_config->getConfigParameter<std::string>(
+                    "micro_potential_convention", "positive_reduced"));
+
         if (pressure_tolerance < 0.0)
         {
             OGS_FATAL(
@@ -526,6 +552,7 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
             specific_surface,
             micro_solid_density_reference,
             micro_solid_volume_fraction_reference,
+            micro_potential_convention,
             initial_micro_water_content,
             use_fd_jacobian_for_exchange,
             fd_jacobian_perturbation,
