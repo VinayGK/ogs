@@ -83,6 +83,36 @@ AddTest(
 )
 
 AddTest(
+    NAME RichardsMechanics_beacon_1a01_vk_smoke
+    PATH RichardsMechanics
+    EXECUTABLE ogs
+    RUNTIME 20
+    EXECUTABLE_ARGS beacon_1a01_vk_smoke.xml
+    WRAPPER time
+    REQUIREMENTS NOT OGS_USE_MPI
+)
+
+AddTest(
+    NAME RichardsMechanics_beacon_1b_vk_smoke
+    PATH RichardsMechanics
+    EXECUTABLE ogs
+    RUNTIME 20
+    EXECUTABLE_ARGS beacon_1b_vk_smoke.xml
+    WRAPPER time
+    REQUIREMENTS NOT OGS_USE_MPI
+)
+
+AddTest(
+    NAME RichardsMechanics_beacon_1c_vk_smoke
+    PATH RichardsMechanics
+    EXECUTABLE ogs
+    RUNTIME 20
+    EXECUTABLE_ARGS beacon_1c_vk_smoke.xml
+    WRAPPER time
+    REQUIREMENTS NOT OGS_USE_MPI
+)
+
+AddTest(
     NAME RichardsMechanics_square_1e2_confined_compression_restart
     PATH RichardsMechanics
     EXECUTABLE ogs
