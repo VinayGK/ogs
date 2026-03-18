@@ -584,6 +584,37 @@ TEST(RichardsMechanics, VKNegativeAttractiveMicroPotentialAdmitsWetting)
                                     reference.S_L_m));
 }
 
+TEST(RichardsMechanics, VKVdWRelaxationStressIncrement)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.micro_potential_convention =
+        VKMicroPotentialConvention::NegativeAttractive;
+    vkp.vdw_relaxation_stress_gain = 10.0;
+
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
+
+    auto const compressive_increment =
+        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, vkp);
+    EXPECT_NEAR((compressive_increment + 20.0 * identity2).norm(), 0.0, 1e-14);
+
+    auto const no_relaxation_increment =
+        computeVdWRelaxationStressIncrement<2>(3.0, 5.0, vkp);
+    EXPECT_NEAR(no_relaxation_increment.norm(), 0.0, 1e-14);
+
+    vkp.vdw_relaxation_stress_gain = 0.0;
+    auto const zero_gain_increment =
+        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, vkp);
+    EXPECT_NEAR(zero_gain_increment.norm(), 0.0, 1e-14);
+
+    vkp.vdw_relaxation_stress_gain = 10.0;
+    vkp.micro_potential_convention = VKMicroPotentialConvention::PositiveReduced;
+    auto const unsupported_convention_increment =
+        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, vkp);
+    EXPECT_NEAR(unsupported_convention_increment.norm(), 0.0, 1e-14);
+}
+
 TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)
 {
     VKPotentialExchangeParameters vkp;

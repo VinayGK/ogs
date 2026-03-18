@@ -68,5 +68,10 @@ struct VKPotentialExchangeParameters
     bool check_local_jacobian = false;
     double local_jacobian_perturbation = 1e-8;
     double local_jacobian_relative_tolerance = 1e-3;
+
+    // Optional VK-only mechanical gain on relaxation of the vdW-derived
+    // compatibility pressure p_L_m = -rho_LR * mu_lR. Zero preserves the
+    // current committed behavior.
+    double vdw_relaxation_stress_gain = 0.0;
 };
 }  // namespace ProcessLib::RichardsMechanics

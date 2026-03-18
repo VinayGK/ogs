@@ -26,6 +26,7 @@
                 <initial_micro_water_content>0.1</initial_micro_water_content>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
+                <vdw_relaxation_stress_gain>1e25</vdw_relaxation_stress_gain>
             </vk_potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>

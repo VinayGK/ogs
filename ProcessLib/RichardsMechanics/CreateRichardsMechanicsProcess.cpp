@@ -134,7 +134,7 @@ void logPhase0TransitionAudit(
     {
         auto const& vkp = *vk_potential_exchange_parameters;
         INFO(
-            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, micro_potential_convention='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={} ).",
+            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, micro_potential_convention='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={}, vdw_relaxation_stress_gain={} ).",
             vkp.enabled ? "true" : "false", toString(vkp.mode),
             vkp.pressure_tolerance, vkp.hamaker_constant, vkp.specific_surface,
             vkp.micro_solid_density_reference,
@@ -147,7 +147,8 @@ void logPhase0TransitionAudit(
             vkp.fd_jacobian_perturbation,
             vkp.check_local_jacobian ? "true" : "false",
             vkp.local_jacobian_perturbation,
-            vkp.local_jacobian_relative_tolerance);
+            vkp.local_jacobian_relative_tolerance,
+            vkp.vdw_relaxation_stress_gain);
     }
     else
     {
@@ -462,6 +463,16 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
             context, local_jacobian_relative_tolerance);
     }
 
+    auto const vdw_relaxation_stress_gain = config.getConfigParameter<double>(
+        "vdw_relaxation_stress_gain",
+        defaults ? defaults->vdw_relaxation_stress_gain : 0.0);
+    if (!(vdw_relaxation_stress_gain >= 0.0))
+    {
+        OGS_FATAL(
+            "RichardsMechanics: {} vdw_relaxation_stress_gain must be >= 0, got {:g}.",
+            context, vdw_relaxation_stress_gain);
+    }
+
     return VKPotentialExchangeParameters{
         enabled,
         mode,
@@ -476,7 +487,8 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
         fd_jacobian_perturbation,
         check_local_jacobian,
         local_jacobian_perturbation,
-        local_jacobian_relative_tolerance};
+        local_jacobian_relative_tolerance,
+        vdw_relaxation_stress_gain};
 }
 
 template <int DisplacementDim>
