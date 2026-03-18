@@ -113,7 +113,7 @@
             <prefix>beacon_1a01_vk_smoke</prefix>
             <suffix>_t_{:time}</suffix>
             <fixed_output_times>1e3</fixed_output_times>
-            <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>swelling_stress</variable></variables>
+            <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>swelling_stress</variable><variable>sigma</variable></variables>
         </output>
     </time_loop>
     <parameters>

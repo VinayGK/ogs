@@ -108,6 +108,7 @@ AddTest(
     beacon_1a01_reference_t_1000.000000.vtu beacon_1a01_vk_smoke_t_1000.000000.vtu micro_pressure micro_pressure 1e-16 1e-12
     beacon_1a01_reference_t_1000.000000.vtu beacon_1a01_vk_smoke_t_1000.000000.vtu micro_saturation micro_saturation 1e-14 0
     beacon_1a01_reference_t_1000.000000.vtu beacon_1a01_vk_smoke_t_1000.000000.vtu swelling_stress swelling_stress 1e-16 0
+    beacon_1a01_reference_t_1000.000000.vtu beacon_1a01_vk_smoke_t_1000.000000.vtu sigma sigma 1e-16 1e-10
 )
 
 AddTest(
@@ -136,6 +137,7 @@ AddTest(
     beacon_1b_reference_t_1000.000000.vtu beacon_1b_vk_smoke_t_1000.000000.vtu micro_pressure micro_pressure 1e-16 1e-12
     beacon_1b_reference_t_1000.000000.vtu beacon_1b_vk_smoke_t_1000.000000.vtu micro_saturation micro_saturation 1e-16 0
     beacon_1b_reference_t_1000.000000.vtu beacon_1b_vk_smoke_t_1000.000000.vtu swelling_stress swelling_stress 1e-16 0
+    beacon_1b_reference_t_1000.000000.vtu beacon_1b_vk_smoke_t_1000.000000.vtu sigma sigma 1e-16 1e-10
 )
 
 AddTest(
@@ -166,6 +168,7 @@ AddTest(
     beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu micro_pressure micro_pressure 1e-16 1e-12
     beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu micro_saturation micro_saturation 1e-14 0
     beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu swelling_stress swelling_stress 1e-16 0
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu sigma sigma 1e-16 1e-10
 )
 
 AddTest(
