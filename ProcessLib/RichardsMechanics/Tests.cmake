@@ -131,6 +131,26 @@ AddTest(
 )
 
 AddTest(
+    NAME RichardsMechanics_beacon_1c_vk_reference
+    PATH RichardsMechanics
+    EXECUTABLE ogs
+    RUNTIME 20
+    EXECUTABLE_ARGS beacon_1c_vk_smoke.prj
+    WRAPPER time
+    TESTER vtkdiff
+    REQUIREMENTS NOT OGS_USE_MPI
+    DIFF_DATA
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu displacement displacement 1e-16 0
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu pressure pressure 1e-16 1e-12
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu saturation saturation 1e-14 0
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu porosity porosity 1e-16 0
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu transport_porosity transport_porosity 1e-16 0
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu micro_pressure micro_pressure 1e-16 1e-12
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu micro_saturation micro_saturation 1e-14 0
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_vk_smoke_t_1000.000000.vtu swelling_stress swelling_stress 1e-16 0
+)
+
+AddTest(
     NAME RichardsMechanics_square_1e2_confined_compression_restart
     PATH RichardsMechanics
     EXECUTABLE ogs
