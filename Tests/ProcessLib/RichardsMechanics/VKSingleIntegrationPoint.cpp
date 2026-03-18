@@ -615,6 +615,29 @@ TEST(RichardsMechanics, VKVdWRelaxationStressIncrement)
     EXPECT_NEAR(unsupported_convention_increment.norm(), 0.0, 1e-14);
 }
 
+TEST(RichardsMechanics, VKMicroWaterContentStressIncrement)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.micro_water_content_stress_gain = 10.0;
+
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
+
+    auto const compressive_increment =
+        computeMicroWaterContentStressIncrement<2>(0.2, 0.3, vkp);
+    EXPECT_NEAR((compressive_increment + 1.0 * identity2).norm(), 0.0, 1e-14);
+
+    auto const no_growth_increment =
+        computeMicroWaterContentStressIncrement<2>(0.3, 0.2, vkp);
+    EXPECT_NEAR(no_growth_increment.norm(), 0.0, 1e-14);
+
+    vkp.micro_water_content_stress_gain = 0.0;
+    auto const zero_gain_increment =
+        computeMicroWaterContentStressIncrement<2>(0.2, 0.3, vkp);
+    EXPECT_NEAR(zero_gain_increment.norm(), 0.0, 1e-14);
+}
+
 TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)
 {
     VKPotentialExchangeParameters vkp;

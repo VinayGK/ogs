@@ -766,6 +766,34 @@ computeVdWRelaxationStressIncrement(
 }
 
 template <int DisplacementDim>
+inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
+computeMicroWaterContentStressIncrement(
+    double const n_l_prev, double const n_l,
+    VKPotentialExchangeParameters const& vkp)
+{
+    using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
+
+    KV delta_sigma_nl = KV::Zero();
+    if (!(vkp.micro_water_content_stress_gain > 0.0))
+    {
+        return delta_sigma_nl;
+    }
+
+    double const delta_n_l = std::max(0.0, n_l - n_l_prev);
+    if (!(delta_n_l > 0.0))
+    {
+        return delta_sigma_nl;
+    }
+
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(
+            DisplacementDim)>::identity2;
+    delta_sigma_nl.noalias() -=
+        vkp.micro_water_content_stress_gain * delta_n_l * identity2;
+    return delta_sigma_nl;
+}
+
+template <int DisplacementDim>
 inline void updateVKSwellingState(
     MaterialPropertyLib::Phase const& solid_phase,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
@@ -787,6 +815,8 @@ inline void updateVKSwellingState(
     auto const S_L_m = *std::get<MicroSaturation>(SD);
     auto const p_L_m_prev = **std::get<PrevState<MicroPressure>>(SD_prev);
     auto const p_L_m = *std::get<MicroPressure>(SD);
+    auto const n_l_prev = **std::get<PrevState<VKMicroWaterContent>>(SD_prev);
+    auto const n_l = *std::get<VKMicroWaterContent>(SD);
 
     // Keep the compatibility swelling update one-way in this transition
     // phase; the direct reversible reuse trial was not stable.
@@ -817,6 +847,8 @@ inline void updateVKSwellingState(
     sigma_sw.sigma_sw += sigma_sw_dot * dt;
     sigma_sw.sigma_sw += computeVdWRelaxationStressIncrement<DisplacementDim>(
         p_L_m_prev, p_L_m, *vk_potential_exchange_parameters);
+    sigma_sw.sigma_sw += computeMicroWaterContentStressIncrement<
+        DisplacementDim>(n_l_prev, n_l, *vk_potential_exchange_parameters);
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(

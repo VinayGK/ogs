@@ -73,5 +73,11 @@ struct VKPotentialExchangeParameters
     // compatibility pressure p_L_m = -rho_LR * mu_lR. Zero preserves the
     // current committed behavior.
     double vdw_relaxation_stress_gain = 0.0;
+
+    // Optional VK-only mechanical gain on positive microscale water-content
+    // increments. This is intended for the notebook-consistent fully saturated
+    // microscale interpretation, where swelling is driven by n_l growth rather
+    // than by a change in saturation.
+    double micro_water_content_stress_gain = 0.0;
 };
 }  // namespace ProcessLib::RichardsMechanics
