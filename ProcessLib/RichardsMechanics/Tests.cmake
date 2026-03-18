@@ -87,7 +87,7 @@ AddTest(
     PATH RichardsMechanics
     EXECUTABLE ogs
     RUNTIME 20
-    EXECUTABLE_ARGS beacon_1a01_vk_smoke.xml
+    EXECUTABLE_ARGS beacon_1a01_vk_smoke.prj
     WRAPPER time
     REQUIREMENTS NOT OGS_USE_MPI
 )
@@ -97,7 +97,7 @@ AddTest(
     PATH RichardsMechanics
     EXECUTABLE ogs
     RUNTIME 20
-    EXECUTABLE_ARGS beacon_1b_vk_smoke.xml
+    EXECUTABLE_ARGS beacon_1b_vk_smoke.prj
     WRAPPER time
     REQUIREMENTS NOT OGS_USE_MPI
 )
@@ -107,7 +107,7 @@ AddTest(
     PATH RichardsMechanics
     EXECUTABLE ogs
     RUNTIME 20
-    EXECUTABLE_ARGS beacon_1c_vk_smoke.xml
+    EXECUTABLE_ARGS beacon_1c_vk_smoke.prj
     WRAPPER time
     REQUIREMENTS NOT OGS_USE_MPI
 )

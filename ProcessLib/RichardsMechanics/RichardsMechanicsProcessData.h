@@ -46,6 +46,8 @@ struct RichardsMechanicsProcessData
 
     std::optional<MicroPorosityParameters> micro_porosity_parameters;
     std::optional<VKPotentialExchangeParameters> vk_potential_exchange_parameters;
+    std::map<int, VKPotentialExchangeParameters>
+        vk_potential_exchange_parameters_by_material;
 
     bool const apply_mass_lumping;
 

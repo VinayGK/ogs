@@ -22,6 +22,32 @@ template <int DisplacementDim>
 struct LocalAssemblerInterface : public ProcessLib::LocalAssemblerInterface,
                                  public NumLib::ExtrapolatableElement
 {
+private:
+    static VKPotentialExchangeParameters const*
+    selectVKPotentialExchangeParameters(
+        std::optional<VKPotentialExchangeParameters> const&
+            vk_potential_exchange_parameters,
+        std::map<int, VKPotentialExchangeParameters> const&
+            vk_potential_exchange_parameters_by_material,
+        MeshLib::PropertyVector<int> const* const material_ids,
+        std::size_t const element_id)
+    {
+        int const material_id =
+            material_ids == nullptr ? 0 : (*material_ids)[element_id];
+
+        if (auto const it =
+                vk_potential_exchange_parameters_by_material.find(material_id);
+            it != vk_potential_exchange_parameters_by_material.end())
+        {
+            return &it->second;
+        }
+
+        return vk_potential_exchange_parameters
+                   ? &*vk_potential_exchange_parameters
+                   : nullptr;
+    }
+
+public:
     LocalAssemblerInterface(
         MeshLib::Element const& e,
         NumLib::GenericIntegrationMethod const& integration_method,
@@ -31,6 +57,11 @@ struct LocalAssemblerInterface : public ProcessLib::LocalAssemblerInterface,
           integration_method_(integration_method),
           element_(e),
           is_axially_symmetric_(is_axially_symmetric),
+          vk_potential_exchange_parameters_(
+              selectVKPotentialExchangeParameters(
+                  process_data_.vk_potential_exchange_parameters,
+                  process_data_.vk_potential_exchange_parameters_by_material,
+                  process_data_.material_ids, e.getID())),
           solid_material_(MaterialLib::Solids::selectSolidConstitutiveRelation(
               process_data_.solid_materials, process_data_.material_ids,
               e.getID()))
@@ -133,6 +164,11 @@ struct LocalAssemblerInterface : public ProcessLib::LocalAssemblerInterface,
                    : (*process_data_.material_ids)[element_.getID()];
     }
 
+    VKPotentialExchangeParameters const* getVKPotentialExchangeParameters() const
+    {
+        return vk_potential_exchange_parameters_;
+    }
+
     typename MaterialLib::Solids::MechanicsBase<
         DisplacementDim>::MaterialStateVariables const&
     getMaterialStateVariablesAt(unsigned integration_point) const
@@ -172,6 +208,8 @@ protected:
     NumLib::GenericIntegrationMethod const& integration_method_;
     MeshLib::Element const& element_;
     bool const is_axially_symmetric_;
+    VKPotentialExchangeParameters const* const vk_potential_exchange_parameters_ =
+        nullptr;
 
     MaterialLib::Solids::MechanicsBase<DisplacementDim> const& solid_material_;
 
