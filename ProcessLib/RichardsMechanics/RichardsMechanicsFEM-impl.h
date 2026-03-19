@@ -874,27 +874,23 @@ inline void updateVKSwellingState(
     }
 
     auto const& vkp = *vk_potential_exchange_parameters;
-    bool const use_notebook_nl_swelling =
+    bool const use_notebook_phi_m_swelling =
         vkp.micro_water_content_swelling_slope > 0.0;
-    if (!use_notebook_nl_swelling &&
-        !solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate))
-    {
-        return;
-    }
+    bool const use_vdw_relaxation_gain = vkp.vdw_relaxation_stress_gain > 0.0;
+    bool const use_micro_water_gain =
+        vkp.micro_water_content_stress_gain > 0.0;
 
-    auto const S_L_m_prev =
-        **std::get<PrevState<MicroSaturation>>(SD_prev);
-    auto const S_L_m = *std::get<MicroSaturation>(SD);
+    (void)solid_phase;
+    (void)x_position;
+    (void)t;
+    (void)dt;
+
     auto const p_L_m_prev = **std::get<PrevState<MicroPressure>>(SD_prev);
     auto const p_L_m = *std::get<MicroPressure>(SD);
     auto const n_l_prev = **std::get<PrevState<VKMicroWaterContent>>(SD_prev);
     auto const n_l = *std::get<VKMicroWaterContent>(SD);
     auto const phi_m_prev = **std::get<PrevState<VKMicroPorosity>>(SD_prev);
     auto const phi_m = *std::get<VKMicroPorosity>(SD);
-
-    // Keep the compatibility swelling update one-way in this transition
-    // phase; the direct reversible reuse trial was not stable.
-    double const S_L_m_swelling = std::max(S_L_m_prev, S_L_m);
 
     auto& sigma_sw =
         std::get<ProcessLib::ThermoRichardsMechanics::
@@ -906,32 +902,25 @@ inline void updateVKSwellingState(
                           SwellingDataStateful<DisplacementDim>>>(SD_prev);
 
     sigma_sw = *sigma_sw_prev;
-    if (use_notebook_nl_swelling)
+    if (use_notebook_phi_m_swelling)
     {
         sigma_sw.sigma_sw +=
             computeNotebookMicroPorositySwellingStressIncrement<
                 DisplacementDim>(phi_m_prev, phi_m, C_el, vkp);
     }
-    else
+
+    if (use_vdw_relaxation_gain)
     {
-        MPL::VariableArray swelling_variables = variables;
-        MPL::VariableArray swelling_variables_prev = variables_prev;
-        swelling_variables.liquid_saturation = S_L_m_swelling;
-        swelling_variables_prev.liquid_saturation = S_L_m_prev;
-
-        auto const sigma_sw_dot =
-            MathLib::KelvinVector::tensorToKelvin<DisplacementDim>(
-                MPL::formEigenTensor<3>(
-                    solid_phase[MPL::PropertyType::swelling_stress_rate].value(
-                        swelling_variables, swelling_variables_prev, x_position,
-                        t, dt)));
-
-        sigma_sw.sigma_sw += sigma_sw_dot * dt;
         sigma_sw.sigma_sw +=
             computeVdWRelaxationStressIncrement<DisplacementDim>(
                 p_L_m_prev, p_L_m, vkp);
-        sigma_sw.sigma_sw += computeMicroWaterContentStressIncrement<
-            DisplacementDim>(n_l_prev, n_l, vkp);
+    }
+
+    if (use_micro_water_gain)
+    {
+        sigma_sw.sigma_sw +=
+            computeMicroWaterContentStressIncrement<DisplacementDim>(
+                n_l_prev, n_l, vkp);
     }
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
