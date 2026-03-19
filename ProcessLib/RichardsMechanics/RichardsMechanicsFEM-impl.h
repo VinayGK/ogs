@@ -964,9 +964,24 @@ void updateSwellingStressAndVolumetricStrain(
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(
             DisplacementDim)>::identity2;
+    bool const vk_potential_exchange_enabled =
+        isVKPotentialExchangeEnabled(vk_potential_exchange_parameters);
 
     if (!medium.hasProperty(MPL::PropertyType::saturation_micro))
     {
+        if (vk_potential_exchange_enabled)
+        {
+            sigma_sw = *sigma_sw_prev;
+            variables.volumetric_mechanical_strain =
+                variables.volumetric_strain +
+                identity2.transpose() * C_el.inverse() * sigma_sw.sigma_sw;
+            variables_prev.volumetric_mechanical_strain =
+                variables_prev.volumetric_strain + identity2.transpose() *
+                                                       C_el.inverse() *
+                                                       sigma_sw_prev->sigma_sw;
+            return;
+        }
+
         // If there is swelling, compute it. Update volumetric strain rate,
         // s.t. it corresponds to the mechanical part only.
         sigma_sw = *sigma_sw_prev;
@@ -1001,7 +1016,7 @@ void updateSwellingStressAndVolumetricStrain(
     // the micro_porosity_parameters.
     if (medium.hasProperty(MPL::PropertyType::saturation_micro))
     {
-        if (isVKPotentialExchangeEnabled(vk_potential_exchange_parameters))
+        if (vk_potential_exchange_enabled)
         {
             phi_M.phi = phi_M_prev->phi;
             variables_prev.transport_porosity = phi_M_prev->phi;
@@ -1778,7 +1793,11 @@ void RichardsMechanicsLocalAssembler<
         rhs.template segment<pressure_size>(pressure_index).noalias() +=
             dNdx_p.transpose() * rho_LR * rho_K_over_mu * b * w;
 
-        if (medium->hasProperty(MPL::PropertyType::saturation_micro) &&
+        auto const* const vkp = this->getVKPotentialExchangeParameters();
+        bool const vk_potential_exchange_enabled =
+            isVKPotentialExchangeEnabled(vkp);
+        if ((medium->hasProperty(MPL::PropertyType::saturation_micro) ||
+             vk_potential_exchange_enabled) &&
             this->process_data_.micro_porosity_parameters)
         {
             double const alpha_bar =
@@ -1787,9 +1806,6 @@ void RichardsMechanicsLocalAssembler<
             auto const p_L_m =
                 *std::get<MicroPressure>(this->current_states_[ip]);
             double const p_L_ip = -p_cap_ip;
-            auto const* const vkp = this->getVKPotentialExchangeParameters();
-            bool const vk_potential_exchange_enabled =
-                isVKPotentialExchangeEnabled(vkp);
             double const pressure_tolerance =
                 getVKPotentialPressureTolerance(vkp);
 
@@ -2059,7 +2075,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
     if (medium->hasProperty(MPL::PropertyType::transport_porosity))
     {
-        if (!medium->hasProperty(MPL::PropertyType::saturation_micro))
+        if (!medium->hasProperty(MPL::PropertyType::saturation_micro) &&
+            !isVKPotentialExchangeEnabled(vk_potential_exchange_parameters))
         {
             auto& transport_porosity =
                 std::get<
@@ -2388,6 +2405,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         //         (p_cap_ip - p_cap_prev_ip) * N_p* w;
         // }
         if (!medium->hasProperty(MPL::PropertyType::saturation_micro) &&
+            !isVKPotentialExchangeEnabled(
+                this->getVKPotentialExchangeParameters()) &&
             solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate))
         {
             using DimMatrix = Eigen::Matrix<double, 3, 3>;
@@ -2526,7 +2545,12 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         local_rhs.template segment<pressure_size>(pressure_index).noalias() +=
             dNdx_p.transpose() * rho_LR * k_rel * rho_Ki_over_mu * b * w;
 
-        if (medium->hasProperty(MPL::PropertyType::saturation_micro))
+        auto const* const vkp = this->getVKPotentialExchangeParameters();
+        bool const vk_potential_exchange_enabled =
+            isVKPotentialExchangeEnabled(vkp);
+        if ((medium->hasProperty(MPL::PropertyType::saturation_micro) ||
+             vk_potential_exchange_enabled) &&
+            this->process_data_.micro_porosity_parameters)
         {
             double const alpha_bar =
                 this->process_data_.micro_porosity_parameters
@@ -2534,9 +2558,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             auto const p_L_m =
                 *std::get<MicroPressure>(this->current_states_[ip]);
             double const p_L_ip = -p_cap_ip;
-            auto const* const vkp = this->getVKPotentialExchangeParameters();
-            bool const vk_potential_exchange_enabled =
-                isVKPotentialExchangeEnabled(vkp);
             double const pressure_tolerance =
                 getVKPotentialPressureTolerance(vkp);
 
@@ -2937,7 +2958,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
         if (medium->hasProperty(MPL::PropertyType::transport_porosity))
         {
-            if (!medium->hasProperty(MPL::PropertyType::saturation_micro))
+            if (!medium->hasProperty(MPL::PropertyType::saturation_micro) &&
+                !isVKPotentialExchangeEnabled(
+                    this->getVKPotentialExchangeParameters()))
             {
                 auto& transport_porosity =
                     std::get<ProcessLib::ThermoRichardsMechanics::

@@ -103,6 +103,16 @@ AddTest(
 )
 
 AddTest(
+    NAME RichardsMechanics_beacon_1a01_vk_no_satmicro_smoke
+    PATH RichardsMechanics
+    EXECUTABLE ogs
+    RUNTIME 20
+    EXECUTABLE_ARGS beacon_1a01_vk_no_satmicro.prj
+    WRAPPER time
+    REQUIREMENTS NOT OGS_USE_MPI
+)
+
+AddTest(
     NAME RichardsMechanics_beacon_1a01_vk_reference
     PATH RichardsMechanics
     EXECUTABLE ogs

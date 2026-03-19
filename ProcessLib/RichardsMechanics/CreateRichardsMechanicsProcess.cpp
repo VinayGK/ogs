@@ -243,6 +243,12 @@ void validateMicroPorosityAndVKConfiguration(
 
     bool const micro_porosity_enabled = micro_porosity_parameters.has_value();
     bool any_saturation_micro = false;
+    bool const any_vk_enabled =
+        (vk_potential_exchange_parameters &&
+         vk_potential_exchange_parameters->enabled) ||
+        std::any_of(vk_potential_exchange_parameters_by_material.begin(),
+                    vk_potential_exchange_parameters_by_material.end(),
+                    [](auto const& item) { return item.second.enabled; });
 
     for (auto const& [material_id, medium] : media)
     {
@@ -260,7 +266,7 @@ void validateMicroPorosityAndVKConfiguration(
         }
     }
 
-    if (micro_porosity_enabled && !any_saturation_micro)
+    if (micro_porosity_enabled && !any_saturation_micro && !any_vk_enabled)
     {
         OGS_FATAL(
             "RichardsMechanics: <micro_porosity> is configured, but no medium "
@@ -268,18 +274,11 @@ void validateMicroPorosityAndVKConfiguration(
             "one medium or remove <micro_porosity>.");
     }
 
-    bool const any_vk_enabled =
-        (vk_potential_exchange_parameters &&
-         vk_potential_exchange_parameters->enabled) ||
-        std::any_of(vk_potential_exchange_parameters_by_material.begin(),
-                    vk_potential_exchange_parameters_by_material.end(),
-                    [](auto const& item) { return item.second.enabled; });
-    if (any_vk_enabled && (!micro_porosity_enabled || !any_saturation_micro))
+    if (any_vk_enabled && !micro_porosity_enabled)
     {
         OGS_FATAL(
             "RichardsMechanics: vk_potential_exchange.enabled=true requires "
-            "both a <micro_porosity> process block and medium property "
-            "'saturation_micro'.");
+            "a <micro_porosity> process block.");
     }
 
     for (auto const& [material_id, vkp] :
@@ -293,15 +292,6 @@ void validateMicroPorosityAndVKConfiguration(
                 material_id);
         }
 
-        if (vkp.enabled &&
-            !media.at(material_id)->hasProperty(MPL::PropertyType::saturation_micro))
-        {
-            OGS_FATAL(
-            "RichardsMechanics: vk_potential_exchange medium override for "
-            "material id {} is enabled, but that medium has no "
-            "'saturation_micro' property.",
-            material_id);
-        }
     }
 }
 
