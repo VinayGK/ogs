@@ -669,6 +669,23 @@ TEST(RichardsMechanics, VKNotebookMicroPorositySwellingStressIncrement)
     EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
 }
 
+TEST(RichardsMechanics, VKTransportPorositySplitRecomposesTotalPorosity)
+{
+    auto const split = computeVKTransportPorosityUpdate(0.4, 0.35, 0.1, 0.08);
+
+    EXPECT_NEAR(split.phi_m, 0.1, 1e-14);
+    EXPECT_NEAR(split.phi_M, 0.3, 1e-14);
+    EXPECT_NEAR(split.phi_m_prev, 0.08, 1e-14);
+    EXPECT_NEAR(split.phi_M_prev, 0.27, 1e-14);
+    EXPECT_NEAR(split.phi_M + split.phi_m, 0.4, 1e-14);
+    EXPECT_NEAR(split.phi_M_prev + split.phi_m_prev, 0.35, 1e-14);
+
+    auto const clamped = computeVKTransportPorosityUpdate(0.25, 0.2, 0.4, 0.3);
+    EXPECT_NEAR(clamped.phi_m, 0.25, 1e-14);
+    EXPECT_NEAR(clamped.phi_M, 0.0, 1e-14);
+    EXPECT_NEAR(clamped.phi_M + clamped.phi_m, 0.25, 1e-14);
+}
+
 TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)
 {
     VKPotentialExchangeParameters vkp;

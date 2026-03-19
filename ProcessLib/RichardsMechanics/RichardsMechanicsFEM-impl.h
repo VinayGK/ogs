@@ -738,6 +738,36 @@ inline void updateVKPorositySplitState(
 }
 
 template <int DisplacementDim>
+inline void updateVKTotalPorosityState(
+    StatefulData<DisplacementDim>& SD,
+    StatefulDataPrev<DisplacementDim> const& SD_prev,
+    MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
+    VKPotentialExchangeParameters const* const vk_potential_exchange_parameters)
+{
+    if (!isVKPotentialExchangeEnabled(vk_potential_exchange_parameters))
+    {
+        return;
+    }
+
+    auto const phi_m = *std::get<VKMicroPorosity>(SD);
+    auto const phi_m_prev = **std::get<PrevState<VKMicroPorosity>>(SD_prev);
+    auto const phi_M =
+        std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(SD)
+            .phi;
+    auto const phi_M_prev =
+        std::get<PrevState<
+            ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(
+            SD_prev)
+            ->phi;
+
+    auto& phi =
+        std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(SD).phi;
+    phi = phi_M + phi_m;
+    variables.porosity = phi;
+    variables_prev.porosity = phi_M_prev + phi_m_prev;
+}
+
+template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeVdWRelaxationStressIncrement(
     double const p_L_m_prev, double const p_L_m,
@@ -2029,6 +2059,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
     updateVKPorositySplitState<DisplacementDim>(
         SD, SD_prev, phi, variables, variables_prev,
         vk_potential_exchange_parameters);
+    updateVKTotalPorosityState<DisplacementDim>(
+        SD, SD_prev, variables, variables_prev,
+        vk_potential_exchange_parameters);
+    std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(CD).phi =
+        std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(SD).phi;
     updateVKSwellingState<DisplacementDim>(
         solid_phase, C_el, SD, SD_prev, variables, variables_prev, x_position,
         t, dt, vk_potential_exchange_parameters);
@@ -2902,6 +2937,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             this->getVKPotentialExchangeParameters());
         updateVKPorositySplitState<DisplacementDim>(
             this->current_states_[ip], this->prev_states_[ip], phi, variables,
+            variables_prev, this->getVKPotentialExchangeParameters());
+        updateVKTotalPorosityState<DisplacementDim>(
+            this->current_states_[ip], this->prev_states_[ip], variables,
             variables_prev, this->getVKPotentialExchangeParameters());
         updateVKSwellingState<DisplacementDim>(
             solid_phase, C_el, this->current_states_[ip],
