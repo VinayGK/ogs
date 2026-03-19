@@ -794,6 +794,38 @@ computeMicroWaterContentStressIncrement(
 }
 
 template <int DisplacementDim>
+inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
+computeNotebookNlDrivenSwellingStressIncrement(
+    double const n_l_prev, double const n_l,
+    MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
+    VKPotentialExchangeParameters const& vkp)
+{
+    using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
+
+    KV delta_sigma_sw = KV::Zero();
+    if (!(vkp.micro_water_content_swelling_slope > 0.0))
+    {
+        return delta_sigma_sw;
+    }
+
+    double const delta_n_l = n_l - n_l_prev;
+    if (!(std::isfinite(delta_n_l) &&
+          std::abs(delta_n_l) > std::numeric_limits<double>::epsilon()))
+    {
+        return delta_sigma_sw;
+    }
+
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(
+            DisplacementDim)>::identity2;
+    double const delta_eps_sw =
+        vkp.micro_water_content_swelling_slope * delta_n_l;
+
+    delta_sigma_sw.noalias() -= C_el * ((delta_eps_sw / 3.0) * identity2);
+    return delta_sigma_sw;
+}
+
+template <int DisplacementDim>
 inline void updateVKSwellingState(
     MaterialPropertyLib::Phase const& solid_phase,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
@@ -804,7 +836,15 @@ inline void updateVKSwellingState(
     double const dt,
     VKPotentialExchangeParameters const* const vk_potential_exchange_parameters)
 {
-    if (!isVKPotentialExchangeEnabled(vk_potential_exchange_parameters) ||
+    if (!isVKPotentialExchangeEnabled(vk_potential_exchange_parameters))
+    {
+        return;
+    }
+
+    auto const& vkp = *vk_potential_exchange_parameters;
+    bool const use_notebook_nl_swelling =
+        vkp.micro_water_content_swelling_slope > 0.0;
+    if (!use_notebook_nl_swelling &&
         !solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate))
     {
         return;
@@ -831,24 +871,34 @@ inline void updateVKSwellingState(
                       ConstitutiveStress_StrainTemperature::
                           SwellingDataStateful<DisplacementDim>>>(SD_prev);
 
-    MPL::VariableArray swelling_variables = variables;
-    MPL::VariableArray swelling_variables_prev = variables_prev;
-    swelling_variables.liquid_saturation = S_L_m_swelling;
-    swelling_variables_prev.liquid_saturation = S_L_m_prev;
-
-    auto const sigma_sw_dot =
-        MathLib::KelvinVector::tensorToKelvin<DisplacementDim>(
-            MPL::formEigenTensor<3>(
-                solid_phase[MPL::PropertyType::swelling_stress_rate].value(
-                    swelling_variables, swelling_variables_prev, x_position, t,
-                    dt)));
-
     sigma_sw = *sigma_sw_prev;
-    sigma_sw.sigma_sw += sigma_sw_dot * dt;
-    sigma_sw.sigma_sw += computeVdWRelaxationStressIncrement<DisplacementDim>(
-        p_L_m_prev, p_L_m, *vk_potential_exchange_parameters);
-    sigma_sw.sigma_sw += computeMicroWaterContentStressIncrement<
-        DisplacementDim>(n_l_prev, n_l, *vk_potential_exchange_parameters);
+    if (use_notebook_nl_swelling)
+    {
+        sigma_sw.sigma_sw +=
+            computeNotebookNlDrivenSwellingStressIncrement<DisplacementDim>(
+                n_l_prev, n_l, C_el, vkp);
+    }
+    else
+    {
+        MPL::VariableArray swelling_variables = variables;
+        MPL::VariableArray swelling_variables_prev = variables_prev;
+        swelling_variables.liquid_saturation = S_L_m_swelling;
+        swelling_variables_prev.liquid_saturation = S_L_m_prev;
+
+        auto const sigma_sw_dot =
+            MathLib::KelvinVector::tensorToKelvin<DisplacementDim>(
+                MPL::formEigenTensor<3>(
+                    solid_phase[MPL::PropertyType::swelling_stress_rate].value(
+                        swelling_variables, swelling_variables_prev, x_position,
+                        t, dt)));
+
+        sigma_sw.sigma_sw += sigma_sw_dot * dt;
+        sigma_sw.sigma_sw +=
+            computeVdWRelaxationStressIncrement<DisplacementDim>(
+                p_L_m_prev, p_L_m, vkp);
+        sigma_sw.sigma_sw += computeMicroWaterContentStressIncrement<
+            DisplacementDim>(n_l_prev, n_l, vkp);
+    }
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(

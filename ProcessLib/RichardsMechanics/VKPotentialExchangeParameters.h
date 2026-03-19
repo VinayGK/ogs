@@ -79,5 +79,13 @@ struct VKPotentialExchangeParameters
     // microscale interpretation, where swelling is driven by n_l growth rather
     // than by a change in saturation.
     double micro_water_content_stress_gain = 0.0;
+
+    // Optional VK-only notebook-style reversible swelling-strain slope driven
+    // by signed microscale water-content increments Delta n_l. If enabled, the
+    // VK branch uses Delta eps_sw = slope * Delta n_l and converts that
+    // isotropic swelling-strain increment into a stress increment via the
+    // elastic stiffness, instead of using the legacy saturation-driven
+    // swelling_stress_rate path.
+    double micro_water_content_swelling_slope = 0.0;
 };
 }  // namespace ProcessLib::RichardsMechanics

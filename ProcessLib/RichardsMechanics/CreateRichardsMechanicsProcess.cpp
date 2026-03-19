@@ -134,7 +134,7 @@ void logPhase0TransitionAudit(
     {
         auto const& vkp = *vk_potential_exchange_parameters;
         INFO(
-            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, micro_potential_convention='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={}, vdw_relaxation_stress_gain={}, micro_water_content_stress_gain={} ).",
+            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, micro_potential_convention='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={}, vdw_relaxation_stress_gain={}, micro_water_content_stress_gain={}, micro_water_content_swelling_slope={} ).",
             vkp.enabled ? "true" : "false", toString(vkp.mode),
             vkp.pressure_tolerance, vkp.hamaker_constant, vkp.specific_surface,
             vkp.micro_solid_density_reference,
@@ -149,7 +149,8 @@ void logPhase0TransitionAudit(
             vkp.local_jacobian_perturbation,
             vkp.local_jacobian_relative_tolerance,
             vkp.vdw_relaxation_stress_gain,
-            vkp.micro_water_content_stress_gain);
+            vkp.micro_water_content_stress_gain,
+            vkp.micro_water_content_swelling_slope);
     }
     else
     {
@@ -485,6 +486,17 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
             context, micro_water_content_stress_gain);
     }
 
+    auto const micro_water_content_swelling_slope =
+        config.getConfigParameter<double>(
+            "micro_water_content_swelling_slope",
+            defaults ? defaults->micro_water_content_swelling_slope : 0.0);
+    if (!(micro_water_content_swelling_slope >= 0.0))
+    {
+        OGS_FATAL(
+            "RichardsMechanics: {} micro_water_content_swelling_slope must be >= 0, got {:g}.",
+            context, micro_water_content_swelling_slope);
+    }
+
     return VKPotentialExchangeParameters{
         enabled,
         mode,
@@ -501,7 +513,8 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
         local_jacobian_perturbation,
         local_jacobian_relative_tolerance,
         vdw_relaxation_stress_gain,
-        micro_water_content_stress_gain};
+        micro_water_content_stress_gain,
+        micro_water_content_swelling_slope};
 }
 
 template <int DisplacementDim>
