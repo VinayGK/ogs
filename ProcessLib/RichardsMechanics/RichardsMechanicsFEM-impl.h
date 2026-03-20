@@ -696,10 +696,12 @@ inline void updateVKMicroscaleHydraulicState(
 
     auto& p_L_m = std::get<MicroPressure>(SD);
     auto& S_L_m = std::get<MicroSaturation>(SD);
+    auto& rho_l_hat = std::get<VKMicroExchangeSource>(SD);
     auto const compatibility_output = computeVKCompatibilityMicroHydraulicOutput(
         n_l_update.n_l, rho_LR, vkp);
     *p_L_m = compatibility_output.p_L_m;
     *S_L_m = compatibility_output.S_L_m;
+    rho_l_hat = VKMicroExchangeSource{n_l_update.exchange.rho_l_hat};
 }
 
 template <int DisplacementDim>

@@ -16,5 +16,12 @@ constexpr std::string_view ioName(struct VKMicroWaterContentTag*)
 {
     return "vk_micro_water_content";
 }
-}  // namespace ProcessLib::RichardsMechanics
 
+using VKMicroExchangeSource =
+    BaseLib::StrongType<double, struct VKMicroExchangeSourceTag>;
+
+constexpr std::string_view ioName(struct VKMicroExchangeSourceTag*)
+{
+    return "vk_micro_exchange_source";
+}
+}  // namespace ProcessLib::RichardsMechanics

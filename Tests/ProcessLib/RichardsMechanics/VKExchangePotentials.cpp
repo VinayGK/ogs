@@ -5,6 +5,7 @@
 
 #include <cmath>
 
+#include "ProcessLib/RichardsMechanics/ConstitutiveRelations/VKMicroWaterContent.h"
 #include "ProcessLib/RichardsMechanics/ConstitutiveRelations/VKExchangePotentials.h"
 
 using namespace ProcessLib::RichardsMechanics;
@@ -145,6 +146,12 @@ TEST(RichardsMechanics, VKVanDerWaalsMicroPotentialNegativeAttractiveConvention)
     EXPECT_NEAR(mu.dmu_lR_dnl, centralDiff(f_nl, n_l, 1e-8), 1e-4);
     EXPECT_NEAR(mu.dmu_lR_dnS, centralDiff(f_nS, nS, 1e-8), 1e-3);
     EXPECT_NEAR(mu.dmu_lR_drho_SR, centralDiff(f_rhoSR, rho_SR, 1e-4), 1e-6);
+}
+
+TEST(RichardsMechanics, VKMicroExchangeSourceIoName)
+{
+    EXPECT_EQ(ioName(static_cast<VKMicroExchangeSourceTag*>(nullptr)),
+              "vk_micro_exchange_source");
 }
 
 TEST(RichardsMechanics, VKPotentialDrivenMassExchange)
