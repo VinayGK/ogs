@@ -21,7 +21,8 @@ enum class VKMicroPotentialConvention
 enum class VKLocalNonlinearSolveMode
 {
     ScalarExchange,
-    ScalarNotebookStorage
+    ScalarNotebookStorage,
+    ScalarNotebookMassStorage
 };
 
 enum class VKMacroPorosityUpdateMode
@@ -64,6 +65,8 @@ inline constexpr char const* toString(VKLocalNonlinearSolveMode const mode)
             return "scalar_exchange";
         case VKLocalNonlinearSolveMode::ScalarNotebookStorage:
             return "scalar_notebook_storage";
+        case VKLocalNonlinearSolveMode::ScalarNotebookMassStorage:
+            return "scalar_notebook_mass_storage";
     }
     return "unknown";
 }
@@ -106,6 +109,9 @@ struct VKPotentialExchangeParameters
     double specific_surface = 0.0;
     double micro_solid_density_reference = 0.0;          // rho_SR
     double micro_solid_volume_fraction_reference = 0.0;  // n_S
+    double micro_liquid_density_reference = 0.0;         // rho_l0
+    double micro_liquid_density_a = 0.0;                 // a_rho
+    double micro_liquid_density_b = 0.0;                 // b_rho
     VKMicroPotentialConvention micro_potential_convention =
         VKMicroPotentialConvention::PositiveReduced;
     VKLocalNonlinearSolveMode local_nonlinear_solve_mode =

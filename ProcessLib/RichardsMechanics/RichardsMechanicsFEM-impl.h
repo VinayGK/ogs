@@ -482,6 +482,144 @@ inline double computeVKActiveMicroSolidVolumeFraction(
     return std::max(1e-16, 1.0 - split.phi_M - split.phi_m);
 }
 
+inline double computeVKPreviousMicroSolidVolumeFraction(
+    VKLocalSolveContext const& local_context,
+    VKPotentialExchangeParameters const& vkp)
+{
+    if (vkp.micro_solid_volume_fraction_mode ==
+        VKMicroSolidVolumeFractionMode::Reference)
+    {
+        return std::max(1e-16, vkp.micro_solid_volume_fraction_reference);
+    }
+
+    return std::max(1e-16, 1.0 - local_context.phi_M_prev -
+                               local_context.phi_m_prev);
+}
+
+struct VKReducedMicroLiquidDensityData
+{
+    double rho_lR = 0.0;
+    double omega_l = 0.0;
+    double drho_lR_dnl = 0.0;
+    double drho_l_dn_l = 0.0;
+};
+
+inline VKReducedMicroLiquidDensityData computeVKReducedMicroLiquidDensity(
+    double const n_l, double const rho_LR, double const nS,
+    VKPotentialExchangeParameters const& vkp)
+{
+    double const n_l_safe = std::max(1e-16, n_l);
+    double const nS_safe = std::max(1e-16, nS);
+    double const rho_SR = std::max(1e-16, vkp.micro_solid_density_reference);
+    double const rho_l0 = std::max(1e-16, vkp.micro_liquid_density_reference);
+    double const a_rho = std::max(1e-16, vkp.micro_liquid_density_a);
+    double const b_rho = std::max(1e-16, vkp.micro_liquid_density_b);
+    double const denominator = nS_safe * rho_SR;
+
+    auto const eval_rhs = [&](double const rho_lR)
+    {
+        double const omega_l =
+            std::max(1e-16, n_l_safe * rho_lR / denominator);
+        double const exp_term =
+            std::exp(-a_rho * std::pow(omega_l, b_rho));
+        return std::pair{omega_l, rho_l0 * exp_term + rho_LR};
+    };
+
+    double rho_lR = rho_LR +
+                    rho_l0 *
+                        std::exp(-a_rho *
+                                 std::pow(std::max(1e-16, n_l_safe * rho_LR /
+                                                              denominator),
+                                          b_rho));
+    constexpr int max_iterations = 30;
+    constexpr double tolerance = 1e-14;
+    bool converged = false;
+
+    for (int iter = 0; iter < max_iterations; ++iter)
+    {
+        auto const [omega_l, rhs] = eval_rhs(rho_lR);
+        double const residual = rho_lR - rhs;
+        if (std::abs(residual) <=
+            tolerance * std::max(1.0, std::abs(rho_lR)))
+        {
+            converged = true;
+            break;
+        }
+
+        double const common =
+            (rhs - rho_LR) * a_rho * b_rho *
+            std::pow(omega_l, b_rho - 1.0);
+        double const jacobian =
+            1.0 + common * (n_l_safe / denominator);
+        if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
+        {
+            break;
+        }
+
+        double const rho_candidate =
+            std::max(1e-16, rho_lR - residual / jacobian);
+        if (std::abs(rho_candidate - rho_lR) <=
+            tolerance * std::max(1.0, std::abs(rho_lR)))
+        {
+            rho_lR = rho_candidate;
+            converged = true;
+            break;
+        }
+        rho_lR = rho_candidate;
+    }
+
+    if (!converged)
+    {
+        static std::once_flag once;
+        std::call_once(once, []
+        {
+            WARN(
+                "[RM Phase6K] reduced microscale liquid-density EOS did not converge at least once; using the last Newton iterate.");
+        });
+    }
+
+    auto const [omega_l, rhs] = eval_rhs(rho_lR);
+    (void)rhs;
+    double const common =
+        (rho_lR - rho_LR) * a_rho * b_rho *
+        std::pow(omega_l, b_rho - 1.0);
+    double const dg_drho =
+        1.0 + common * (n_l_safe / denominator);
+    double const dg_dn = common * (rho_lR / denominator);
+    double const drho_lR_dnl =
+        (std::isfinite(dg_drho) && std::abs(dg_drho) > 1e-20)
+            ? -dg_dn / dg_drho
+            : 0.0;
+
+    return {
+        .rho_lR = rho_lR,
+        .omega_l = omega_l,
+        .drho_lR_dnl = drho_lR_dnl,
+        .drho_l_dn_l = rho_lR + n_l_safe * drho_lR_dnl,
+    };
+}
+
+inline VKReducedMicroLiquidDensityData computeVKActiveMicroLiquidDensity(
+    double const n_l, double const rho_LR,
+    VKLocalSolveContext const& local_context,
+    VKPotentialExchangeParameters const& vkp)
+{
+    double const active_nS =
+        computeVKActiveMicroSolidVolumeFraction(n_l, local_context, vkp);
+    return computeVKReducedMicroLiquidDensity(n_l, rho_LR, active_nS, vkp);
+}
+
+inline VKReducedMicroLiquidDensityData computeVKPreviousMicroLiquidDensity(
+    double const n_l_prev, double const rho_LR,
+    VKLocalSolveContext const& local_context,
+    VKPotentialExchangeParameters const& vkp)
+{
+    double const previous_nS =
+        computeVKPreviousMicroSolidVolumeFraction(local_context, vkp);
+    return computeVKReducedMicroLiquidDensity(n_l_prev, rho_LR, previous_nS,
+                                              vkp);
+}
+
 inline VanDerWaalsMicroPotentialData computeVKActiveMicroPotential(
     double const n_l, double const rho_lR,
     VKLocalSolveContext const& local_context,
@@ -489,8 +627,14 @@ inline VanDerWaalsMicroPotentialData computeVKActiveMicroPotential(
 {
     double const active_nS =
         computeVKActiveMicroSolidVolumeFraction(n_l, local_context, vkp);
+    double const rho_lR_effective =
+        vkp.local_nonlinear_solve_mode ==
+                VKLocalNonlinearSolveMode::ScalarNotebookMassStorage
+            ? computeVKReducedMicroLiquidDensity(n_l, rho_lR, active_nS, vkp)
+                  .rho_lR
+            : rho_lR;
     return computeVanDerWaalsMicroPotential(
-        n_l, rho_lR, active_nS, vkp.micro_solid_density_reference,
+        n_l, rho_lR_effective, active_nS, vkp.micro_solid_density_reference,
         vkp.hamaker_constant, vkp.specific_surface,
         vkMicroPotentialSignFactor(vkp));
 }
@@ -528,8 +672,11 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
     double const alpha_M_effective = alpha_bar * rho_LR / mu;
     bool const use_notebook_storage =
+        vkp.local_nonlinear_solve_mode !=
+        VKLocalNonlinearSolveMode::ScalarExchange;
+    bool const use_mass_storage =
         vkp.local_nonlinear_solve_mode ==
-        VKLocalNonlinearSolveMode::ScalarNotebookStorage;
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
     double const volumetric_strain_rate =
         dt_safe > 0.0
             ? (local_context.volumetric_strain -
@@ -547,14 +694,33 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
             computeVKActiveMicroPotential(n_l, rho_LR, local_context, vkp);
         auto const exchange = computePotentialDrivenMassExchange(
             alpha_M_effective, macro_potential.mu_LR, micro_potential.mu_lR);
-        return std::pair{micro_potential, exchange};
+        auto const micro_liquid_density =
+            use_mass_storage
+                ? std::optional<VKReducedMicroLiquidDensityData>{
+                      computeVKActiveMicroLiquidDensity(
+                          n_l, rho_LR, local_context, vkp)}
+                : std::nullopt;
+        return std::tuple{micro_potential, exchange, micro_liquid_density};
     };
+
+    auto const prev_micro_liquid_density =
+        use_mass_storage
+            ? std::optional<VKReducedMicroLiquidDensityData>{
+                  computeVKPreviousMicroLiquidDensity(n_l_prev, rho_LR,
+                                                      local_context, vkp)}
+            : std::nullopt;
+    double const rho_l_prev =
+        prev_micro_liquid_density
+            ? n_l_prev * prev_micro_liquid_density->rho_lR
+            : 0.0;
 
     VKImplicitMicroWaterContentUpdateData out;
     if (dt_safe <= 0.0)
     {
         out.n_l = std::clamp(n_l_prev, n_l_floor, n_l_ceiling);
-        auto const [micro_potential, exchange] = eval_at(out.n_l);
+        auto const [micro_potential, exchange, micro_liquid_density] =
+            eval_at(out.n_l);
+        (void)micro_liquid_density;
         out.micro_potential = micro_potential;
         out.exchange = exchange;
         return out;
@@ -568,19 +734,40 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
 
     for (int iter = 0; iter < max_iterations; ++iter)
     {
-        auto const [micro_potential, exchange] = eval_at(n_l);
-        double residual =
-            n_l - n_l_prev - dt_safe * exchange.rho_l_hat / rho_LR;
-        if (use_notebook_storage)
-        {
-            residual -= dt_safe * n_l * volumetric_strain_rate;
-        }
+        auto const [micro_potential, exchange, micro_liquid_density] =
+            eval_at(n_l);
+        double residual = 0.0;
+        double jacobian = 0.0;
         double const drho_l_hat_dn_l =
             exchange.drho_l_hat_dmu_lR * micro_potential.dmu_lR_dnl;
-        double jacobian = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
-        if (use_notebook_storage)
+        if (use_mass_storage)
         {
-            jacobian -= dt_safe * volumetric_strain_rate;
+            double const rho_l =
+                n_l * micro_liquid_density->rho_lR;
+            residual =
+                rho_l - rho_l_prev - dt_safe * exchange.rho_l_hat;
+            residual -= dt_safe * rho_l * volumetric_strain_rate;
+
+            jacobian = micro_liquid_density->drho_l_dn_l -
+                       dt_safe * drho_l_hat_dn_l;
+            jacobian -=
+                dt_safe * micro_liquid_density->drho_l_dn_l *
+                volumetric_strain_rate;
+        }
+        else
+        {
+            residual =
+                n_l - n_l_prev - dt_safe * exchange.rho_l_hat / rho_LR;
+            if (use_notebook_storage)
+            {
+                residual -= dt_safe * n_l * volumetric_strain_rate;
+            }
+
+            jacobian = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
+            if (use_notebook_storage)
+            {
+                jacobian -= dt_safe * volumetric_strain_rate;
+            }
         }
 
         if (std::abs(residual) <=
@@ -604,8 +791,10 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
         if (std::abs(n_l_candidate - n_l) <=
             increment_tolerance * std::max(1.0, std::abs(n_l)))
         {
-            auto const [micro_potential_candidate, exchange_candidate] =
+            auto const [micro_potential_candidate, exchange_candidate,
+                        micro_density_candidate] =
                 eval_at(n_l_candidate);
+            (void)micro_density_candidate;
             out.n_l = n_l_candidate;
             out.micro_potential = micro_potential_candidate;
             out.exchange = exchange_candidate;
@@ -619,19 +808,38 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     if (!converged)
     {
         // Fallback to explicit update if local scalar Newton does not converge.
-        auto const [micro_potential_prev, exchange_prev] =
+        auto const [micro_potential_prev, exchange_prev, micro_density_prev] =
             eval_at(std::clamp(n_l_prev, n_l_floor, n_l_ceiling));
-        double explicit_increment = dt_safe * exchange_prev.rho_l_hat / rho_LR;
-        if (use_notebook_storage)
+        double explicit_increment = 0.0;
+        if (use_mass_storage)
         {
+            double const rho_l_prev_fallback =
+                std::clamp(n_l_prev, n_l_floor, n_l_ceiling) *
+                micro_density_prev->rho_lR;
+            explicit_increment =
+                dt_safe * exchange_prev.rho_l_hat /
+                std::max(1e-16, micro_density_prev->rho_lR);
             explicit_increment +=
-                dt_safe * std::clamp(n_l_prev, n_l_floor, n_l_ceiling) *
-                volumetric_strain_rate;
+                dt_safe * rho_l_prev_fallback * volumetric_strain_rate /
+                std::max(1e-16, micro_density_prev->rho_lR);
+        }
+        else
+        {
+            explicit_increment =
+                dt_safe * exchange_prev.rho_l_hat / rho_LR;
+            if (use_notebook_storage)
+            {
+                explicit_increment +=
+                    dt_safe * std::clamp(n_l_prev, n_l_floor, n_l_ceiling) *
+                    volumetric_strain_rate;
+            }
         }
         out.n_l = std::clamp(n_l_prev + explicit_increment, n_l_floor,
                              n_l_ceiling);
-        auto const [micro_potential_fallback, exchange_fallback] =
+        auto const [micro_potential_fallback, exchange_fallback,
+                    micro_density_fallback] =
             eval_at(out.n_l);
+        (void)micro_density_fallback;
         out.micro_potential = micro_potential_fallback;
         out.exchange = exchange_fallback;
         out.converged = false;
@@ -650,7 +858,8 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
 }
 
 inline double computeVKImplicitNlDpL(
-    double const dt, double const rho_LR, double const drho_LR_dpL,
+    double const n_l_prev, double const p_L_ip, double const dt,
+    double const rho_LR, double const drho_LR_dpL,
     double const alpha_bar, double const mu,
     YoungLaplaceMacroPotentialData const& macro_potential,
     VanDerWaalsMicroPotentialData const& micro_potential,
@@ -662,6 +871,39 @@ inline double computeVKImplicitNlDpL(
     if (dt_safe <= 0.0)
     {
         return 0.0;
+    }
+
+    if (vkp.local_nonlinear_solve_mode ==
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage)
+    {
+        constexpr double rho_floor = 1e-16;
+        double const perturbation =
+            std::max(vkp.local_jacobian_perturbation, 1e-8) *
+            std::max(1.0, std::abs(p_L_ip));
+
+        auto const eval_at = [&](double const p_L_eval,
+                                 double const rho_LR_eval)
+        {
+            auto const macro_potential_eval = computeYoungLaplaceMacroPotential(
+                p_L_eval, rho_LR_eval, vkp.pressure_tolerance);
+            auto const n_l_update_eval = solveVKImplicitMicroWaterContent(
+                n_l_prev, dt, rho_LR_eval, alpha_bar, mu,
+                macro_potential_eval, local_context, vkp);
+            return n_l_update_eval.n_l;
+        };
+
+        double const rho_plus =
+            std::max(rho_floor, rho_LR + drho_LR_dpL * perturbation);
+        double const n_l_plus = eval_at(p_L_ip + perturbation, rho_plus);
+        double const rho_minus = rho_LR - drho_LR_dpL * perturbation;
+        if (rho_minus > rho_floor)
+        {
+            double const n_l_minus =
+                eval_at(p_L_ip - perturbation, rho_minus);
+            return (n_l_plus - n_l_minus) / (2.0 * perturbation);
+        }
+        double const n_l_center = eval_at(p_L_ip, rho_LR);
+        return (n_l_plus - n_l_center) / perturbation;
     }
 
     double const dalpha_M_effective_dpL = alpha_bar / mu * drho_LR_dpL;
@@ -2786,7 +3028,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         alpha_M_effective, macro_potential.mu_LR,
                         micro_potential.mu_lR);
                     double const dn_l_dpL = computeVKImplicitNlDpL(
-                        dt, rho_LR, drho_LR_dpL, alpha_bar, mu,
+                        n_l_prev, p_L_ip, dt, rho_LR, drho_LR_dpL, alpha_bar, mu,
                         macro_potential, micro_potential, exchange,
                         local_solve_context, *vkp);
 

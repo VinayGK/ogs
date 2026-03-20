@@ -32,6 +32,117 @@ double comparisonTolerance(double const a, double const b,
     return abs + rel * std::max(std::abs(a), std::abs(b));
 }
 
+double referenceMicroSolidVolumeFraction(
+    double const n_l, double const phi, double const phi_M_prev,
+    double const phi_m_prev, double const volumetric_strain,
+    double const volumetric_strain_prev,
+    VKPotentialExchangeParameters const& vkp)
+{
+    if (vkp.micro_solid_volume_fraction_mode ==
+        VKMicroSolidVolumeFractionMode::Reference)
+    {
+        return std::max(1e-16, vkp.micro_solid_volume_fraction_reference);
+    }
+
+    auto const split = computeVKTransportPorosityUpdate(
+        phi, phi_M_prev, phi_m_prev, n_l, volumetric_strain,
+        volumetric_strain_prev, vkp.macro_porosity_update_mode);
+    return std::max(1e-16, 1.0 - split.phi_M - split.phi_m);
+}
+
+VKReducedMicroLiquidDensityData solveReferenceReducedMicroLiquidDensity(
+    double const n_l, double const rho_LR, double const nS,
+    VKPotentialExchangeParameters const& vkp)
+{
+    auto const solve_rho = [&](double const n_eval)
+    {
+        double const n_l_safe = std::max(1e-16, n_eval);
+        double const nS_safe = std::max(1e-16, nS);
+        double const rho_SR =
+            std::max(1e-16, vkp.micro_solid_density_reference);
+        double const rho_l0 =
+            std::max(1e-16, vkp.micro_liquid_density_reference);
+        double const a_rho = std::max(1e-16, vkp.micro_liquid_density_a);
+        double const b_rho = std::max(1e-16, vkp.micro_liquid_density_b);
+        double const denominator = nS_safe * rho_SR;
+
+        auto const rhs = [&](double const rho_lR)
+        {
+            double const omega_l =
+                std::max(1e-16, n_l_safe * rho_lR / denominator);
+            return std::pair{
+                omega_l,
+                rho_l0 * std::exp(-a_rho * std::pow(omega_l, b_rho)) +
+                    rho_LR};
+        };
+
+        double rho_lR =
+            rho_LR +
+            rho_l0 *
+                std::exp(-a_rho *
+                         std::pow(std::max(1e-16, n_l_safe * rho_LR /
+                                                      denominator),
+                                  b_rho));
+        constexpr int max_iterations = 40;
+        for (int iter = 0; iter < max_iterations; ++iter)
+        {
+            auto const [omega_l, target] = rhs(rho_lR);
+            double const residual = rho_lR - target;
+            if (std::abs(residual) <=
+                1e-14 * std::max(1.0, std::abs(rho_lR)))
+            {
+                return std::pair{rho_lR, omega_l};
+            }
+
+            double const h = 1e-8 * std::max(1.0, std::abs(rho_lR));
+            double const rho_plus = rho_lR + h;
+            double const rho_minus = std::max(1e-16, rho_lR - h);
+            auto const [omega_plus, target_plus] = rhs(rho_plus);
+            auto const [omega_minus, target_minus] = rhs(rho_minus);
+            (void)omega_l;
+            (void)omega_plus;
+            (void)omega_minus;
+            double const g_plus = rho_plus - target_plus;
+            double const g_minus = rho_minus - target_minus;
+            double const jacobian = (g_plus - g_minus) / (rho_plus - rho_minus);
+            EXPECT_TRUE(std::isfinite(jacobian));
+            EXPECT_GT(std::abs(jacobian), 1e-20);
+            if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
+            {
+                break;
+            }
+
+            double const candidate =
+                std::max(1e-16, rho_lR - residual / jacobian);
+            if (std::abs(candidate - rho_lR) <=
+                1e-14 * std::max(1.0, std::abs(rho_lR)))
+            {
+                auto const [omega_candidate, _] = rhs(candidate);
+                (void)_;
+                return std::pair{candidate, omega_candidate};
+            }
+            rho_lR = candidate;
+        }
+        auto const [omega_l, _] = rhs(rho_lR);
+        (void)_;
+        return std::pair{rho_lR, omega_l};
+    };
+
+    double const n_l_safe = std::max(1e-16, n_l);
+    auto const [rho_lR, omega_l] = solve_rho(n_l_safe);
+    double const h = 1e-8 * std::max(1.0, std::abs(n_l_safe));
+    double const n_plus = n_l_safe + h;
+    double const n_minus = std::max(1e-16, n_l_safe - h);
+    double const rho_plus = solve_rho(n_plus).first;
+    double const rho_minus = solve_rho(n_minus).first;
+    double const drho_lR_dnl = (rho_plus - rho_minus) / (n_plus - n_minus);
+
+    return {.rho_lR = rho_lR,
+            .omega_l = omega_l,
+            .drho_lR_dnl = drho_lR_dnl,
+            .drho_l_dn_l = rho_lR + n_l_safe * drho_lR_dnl};
+}
+
 ReferenceVKSinglePointData solveReferenceVKSinglePoint(
     double const p_L, double const n_l_prev, double const dt,
     double const rho_LR, double const alpha_bar, double const mu,
@@ -41,13 +152,30 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
 {
     constexpr double n_l_floor = 1e-16;
     double const phi_ceiling =
-        vkp.local_nonlinear_solve_mode ==
-                VKLocalNonlinearSolveMode::ScalarNotebookStorage &&
+        vkp.local_nonlinear_solve_mode !=
+                VKLocalNonlinearSolveMode::ScalarExchange &&
             std::isfinite(phi)
             ? std::max(n_l_floor, phi)
             : std::numeric_limits<double>::infinity();
     double const volumetric_strain_rate =
         dt > 0.0 ? (volumetric_strain - volumetric_strain_prev) / dt : 0.0;
+    bool const use_mass_storage =
+        vkp.local_nonlinear_solve_mode ==
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+    double const nS_prev = vkp.micro_solid_volume_fraction_mode ==
+                                   VKMicroSolidVolumeFractionMode::Reference
+                               ? vkp.micro_solid_volume_fraction_reference
+                               : std::max(1e-16, 1.0 - 0.0 - n_l_prev);
+    auto const prev_micro_liquid_density =
+        use_mass_storage
+            ? std::optional<VKReducedMicroLiquidDensityData>{
+                  solveReferenceReducedMicroLiquidDensity(
+                      n_l_prev, rho_LR, nS_prev, vkp)}
+            : std::nullopt;
+    double const rho_l_prev =
+        prev_micro_liquid_density
+            ? n_l_prev * prev_micro_liquid_density->rho_lR
+            : 0.0;
 
     auto const macro_potential =
         computeYoungLaplaceMacroPotential(p_L, rho_LR, vkp.pressure_tolerance);
@@ -55,8 +183,17 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
 
     auto const eval_exchange = [&](double const n_l)
     {
+        double const active_nS = referenceMicroSolidVolumeFraction(
+            n_l, phi, 0.0, n_l_prev, volumetric_strain, volumetric_strain_prev,
+            vkp);
+        double const rho_lR_for_potential =
+            use_mass_storage
+                ? solveReferenceReducedMicroLiquidDensity(
+                      n_l, rho_LR, active_nS, vkp)
+                      .rho_lR
+                : rho_LR;
         auto const micro_potential = computeVanDerWaalsMicroPotential(
-            n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
+            n_l, rho_lR_for_potential, active_nS,
             vkp.micro_solid_density_reference, vkp.hamaker_constant,
             vkp.specific_surface,
             microPotentialSignFactor(vkp.micro_potential_convention));
@@ -69,9 +206,24 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
     {
         auto const [micro_potential, exchange] = eval_exchange(n_l);
         (void)micro_potential;
+        if (use_mass_storage)
+        {
+            double const active_nS = referenceMicroSolidVolumeFraction(
+                n_l, phi, 0.0, n_l_prev, volumetric_strain,
+                volumetric_strain_prev, vkp);
+            auto const micro_liquid_density =
+                solveReferenceReducedMicroLiquidDensity(
+                    n_l, rho_LR, active_nS, vkp);
+            double residual = n_l * micro_liquid_density.rho_lR - rho_l_prev -
+                              dt * exchange.rho_l_hat;
+            residual -= dt * n_l * micro_liquid_density.rho_lR *
+                        volumetric_strain_rate;
+            return residual;
+        }
+
         double residual = n_l - n_l_prev - dt * exchange.rho_l_hat / rho_LR;
-        if (vkp.local_nonlinear_solve_mode ==
-            VKLocalNonlinearSolveMode::ScalarNotebookStorage)
+        if (vkp.local_nonlinear_solve_mode !=
+            VKLocalNonlinearSolveMode::ScalarExchange)
         {
             residual -= dt * n_l * volumetric_strain_rate;
         }
@@ -304,7 +456,8 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
          .volumetric_strain_prev = state.volumetric_strain_prev},
         vkp);
     double const dn_l_dpL = computeVKImplicitNlDpL(
-        state.dt, state.rho_LR, state.drho_LR_dpL, state.alpha_bar, state.mu,
+        state.n_l_prev, state.p_L, state.dt, state.rho_LR,
+        state.drho_LR_dpL, state.alpha_bar, state.mu,
         macro_potential, n_l_update.micro_potential, n_l_update.exchange,
         {.phi = state.phi,
          .volumetric_strain = state.volumetric_strain,
@@ -405,7 +558,7 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
                                     n_l_prev));
 
     double const analytic_dn_l_dpL = computeVKImplicitNlDpL(
-        dt, rho_LR, drho_LR_dpL, alpha_bar, mu, macro_potential,
+        n_l_prev, p_L, dt, rho_LR, drho_LR_dpL, alpha_bar, mu, macro_potential,
         ogs_update.micro_potential, ogs_update.exchange,
         {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
         vkp);
@@ -801,6 +954,37 @@ TEST(RichardsMechanics, VKCurrentPorositySplitMicroSolidFractionMode)
                 expected_ratio, 1e-12);
 }
 
+TEST(RichardsMechanics, VKReducedMicroLiquidDensityEOSReferencePath)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.micro_solid_density_reference = 2650.0;
+    vkp.micro_solid_volume_fraction_reference = 0.8;
+    vkp.micro_liquid_density_reference = 1300.0;
+    vkp.micro_liquid_density_a = 1.3;
+    vkp.micro_liquid_density_b = 1.0;
+    vkp.local_nonlinear_solve_mode =
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+
+    double const n_l = 0.1;
+    double const rho_LR = 1000.0;
+    double const nS = 0.8;
+
+    auto const production =
+        computeVKReducedMicroLiquidDensity(n_l, rho_LR, nS, vkp);
+    auto const reference =
+        solveReferenceReducedMicroLiquidDensity(n_l, rho_LR, nS, vkp);
+
+    EXPECT_NEAR(production.rho_lR, reference.rho_lR,
+                comparisonTolerance(production.rho_lR, reference.rho_lR,
+                                    1e-9, 1e-14));
+    EXPECT_NEAR(production.omega_l, reference.omega_l,
+                comparisonTolerance(production.omega_l, reference.omega_l,
+                                    1e-9, 1e-14));
+    EXPECT_NEAR(production.drho_l_dn_l, reference.drho_l_dn_l,
+                comparisonTolerance(production.drho_l_dn_l,
+                                    reference.drho_l_dn_l, 1e-7, 1e-12));
+}
+
 TEST(RichardsMechanics, VKScalarNotebookStorageLocalSolveReferencePath)
 {
     VKPotentialExchangeParameters vkp;
@@ -857,6 +1041,66 @@ TEST(RichardsMechanics, VKScalarNotebookStorageLocalSolveReferencePath)
     EXPECT_LE(ogs_update.n_l,
               scalar_update.n_l +
                   comparisonTolerance(ogs_update.n_l, scalar_update.n_l));
+}
+
+TEST(RichardsMechanics, VKScalarNotebookMassStorageLocalSolveReferencePath)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.pressure_tolerance = 0.0;
+    vkp.hamaker_constant = 6.0e-20;
+    vkp.specific_surface = 1000.0;
+    vkp.micro_solid_density_reference = 2650.0;
+    vkp.micro_solid_volume_fraction_reference = 0.6;
+    vkp.micro_liquid_density_reference = 1300.0;
+    vkp.micro_liquid_density_a = 1.3;
+    vkp.micro_liquid_density_b = 1.0;
+    vkp.micro_potential_convention =
+        VKMicroPotentialConvention::NegativeAttractive;
+    vkp.local_nonlinear_solve_mode =
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+    vkp.initial_micro_water_content = 0.03;
+
+    double const p_L = 0.0;
+    double const n_l_prev = 0.03;
+    double const dt = 100.0;
+    double const rho_LR = 1000.0;
+    double const alpha_bar = 1.0e-9;
+    double const mu = 1.0e-3;
+    double const phi = 0.031;
+    double const volumetric_strain_prev = 0.0;
+    double const volumetric_strain = 1.0e-3;
+
+    auto const macro_potential =
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, vkp.pressure_tolerance);
+    auto const ogs_update = solveVKImplicitMicroWaterContent(
+        n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
+        {.phi = phi,
+         .volumetric_strain = volumetric_strain,
+         .volumetric_strain_prev = volumetric_strain_prev},
+        vkp);
+    ASSERT_TRUE(ogs_update.converged);
+
+    auto const reference = solveReferenceVKSinglePoint(
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp,
+        volumetric_strain, volumetric_strain_prev);
+    EXPECT_NEAR(ogs_update.n_l, reference.n_l,
+                comparisonTolerance(ogs_update.n_l, reference.n_l,
+                                    1e-8, 1e-14));
+
+    double const analytic_dn_l_dpL = computeVKImplicitNlDpL(
+        n_l_prev, p_L, dt, rho_LR, 0.0, alpha_bar, mu, macro_potential,
+        ogs_update.micro_potential, ogs_update.exchange,
+        {.phi = phi,
+         .volumetric_strain = volumetric_strain,
+         .volumetric_strain_prev = volumetric_strain_prev},
+        vkp);
+    double const reference_dn_l_dpL = referenceDnLDpL(
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp,
+        volumetric_strain, volumetric_strain_prev);
+    EXPECT_NEAR(analytic_dn_l_dpL, reference_dn_l_dpL,
+                comparisonTolerance(analytic_dn_l_dpL, reference_dn_l_dpL,
+                                    1e-6, 1e-12));
 }
 
 TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)

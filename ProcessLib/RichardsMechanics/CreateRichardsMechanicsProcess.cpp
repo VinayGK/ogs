@@ -86,11 +86,16 @@ VKLocalNonlinearSolveMode parseVKLocalNonlinearSolveMode(
     {
         return VKLocalNonlinearSolveMode::ScalarNotebookStorage;
     }
+    if (mode == "scalar_notebook_mass_storage")
+    {
+        return VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+    }
 
     OGS_FATAL(
         "RichardsMechanics: unsupported vk_potential_exchange "
         "local_nonlinear_solve_mode '{}'. Currently supported: "
-        "'scalar_exchange', 'scalar_notebook_storage'.",
+        "'scalar_exchange', 'scalar_notebook_storage', "
+        "'scalar_notebook_mass_storage'.",
         mode);
 }
 
@@ -191,11 +196,13 @@ void logPhase0TransitionAudit(
     {
         auto const& vkp = *vk_potential_exchange_parameters;
         INFO(
-            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, micro_potential_convention='{}', local_nonlinear_solve_mode='{}', macro_porosity_update_mode='{}', micro_solid_volume_fraction_mode='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={}, vdw_relaxation_stress_gain={}, micro_water_content_stress_gain={}, micro_water_content_swelling_slope={} ).",
+            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, rho_l0={}, a_rho={}, b_rho={}, micro_potential_convention='{}', local_nonlinear_solve_mode='{}', macro_porosity_update_mode='{}', micro_solid_volume_fraction_mode='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={}, vdw_relaxation_stress_gain={}, micro_water_content_stress_gain={}, micro_water_content_swelling_slope={} ).",
             vkp.enabled ? "true" : "false", toString(vkp.mode),
             vkp.pressure_tolerance, vkp.hamaker_constant, vkp.specific_surface,
             vkp.micro_solid_density_reference,
             vkp.micro_solid_volume_fraction_reference,
+            vkp.micro_liquid_density_reference, vkp.micro_liquid_density_a,
+            vkp.micro_liquid_density_b,
             toString(vkp.micro_potential_convention),
             toString(vkp.local_nonlinear_solve_mode),
             toString(vkp.macro_porosity_update_mode),
@@ -439,11 +446,23 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
         defaults ? defaults->micro_solid_density_reference : 0.0;
     double const default_ns =
         defaults ? defaults->micro_solid_volume_fraction_reference : 0.0;
+    double const default_rho_l0 =
+        defaults ? defaults->micro_liquid_density_reference : 0.0;
+    double const default_a_rho =
+        defaults ? defaults->micro_liquid_density_a : 0.0;
+    double const default_b_rho =
+        defaults ? defaults->micro_liquid_density_b : 0.0;
 
     double hamaker_constant = 0.0;
     double specific_surface = 0.0;
     double micro_solid_density_reference = 0.0;
     double micro_solid_volume_fraction_reference = 0.0;
+    double micro_liquid_density_reference = 0.0;
+    double micro_liquid_density_a = 0.0;
+    double micro_liquid_density_b = 0.0;
+    bool const uses_micro_liquid_density_eos =
+        local_nonlinear_solve_mode ==
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
 
     if (enabled)
     {
@@ -458,6 +477,40 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
         micro_solid_volume_fraction_reference =
             get_positive_required_or_default(
                 "micro_solid_volume_fraction_reference", default_ns);
+        if (uses_micro_liquid_density_eos)
+        {
+            micro_liquid_density_reference =
+                get_positive_required_or_default(
+                    "micro_liquid_density_reference", default_rho_l0);
+            micro_liquid_density_a = get_positive_required_or_default(
+                "micro_liquid_density_a", default_a_rho);
+            micro_liquid_density_b = get_positive_required_or_default(
+                "micro_liquid_density_b", default_b_rho);
+        }
+        else
+        {
+            micro_liquid_density_reference =
+                get_positive_optional_or_default(
+                    "micro_liquid_density_reference",
+                    defaults ? std::optional<double>{
+                                   defaults->micro_liquid_density_reference}
+                             : std::nullopt)
+                    .value_or(0.0);
+            micro_liquid_density_a = get_positive_optional_or_default(
+                                         "micro_liquid_density_a",
+                                         defaults
+                                             ? std::optional<double>{
+                                                   defaults->micro_liquid_density_a}
+                                             : std::nullopt)
+                                         .value_or(0.0);
+            micro_liquid_density_b = get_positive_optional_or_default(
+                                         "micro_liquid_density_b",
+                                         defaults
+                                             ? std::optional<double>{
+                                                   defaults->micro_liquid_density_b}
+                                             : std::nullopt)
+                                         .value_or(0.0);
+        }
     }
     else
     {
@@ -486,6 +539,27 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
                 defaults ? std::optional<double>{
                                defaults->micro_solid_volume_fraction_reference}
                          : std::nullopt)
+                .value_or(0.0);
+        micro_liquid_density_reference =
+            get_positive_optional_or_default(
+                "micro_liquid_density_reference",
+                defaults ? std::optional<double>{
+                               defaults->micro_liquid_density_reference}
+                         : std::nullopt)
+                .value_or(0.0);
+        micro_liquid_density_a =
+            get_positive_optional_or_default(
+                "micro_liquid_density_a",
+                defaults
+                    ? std::optional<double>{defaults->micro_liquid_density_a}
+                    : std::nullopt)
+                .value_or(0.0);
+        micro_liquid_density_b =
+            get_positive_optional_or_default(
+                "micro_liquid_density_b",
+                defaults
+                    ? std::optional<double>{defaults->micro_liquid_density_b}
+                    : std::nullopt)
                 .value_or(0.0);
     }
 
@@ -572,6 +646,9 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
         specific_surface,
         micro_solid_density_reference,
         micro_solid_volume_fraction_reference,
+        micro_liquid_density_reference,
+        micro_liquid_density_a,
+        micro_liquid_density_b,
         micro_potential_convention,
         local_nonlinear_solve_mode,
         macro_porosity_update_mode,

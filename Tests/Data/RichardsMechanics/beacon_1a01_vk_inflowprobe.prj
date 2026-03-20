@@ -29,9 +29,12 @@
                      potential more negative so the exchange stays on the
                      drainage side and n_l decreases. -->
                 <initial_micro_water_content>0.2</initial_micro_water_content>
-                <local_nonlinear_solve_mode>scalar_notebook_storage</local_nonlinear_solve_mode>
+                <local_nonlinear_solve_mode>scalar_notebook_mass_storage</local_nonlinear_solve_mode>
                 <macro_porosity_update_mode>notebook_additive_rate</macro_porosity_update_mode>
                 <micro_solid_volume_fraction_mode>current_porosity_split</micro_solid_volume_fraction_mode>
+                <micro_liquid_density_reference>1300</micro_liquid_density_reference>
+                <micro_liquid_density_a>1.3</micro_liquid_density_a>
+                <micro_liquid_density_b>1.0</micro_liquid_density_b>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
