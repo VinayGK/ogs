@@ -23,11 +23,13 @@
                 <specific_surface>4000</specific_surface>
                 <micro_solid_density_reference>2650</micro_solid_density_reference>
                 <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
-                <!-- Keep the microscale hydrated enough that the vdW potential
-                     remains closer to the macro reduced potential, then drive
-                     the macro state slightly more negative than the micro
-                     potential so the exchange turns into the microstructure. -->
+                <!-- Deliberate unsaturated contrast case:
+                     keep the microscale hydrated enough that the attractive
+                     vdW term stays moderate, but drive the macro reduced
+                     potential more negative so the exchange stays on the
+                     drainage side and n_l decreases. -->
                 <initial_micro_water_content>0.2</initial_micro_water_content>
+                <local_nonlinear_solve_mode>scalar_notebook_storage</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>

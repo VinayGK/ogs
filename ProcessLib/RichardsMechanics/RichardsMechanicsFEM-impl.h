@@ -398,6 +398,13 @@ struct VKTransportPorosityUpdateData
     double phi_m_prev = 0.0;
 };
 
+struct VKLocalSolveContext
+{
+    double phi = std::numeric_limits<double>::infinity();
+    double volumetric_strain = 0.0;
+    double volumetric_strain_prev = 0.0;
+};
+
 inline VKTransportPorosityUpdateData computeVKTransportPorosityUpdate(
     double const phi, double const phi_prev, double const n_l,
     double const n_l_prev)
@@ -420,11 +427,25 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     double const n_l_prev, double const dt, double const rho_LR,
     double const alpha_bar, double const mu,
     YoungLaplaceMacroPotentialData const& macro_potential,
+    VKLocalSolveContext const& local_context,
     VKPotentialExchangeParameters const& vkp)
 {
     constexpr double n_l_floor = 1e-16;
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
     double const alpha_M_effective = alpha_bar * rho_LR / mu;
+    bool const use_notebook_storage =
+        vkp.local_nonlinear_solve_mode ==
+        VKLocalNonlinearSolveMode::ScalarNotebookStorage;
+    double const volumetric_strain_rate =
+        dt_safe > 0.0
+            ? (local_context.volumetric_strain -
+               local_context.volumetric_strain_prev) /
+                  dt_safe
+            : 0.0;
+    double const n_l_ceiling =
+        use_notebook_storage && std::isfinite(local_context.phi)
+            ? std::max(n_l_floor, local_context.phi)
+            : std::numeric_limits<double>::infinity();
 
     auto eval_at = [&](double const n_l)
     {
@@ -440,14 +461,14 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     VKImplicitMicroWaterContentUpdateData out;
     if (dt_safe <= 0.0)
     {
-        out.n_l = std::max(n_l_floor, n_l_prev);
+        out.n_l = std::clamp(n_l_prev, n_l_floor, n_l_ceiling);
         auto const [micro_potential, exchange] = eval_at(out.n_l);
         out.micro_potential = micro_potential;
         out.exchange = exchange;
         return out;
     }
 
-    double n_l = std::max(n_l_floor, n_l_prev);
+    double n_l = std::clamp(n_l_prev, n_l_floor, n_l_ceiling);
     constexpr int max_iterations = 25;
     constexpr double residual_tolerance = 1e-12;
     constexpr double increment_tolerance = 1e-12;
@@ -456,10 +477,19 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     for (int iter = 0; iter < max_iterations; ++iter)
     {
         auto const [micro_potential, exchange] = eval_at(n_l);
-        double const residual = n_l - n_l_prev - dt_safe * exchange.rho_l_hat / rho_LR;
+        double residual =
+            n_l - n_l_prev - dt_safe * exchange.rho_l_hat / rho_LR;
+        if (use_notebook_storage)
+        {
+            residual -= dt_safe * n_l * volumetric_strain_rate;
+        }
         double const drho_l_hat_dn_l =
             exchange.drho_l_hat_dmu_lR * micro_potential.dmu_lR_dnl;
-        double const jacobian = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
+        double jacobian = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
+        if (use_notebook_storage)
+        {
+            jacobian -= dt_safe * volumetric_strain_rate;
+        }
 
         if (std::abs(residual) <=
             residual_tolerance * std::max(1.0, std::abs(n_l_prev)))
@@ -477,7 +507,8 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
         }
 
         double const delta_n_l = -residual / jacobian;
-        double const n_l_candidate = std::max(n_l_floor, n_l + delta_n_l);
+        double const n_l_candidate =
+            std::clamp(n_l + delta_n_l, n_l_floor, n_l_ceiling);
         if (std::abs(n_l_candidate - n_l) <=
             increment_tolerance * std::max(1.0, std::abs(n_l)))
         {
@@ -497,10 +528,16 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     {
         // Fallback to explicit update if local scalar Newton does not converge.
         auto const [micro_potential_prev, exchange_prev] =
-            eval_at(std::max(n_l_floor, n_l_prev));
-        out.n_l = std::max(
-            n_l_floor,
-            n_l_prev + dt_safe * exchange_prev.rho_l_hat / rho_LR);
+            eval_at(std::clamp(n_l_prev, n_l_floor, n_l_ceiling));
+        double explicit_increment = dt_safe * exchange_prev.rho_l_hat / rho_LR;
+        if (use_notebook_storage)
+        {
+            explicit_increment +=
+                dt_safe * std::clamp(n_l_prev, n_l_floor, n_l_ceiling) *
+                volumetric_strain_rate;
+        }
+        out.n_l = std::clamp(n_l_prev + explicit_increment, n_l_floor,
+                             n_l_ceiling);
         auto const [micro_potential_fallback, exchange_fallback] =
             eval_at(out.n_l);
         out.micro_potential = micro_potential_fallback;
@@ -525,7 +562,9 @@ inline double computeVKImplicitNlDpL(
     double const alpha_bar, double const mu,
     YoungLaplaceMacroPotentialData const& macro_potential,
     VanDerWaalsMicroPotentialData const& micro_potential,
-    PotentialDrivenMassExchangeData const& exchange)
+    PotentialDrivenMassExchangeData const& exchange,
+    VKLocalSolveContext const& local_context,
+    VKPotentialExchangeParameters const& vkp)
 {
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
     if (dt_safe <= 0.0)
@@ -547,7 +586,16 @@ inline double computeVKImplicitNlDpL(
     double const drho_l_hat_dn_l =
         exchange.drho_l_hat_dmu_lR * micro_potential.dmu_lR_dnl;
 
-    double const dr_dn_l = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
+    double dr_dn_l = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
+    if (vkp.local_nonlinear_solve_mode ==
+        VKLocalNonlinearSolveMode::ScalarNotebookStorage)
+    {
+        double const volumetric_strain_rate =
+            (local_context.volumetric_strain -
+             local_context.volumetric_strain_prev) /
+            dt_safe;
+        dr_dn_l -= dt_safe * volumetric_strain_rate;
+    }
     if (!(std::isfinite(dr_dn_l) && std::abs(dr_dn_l) > 1e-20))
     {
         return 0.0;
@@ -570,6 +618,7 @@ inline VKLocalJacobianDiagnosticData computeVKLocalJacobianDiagnosticData(
     double const n_l_prev, double const p_L_ip, double const dt,
     double const rho_LR, double const drho_LR_dpL, double const alpha_bar,
     double const mu, double const pressure_tolerance,
+    VKLocalSolveContext const& local_context,
     VKPotentialExchangeParameters const& vkp)
 {
     constexpr double rho_floor = 1e-16;
@@ -589,7 +638,7 @@ inline VKLocalJacobianDiagnosticData computeVKLocalJacobianDiagnosticData(
             p_L_eval, rho_LR_eval, pressure_tolerance);
         auto const n_l_update_eval = solveVKImplicitMicroWaterContent(
             n_l_prev, dt, rho_LR_eval, alpha_bar, mu, macro_potential_eval,
-            vkp);
+            local_context, vkp);
         return std::pair{n_l_update_eval.n_l, -n_l_update_eval.exchange.rho_l_hat};
     };
 
@@ -670,6 +719,7 @@ inline void updateVKMicroscaleHydraulicState(
     StatefulData<DisplacementDim>& SD,
     StatefulDataPrev<DisplacementDim> const& SD_prev, double const p_cap_ip,
     double const rho_LR, double const mu, double const dt,
+    VKLocalSolveContext const& local_context,
     std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
     VKPotentialExchangeParameters const* const vk_potential_exchange_parameters)
 {
@@ -691,7 +741,7 @@ inline void updateVKMicroscaleHydraulicState(
     auto const n_l_update = solveVKImplicitMicroWaterContent(
         n_l_prev_value, dt, rho_LR,
         micro_porosity_parameters->mass_exchange_coefficient, mu,
-        macro_potential, vkp);
+        macro_potential, local_context, vkp);
     *n_l = n_l_update.n_l;
 
     auto& p_L_m = std::get<MicroPressure>(SD);
@@ -2061,8 +2111,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
     }
 
     updateVKMicroscaleHydraulicState<DisplacementDim>(
-        SD, SD_prev, p_cap_ip, rho_LR, mu, dt, micro_porosity_parameters,
-        vk_potential_exchange_parameters);
+        SD, SD_prev, p_cap_ip, rho_LR, mu, dt,
+        {.phi = phi,
+         .volumetric_strain = variables.volumetric_strain,
+         .volumetric_strain_prev = variables_prev.volumetric_strain},
+        micro_porosity_parameters, vk_potential_exchange_parameters);
     updateVKPorositySplitState<DisplacementDim>(
         SD, SD_prev, phi, variables, variables_prev,
         vk_potential_exchange_parameters);
@@ -2587,6 +2640,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 use_fd_jacobian_for_direct_macro_derivative =
                     vkp->use_fd_jacobian_for_exchange;
                 fd_jacobian_perturbation = vkp->fd_jacobian_perturbation;
+                VKLocalSolveContext const local_solve_context{
+                    .phi = phi,
+                    .volumetric_strain = variables.volumetric_strain,
+                    .volumetric_strain_prev = variables_prev.volumetric_strain};
 
                 // In analytic mode, include implicit n_l(p_L) chain coupling
                 // in dmu_lR/dp_L for the active exchange Jacobian term.
@@ -2601,7 +2658,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         micro_potential.mu_lR);
                     double const dn_l_dpL = computeVKImplicitNlDpL(
                         dt, rho_LR, drho_LR_dpL, alpha_bar, mu,
-                        macro_potential, micro_potential, exchange);
+                        macro_potential, micro_potential, exchange,
+                        local_solve_context, *vkp);
 
                     dmu_lR_vdw_dpL = micro_potential.dmu_lR_dnl * dn_l_dpL +
                                      micro_potential.dmu_lR_drho_lR *
@@ -2617,7 +2675,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         auto const fd_data =
                             computeVKLocalJacobianDiagnosticData(
                                 n_l_prev, p_L_ip, dt, rho_LR, drho_LR_dpL,
-                                alpha_bar, mu, pressure_tolerance, *vkp);
+                                alpha_bar, mu, pressure_tolerance,
+                                local_solve_context, *vkp);
                         auto const analytic_drho_L_hat_dpL =
                             -exchange.drho_l_hat_dalpha_M *
                                 (alpha_bar / mu * drho_LR_dpL) -
@@ -2945,7 +3004,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
         updateVKMicroscaleHydraulicState<DisplacementDim>(
             this->current_states_[ip], this->prev_states_[ip], p_cap_ip,
-            rho_LR, mu, dt, this->process_data_.micro_porosity_parameters,
+            rho_LR, mu, dt,
+            {.phi = phi,
+             .volumetric_strain = variables.volumetric_strain,
+             .volumetric_strain_prev = variables_prev.volumetric_strain},
+            this->process_data_.micro_porosity_parameters,
             this->getVKPotentialExchangeParameters());
         updateVKPorositySplitState<DisplacementDim>(
             this->current_states_[ip], this->prev_states_[ip], phi, variables,

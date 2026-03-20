@@ -18,6 +18,12 @@ enum class VKMicroPotentialConvention
     NegativeAttractive
 };
 
+enum class VKLocalNonlinearSolveMode
+{
+    ScalarExchange,
+    ScalarNotebookStorage
+};
+
 inline constexpr char const* toString(
     VKMicroPotentialConvention const convention)
 {
@@ -38,6 +44,18 @@ inline constexpr double microPotentialSignFactor(
                                                                        : 1.0;
 }
 
+inline constexpr char const* toString(VKLocalNonlinearSolveMode const mode)
+{
+    switch (mode)
+    {
+        case VKLocalNonlinearSolveMode::ScalarExchange:
+            return "scalar_exchange";
+        case VKLocalNonlinearSolveMode::ScalarNotebookStorage:
+            return "scalar_notebook_storage";
+    }
+    return "unknown";
+}
+
 struct VKPotentialExchangeParameters
 {
     bool enabled = false;
@@ -53,6 +71,8 @@ struct VKPotentialExchangeParameters
     double micro_solid_volume_fraction_reference = 0.0;  // n_S
     VKMicroPotentialConvention micro_potential_convention =
         VKMicroPotentialConvention::PositiveReduced;
+    VKLocalNonlinearSolveMode local_nonlinear_solve_mode =
+        VKLocalNonlinearSolveMode::ScalarExchange;
 
     // Optional GP-local n_l initialization (future full 2C path).
     std::optional<double> initial_micro_water_content;

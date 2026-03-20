@@ -35,9 +35,19 @@ double comparisonTolerance(double const a, double const b,
 ReferenceVKSinglePointData solveReferenceVKSinglePoint(
     double const p_L, double const n_l_prev, double const dt,
     double const rho_LR, double const alpha_bar, double const mu,
-    double const phi, VKPotentialExchangeParameters const& vkp)
+    double const phi, VKPotentialExchangeParameters const& vkp,
+    double const volumetric_strain = 0.0,
+    double const volumetric_strain_prev = 0.0)
 {
     constexpr double n_l_floor = 1e-16;
+    double const phi_ceiling =
+        vkp.local_nonlinear_solve_mode ==
+                VKLocalNonlinearSolveMode::ScalarNotebookStorage &&
+            std::isfinite(phi)
+            ? std::max(n_l_floor, phi)
+            : std::numeric_limits<double>::infinity();
+    double const volumetric_strain_rate =
+        dt > 0.0 ? (volumetric_strain - volumetric_strain_prev) / dt : 0.0;
 
     auto const macro_potential =
         computeYoungLaplaceMacroPotential(p_L, rho_LR, vkp.pressure_tolerance);
@@ -59,10 +69,16 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
     {
         auto const [micro_potential, exchange] = eval_exchange(n_l);
         (void)micro_potential;
-        return n_l - n_l_prev - dt * exchange.rho_l_hat / rho_LR;
+        double residual = n_l - n_l_prev - dt * exchange.rho_l_hat / rho_LR;
+        if (vkp.local_nonlinear_solve_mode ==
+            VKLocalNonlinearSolveMode::ScalarNotebookStorage)
+        {
+            residual -= dt * n_l * volumetric_strain_rate;
+        }
+        return residual;
     };
 
-    double n_l = std::max(n_l_floor, n_l_prev);
+    double n_l = std::clamp(n_l_prev, n_l_floor, phi_ceiling);
     constexpr int max_iterations = 40;
     constexpr double residual_tolerance = 1e-14;
     constexpr double increment_tolerance = 1e-14;
@@ -98,7 +114,7 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
         }
 
         double step = -r / jacobian;
-        double n_l_candidate = std::max(n_l_floor, n_l + step);
+        double n_l_candidate = std::clamp(n_l + step, n_l_floor, phi_ceiling);
 
         // Basic backtracking to keep the independently coded reference solve
         // robust while remaining distinct from the production helper.
@@ -108,7 +124,7 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
                backtracking_steps < 12)
         {
             step *= 0.5;
-            n_l_candidate = std::max(n_l_floor, n_l + step);
+            n_l_candidate = std::clamp(n_l + step, n_l_floor, phi_ceiling);
             candidate_residual = residual(n_l_candidate);
             ++backtracking_steps;
         }
@@ -151,13 +167,17 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
 double referenceDnLDpL(double const p_L, double const n_l_prev, double const dt,
                        double const rho_LR, double const alpha_bar,
                        double const mu, double const phi,
-                       VKPotentialExchangeParameters const& vkp)
+                       VKPotentialExchangeParameters const& vkp,
+                       double const volumetric_strain = 0.0,
+                       double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
     auto const plus = solveReferenceVKSinglePoint(
-        p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp);
+        p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp,
+        volumetric_strain, volumetric_strain_prev);
     auto const minus = solveReferenceVKSinglePoint(
-        p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp);
+        p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp,
+        volumetric_strain, volumetric_strain_prev);
     return (plus.n_l - minus.n_l) / (2.0 * h);
 }
 
@@ -165,13 +185,17 @@ double referenceDrhoLHatDpL(double const p_L, double const n_l_prev,
                             double const dt, double const rho_LR,
                             double const alpha_bar, double const mu,
                             double const phi,
-                            VKPotentialExchangeParameters const& vkp)
+                            VKPotentialExchangeParameters const& vkp,
+                            double const volumetric_strain = 0.0,
+                            double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
     auto const plus = solveReferenceVKSinglePoint(
-        p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp);
+        p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp,
+        volumetric_strain, volumetric_strain_prev);
     auto const minus = solveReferenceVKSinglePoint(
-        p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp);
+        p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp,
+        volumetric_strain, volumetric_strain_prev);
     return ((-plus.exchange.rho_l_hat) - (-minus.exchange.rho_l_hat)) /
            (2.0 * h);
 }
@@ -197,6 +221,8 @@ struct RepresentativeCoupledExchangeState
     double alpha_bar = 0.0;
     double mu = 0.0;
     double phi = 0.0;
+    double volumetric_strain = 0.0;
+    double volumetric_strain_prev = 0.0;
 };
 
 double linearizedDensityAtPressure(double const p_L_eval, double const p_L_ref,
@@ -227,7 +253,8 @@ double referenceCoupledRhoLHat(
     vkp_eval.pressure_tolerance = state.pressure_tolerance;
     auto const reference = solveReferenceVKSinglePoint(
         p_L_eval, state.n_l_prev, state.dt, rho_LR_eval, state.alpha_bar,
-        state.mu, state.phi, vkp_eval);
+        state.mu, state.phi, vkp_eval, state.volumetric_strain,
+        state.volumetric_strain_prev);
     return reference.exchange.rho_L_hat;
 }
 
@@ -271,10 +298,18 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
         state.p_L, state.rho_LR, state.pressure_tolerance);
     auto const n_l_update = solveVKImplicitMicroWaterContent(
         state.n_l_prev, state.dt, state.rho_LR, state.alpha_bar, state.mu,
-        macro_potential, vkp);
+        macro_potential,
+        {.phi = state.phi,
+         .volumetric_strain = state.volumetric_strain,
+         .volumetric_strain_prev = state.volumetric_strain_prev},
+        vkp);
     double const dn_l_dpL = computeVKImplicitNlDpL(
         state.dt, state.rho_LR, state.drho_LR_dpL, state.alpha_bar, state.mu,
-        macro_potential, n_l_update.micro_potential, n_l_update.exchange);
+        macro_potential, n_l_update.micro_potential, n_l_update.exchange,
+        {.phi = state.phi,
+         .volumetric_strain = state.volumetric_strain,
+         .volumetric_strain_prev = state.volumetric_strain_prev},
+        vkp);
     double const dmu_lR_vdw_dpL =
         n_l_update.micro_potential.dmu_lR_dnl * dn_l_dpL +
         n_l_update.micro_potential.dmu_lR_drho_lR * state.drho_LR_dpL;
@@ -319,7 +354,9 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
     auto const macro_potential =
         computeYoungLaplaceMacroPotential(p_L, rho_LR, vkp.pressure_tolerance);
     auto const ogs_update = solveVKImplicitMicroWaterContent(
-        n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential, vkp);
+        n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
+        {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
+        vkp);
     ASSERT_TRUE(ogs_update.converged);
 
     auto const reference = solveReferenceVKSinglePoint(
@@ -366,7 +403,9 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
 
     double const analytic_dn_l_dpL = computeVKImplicitNlDpL(
         dt, rho_LR, drho_LR_dpL, alpha_bar, mu, macro_potential,
-        ogs_update.micro_potential, ogs_update.exchange);
+        ogs_update.micro_potential, ogs_update.exchange,
+        {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
+        vkp);
     double const reference_dn_l_dpL = referenceDnLDpL(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp);
 
@@ -376,7 +415,9 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
 
     auto const fd_diagnostic = computeVKLocalJacobianDiagnosticData(
         n_l_prev, p_L, dt, rho_LR, drho_LR_dpL, alpha_bar, mu,
-        vkp.pressure_tolerance, vkp);
+        vkp.pressure_tolerance,
+        {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
+        vkp);
     EXPECT_NEAR(fd_diagnostic.fd_dn_l_dpL, reference_dn_l_dpL,
                 comparisonTolerance(fd_diagnostic.fd_dn_l_dpL,
                                     reference_dn_l_dpL, 5e-5, 1e-18));
@@ -455,7 +496,9 @@ TEST(RichardsMechanics, VKBranchSensitivityNearMacroPotentialTransition)
         }
 
         auto const ogs_update = solveVKImplicitMicroWaterContent(
-            n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential, vkp);
+            n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
+            {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
+            vkp);
         ASSERT_TRUE(ogs_update.converged);
 
         auto const reference = solveReferenceVKSinglePoint(
@@ -556,7 +599,9 @@ TEST(RichardsMechanics, VKNegativeAttractiveMicroPotentialAdmitsWetting)
     ASSERT_DOUBLE_EQ(macro_potential.mu_LR, 0.0);
 
     auto const ogs_update = solveVKImplicitMicroWaterContent(
-        n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential, vkp);
+        n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
+        {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
+        vkp);
     ASSERT_TRUE(ogs_update.converged);
 
     auto const reference = solveReferenceVKSinglePoint(
@@ -684,6 +729,64 @@ TEST(RichardsMechanics, VKTransportPorositySplitRecomposesTotalPorosity)
     EXPECT_NEAR(clamped.phi_m, 0.25, 1e-14);
     EXPECT_NEAR(clamped.phi_M, 0.0, 1e-14);
     EXPECT_NEAR(clamped.phi_M + clamped.phi_m, 0.25, 1e-14);
+}
+
+TEST(RichardsMechanics, VKScalarNotebookStorageLocalSolveReferencePath)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.pressure_tolerance = 0.0;
+    vkp.hamaker_constant = 6.0e-20;
+    vkp.specific_surface = 1000.0;
+    vkp.micro_solid_density_reference = 2650.0;
+    vkp.micro_solid_volume_fraction_reference = 0.6;
+    vkp.micro_potential_convention =
+        VKMicroPotentialConvention::NegativeAttractive;
+    vkp.local_nonlinear_solve_mode =
+        VKLocalNonlinearSolveMode::ScalarNotebookStorage;
+    vkp.initial_micro_water_content = 0.03;
+
+    double const p_L = 0.0;
+    double const n_l_prev = 0.03;
+    double const dt = 100.0;
+    double const rho_LR = 1000.0;
+    double const alpha_bar = 1.0e-9;
+    double const mu = 1.0e-3;
+    double const phi = 0.031;
+    double const volumetric_strain_prev = 0.0;
+    double const volumetric_strain = 1.0e-3;
+
+    auto const macro_potential =
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, vkp.pressure_tolerance);
+    auto const ogs_update = solveVKImplicitMicroWaterContent(
+        n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
+        {.phi = phi,
+         .volumetric_strain = volumetric_strain,
+         .volumetric_strain_prev = volumetric_strain_prev},
+        vkp);
+    ASSERT_TRUE(ogs_update.converged);
+
+    auto const reference = solveReferenceVKSinglePoint(
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, vkp,
+        volumetric_strain, volumetric_strain_prev);
+    EXPECT_NEAR(ogs_update.n_l, reference.n_l,
+                comparisonTolerance(ogs_update.n_l, reference.n_l));
+    EXPECT_LE(ogs_update.n_l, phi + comparisonTolerance(ogs_update.n_l, phi));
+
+    auto vkp_scalar = vkp;
+    vkp_scalar.local_nonlinear_solve_mode =
+        VKLocalNonlinearSolveMode::ScalarExchange;
+    auto const scalar_update = solveVKImplicitMicroWaterContent(
+        n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
+        {.phi = phi,
+         .volumetric_strain = volumetric_strain,
+         .volumetric_strain_prev = volumetric_strain_prev},
+        vkp_scalar);
+    ASSERT_TRUE(scalar_update.converged);
+    EXPECT_GT(scalar_update.n_l, phi);
+    EXPECT_LE(ogs_update.n_l,
+              scalar_update.n_l +
+                  comparisonTolerance(ogs_update.n_l, scalar_update.n_l));
 }
 
 TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)

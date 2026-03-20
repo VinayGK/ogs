@@ -29,6 +29,7 @@
                 <micro_solid_density_reference>2650</micro_solid_density_reference>
                 <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
                 <initial_micro_water_content>0.01</initial_micro_water_content>
+                <local_nonlinear_solve_mode>scalar_notebook_storage</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
