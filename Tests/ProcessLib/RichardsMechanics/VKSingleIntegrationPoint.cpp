@@ -437,8 +437,9 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
     {
         auto const data = computeVKPhase2CPlaceholderExchange(
             state.alpha_bar, state.mu, state.p_L, state.p_L_m, state.rho_LR,
-            beta_LR, state.pressure_tolerance, false, false, 0.0, 0.0, false,
-            0.0, false, vkp.fd_jacobian_perturbation);
+            beta_LR, state.pressure_tolerance, false, false, 0.0, 0.0,
+            false, 0.0, VKPotentialExchangeRoleMapping::CurrentOgs, false,
+            vkp.fd_jacobian_perturbation);
         return {
             .rho_L_hat = data.exchange.rho_L_hat,
             .drho_L_hat_dpL = data.drho_L_hat_dpL_direct,
@@ -472,6 +473,7 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
         beta_LR, state.pressure_tolerance, true, true,
         n_l_update.micro_potential.mu_lR,
         n_l_update.micro_potential.dmu_lR_drho_lR, true, dmu_lR_vdw_dpL,
+        vkp.potential_role_mapping,
         false, vkp.fd_jacobian_perturbation);
 
     return {

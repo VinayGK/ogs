@@ -5,6 +5,7 @@
 
 #include <cmath>
 
+#include "ProcessLib/RichardsMechanics/VKPotentialExchangeParameters.h"
 #include "ProcessLib/RichardsMechanics/ConstitutiveRelations/VKMicroWaterContent.h"
 #include "ProcessLib/RichardsMechanics/ConstitutiveRelations/VKExchangePotentials.h"
 
@@ -166,4 +167,25 @@ TEST(RichardsMechanics, VKPotentialDrivenMassExchange)
     EXPECT_DOUBLE_EQ(ex.drho_l_hat_dmu_LR, alpha_M);
     EXPECT_DOUBLE_EQ(ex.drho_l_hat_dmu_lR, -alpha_M);
     EXPECT_DOUBLE_EQ(ex.drho_l_hat_dalpha_M, mu_LR - mu_lR);
+}
+
+TEST(RichardsMechanics, VKNotebookRoleMappingToString)
+{
+    EXPECT_STREQ(toString(VKPotentialExchangeRoleMapping::CurrentOgs),
+                 "current_ogs");
+    EXPECT_STREQ(toString(VKPotentialExchangeRoleMapping::NotebookRoles),
+                 "notebook_roles");
+}
+
+TEST(RichardsMechanics, VKNotebookRoleMappingDirectExchangeAlgebra)
+{
+    double const alpha_bar = 2.5e-10;
+    double const mu_LR = 0.0;
+    double const mu_lR = -3.0;
+
+    auto const ex = computePotentialDrivenMassExchange(alpha_bar, mu_LR,
+                                                       mu_lR);
+    EXPECT_DOUBLE_EQ(ex.rho_l_hat, alpha_bar * (mu_LR - mu_lR));
+    EXPECT_DOUBLE_EQ(ex.rho_L_hat, -ex.rho_l_hat);
+    EXPECT_GT(ex.rho_l_hat, 0.0);
 }

@@ -37,6 +37,12 @@ enum class VKMicroSolidVolumeFractionMode
     CurrentPorositySplit
 };
 
+enum class VKPotentialExchangeRoleMapping
+{
+    CurrentOgs,
+    NotebookRoles
+};
+
 inline constexpr char const* toString(
     VKMicroPotentialConvention const convention)
 {
@@ -96,6 +102,19 @@ inline constexpr char const* toString(
     return "unknown";
 }
 
+inline constexpr char const* toString(
+    VKPotentialExchangeRoleMapping const mapping)
+{
+    switch (mapping)
+    {
+        case VKPotentialExchangeRoleMapping::CurrentOgs:
+            return "current_ogs";
+        case VKPotentialExchangeRoleMapping::NotebookRoles:
+            return "notebook_roles";
+    }
+    return "unknown";
+}
+
 struct VKPotentialExchangeParameters
 {
     bool enabled = false;
@@ -120,6 +139,8 @@ struct VKPotentialExchangeParameters
         VKMacroPorosityUpdateMode::AlgebraicSplit;
     VKMicroSolidVolumeFractionMode micro_solid_volume_fraction_mode =
         VKMicroSolidVolumeFractionMode::Reference;
+    VKPotentialExchangeRoleMapping potential_role_mapping =
+        VKPotentialExchangeRoleMapping::CurrentOgs;
 
     // Optional GP-local n_l initialization (future full 2C path).
     std::optional<double> initial_micro_water_content;

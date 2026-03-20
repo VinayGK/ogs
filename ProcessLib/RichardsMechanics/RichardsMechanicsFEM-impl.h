@@ -159,6 +159,7 @@ struct VKPhase2CPlaceholderExchangeData
     double mu_lR_placeholder = 0.0;
     bool use_macro_potential_for_active_exchange = false;
     bool use_vdw_micro_potential_for_active_exchange = false;
+    bool use_notebook_role_mapping = false;
     bool use_fd_jacobian_for_direct_macro_derivative = false;
     double fd_jacobian_perturbation = 0.0;
 
@@ -177,6 +178,8 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
     double const dmu_lR_vdw_drho_lR = 0.0,
     bool const use_custom_dmu_lR_vdw_dpL = false,
     double const dmu_lR_vdw_dpL = 0.0,
+    VKPotentialExchangeRoleMapping const role_mapping =
+        VKPotentialExchangeRoleMapping::CurrentOgs,
     bool const use_fd_jacobian_for_direct_macro_derivative = false,
     double const fd_jacobian_perturbation = 1e-8)
 {
@@ -201,24 +204,37 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
         use_macro_potential_for_active_exchange;
     out.use_vdw_micro_potential_for_active_exchange =
         use_vdw_micro_potential_for_active_exchange;
+    bool const use_notebook_role_mapping =
+        role_mapping == VKPotentialExchangeRoleMapping::NotebookRoles;
+    out.use_notebook_role_mapping = use_notebook_role_mapping;
     out.use_fd_jacobian_for_direct_macro_derivative =
         use_fd_jacobian_for_direct_macro_derivative;
     out.fd_jacobian_perturbation = fd_jacobian_perturbation;
 
     // Default Phase 2C compatibility microscale potential: derived from the
     // existing OGS microscale pressure state.
-    out.mu_lR_placeholder = use_vdw_micro_potential_for_active_exchange
-                                ? mu_lR_vdw
-                                : p_L_m / rho_LR;
+    if (use_notebook_role_mapping)
+    {
+        // Notebook role mapping: use the vdW chemical potential on the active
+        // exchange side and the Young-Laplace helper on the complementary side.
+        out.mu_LR_active = mu_lR_vdw;
+        out.mu_lR_placeholder = out.macro_potential.mu_LR;
+    }
+    else
+    {
+        out.mu_lR_placeholder = use_vdw_micro_potential_for_active_exchange
+                                    ? mu_lR_vdw
+                                    : p_L_m / rho_LR;
 
-    // Phase 2C compatibility slice: activate the potential-driven source
-    // helper path while preserving the current OGS double-structure exchange
-    // behavior. By default, the active macro and microscale potentials are
-    // represented as p/rho placeholders, which makes the source equivalent to
-    // the legacy pressure-difference law.
-    out.mu_LR_active = use_macro_potential_for_active_exchange
-                           ? out.macro_potential.mu_LR
-                           : p_L_ip / rho_LR;
+        // Phase 2C compatibility slice: activate the potential-driven source
+        // helper path while preserving the current OGS double-structure
+        // exchange behavior. By default, the active macro and microscale
+        // potentials are represented as p/rho placeholders, which makes the
+        // source equivalent to the legacy pressure-difference law.
+        out.mu_LR_active = use_macro_potential_for_active_exchange
+                               ? out.macro_potential.mu_LR
+                               : p_L_ip / rho_LR;
+    }
 
     out.exchange = computePotentialDrivenMassExchange(
         out.alpha_M_effective, out.mu_LR_active, out.mu_lR_placeholder);
@@ -235,14 +251,19 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
                 p_L_ip_eval, rho_LR_eval, pressure_tolerance);
             double const alpha_M_effective_eval =
                 alpha_bar * rho_LR_eval / mu;
-            double const mu_LR_active_eval =
-                use_macro_potential_for_active_exchange
-                    ? macro_potential_eval.mu_LR
-                    : p_L_ip_eval / rho_LR_eval;
-            double const mu_lR_active_eval =
-                use_vdw_micro_potential_for_active_exchange
-                    ? mu_lR_vdw
-                    : p_L_m / rho_LR_eval;
+            double const mu_LR_active_eval = use_notebook_role_mapping
+                                                 ? mu_lR_vdw
+                                                 : (use_macro_potential_for_active_exchange
+                                                        ? macro_potential_eval
+                                                              .mu_LR
+                                                        : p_L_ip_eval /
+                                                              rho_LR_eval);
+            double const mu_lR_active_eval = use_notebook_role_mapping
+                                                 ? macro_potential_eval.mu_LR
+                                                 : (use_vdw_micro_potential_for_active_exchange
+                                                        ? mu_lR_vdw
+                                                        : p_L_m /
+                                                              rho_LR_eval);
             auto const exchange_eval = computePotentialDrivenMassExchange(
                 alpha_M_effective_eval, mu_LR_active_eval, mu_lR_active_eval);
             return -exchange_eval.rho_l_hat;
@@ -283,22 +304,34 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
     // Direct macro derivative with density dependence. In the opt-in path this
     // uses the Young-Laplace helper derivatives; otherwise it reduces to the
     // legacy p/rho placeholder derivative.
-    double const dmu_LR_dpL =
-        use_macro_potential_for_active_exchange
-            ? out.macro_potential.dmu_LR_dpLR +
-                  out.macro_potential.dmu_LR_drho_LR * drho_LR_dpL
-            : 1.0 / rho_LR - p_L_ip / (rho_LR * rho_LR) * drho_LR_dpL;
+    double const dmu_LR_dpL = use_notebook_role_mapping
+                                  ? dmu_lR_vdw_dpL
+                                  : (use_macro_potential_for_active_exchange
+                                         ? out.macro_potential.dmu_LR_dpLR +
+                                               out.macro_potential
+                                                   .dmu_LR_drho_LR *
+                                                   drho_LR_dpL
+                                         : 1.0 / rho_LR -
+                                               p_L_ip / (rho_LR * rho_LR) *
+                                                   drho_LR_dpL);
 
     // Microscale derivative contribution. In the legacy placeholder path
     // mu_lR = p_L_m/rho_LR with lagged p_L_m. In the vdW path the helper
     // derivative w.r.t. rho_LR can be used (currently zero in the reduced
     // algebraic form).
-    double const dmu_lR_placeholder_dpL =
-        use_vdw_micro_potential_for_active_exchange
-            ? (use_custom_dmu_lR_vdw_dpL
-                   ? dmu_lR_vdw_dpL
-                   : dmu_lR_vdw_drho_lR * drho_LR_dpL)
-            : -p_L_m / (rho_LR * rho_LR) * drho_LR_dpL;
+    double const dmu_lR_placeholder_dpL = use_notebook_role_mapping
+                                               ? (out.macro_potential.dmu_LR_dpLR +
+                                                  out.macro_potential
+                                                      .dmu_LR_drho_LR *
+                                                      drho_LR_dpL)
+                                               : (use_vdw_micro_potential_for_active_exchange
+                                                      ? (use_custom_dmu_lR_vdw_dpL
+                                                             ? dmu_lR_vdw_dpL
+                                                             : dmu_lR_vdw_drho_lR *
+                                                                   drho_LR_dpL)
+                                                      : -p_L_m /
+                                                            (rho_LR * rho_LR) *
+                                                            drho_LR_dpL);
 
     double const drho_l_hat_dpL_direct =
         out.exchange.drho_l_hat_dalpha_M * dalpha_M_effective_dpL +
@@ -324,20 +357,26 @@ inline void maybeLogVKPhase2CExchangeSource(
             data.use_vdw_micro_potential_for_active_exchange
                 ? "vdw-from-n_l"
                 : "placeholder-pm_over_rho";
+        auto const* const role_mode_name =
+            data.use_notebook_role_mapping
+                ? "notebook_roles"
+                : (data.use_macro_potential_for_active_exchange
+                ? "current_ogs_roles"
+                : "legacy_placeholder");
         auto const* const jac_mode_name =
             data.use_fd_jacobian_for_direct_macro_derivative
                 ? "finite-difference"
                 : "analytic-chain-rule";
         INFO(
-            "[RM Phase2C exchange] active path (mode='{}', micro='{}'): pL_ip={} Pa, "
+            "[RM Phase2C exchange] active path (mode='{}', role_mapping='{}', micro='{}'): pL_ip={} Pa, "
             "pL_m={} Pa, rho_LR={} kg/m^3, alpha_bar={}, mu={} Pa*s, "
             "alpha_M_eff={}, mu_LR(active)={} J/kg, "
             "mu_LR(helper audit)={} J/kg, mu_lR(active)={} J/kg, "
             "rho_L_hat={} kg/(m^3 s), drho_L_hat/dpL (direct)={} "
             "(kg/(m^3 s))/Pa, jacobian_mode='{}', fd_perturbation={}, saturated_branch={}, "
             "note='vdW helper may be active for opt-in mode; n_l update uses a local implicit solve with explicit fallback'.",
-            mode_name, micro_mode_name, p_L_ip, p_L_m, rho_LR, alpha_bar, mu,
-            data.alpha_M_effective, data.mu_LR_active,
+            mode_name, role_mode_name, micro_mode_name, p_L_ip, p_L_m, rho_LR,
+            alpha_bar, mu, data.alpha_M_effective, data.mu_LR_active,
             data.macro_potential.mu_LR, data.mu_lR_placeholder,
             data.exchange.rho_L_hat, data.drho_L_hat_dpL_direct, jac_mode_name,
             data.fd_jacobian_perturbation,
@@ -677,6 +716,9 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     bool const use_mass_storage =
         vkp.local_nonlinear_solve_mode ==
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+    bool const use_notebook_role_mapping =
+        vkp.potential_role_mapping ==
+        VKPotentialExchangeRoleMapping::NotebookRoles;
     double const volumetric_strain_rate =
         dt_safe > 0.0
             ? (local_context.volumetric_strain -
@@ -692,8 +734,14 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     {
         auto const micro_potential =
             computeVKActiveMicroPotential(n_l, rho_LR, local_context, vkp);
+        double const mu_LR_active =
+            use_notebook_role_mapping ? micro_potential.mu_lR
+                                      : macro_potential.mu_LR;
+        double const mu_lR_active =
+            use_notebook_role_mapping ? macro_potential.mu_LR
+                                      : micro_potential.mu_lR;
         auto const exchange = computePotentialDrivenMassExchange(
-            alpha_M_effective, macro_potential.mu_LR, micro_potential.mu_lR);
+            alpha_M_effective, mu_LR_active, mu_lR_active);
         auto const micro_liquid_density =
             use_mass_storage
                 ? std::optional<VKReducedMicroLiquidDensityData>{
@@ -738,8 +786,11 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
             eval_at(n_l);
         double residual = 0.0;
         double jacobian = 0.0;
-        double const drho_l_hat_dn_l =
-            exchange.drho_l_hat_dmu_lR * micro_potential.dmu_lR_dnl;
+        double const drho_l_hat_dn_l = use_notebook_role_mapping
+                                           ? exchange.drho_l_hat_dmu_LR *
+                                                 micro_potential.dmu_lR_dnl
+                                           : exchange.drho_l_hat_dmu_lR *
+                                                 micro_potential.dmu_lR_dnl;
         if (use_mass_storage)
         {
             double const rho_l =
@@ -873,6 +924,10 @@ inline double computeVKImplicitNlDpL(
         return 0.0;
     }
 
+    bool const use_notebook_role_mapping =
+        vkp.potential_role_mapping ==
+        VKPotentialExchangeRoleMapping::NotebookRoles;
+
     if (vkp.local_nonlinear_solve_mode ==
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage)
     {
@@ -907,18 +962,31 @@ inline double computeVKImplicitNlDpL(
     }
 
     double const dalpha_M_effective_dpL = alpha_bar / mu * drho_LR_dpL;
-    double const dmu_LR_dpL =
-        macro_potential.dmu_LR_dpLR +
-        macro_potential.dmu_LR_drho_LR * drho_LR_dpL;
-    double const dmu_lR_dpL_fixed_n =
-        micro_potential.dmu_lR_drho_lR * drho_LR_dpL;
+    double const dmu_first_dpL_fixed_n = use_notebook_role_mapping
+                                             ? micro_potential.dmu_lR_drho_lR *
+                                                   drho_LR_dpL
+                                             : macro_potential.dmu_LR_dpLR +
+                                                   macro_potential
+                                                       .dmu_LR_drho_LR *
+                                                   drho_LR_dpL;
+    double const dmu_second_dpL_fixed_n = use_notebook_role_mapping
+                                              ? macro_potential.dmu_LR_dpLR +
+                                                    macro_potential
+                                                        .dmu_LR_drho_LR *
+                                                    drho_LR_dpL
+                                              : micro_potential
+                                                    .dmu_lR_drho_lR *
+                                                    drho_LR_dpL;
 
     double const drho_l_hat_dpL_fixed_n =
         exchange.drho_l_hat_dalpha_M * dalpha_M_effective_dpL +
-        exchange.drho_l_hat_dmu_LR * dmu_LR_dpL +
-        exchange.drho_l_hat_dmu_lR * dmu_lR_dpL_fixed_n;
-    double const drho_l_hat_dn_l =
-        exchange.drho_l_hat_dmu_lR * micro_potential.dmu_lR_dnl;
+        exchange.drho_l_hat_dmu_LR * dmu_first_dpL_fixed_n +
+        exchange.drho_l_hat_dmu_lR * dmu_second_dpL_fixed_n;
+    double const drho_l_hat_dn_l = use_notebook_role_mapping
+                                       ? exchange.drho_l_hat_dmu_LR *
+                                             micro_potential.dmu_lR_dnl
+                                       : exchange.drho_l_hat_dmu_lR *
+                                             micro_potential.dmu_lR_dnl;
 
     double dr_dn_l = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
     if (vkp.local_nonlinear_solve_mode ==
@@ -2243,6 +2311,7 @@ void RichardsMechanicsLocalAssembler<
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
                 dmu_lR_vdw_drho_lR,
                 /*use_custom_dmu_lR_vdw_dpL=*/false, /*dmu_lR_vdw_dpL=*/0.0,
+                vkp->potential_role_mapping,
                 /*use_fd_jacobian_for_direct_macro_derivative=*/false,
                 /*fd_jacobian_perturbation=*/1e-8);
             maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
@@ -3069,6 +3138,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
                 dmu_lR_vdw_drho_lR, use_custom_dmu_lR_vdw_dpL,
                 dmu_lR_vdw_dpL,
+                vkp->potential_role_mapping,
                 use_fd_jacobian_for_direct_macro_derivative,
                 fd_jacobian_perturbation);
             maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,

@@ -113,6 +113,38 @@ AddTest(
 )
 
 AddTest(
+    NAME RichardsMechanics_beacon_1a01_vk_notebook_roles_smoke
+    PATH RichardsMechanics
+    EXECUTABLE ogs
+    RUNTIME 20
+    EXECUTABLE_ARGS beacon_1a01_vk_notebook_roles.prj
+    WRAPPER time
+    REQUIREMENTS NOT OGS_USE_MPI
+)
+
+AddTest(
+    NAME RichardsMechanics_beacon_1a01_vk_notebook_roles_reference
+    PATH RichardsMechanics
+    EXECUTABLE ogs
+    RUNTIME 20
+    EXECUTABLE_ARGS beacon_1a01_vk_notebook_roles.prj
+    WRAPPER time
+    TESTER vtkdiff
+    REQUIREMENTS NOT OGS_USE_MPI
+    DIFF_DATA
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu displacement displacement 1e-16 0
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu pressure pressure 1e-16 1e-12
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu saturation saturation 1e-14 0
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu micro_pressure micro_pressure 1e-16 1e-12
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu micro_saturation micro_saturation 1e-14 0
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu vk_micro_water_content vk_micro_water_content 1e-16 0
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu vk_micro_porosity vk_micro_porosity 1e-16 0
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu vk_micro_exchange_source vk_micro_exchange_source 1e-16 0
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu swelling_stress swelling_stress 1e-16 0
+    beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu sigma sigma 1e-16 1e-10
+)
+
+AddTest(
     NAME RichardsMechanics_beacon_1a01_vk_no_satmicro_smoke
     PATH RichardsMechanics
     EXECUTABLE ogs
