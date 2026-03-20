@@ -764,6 +764,43 @@ TEST(RichardsMechanics, VKNotebookAdditiveMacroPorosityRateUpdate)
     EXPECT_GT(split.phi_M + split.phi_m, phi_M_prev + phi_m_prev);
 }
 
+TEST(RichardsMechanics, VKCurrentPorositySplitMicroSolidFractionMode)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.hamaker_constant = 6.0e-20;
+    vkp.specific_surface = 4000.0;
+    vkp.micro_solid_density_reference = 2650.0;
+    vkp.micro_solid_volume_fraction_reference = 0.6;
+    vkp.micro_solid_volume_fraction_mode =
+        VKMicroSolidVolumeFractionMode::CurrentPorositySplit;
+    vkp.macro_porosity_update_mode = VKMacroPorosityUpdateMode::AlgebraicSplit;
+    vkp.initial_micro_water_content = 0.1;
+
+    double const n_l = 0.1;
+    double const rho_LR = 1000.0;
+    VKLocalSolveContext const local_context{
+        .phi = 0.25,
+        .phi_M_prev = 0.15,
+        .phi_m_prev = 0.1,
+        .volumetric_strain = 0.0,
+        .volumetric_strain_prev = 0.0};
+
+    auto const active_nS =
+        computeVKActiveMicroSolidVolumeFraction(n_l, local_context, vkp);
+    EXPECT_NEAR(active_nS, 0.75, 1e-12);
+
+    auto const active_output = computeVKCompatibilityMicroHydraulicOutput(
+        n_l, rho_LR, local_context, vkp);
+    auto const reference_output =
+        computeVKCompatibilityMicroHydraulicOutput(n_l, rho_LR, vkp);
+
+    double const expected_ratio =
+        std::pow(active_nS / vkp.micro_solid_volume_fraction_reference, 3.0);
+    EXPECT_NEAR(active_output.micro_potential.mu_lR /
+                    reference_output.micro_potential.mu_lR,
+                expected_ratio, 1e-12);
+}
+
 TEST(RichardsMechanics, VKScalarNotebookStorageLocalSolveReferencePath)
 {
     VKPotentialExchangeParameters vkp;

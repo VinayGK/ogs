@@ -26,6 +26,7 @@
                 <initial_micro_water_content>0.1</initial_micro_water_content>
                 <local_nonlinear_solve_mode>scalar_notebook_storage</local_nonlinear_solve_mode>
                 <macro_porosity_update_mode>notebook_additive_rate</macro_porosity_update_mode>
+                <micro_solid_volume_fraction_mode>current_porosity_split</micro_solid_volume_fraction_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>

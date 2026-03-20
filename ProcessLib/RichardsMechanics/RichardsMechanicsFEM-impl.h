@@ -401,6 +401,8 @@ struct VKTransportPorosityUpdateData
 struct VKLocalSolveContext
 {
     double phi = std::numeric_limits<double>::infinity();
+    double phi_M_prev = 0.0;
+    double phi_m_prev = 0.0;
     double volumetric_strain = 0.0;
     double volumetric_strain_prev = 0.0;
 };
@@ -462,6 +464,59 @@ inline VKTransportPorosityUpdateData computeVKTransportPorosityUpdate(
     };
 }
 
+inline double computeVKActiveMicroSolidVolumeFraction(
+    double const n_l, VKLocalSolveContext const& local_context,
+    VKPotentialExchangeParameters const& vkp)
+{
+    if (vkp.micro_solid_volume_fraction_mode ==
+        VKMicroSolidVolumeFractionMode::Reference)
+    {
+        return std::max(1e-16, vkp.micro_solid_volume_fraction_reference);
+    }
+
+    auto const split = computeVKTransportPorosityUpdate(
+        local_context.phi, local_context.phi_M_prev, local_context.phi_m_prev,
+        n_l, local_context.volumetric_strain,
+        local_context.volumetric_strain_prev,
+        vkp.macro_porosity_update_mode);
+    return std::max(1e-16, 1.0 - split.phi_M - split.phi_m);
+}
+
+inline VanDerWaalsMicroPotentialData computeVKActiveMicroPotential(
+    double const n_l, double const rho_lR,
+    VKLocalSolveContext const& local_context,
+    VKPotentialExchangeParameters const& vkp)
+{
+    double const active_nS =
+        computeVKActiveMicroSolidVolumeFraction(n_l, local_context, vkp);
+    return computeVanDerWaalsMicroPotential(
+        n_l, rho_lR, active_nS, vkp.micro_solid_density_reference,
+        vkp.hamaker_constant, vkp.specific_surface,
+        vkMicroPotentialSignFactor(vkp));
+}
+
+inline VKCompatibilityMicroHydraulicOutputData
+computeVKCompatibilityMicroHydraulicOutput(
+    double const n_l, double const rho_LR,
+    VKLocalSolveContext const& local_context,
+    VKPotentialExchangeParameters const& vkp)
+{
+    double const n_l_safe = std::max(1e-16, n_l);
+    double const n_l_ref = std::max(
+        1e-16, vkp.initial_micro_water_content.value_or(
+                   vkp.micro_solid_volume_fraction_reference));
+
+    auto const micro_potential =
+        computeVKActiveMicroPotential(n_l_safe, rho_LR, local_context, vkp);
+
+    return {
+        .p_L_m = -rho_LR * micro_potential.mu_lR,
+        .S_L_m = n_l_safe / n_l_ref,
+        .n_l_ref = n_l_ref,
+        .micro_potential = micro_potential,
+    };
+}
+
 inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     double const n_l_prev, double const dt, double const rho_LR,
     double const alpha_bar, double const mu,
@@ -488,10 +543,8 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
 
     auto eval_at = [&](double const n_l)
     {
-        auto const micro_potential = computeVanDerWaalsMicroPotential(
-            n_l, rho_LR, vkp.micro_solid_volume_fraction_reference,
-            vkp.micro_solid_density_reference, vkp.hamaker_constant,
-            vkp.specific_surface, vkMicroPotentialSignFactor(vkp));
+        auto const micro_potential =
+            computeVKActiveMicroPotential(n_l, rho_LR, local_context, vkp);
         auto const exchange = computePotentialDrivenMassExchange(
             alpha_M_effective, macro_potential.mu_LR, micro_potential.mu_lR);
         return std::pair{micro_potential, exchange};
@@ -787,7 +840,7 @@ inline void updateVKMicroscaleHydraulicState(
     auto& S_L_m = std::get<MicroSaturation>(SD);
     auto& rho_l_hat = std::get<VKMicroExchangeSource>(SD);
     auto const compatibility_output = computeVKCompatibilityMicroHydraulicOutput(
-        n_l_update.n_l, rho_LR, vkp);
+        n_l_update.n_l, rho_LR, local_context, vkp);
     *p_L_m = compatibility_output.p_L_m;
     *S_L_m = compatibility_output.S_L_m;
     rho_l_hat = VKMicroExchangeSource{n_l_update.exchange.rho_l_hat};
@@ -1390,13 +1443,27 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
             if (isVKPotentialExchangeEnabled(vkp))
             {
+                auto const porosity =
+                    std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(
+                        this->current_states_[ip])
+                        .phi;
+                auto const transport_porosity_init =
+                    std::get<ProcessLib::ThermoRichardsMechanics::
+                                 TransportPorosityData>(this->current_states_[ip])
+                        .phi;
                 auto const rho_LR_initial =
                     medium->phase("AqueousLiquid")
                         .property(MPL::PropertyType::density)
                         .template value<double>(variables, x_position, t, dt);
                 auto const compatibility_output =
                     computeVKCompatibilityMicroHydraulicOutput(
-                        n_l_initial, rho_LR_initial, *vkp);
+                        n_l_initial, rho_LR_initial,
+                        {.phi = porosity,
+                         .phi_M_prev = transport_porosity_init,
+                         .phi_m_prev = n_l_initial,
+                         .volumetric_strain = 0.0,
+                         .volumetric_strain_prev = 0.0},
+                        *vkp);
                 auto& p_L_m =
                     std::get<MicroPressure>(this->current_states_[ip]);
                 auto& p_L_m_prev =
@@ -1419,10 +1486,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 auto& transport_porosity_prev = std::get<PrevState<
                     ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(
                     this->prev_states_[ip]);
-                auto const porosity =
-                    std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(
-                        this->current_states_[ip])
-                        .phi;
                 auto const transport_porosity_update =
                     computeVKTransportPorosityUpdate(
                         porosity, transport_porosity, n_l_initial, n_l_initial,
@@ -1912,10 +1975,21 @@ void RichardsMechanicsLocalAssembler<
                     std::max(1e-16,
                              *std::get<VKMicroWaterContent>(
                                  this->current_states_[ip]));
-                auto const micro_potential = computeVanDerWaalsMicroPotential(
-                    n_l, rho_LR, vkp->micro_solid_volume_fraction_reference,
-                    vkp->micro_solid_density_reference, vkp->hamaker_constant,
-                    vkp->specific_surface, vkMicroPotentialSignFactor(*vkp));
+                auto const transport_porosity_prev =
+                    std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                           TransportPorosityData>>(
+                        this->prev_states_[ip])
+                        ->phi;
+                auto const n_l_prev = **std::get<PrevState<VKMicroWaterContent>>(
+                    this->prev_states_[ip]);
+                VKLocalSolveContext const local_solve_context{
+                    .phi = phi,
+                    .phi_M_prev = transport_porosity_prev,
+                    .phi_m_prev = n_l_prev,
+                    .volumetric_strain = variables.volumetric_strain,
+                    .volumetric_strain_prev = variables_prev.volumetric_strain};
+                auto const micro_potential = computeVKActiveMicroPotential(
+                    n_l, rho_LR, local_solve_context, *vkp);
                 use_vdw_micro_potential_for_active_exchange = true;
                 mu_lR_vdw = micro_potential.mu_lR;
                 dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
@@ -2151,9 +2225,17 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             S_L_m_prev, p_L_m, S_L_m);
     }
 
+    auto const transport_porosity_prev_value = std::get<PrevState<
+        ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(SD_prev)
+                                                    ->phi;
+    auto const n_l_prev_value =
+        **std::get<PrevState<VKMicroWaterContent>>(SD_prev);
+
     updateVKMicroscaleHydraulicState<DisplacementDim>(
         SD, SD_prev, p_cap_ip, rho_LR, mu, dt,
         {.phi = phi,
+         .phi_M_prev = transport_porosity_prev_value,
+         .phi_m_prev = n_l_prev_value,
          .volumetric_strain = variables.volumetric_strain,
          .volumetric_strain_prev = variables_prev.volumetric_strain},
         micro_porosity_parameters, vk_potential_exchange_parameters);
@@ -2670,21 +2752,27 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     std::max(1e-16,
                              *std::get<VKMicroWaterContent>(
                                  this->current_states_[ip]));
-
-                auto const micro_potential = computeVanDerWaalsMicroPotential(
-                    n_l, rho_LR, vkp->micro_solid_volume_fraction_reference,
-                    vkp->micro_solid_density_reference, vkp->hamaker_constant,
-                    vkp->specific_surface, vkMicroPotentialSignFactor(*vkp));
+                auto const transport_porosity_prev =
+                    std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                           TransportPorosityData>>(
+                        this->prev_states_[ip])
+                        ->phi;
+                auto const n_l_prev = **std::get<PrevState<VKMicroWaterContent>>(
+                    this->prev_states_[ip]);
+                VKLocalSolveContext const local_solve_context{
+                    .phi = phi,
+                    .phi_M_prev = transport_porosity_prev,
+                    .phi_m_prev = n_l_prev,
+                    .volumetric_strain = variables.volumetric_strain,
+                    .volumetric_strain_prev = variables_prev.volumetric_strain};
+                auto const micro_potential = computeVKActiveMicroPotential(
+                    n_l, rho_LR, local_solve_context, *vkp);
                 use_vdw_micro_potential_for_active_exchange = true;
                 mu_lR_vdw = micro_potential.mu_lR;
                 dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
                 use_fd_jacobian_for_direct_macro_derivative =
                     vkp->use_fd_jacobian_for_exchange;
                 fd_jacobian_perturbation = vkp->fd_jacobian_perturbation;
-                VKLocalSolveContext const local_solve_context{
-                    .phi = phi,
-                    .volumetric_strain = variables.volumetric_strain,
-                    .volumetric_strain_prev = variables_prev.volumetric_strain};
 
                 // In analytic mode, include implicit n_l(p_L) chain coupling
                 // in dmu_lR/dp_L for the active exchange Jacobian term.
@@ -3043,10 +3131,20 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 transport_porosity, p_L_m_prev, S_L_m_prev, p_L_m, S_L_m);
         }
 
+        auto const transport_porosity_prev_value = std::get<PrevState<
+            ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(
+            this->prev_states_[ip])
+                                                        ->phi;
+        auto const n_l_prev_value =
+            **std::get<PrevState<VKMicroWaterContent>>(
+                this->prev_states_[ip]);
+
         updateVKMicroscaleHydraulicState<DisplacementDim>(
             this->current_states_[ip], this->prev_states_[ip], p_cap_ip,
             rho_LR, mu, dt,
             {.phi = phi,
+             .phi_M_prev = transport_porosity_prev_value,
+             .phi_m_prev = n_l_prev_value,
              .volumetric_strain = variables.volumetric_strain,
              .volumetric_strain_prev = variables_prev.volumetric_strain},
             this->process_data_.micro_porosity_parameters,

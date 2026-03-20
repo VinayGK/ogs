@@ -30,6 +30,12 @@ enum class VKMacroPorosityUpdateMode
     NotebookAdditiveRate
 };
 
+enum class VKMicroSolidVolumeFractionMode
+{
+    Reference,
+    CurrentPorositySplit
+};
+
 inline constexpr char const* toString(
     VKMicroPotentialConvention const convention)
 {
@@ -74,6 +80,19 @@ inline constexpr char const* toString(VKMacroPorosityUpdateMode const mode)
     return "unknown";
 }
 
+inline constexpr char const* toString(
+    VKMicroSolidVolumeFractionMode const mode)
+{
+    switch (mode)
+    {
+        case VKMicroSolidVolumeFractionMode::Reference:
+            return "reference";
+        case VKMicroSolidVolumeFractionMode::CurrentPorositySplit:
+            return "current_porosity_split";
+    }
+    return "unknown";
+}
+
 struct VKPotentialExchangeParameters
 {
     bool enabled = false;
@@ -93,6 +112,8 @@ struct VKPotentialExchangeParameters
         VKLocalNonlinearSolveMode::ScalarExchange;
     VKMacroPorosityUpdateMode macro_porosity_update_mode =
         VKMacroPorosityUpdateMode::AlgebraicSplit;
+    VKMicroSolidVolumeFractionMode micro_solid_volume_fraction_mode =
+        VKMicroSolidVolumeFractionMode::Reference;
 
     // Optional GP-local n_l initialization (future full 2C path).
     std::optional<double> initial_micro_water_content;
