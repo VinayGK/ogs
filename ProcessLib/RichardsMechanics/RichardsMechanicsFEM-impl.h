@@ -406,20 +406,59 @@ struct VKLocalSolveContext
 };
 
 inline VKTransportPorosityUpdateData computeVKTransportPorosityUpdate(
-    double const phi, double const phi_prev, double const n_l,
-    double const n_l_prev)
+    double const phi, double const phi_M_prev, double const phi_m_prev,
+    double const n_l, double const volumetric_strain,
+    double const volumetric_strain_prev,
+    VKMacroPorosityUpdateMode const macro_porosity_update_mode)
 {
     double const phi_safe = std::max(0.0, phi);
-    double const phi_prev_safe = std::max(0.0, phi_prev);
+    double const phi_M_prev_safe = std::max(0.0, phi_M_prev);
+    double const phi_m_prev_safe = std::max(0.0, phi_m_prev);
 
-    double const phi_m = std::clamp(n_l, 0.0, phi_safe);
-    double const phi_m_prev = std::clamp(n_l_prev, 0.0, phi_prev_safe);
+    if (macro_porosity_update_mode ==
+        VKMacroPorosityUpdateMode::AlgebraicSplit)
+    {
+        double const phi_m = std::clamp(n_l, 0.0, phi_safe);
+        return {
+            .phi_M = phi_safe - phi_m,
+            .phi_M_prev = phi_M_prev_safe,
+            .phi_m = phi_m,
+            .phi_m_prev = phi_m_prev_safe,
+        };
+    }
+
+    double const phi_m = std::clamp(n_l, 0.0, 1.0);
+    double const delta_eps_v = volumetric_strain - volumetric_strain_prev;
+    double const denominator = 1.0 + delta_eps_v;
+
+    if (!(std::isfinite(denominator) && std::abs(denominator) > 1e-12))
+    {
+        static std::once_flag once;
+        std::call_once(once, []
+        {
+            WARN(
+                "[RM Phase6I] notebook_additive_rate porosity update encountered a near-singular denominator and fell back to algebraic_split at least once.");
+        });
+        return {
+            .phi_M = std::max(0.0, phi_safe - phi_m),
+            .phi_M_prev = phi_M_prev_safe,
+            .phi_m = phi_m,
+            .phi_m_prev = phi_m_prev_safe,
+        };
+    }
+
+    double const phi_M_candidate =
+        (phi_M_prev_safe + (1.0 - phi_m) * delta_eps_v -
+         (phi_m - phi_m_prev_safe)) /
+        denominator;
+    double const phi_M =
+        std::clamp(phi_M_candidate, 0.0, std::max(0.0, 1.0 - phi_m));
 
     return {
-        .phi_M = phi_safe - phi_m,
-        .phi_M_prev = phi_prev_safe - phi_m_prev,
+        .phi_M = phi_M,
+        .phi_M_prev = phi_M_prev_safe,
         .phi_m = phi_m,
-        .phi_m_prev = phi_m_prev,
+        .phi_m_prev = phi_m_prev_safe,
     };
 }
 
@@ -770,18 +809,17 @@ inline void updateVKPorositySplitState(
     auto& transport_porosity =
         std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(SD)
             .phi;
-    auto const phi_prev =
-        std::get<
-            PrevState<ProcessLib::ThermoRichardsMechanics::PorosityData>>(
-            SD_prev)
-            ->phi;
+    auto const phi_M_prev = std::get<PrevState<
+        ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(SD_prev)
+                                ->phi;
+    auto const phi_m_prev = **std::get<PrevState<VKMicroPorosity>>(SD_prev);
     auto const n_l = std::max(1e-16, *std::get<VKMicroWaterContent>(SD));
-    auto const n_l_prev =
-        std::max(1e-16,
-                 **std::get<PrevState<VKMicroWaterContent>>(SD_prev));
 
     auto const transport_porosity_update =
-        computeVKTransportPorosityUpdate(phi, phi_prev, n_l, n_l_prev);
+        computeVKTransportPorosityUpdate(
+            phi, phi_M_prev, phi_m_prev, n_l, variables.volumetric_strain,
+            variables_prev.volumetric_strain,
+            vk_potential_exchange_parameters->macro_porosity_update_mode);
 
     *micro_porosity = transport_porosity_update.phi_m;
     transport_porosity = transport_porosity_update.phi_M;
@@ -1387,7 +1425,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         .phi;
                 auto const transport_porosity_update =
                     computeVKTransportPorosityUpdate(
-                        porosity, porosity, n_l_initial, n_l_initial);
+                        porosity, transport_porosity, n_l_initial, n_l_initial,
+                        /*volumetric_strain=*/0.0,
+                        /*volumetric_strain_prev=*/0.0,
+                        vkp->macro_porosity_update_mode);
                 *phi_m = transport_porosity_update.phi_m;
                 **phi_m_prev = transport_porosity_update.phi_m_prev;
                 transport_porosity = transport_porosity_update.phi_M;

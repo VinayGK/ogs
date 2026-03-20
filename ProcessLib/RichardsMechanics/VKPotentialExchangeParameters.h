@@ -24,6 +24,12 @@ enum class VKLocalNonlinearSolveMode
     ScalarNotebookStorage
 };
 
+enum class VKMacroPorosityUpdateMode
+{
+    AlgebraicSplit,
+    NotebookAdditiveRate
+};
+
 inline constexpr char const* toString(
     VKMicroPotentialConvention const convention)
 {
@@ -56,6 +62,18 @@ inline constexpr char const* toString(VKLocalNonlinearSolveMode const mode)
     return "unknown";
 }
 
+inline constexpr char const* toString(VKMacroPorosityUpdateMode const mode)
+{
+    switch (mode)
+    {
+        case VKMacroPorosityUpdateMode::AlgebraicSplit:
+            return "algebraic_split";
+        case VKMacroPorosityUpdateMode::NotebookAdditiveRate:
+            return "notebook_additive_rate";
+    }
+    return "unknown";
+}
+
 struct VKPotentialExchangeParameters
 {
     bool enabled = false;
@@ -73,6 +91,8 @@ struct VKPotentialExchangeParameters
         VKMicroPotentialConvention::PositiveReduced;
     VKLocalNonlinearSolveMode local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarExchange;
+    VKMacroPorosityUpdateMode macro_porosity_update_mode =
+        VKMacroPorosityUpdateMode::AlgebraicSplit;
 
     // Optional GP-local n_l initialization (future full 2C path).
     std::optional<double> initial_micro_water_content;

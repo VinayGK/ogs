@@ -94,6 +94,25 @@ VKLocalNonlinearSolveMode parseVKLocalNonlinearSolveMode(
         mode);
 }
 
+VKMacroPorosityUpdateMode parseVKMacroPorosityUpdateMode(
+    std::string const& mode)
+{
+    if (mode == "algebraic_split")
+    {
+        return VKMacroPorosityUpdateMode::AlgebraicSplit;
+    }
+    if (mode == "notebook_additive_rate")
+    {
+        return VKMacroPorosityUpdateMode::NotebookAdditiveRate;
+    }
+
+    OGS_FATAL(
+        "RichardsMechanics: unsupported vk_potential_exchange "
+        "macro_porosity_update_mode '{}'. Currently supported: "
+        "'algebraic_split', 'notebook_additive_rate'.",
+        mode);
+}
+
 VKPotentialExchangeMode parseVKPotentialExchangeMode(std::string const& mode)
 {
     if (mode == "full_potential")
@@ -153,13 +172,14 @@ void logPhase0TransitionAudit(
     {
         auto const& vkp = *vk_potential_exchange_parameters;
         INFO(
-            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, micro_potential_convention='{}', local_nonlinear_solve_mode='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={}, vdw_relaxation_stress_gain={}, micro_water_content_stress_gain={}, micro_water_content_swelling_slope={} ).",
+            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, micro_potential_convention='{}', local_nonlinear_solve_mode='{}', macro_porosity_update_mode='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={}, vdw_relaxation_stress_gain={}, micro_water_content_stress_gain={}, micro_water_content_swelling_slope={} ).",
             vkp.enabled ? "true" : "false", toString(vkp.mode),
             vkp.pressure_tolerance, vkp.hamaker_constant, vkp.specific_surface,
             vkp.micro_solid_density_reference,
             vkp.micro_solid_volume_fraction_reference,
             toString(vkp.micro_potential_convention),
             toString(vkp.local_nonlinear_solve_mode),
+            toString(vkp.macro_porosity_update_mode),
             vkp.initial_micro_water_content
                 ? std::to_string(*vkp.initial_micro_water_content)
                 : std::string{"<unset>"},
@@ -348,6 +368,11 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
             "local_nonlinear_solve_mode",
             defaults ? toString(defaults->local_nonlinear_solve_mode)
                      : "scalar_exchange"));
+    auto const macro_porosity_update_mode = parseVKMacroPorosityUpdateMode(
+        config.getConfigParameter<std::string>(
+            "macro_porosity_update_mode",
+            defaults ? toString(defaults->macro_porosity_update_mode)
+                     : "algebraic_split"));
 
     auto get_positive_required_or_default =
         [&](char const* const key, double const fallback)
@@ -522,6 +547,7 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
         micro_solid_volume_fraction_reference,
         micro_potential_convention,
         local_nonlinear_solve_mode,
+        macro_porosity_update_mode,
         initial_micro_water_content,
         use_fd_jacobian_for_exchange,
         fd_jacobian_perturbation,

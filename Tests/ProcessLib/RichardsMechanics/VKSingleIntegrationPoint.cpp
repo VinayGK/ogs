@@ -387,7 +387,10 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
                                     reference.S_L_m));
 
     auto const transport_porosity_update =
-        computeVKTransportPorosityUpdate(phi, phi_prev, ogs_update.n_l, n_l_prev);
+        computeVKTransportPorosityUpdate(
+            phi, phi_prev - n_l_prev, n_l_prev, ogs_update.n_l,
+            /*volumetric_strain=*/0.0, /*volumetric_strain_prev=*/0.0,
+            VKMacroPorosityUpdateMode::AlgebraicSplit);
     EXPECT_NEAR(transport_porosity_update.phi_M, reference.phi_M,
                 comparisonTolerance(transport_porosity_update.phi_M,
                                     reference.phi_M));
@@ -716,7 +719,9 @@ TEST(RichardsMechanics, VKNotebookMicroPorositySwellingStressIncrement)
 
 TEST(RichardsMechanics, VKTransportPorositySplitRecomposesTotalPorosity)
 {
-    auto const split = computeVKTransportPorosityUpdate(0.4, 0.35, 0.1, 0.08);
+    auto const split = computeVKTransportPorosityUpdate(
+        0.4, 0.27, 0.08, 0.1, 0.0, 0.0,
+        VKMacroPorosityUpdateMode::AlgebraicSplit);
 
     EXPECT_NEAR(split.phi_m, 0.1, 1e-14);
     EXPECT_NEAR(split.phi_M, 0.3, 1e-14);
@@ -725,10 +730,38 @@ TEST(RichardsMechanics, VKTransportPorositySplitRecomposesTotalPorosity)
     EXPECT_NEAR(split.phi_M + split.phi_m, 0.4, 1e-14);
     EXPECT_NEAR(split.phi_M_prev + split.phi_m_prev, 0.35, 1e-14);
 
-    auto const clamped = computeVKTransportPorosityUpdate(0.25, 0.2, 0.4, 0.3);
+    auto const clamped = computeVKTransportPorosityUpdate(
+        0.25, 0.0, 0.2, 0.4, 0.0, 0.0,
+        VKMacroPorosityUpdateMode::AlgebraicSplit);
     EXPECT_NEAR(clamped.phi_m, 0.25, 1e-14);
     EXPECT_NEAR(clamped.phi_M, 0.0, 1e-14);
     EXPECT_NEAR(clamped.phi_M + clamped.phi_m, 0.25, 1e-14);
+}
+
+TEST(RichardsMechanics, VKNotebookAdditiveMacroPorosityRateUpdate)
+{
+    double const phi_M_prev = 0.30;
+    double const phi_m_prev = 0.10;
+    double const phi_m = 0.11;
+    double const volumetric_strain_prev = 0.0;
+    double const volumetric_strain = 1.0e-3;
+
+    auto const split = computeVKTransportPorosityUpdate(
+        0.4, phi_M_prev, phi_m_prev, phi_m, volumetric_strain,
+        volumetric_strain_prev,
+        VKMacroPorosityUpdateMode::NotebookAdditiveRate);
+
+    double const delta_eps_v = volumetric_strain - volumetric_strain_prev;
+    double const expected_phi_M =
+        (phi_M_prev + (1.0 - phi_m) * delta_eps_v - (phi_m - phi_m_prev)) /
+        (1.0 + delta_eps_v);
+
+    EXPECT_NEAR(split.phi_m, phi_m, 1e-14);
+    EXPECT_NEAR(split.phi_m_prev, phi_m_prev, 1e-14);
+    EXPECT_NEAR(split.phi_M_prev, phi_M_prev, 1e-14);
+    EXPECT_NEAR(split.phi_M, expected_phi_M, 1e-14);
+    EXPECT_NEAR(split.phi_M + split.phi_m, expected_phi_M + phi_m, 1e-14);
+    EXPECT_GT(split.phi_M + split.phi_m, phi_M_prev + phi_m_prev);
 }
 
 TEST(RichardsMechanics, VKScalarNotebookStorageLocalSolveReferencePath)
