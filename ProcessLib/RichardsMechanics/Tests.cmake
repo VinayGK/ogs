@@ -144,6 +144,25 @@ AddTest(
     beacon_1a01_vk_notebook_roles_reference_t_10000.000000.vtu beacon_1a01_vk_notebook_roles_t_10000.000000.vtu sigma sigma 1e-16 1e-10
 )
 
+add_test(
+    NAME ogs-RichardsMechanics_beacon_1a01_vk_notebook_roles_history
+    COMMAND
+        ${CMAKE_COMMAND}
+        -DPYTHON_EXECUTABLE=${Python_EXECUTABLE}
+        -DPROJECT_SOURCE_DIR=${PROJECT_SOURCE_DIR}
+        -DBINARY_DIR=${Data_BINARY_DIR}/RichardsMechanics
+        -DSOURCE_CSV=${Data_SOURCE_DIR}/RichardsMechanics/beacon_1a01_vk_notebook_roles_history.csv
+        -DOUTPUT_CSV=${Data_BINARY_DIR}/RichardsMechanics/beacon_1a01_vk_notebook_roles_history.csv
+        -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/VKHistoryExtraction.cmake
+    WORKING_DIRECTORY ${Data_BINARY_DIR}/RichardsMechanics
+)
+set_tests_properties(
+    ogs-RichardsMechanics_beacon_1a01_vk_notebook_roles_history
+    PROPERTIES
+        DEPENDS ogs-RichardsMechanics_beacon_1a01_vk_notebook_roles_reference-time
+        LABELS "RichardsMechanics;default;small;tester"
+)
+
 AddTest(
     NAME RichardsMechanics_beacon_1a01_vk_no_satmicro_smoke
     PATH RichardsMechanics
