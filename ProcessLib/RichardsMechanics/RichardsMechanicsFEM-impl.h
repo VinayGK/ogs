@@ -659,6 +659,379 @@ inline VKReducedMicroLiquidDensityData computeVKPreviousMicroLiquidDensity(
                                               vkp);
 }
 
+struct VKNotebookMassStorageCoupledSolveData
+{
+    double n_l = 0.0;
+    double rho_lR = 0.0;
+    VanDerWaalsMicroPotentialData micro_potential;
+    PotentialDrivenMassExchangeData exchange;
+    bool converged = true;
+};
+
+inline VKNotebookMassStorageCoupledSolveData
+solveVKNotebookMassStoragePredictorState(
+    double const n_l_prev, double const rho_l_prev, double const rho_lR_prev,
+    double const dt, double const rho_LR, double const alpha_bar,
+    double const mu, YoungLaplaceMacroPotentialData const& macro_potential,
+    VKLocalSolveContext const& local_context,
+    VKPotentialExchangeParameters const& vkp)
+{
+    constexpr double n_l_floor = 1e-16;
+    constexpr double rho_floor = 1e-16;
+    double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
+    double const alpha_M_effective = alpha_bar * rho_LR / mu;
+    bool const use_notebook_role_mapping =
+        vkp.potential_role_mapping ==
+        VKPotentialExchangeRoleMapping::NotebookRoles;
+    double const volumetric_strain_rate =
+        dt_safe > 0.0
+            ? (local_context.volumetric_strain -
+               local_context.volumetric_strain_prev) /
+                  dt_safe
+            : 0.0;
+    double const n_l_ceiling = std::isfinite(local_context.phi)
+                                   ? std::max(n_l_floor, local_context.phi)
+                                   : std::numeric_limits<double>::infinity();
+
+    auto evaluate = [&](double const n_l)
+    {
+        double const active_nS = computeVKActiveMicroSolidVolumeFraction(
+            n_l, local_context, vkp);
+        auto const micro_potential = computeVanDerWaalsMicroPotential(
+            n_l, rho_LR, active_nS, vkp.micro_solid_density_reference,
+            vkp.hamaker_constant, vkp.specific_surface,
+            vkMicroPotentialSignFactor(vkp));
+        double const mu_LR_active = use_notebook_role_mapping
+                                        ? micro_potential.mu_lR
+                                        : macro_potential.mu_LR;
+        double const mu_lR_active = use_notebook_role_mapping
+                                        ? macro_potential.mu_LR
+                                        : micro_potential.mu_lR;
+        auto const exchange = computePotentialDrivenMassExchange(
+            alpha_M_effective, mu_LR_active, mu_lR_active);
+        auto const micro_liquid_density = computeVKReducedMicroLiquidDensity(
+            n_l, rho_LR, active_nS, vkp);
+        double const rho_l = n_l * micro_liquid_density.rho_lR;
+        double const residual = rho_l - rho_l_prev -
+                                dt_safe * exchange.rho_l_hat -
+                                dt_safe * rho_l * volumetric_strain_rate;
+        return std::tuple{residual, micro_potential, exchange,
+                          micro_liquid_density};
+    };
+
+    VKNotebookMassStorageCoupledSolveData out;
+    if (dt_safe <= 0.0)
+    {
+        out.n_l = std::clamp(n_l_prev, n_l_floor, n_l_ceiling);
+        out.rho_lR = std::max(rho_floor, rho_lR_prev);
+        auto const [residual, micro_potential, exchange, micro_density] =
+            evaluate(out.n_l);
+        (void)residual;
+        (void)micro_density;
+        out.micro_potential = micro_potential;
+        out.exchange = exchange;
+        return out;
+    }
+
+    double n_l = std::clamp(n_l_prev, n_l_floor, n_l_ceiling);
+    constexpr int max_iterations = 40;
+    constexpr double residual_tolerance = 1e-14;
+    constexpr double increment_tolerance = 1e-14;
+
+    for (int iter = 0; iter < max_iterations; ++iter)
+    {
+        auto const [residual, micro_potential, exchange, micro_density] =
+            evaluate(n_l);
+        if (std::abs(residual) <=
+            residual_tolerance * std::max(1.0, std::abs(rho_l_prev)))
+        {
+            out.n_l = n_l;
+            out.rho_lR = micro_density.rho_lR;
+            out.micro_potential = micro_potential;
+            out.exchange = exchange;
+            return out;
+        }
+
+        double const drho_l_hat_dn_l = use_notebook_role_mapping
+                                           ? exchange.drho_l_hat_dmu_LR *
+                                                 micro_potential.dmu_lR_dnl
+                                           : exchange.drho_l_hat_dmu_lR *
+                                                 micro_potential.dmu_lR_dnl;
+        double const jacobian = micro_density.drho_l_dn_l -
+                                dt_safe * drho_l_hat_dn_l -
+                                dt_safe * micro_density.drho_l_dn_l *
+                                    volumetric_strain_rate;
+        if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
+        {
+            break;
+        }
+
+        double delta_n_l = -residual / jacobian;
+        double n_l_candidate =
+            std::clamp(n_l + delta_n_l, n_l_floor, n_l_ceiling);
+        auto const [candidate_residual_initial, candidate_micro_potential,
+                    candidate_exchange, candidate_micro_density] =
+            evaluate(n_l_candidate);
+        double candidate_residual = candidate_residual_initial;
+        int backtracking_steps = 0;
+        while (std::abs(candidate_residual) > std::abs(residual) &&
+               backtracking_steps < 12)
+        {
+            delta_n_l *= 0.5;
+            n_l_candidate =
+                std::clamp(n_l + delta_n_l, n_l_floor, n_l_ceiling);
+            auto const [retry_residual, retry_micro_potential,
+                        retry_exchange, retry_micro_density] =
+                evaluate(n_l_candidate);
+            (void)retry_micro_potential;
+            (void)retry_exchange;
+            (void)retry_micro_density;
+            candidate_residual = retry_residual;
+            ++backtracking_steps;
+        }
+
+        if (std::abs(n_l_candidate - n_l) <=
+            increment_tolerance * std::max(1.0, std::abs(n_l)))
+        {
+            out.n_l = n_l_candidate;
+            auto const [final_residual, final_micro_potential, final_exchange,
+                        final_micro_density] =
+                evaluate(n_l_candidate);
+            (void)final_residual;
+            out.rho_lR = final_micro_density.rho_lR;
+            out.micro_potential = final_micro_potential;
+            out.exchange = final_exchange;
+            out.converged = true;
+            return out;
+        }
+
+        n_l = n_l_candidate;
+        out.n_l = n_l;
+        out.rho_lR = micro_density.rho_lR;
+        out.micro_potential = micro_potential;
+        out.exchange = exchange;
+    }
+
+    auto const [residual, micro_potential, exchange, micro_density] =
+        evaluate(n_l);
+    (void)residual;
+    out.n_l = n_l;
+    out.rho_lR = micro_density.rho_lR;
+    out.micro_potential = micro_potential;
+    out.exchange = exchange;
+    out.converged = false;
+    return out;
+}
+
+inline VKNotebookMassStorageCoupledSolveData
+solveVKNotebookMassStorageCoupledState(
+    double const n_l_prev, double const rho_l_prev, double const rho_lR_prev,
+    double const dt, double const rho_LR, double const alpha_bar,
+    double const mu, YoungLaplaceMacroPotentialData const& macro_potential,
+    VKLocalSolveContext const& local_context,
+    VKPotentialExchangeParameters const& vkp)
+{
+    constexpr double n_l_floor = 1e-16;
+    constexpr double rho_floor = 1e-16;
+    double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
+    double const alpha_M_effective = alpha_bar * rho_LR / mu;
+    bool const use_notebook_role_mapping =
+        vkp.potential_role_mapping ==
+        VKPotentialExchangeRoleMapping::NotebookRoles;
+    double const volumetric_strain_rate =
+        dt_safe > 0.0
+            ? (local_context.volumetric_strain -
+               local_context.volumetric_strain_prev) /
+                  dt_safe
+            : 0.0;
+    double const n_l_ceiling = std::isfinite(local_context.phi)
+                                    ? std::max(n_l_floor, local_context.phi)
+                                    : std::numeric_limits<double>::infinity();
+
+    auto evaluate = [&](double const n_l, double const rho_lR)
+    {
+        double const active_nS = computeVKActiveMicroSolidVolumeFraction(
+            n_l, local_context, vkp);
+        auto const micro_potential = computeVanDerWaalsMicroPotential(
+            n_l, rho_lR, active_nS, vkp.micro_solid_density_reference,
+            vkp.hamaker_constant, vkp.specific_surface,
+            vkMicroPotentialSignFactor(vkp));
+        double const mu_LR_active = use_notebook_role_mapping
+                                        ? micro_potential.mu_lR
+                                        : macro_potential.mu_LR;
+        double const mu_lR_active = use_notebook_role_mapping
+                                        ? macro_potential.mu_LR
+                                        : micro_potential.mu_lR;
+        auto const exchange = computePotentialDrivenMassExchange(
+            alpha_M_effective, mu_LR_active, mu_lR_active);
+        double const rho_l = n_l * rho_lR;
+        double const mass_residual = rho_l - rho_l_prev -
+                                     dt_safe * exchange.rho_l_hat -
+                                     dt_safe * rho_l * volumetric_strain_rate;
+        auto const density = computeVKReducedMicroLiquidDensity(
+            n_l, rho_LR, active_nS, vkp);
+        double const density_residual = rho_lR - density.rho_lR;
+        return std::tuple{mass_residual, density_residual, micro_potential,
+                          exchange};
+    };
+
+    auto const predictor = solveVKNotebookMassStoragePredictorState(
+        n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
+        macro_potential, local_context, vkp);
+    if (!predictor.converged)
+    {
+        return predictor;
+    }
+
+    VKNotebookMassStorageCoupledSolveData out = predictor;
+    if (dt_safe <= 0.0)
+    {
+        return out;
+    }
+
+    double n_l = predictor.n_l;
+    double rho_lR = predictor.rho_lR;
+    constexpr int max_iterations = 60;
+    constexpr double residual_tolerance = 1e-10;
+    constexpr double increment_tolerance = 1e-10;
+
+    for (int iter = 0; iter < max_iterations; ++iter)
+    {
+        auto const [mass_residual, density_residual, micro_potential, exchange] =
+            evaluate(n_l, rho_lR);
+
+        double const residual_norm =
+            std::abs(mass_residual) / std::max(1.0, std::abs(rho_l_prev)) +
+            std::abs(density_residual) / std::max(1.0, std::abs(rho_lR));
+        if (residual_norm <= residual_tolerance)
+        {
+            out.n_l = n_l;
+            out.rho_lR = rho_lR;
+            out.micro_potential = micro_potential;
+            out.exchange = exchange;
+            return out;
+        }
+
+        double const h_n = 1e-8 * std::max(1.0, std::abs(n_l));
+        double const h_rho = 1e-8 * std::max(1.0, std::abs(rho_lR));
+        auto const [r1_n_plus, r2_n_plus] =
+            [&]() {
+                auto const [r1, r2, _, __] = evaluate(n_l + h_n, rho_lR);
+                (void)_;
+                (void)__;
+                return std::pair{r1, r2};
+            }();
+        auto const [r1_n_minus, r2_n_minus] =
+            [&]() {
+                auto const [r1, r2, _, __] =
+                    evaluate(std::max(n_l_floor, n_l - h_n), rho_lR);
+                (void)_;
+                (void)__;
+                return std::pair{r1, r2};
+            }();
+        auto const [r1_rho_plus, r2_rho_plus] =
+            [&]() {
+                auto const [r1, r2, _, __] = evaluate(n_l, rho_lR + h_rho);
+                (void)_;
+                (void)__;
+                return std::pair{r1, r2};
+            }();
+        auto const [r1_rho_minus, r2_rho_minus] =
+            [&]() {
+                auto const [r1, r2, _, __] =
+                    evaluate(n_l, std::max(rho_floor, rho_lR - h_rho));
+                (void)_;
+                (void)__;
+                return std::pair{r1, r2};
+            }();
+
+        double const denom_n = (n_l + h_n) - std::max(n_l_floor, n_l - h_n);
+        double const denom_rho =
+            (rho_lR + h_rho) - std::max(rho_floor, rho_lR - h_rho);
+        if (!(denom_n > 0.0 && denom_rho > 0.0))
+        {
+            break;
+        }
+
+        double const J11 = (r1_n_plus - r1_n_minus) / denom_n;
+        double const J21 = (r2_n_plus - r2_n_minus) / denom_n;
+        double const J12 = (r1_rho_plus - r1_rho_minus) / denom_rho;
+        double const J22 = (r2_rho_plus - r2_rho_minus) / denom_rho;
+
+        double const det = J11 * J22 - J12 * J21;
+        if (!(std::isfinite(det) && std::abs(det) > 1e-24))
+        {
+            break;
+        }
+
+        double const delta_n = (-mass_residual * J22 +
+                                density_residual * J12) /
+                               det;
+        double const delta_rho = (J21 * mass_residual -
+                                  J11 * density_residual) /
+                                 det;
+
+        double step_scale = 1.0;
+        bool accepted = false;
+        for (int backtrack = 0; backtrack < 12; ++backtrack)
+        {
+            double const n_candidate =
+                std::clamp(n_l + step_scale * delta_n, n_l_floor, n_l_ceiling);
+            double const rho_candidate =
+                std::max(rho_floor, rho_lR + step_scale * delta_rho);
+            auto const [cand_mass_residual, cand_density_residual,
+                        cand_micro_potential, cand_exchange] =
+                evaluate(n_candidate, rho_candidate);
+            double const current_norm =
+                std::abs(mass_residual) /
+                    std::max(1.0, std::abs(rho_l_prev)) +
+                std::abs(density_residual) / std::max(1.0, std::abs(rho_lR));
+            double const candidate_norm =
+                std::abs(cand_mass_residual) /
+                    std::max(1.0, std::abs(rho_l_prev)) +
+                std::abs(cand_density_residual) /
+                    std::max(1.0, std::abs(rho_candidate));
+            if (candidate_norm <= current_norm || step_scale < 1e-3)
+            {
+                n_l = n_candidate;
+                rho_lR = rho_candidate;
+                out.n_l = n_l;
+                out.rho_lR = rho_lR;
+                out.micro_potential = cand_micro_potential;
+                out.exchange = cand_exchange;
+                accepted = true;
+                break;
+            }
+            step_scale *= 0.5;
+        }
+
+        if (!accepted)
+        {
+            break;
+        }
+
+        if (std::abs(step_scale * delta_n) <=
+                increment_tolerance * std::max(1.0, std::abs(n_l)) &&
+            std::abs(step_scale * delta_rho) <=
+                increment_tolerance * std::max(1.0, std::abs(rho_lR)))
+        {
+            out.converged = true;
+            return out;
+        }
+    }
+
+    auto const [mass_residual, density_residual, micro_potential, exchange] =
+        evaluate(n_l, rho_lR);
+    (void)mass_residual;
+    (void)density_residual;
+    out.n_l = n_l;
+    out.rho_lR = rho_lR;
+    out.micro_potential = micro_potential;
+    out.exchange = exchange;
+    out.converged = false;
+    return out.converged ? out : predictor;
+}
+
 inline VanDerWaalsMicroPotentialData computeVKActiveMicroPotential(
     double const n_l, double const rho_lR,
     VKLocalSolveContext const& local_context,
@@ -771,6 +1144,21 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
         (void)micro_liquid_density;
         out.micro_potential = micro_potential;
         out.exchange = exchange;
+        return out;
+    }
+
+    if (use_mass_storage)
+    {
+        auto const coupled_update = solveVKNotebookMassStorageCoupledState(
+            n_l_prev, rho_l_prev,
+            prev_micro_liquid_density ? prev_micro_liquid_density->rho_lR
+                                      : rho_LR,
+            dt_safe, rho_LR, alpha_M_effective, mu, macro_potential,
+            local_context, vkp);
+        out.n_l = coupled_update.n_l;
+        out.micro_potential = coupled_update.micro_potential;
+        out.exchange = coupled_update.exchange;
+        out.converged = coupled_update.converged;
         return out;
     }
 
