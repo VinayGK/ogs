@@ -1581,31 +1581,31 @@ inline void updateVKMicroscaleHydraulicState(
     }
 
     auto const& vkp = *vk_potential_exchange_parameters;
+    if (vkp.local_nonlinear_solve_mode ==
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage)
+    {
+        auto const macro_potential = computeYoungLaplaceMacroPotential(
+            -p_cap_ip, rho_LR, vkp.pressure_tolerance);
+        auto const prev_micro_liquid_density =
+            computeVKPreviousMicroLiquidDensity(
+                n_l_prev_value, rho_LR, local_context, vkp);
+        double const rho_l_prev = n_l_prev_value * prev_micro_liquid_density.rho_lR;
+        auto const coupled_update = solveVKNotebookMassStorageCoupledState(
+            n_l_prev_value, rho_l_prev, prev_micro_liquid_density.rho_lR, dt,
+            rho_LR, micro_porosity_parameters->mass_exchange_coefficient, mu,
+            macro_potential, local_context, vkp);
+        applyVKNotebookMassStorageLocalState<DisplacementDim>(
+            SD, SD_prev, variables, variables_prev, rho_LR, local_context, vkp,
+            coupled_update);
+        return;
+    }
+
     auto const macro_potential = computeYoungLaplaceMacroPotential(
         -p_cap_ip, rho_LR, vkp.pressure_tolerance);
     auto const n_l_update = solveVKImplicitMicroWaterContent(
         n_l_prev_value, dt, rho_LR,
         micro_porosity_parameters->mass_exchange_coefficient, mu,
         macro_potential, local_context, vkp);
-
-    if (vkp.local_nonlinear_solve_mode ==
-        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage)
-    {
-        applyVKNotebookMassStorageLocalState<DisplacementDim>(
-            SD, SD_prev, variables, variables_prev, rho_LR, local_context, vkp,
-            VKNotebookMassStorageCoupledSolveData{
-                .n_l = n_l_update.n_l,
-                .rho_lR = 0.0,
-                .phi_m = 0.0,
-                .phi_M = 0.0,
-                .p_L_m = 0.0,
-                .S_L_m = 0.0,
-                .micro_potential = n_l_update.micro_potential,
-                .exchange = n_l_update.exchange,
-                .converged = n_l_update.converged,
-            });
-        return;
-    }
 
     *n_l = n_l_update.n_l;
 
@@ -1783,6 +1783,50 @@ computeNotebookMicroPorositySwellingStressIncrement(
 }
 
 template <int DisplacementDim>
+inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
+computeVKSwellingStressIncrement(
+    double const phi_m_prev, double const phi_m, double const n_l_prev,
+    double const n_l, double const p_L_m_prev, double const p_L_m,
+    MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
+    VKPotentialExchangeParameters const& vkp)
+{
+    using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
+
+    bool const notebook_aligned =
+        vkp.potential_role_mapping ==
+        VKPotentialExchangeRoleMapping::NotebookRoles;
+
+    KV delta_sigma_sw = KV::Zero();
+    if (vkp.micro_water_content_swelling_slope > 0.0)
+    {
+        delta_sigma_sw +=
+            computeNotebookMicroPorositySwellingStressIncrement<
+                DisplacementDim>(phi_m_prev, phi_m, C_el, vkp);
+    }
+
+    if (notebook_aligned)
+    {
+        return delta_sigma_sw;
+    }
+
+    if (vkp.vdw_relaxation_stress_gain > 0.0)
+    {
+        delta_sigma_sw +=
+            computeVdWRelaxationStressIncrement<DisplacementDim>(
+                p_L_m_prev, p_L_m, vkp);
+    }
+
+    if (vkp.micro_water_content_stress_gain > 0.0)
+    {
+        delta_sigma_sw +=
+            computeMicroWaterContentStressIncrement<DisplacementDim>(
+                n_l_prev, n_l, vkp);
+    }
+
+    return delta_sigma_sw;
+}
+
+template <int DisplacementDim>
 inline void updateVKSwellingState(
     MaterialPropertyLib::Phase const& solid_phase,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
@@ -1799,12 +1843,6 @@ inline void updateVKSwellingState(
     }
 
     auto const& vkp = *vk_potential_exchange_parameters;
-    bool const use_notebook_phi_m_swelling =
-        vkp.micro_water_content_swelling_slope > 0.0;
-    bool const use_vdw_relaxation_gain = vkp.vdw_relaxation_stress_gain > 0.0;
-    bool const use_micro_water_gain =
-        vkp.micro_water_content_stress_gain > 0.0;
-
     (void)solid_phase;
     (void)x_position;
     (void)t;
@@ -1827,26 +1865,9 @@ inline void updateVKSwellingState(
                           SwellingDataStateful<DisplacementDim>>>(SD_prev);
 
     sigma_sw = *sigma_sw_prev;
-    if (use_notebook_phi_m_swelling)
-    {
-        sigma_sw.sigma_sw +=
-            computeNotebookMicroPorositySwellingStressIncrement<
-                DisplacementDim>(phi_m_prev, phi_m, C_el, vkp);
-    }
-
-    if (use_vdw_relaxation_gain)
-    {
-        sigma_sw.sigma_sw +=
-            computeVdWRelaxationStressIncrement<DisplacementDim>(
-                p_L_m_prev, p_L_m, vkp);
-    }
-
-    if (use_micro_water_gain)
-    {
-        sigma_sw.sigma_sw +=
-            computeMicroWaterContentStressIncrement<DisplacementDim>(
-                n_l_prev, n_l, vkp);
-    }
+    sigma_sw.sigma_sw +=
+        computeVKSwellingStressIncrement<DisplacementDim>(
+            phi_m_prev, phi_m, n_l_prev, n_l, p_L_m_prev, p_L_m, C_el, vkp);
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(

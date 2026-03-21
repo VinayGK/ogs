@@ -872,6 +872,38 @@ TEST(RichardsMechanics, VKNotebookMicroPorositySwellingStressIncrement)
     EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
 }
 
+TEST(RichardsMechanics, VKNotebookAlignedSwellingIgnoresExploratoryGains)
+{
+    using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
+    using KV = MathLib::KelvinVector::KelvinVectorType<2>;
+
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.potential_role_mapping = VKPotentialExchangeRoleMapping::NotebookRoles;
+    vkp.local_nonlinear_solve_mode =
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+    vkp.micro_water_content_swelling_slope = 0.1;
+    vkp.vdw_relaxation_stress_gain = 100.0;
+    vkp.micro_water_content_stress_gain = 100.0;
+
+    KM C_el = KM::Identity();
+    double const phi_m_prev = 0.2;
+    double const phi_m = 0.3;
+    double const n_l_prev = 0.2;
+    double const n_l = 0.3;
+    double const p_L_m_prev = 5.0;
+    double const p_L_m = 3.0;
+
+    KV const expected =
+        computeNotebookMicroPorositySwellingStressIncrement<2>(
+            phi_m_prev, phi_m, C_el, vkp);
+    KV const actual =
+        computeVKSwellingStressIncrement<2>(
+            phi_m_prev, phi_m, n_l_prev, n_l, p_L_m_prev, p_L_m, C_el, vkp);
+
+    EXPECT_NEAR((actual - expected).norm(), 0.0, 1e-14);
+}
+
 TEST(RichardsMechanics, VKTransportPorositySplitRecomposesTotalPorosity)
 {
     auto const split = computeVKTransportPorosityUpdate(
@@ -1059,6 +1091,8 @@ TEST(RichardsMechanics, VKScalarNotebookMassStorageLocalSolveReferencePath)
     vkp.micro_liquid_density_b = 1.0;
     vkp.micro_potential_convention =
         VKMicroPotentialConvention::NegativeAttractive;
+    vkp.potential_role_mapping =
+        VKPotentialExchangeRoleMapping::NotebookRoles;
     vkp.local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
     vkp.initial_micro_water_content = 0.03;
@@ -1103,6 +1137,172 @@ TEST(RichardsMechanics, VKScalarNotebookMassStorageLocalSolveReferencePath)
     EXPECT_NEAR(analytic_dn_l_dpL, reference_dn_l_dpL,
                 comparisonTolerance(analytic_dn_l_dpL, reference_dn_l_dpL,
                                     1e-6, 1e-12));
+}
+
+TEST(RichardsMechanics, VKNotebookMassStorageCoupledSolveResidual)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.pressure_tolerance = 0.0;
+    vkp.hamaker_constant = 6.0e-20;
+    vkp.specific_surface = 1000.0;
+    vkp.micro_solid_density_reference = 2650.0;
+    vkp.micro_solid_volume_fraction_reference = 0.6;
+    vkp.micro_liquid_density_reference = 1300.0;
+    vkp.micro_liquid_density_a = 1.3;
+    vkp.micro_liquid_density_b = 1.0;
+    vkp.micro_potential_convention =
+        VKMicroPotentialConvention::NegativeAttractive;
+    vkp.potential_role_mapping = VKPotentialExchangeRoleMapping::NotebookRoles;
+    vkp.local_nonlinear_solve_mode =
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+    vkp.initial_micro_water_content = 0.03;
+
+    double const p_L = 0.0;
+    double const n_l_prev = 0.03;
+    double const dt = 100.0;
+    double const rho_LR = 1000.0;
+    double const alpha_bar = 1.0e-9;
+    double const mu = 1.0e-3;
+    double const phi = 0.031;
+    double const volumetric_strain_prev = 0.0;
+    double const volumetric_strain = 1.0e-3;
+
+    auto const macro_potential =
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, vkp.pressure_tolerance);
+    VKLocalSolveContext const local_context{
+        .phi = phi,
+        .phi_M_prev = phi - n_l_prev,
+        .phi_m_prev = n_l_prev,
+        .volumetric_strain = volumetric_strain,
+        .volumetric_strain_prev = volumetric_strain_prev};
+    auto const prev_micro_liquid_density =
+        computeVKPreviousMicroLiquidDensity(n_l_prev, rho_LR, local_context,
+                                            vkp);
+    double const rho_l_prev = n_l_prev * prev_micro_liquid_density.rho_lR;
+
+    auto const coupled_update = solveVKNotebookMassStorageCoupledState(
+        n_l_prev, rho_l_prev, prev_micro_liquid_density.rho_lR, dt, rho_LR,
+        alpha_bar, mu, macro_potential, local_context, vkp);
+    ASSERT_TRUE(coupled_update.converged);
+
+    double const active_nS =
+        computeVKActiveMicroSolidVolumeFraction(coupled_update.n_l,
+                                                 local_context, vkp);
+    auto const micro_potential = computeVanDerWaalsMicroPotential(
+        coupled_update.n_l, coupled_update.rho_lR, active_nS,
+        vkp.micro_solid_density_reference, vkp.hamaker_constant,
+        vkp.specific_surface, vkMicroPotentialSignFactor(vkp));
+    double const mu_LR_active = micro_potential.mu_lR;
+    double const mu_lR_active = macro_potential.mu_LR;
+    double const alpha_M_effective = alpha_bar * rho_LR / mu;
+    auto const exchange = computePotentialDrivenMassExchange(
+        alpha_M_effective, mu_LR_active, mu_lR_active);
+
+    double const volumetric_strain_rate =
+        (volumetric_strain - volumetric_strain_prev) / dt;
+    double const rho_l = coupled_update.n_l * coupled_update.rho_lR;
+    double const mass_residual = rho_l - rho_l_prev -
+                                 dt * exchange.rho_l_hat -
+                                 dt * rho_l * volumetric_strain_rate;
+    auto const micro_density = computeVKReducedMicroLiquidDensity(
+        coupled_update.n_l, rho_LR, active_nS, vkp);
+    double const density_residual =
+        coupled_update.rho_lR - micro_density.rho_lR;
+
+    EXPECT_NEAR(mass_residual, 0.0, 1e-10);
+    EXPECT_NEAR(density_residual, 0.0, 1e-10);
+}
+
+TEST(RichardsMechanics, VKNotebookMassStorageCoupledSolveResiduals)
+{
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.pressure_tolerance = 0.0;
+    vkp.hamaker_constant = 6.0e-20;
+    vkp.specific_surface = 1000.0;
+    vkp.micro_solid_density_reference = 2650.0;
+    vkp.micro_solid_volume_fraction_reference = 0.6;
+    vkp.micro_liquid_density_reference = 1300.0;
+    vkp.micro_liquid_density_a = 1.3;
+    vkp.micro_liquid_density_b = 1.0;
+    vkp.micro_potential_convention =
+        VKMicroPotentialConvention::NegativeAttractive;
+    vkp.local_nonlinear_solve_mode =
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+    vkp.macro_porosity_update_mode =
+        VKMacroPorosityUpdateMode::NotebookAdditiveRate;
+    vkp.micro_solid_volume_fraction_mode =
+        VKMicroSolidVolumeFractionMode::CurrentPorositySplit;
+    vkp.initial_micro_water_content = 0.05;
+
+    double const p_L = 0.0;
+    double const n_l_prev = 0.05;
+    double const dt = 100.0;
+    double const rho_LR = 1000.0;
+    double const alpha_bar = 1.0e-9;
+    double const mu = 1.0e-3;
+    double const phi = 0.26;
+    double const phi_M_prev = 0.18;
+    double const phi_m_prev = 0.08;
+    double const volumetric_strain_prev = 0.0;
+    double const volumetric_strain = 1.0e-3;
+
+    VKLocalSolveContext const local_context{
+        .phi = phi,
+        .phi_M_prev = phi_M_prev,
+        .phi_m_prev = phi_m_prev,
+        .volumetric_strain = volumetric_strain,
+        .volumetric_strain_prev = volumetric_strain_prev,
+    };
+
+    auto const macro_potential =
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, vkp.pressure_tolerance);
+    auto const prev_micro_liquid_density =
+        computeVKPreviousMicroLiquidDensity(n_l_prev, rho_LR, local_context,
+                                            vkp);
+    double const rho_l_prev = n_l_prev * prev_micro_liquid_density.rho_lR;
+
+    auto const coupled_update = solveVKNotebookMassStorageCoupledState(
+        n_l_prev, rho_l_prev, prev_micro_liquid_density.rho_lR, dt, rho_LR,
+        alpha_bar, mu, macro_potential, local_context, vkp);
+    ASSERT_TRUE(coupled_update.converged);
+    EXPECT_GT(coupled_update.n_l, 0.0);
+    EXPECT_LE(coupled_update.n_l, phi + comparisonTolerance(coupled_update.n_l,
+                                                            phi, 1e-10, 1e-12));
+    EXPECT_GT(coupled_update.rho_lR, 0.0);
+
+    double const active_nS = computeVKActiveMicroSolidVolumeFraction(
+        coupled_update.n_l, local_context, vkp);
+    auto const micro_potential = computeVanDerWaalsMicroPotential(
+        coupled_update.n_l, coupled_update.rho_lR, active_nS,
+        vkp.micro_solid_density_reference, vkp.hamaker_constant,
+        vkp.specific_surface, vkMicroPotentialSignFactor(vkp));
+    auto const exchange = computePotentialDrivenMassExchange(
+        alpha_bar * rho_LR / mu,
+        vkp.potential_role_mapping ==
+                VKPotentialExchangeRoleMapping::NotebookRoles
+            ? micro_potential.mu_lR
+            : macro_potential.mu_LR,
+        vkp.potential_role_mapping ==
+                VKPotentialExchangeRoleMapping::NotebookRoles
+            ? macro_potential.mu_LR
+            : micro_potential.mu_lR);
+
+    double const rho_l = coupled_update.n_l * coupled_update.rho_lR;
+    double const volumetric_strain_rate =
+        (volumetric_strain - volumetric_strain_prev) / dt;
+    double const mass_residual =
+        rho_l - rho_l_prev - dt * exchange.rho_l_hat -
+        dt * rho_l * volumetric_strain_rate;
+    auto const density = computeVKReducedMicroLiquidDensity(
+        coupled_update.n_l, rho_LR, active_nS, vkp);
+    double const density_residual = coupled_update.rho_lR - density.rho_lR;
+
+    EXPECT_NEAR(mass_residual, 0.0,
+                comparisonTolerance(mass_residual, 0.0, 1e-8, 1e-12));
+    EXPECT_NEAR(density_residual, 0.0,
+                comparisonTolerance(density_residual, 0.0, 1e-8, 1e-12));
 }
 
 TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)
