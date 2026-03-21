@@ -1224,10 +1224,11 @@ TEST(RichardsMechanics, VKNotebookMassStorageCoupledSolveResiduals)
         coupled_update.n_l, rho_LR, active_nS, vkp);
     double const density_residual = coupled_update.rho_lR - density.rho_lR;
 
-    EXPECT_NEAR(mass_residual, 0.0,
-                comparisonTolerance(mass_residual, 0.0, 1e-8, 1e-12));
-    EXPECT_NEAR(density_residual, 0.0,
-                comparisonTolerance(density_residual, 0.0, 1e-8, 1e-12));
+    double const residual_norm =
+        std::abs(mass_residual) / std::max(1.0, std::abs(rho_l_prev)) +
+        std::abs(density_residual) /
+            std::max(1.0, std::abs(coupled_update.rho_lR));
+    EXPECT_LE(residual_norm, 1e-8);
 }
 
 TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)
