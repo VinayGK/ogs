@@ -163,6 +163,22 @@ set_tests_properties(
         LABELS "RichardsMechanics;default;small;tester"
 )
 
+add_test(
+    NAME ogs-RichardsMechanics_beacon_1a01_vk_notebook_roles_history_trend
+    COMMAND
+        ${Python_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/scripts/vk_history_trend_check.py
+        --reference ${Data_SOURCE_DIR}/RichardsMechanics/beacon_1a01_vk_notebook_roles_history.csv
+        --actual ${Data_BINARY_DIR}/RichardsMechanics/beacon_1a01_vk_notebook_roles_history.csv
+    WORKING_DIRECTORY ${Data_BINARY_DIR}/RichardsMechanics
+)
+set_tests_properties(
+    ogs-RichardsMechanics_beacon_1a01_vk_notebook_roles_history_trend
+    PROPERTIES
+        DEPENDS ogs-RichardsMechanics_beacon_1a01_vk_notebook_roles_history
+        LABELS "RichardsMechanics;default;small;tester"
+)
+
 AddTest(
     NAME RichardsMechanics_beacon_1a01_vk_no_satmicro_smoke
     PATH RichardsMechanics
