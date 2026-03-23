@@ -11,8 +11,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -28,6 +30,7 @@
 namespace MSM = MaterialLib::Solids::MFront;
 namespace MPL = MaterialPropertyLib;
 using KV = MathLib::KelvinVector::KelvinVectorType<3>;
+using MB = MaterialLib::Solids::MechanicsBase<3>;
 
 static auto createParameters()
 {
@@ -48,6 +51,8 @@ static auto createParameters()
     add_param("pc0", 2e5);
     add_param("v0", 1.7857142857142857);
     add_param("p_sat_scale", 1e3);
+    add_param("n_l_ref", 0.2);
+    add_param("n_l0", 0.1);
 
     return parameters;
 }
@@ -83,10 +88,12 @@ static auto createBridgeModel(
             <material_property name="CharacteristicPreConsolidationPressure" parameter="pc0"/>
             <material_property name="InitialVolumeRatio" parameter="v0"/>
             <material_property name="SaturationPressureScale" parameter="p_sat_scale"/>
+            <material_property name="n_l_ref" parameter="n_l_ref"/>
         </material_properties>
         <initial_values>
             <state_variable name="PreConsolidationPressure" parameter="pc0"/>
             <state_variable name="VolumeRatio" parameter="v0"/>
+            <state_variable name="n_l" parameter="n_l0"/>
         </initial_values>
         )XML";
 
@@ -120,10 +127,12 @@ static auto createBridgeModelThroughFactory(
             <material_property name="CharacteristicPreConsolidationPressure" parameter="pc0"/>
             <material_property name="InitialVolumeRatio" parameter="v0"/>
             <material_property name="SaturationPressureScale" parameter="p_sat_scale"/>
+            <material_property name="n_l_ref" parameter="n_l_ref"/>
         </material_properties>
         <initial_values>
             <state_variable name="PreConsolidationPressure" parameter="pc0"/>
             <state_variable name="VolumeRatio" parameter="v0"/>
+            <state_variable name="n_l" parameter="n_l0"/>
         </initial_values>
         )XML";
 
@@ -136,6 +145,38 @@ static auto createBridgeModelThroughFactory(
         parameters, local_coordinate_system, config_tree);
 }
 
+template <typename Model>
+static void initializeState(Model const& model,
+                            MB::MaterialStateVariables& state)
+{
+    ParameterLib::SpatialPosition x{};
+    model.initializeInternalStateVariables(0.0, x, state);
+}
+
+template <typename Model>
+static double getInternalVariable(Model const& model,
+                                  MB::MaterialStateVariables const& state,
+                                  std::string const& name)
+{
+    auto const internal_variables = model.getInternalVariables();
+    auto const it = std::find_if(
+        internal_variables.begin(), internal_variables.end(),
+        [&name](auto const& internal_variable)
+        { return internal_variable.name == name; });
+    if (it == internal_variables.end())
+    {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    std::vector<double> cache;
+    auto const& values = it->getter(state, cache);
+    if (values.size() != 1)
+    {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    return values[0];
+}
+
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
      OneStepPressureResponse)
 {
@@ -145,6 +186,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 
     auto state = model->createMaterialStateVariables();
     ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
 
     MPL::VariableArray variable_array_prev;
     variable_array_prev.stress.template emplace<KV>(KV::Zero());
@@ -201,6 +243,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 
     auto state = model->createMaterialStateVariables();
     ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
 
     MPL::VariableArray variable_array_prev;
     variable_array_prev.stress.template emplace<KV>(KV::Zero());
@@ -247,6 +290,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 
     auto state = model->createMaterialStateVariables();
     ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
 
     MPL::VariableArray variable_array_prev;
     variable_array_prev.stress.template emplace<KV>(KV::Zero());
@@ -295,6 +339,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 
     auto state = model->createMaterialStateVariables();
     ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
 
     MPL::VariableArray variable_array_prev;
     variable_array_prev.stress.template emplace<KV>(KV::Zero());
@@ -362,6 +407,75 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
         variable_array_prev.stress.template emplace<KV>(stress);
         variable_array_prev.liquid_saturation = saturation;
         state = std::move(new_state);
+        state->pushBackState();
+    }
+}
+
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     MicrostateHistoryResponse)
+{
+    auto const parameters = createParameters();
+    auto model = createBridgeModelThroughFactory(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    EXPECT_NEAR(getInternalVariable(*model, *state, "n_l"), 0.1, 1e-12);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV>(KV::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV>(KV::Zero());
+    variable_array_prev.liquid_phase_pressure = 0.0;
+    variable_array_prev.liquid_saturation = saturationFromPressure(0.0, 1e3);
+    variable_array_prev.temperature = 0.0;
+
+    std::vector<double> const pressures{250.0, 500.0, 750.0, 1000.0};
+    ParameterLib::SpatialPosition x{};
+
+    double previous_n_l = 0.1;
+
+    for (std::size_t step = 0; step < pressures.size(); ++step)
+    {
+        auto variable_array = variable_array_prev;
+        variable_array.liquid_phase_pressure = pressures[step];
+
+        auto response = model->integrateStressPressureCoupled(
+            variable_array_prev,
+            variable_array,
+            static_cast<double>(step + 1),
+            x,
+            1.0,
+            *state);
+        ASSERT_TRUE(response);
+        ASSERT_TRUE(response->state != nullptr);
+
+        double const expected_saturation =
+            saturationFromPressure(pressures[step], 1e3);
+        double const expected_n_l = 0.2 * expected_saturation;
+
+        EXPECT_NEAR(response->saturation, expected_saturation, 1e-12);
+
+        auto const n_l_value =
+            getInternalVariable(*model, *response->state, "n_l");
+        auto const phi_m_value =
+            getInternalVariable(*model, *response->state, "phi_m");
+
+        ASSERT_TRUE(std::isfinite(n_l_value));
+        ASSERT_TRUE(std::isfinite(phi_m_value));
+        EXPECT_NEAR(n_l_value, expected_n_l, 1e-12);
+        EXPECT_NEAR(phi_m_value, expected_n_l, 1e-12);
+        EXPECT_NEAR(phi_m_value, n_l_value, 1e-12);
+        EXPECT_GE(n_l_value, previous_n_l);
+
+        previous_n_l = n_l_value;
+        state = std::move(response->state);
+        state->pushBackState();
+        variable_array_prev = variable_array;
+        variable_array_prev.stress.template emplace<KV>(response->stress);
+        variable_array_prev.liquid_saturation = response->saturation;
     }
 }
 

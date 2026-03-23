@@ -43,6 +43,8 @@ pc0.setEntryName("CharacteristicPreConsolidationPressure");
 v0.setEntryName("InitialVolumeRatio");
 @MaterialProperty real p_sat_scale;
 p_sat_scale.setEntryName("SaturationPressureScale");
+@MaterialProperty real n_l_ref;
+n_l_ref.setEntryName("n_l_ref");
 
 @AuxiliaryStateVariable stress pc;
 pc.setEntryName("PreConsolidationPressure");
@@ -50,19 +52,30 @@ pc.setEntryName("PreConsolidationPressure");
 @AuxiliaryStateVariable real v;
 v.setEntryName("VolumeRatio");
 
+@StateVariable real n_l;
+n_l.setEntryName("n_l");
+
+@AuxiliaryStateVariable real phi_m;
+phi_m.setEntryName("phi_m");
+
 @ProvidesTangentOperator;
 @Integrator {
+  tfel::raise_if(n_l_ref <= 0.0, "Invalid parameter: n_l_ref must be positive.");
+
   const auto lambda = computeLambda(E, nu);
   const auto mu = computeMu(E, nu);
   const auto p = p_LR + Δp_LR;
   const auto p_swelling = std::min(p, 0.0);
+  const auto n_l_prev = n_l;
 
   // RichardsMechanics notebook bridge:
+  //   reduced micro water-content state n_l
+  //   explicit micro-porosity ownership phi_m := n_l
   //   elastic stress increment
   // - pressure contribution
   // - suction-driven swelling contribution
-  // The bridge also needs a smooth saturation surrogate so the Richards
-  // Jacobian remains well-posed in the process test.
+  // The bridge still uses a smooth pressure surrogate, but the stress update is
+  // now carried through the notebook-style microstate pair (n_l, phi_m).
   const auto saturation_from_pressure = [&](const auto p_arg) {
     const auto xi = p_arg / p_sat_scale;
     if (xi >= 0.0)
@@ -75,24 +88,37 @@ v.setEntryName("VolumeRatio");
   };
   const auto dsaturation_dp = [&](const auto p_arg) {
     const auto s = saturation_from_pressure(p_arg);
-    return s ⋅ (1.0 - s) / p_sat_scale;
+    return s * (1.0 - s) / p_sat_scale;
   };
-  const auto χ = saturation_from_pressure(p);
-  const auto χ_prev = saturation_from_pressure(p_LR);
 
-  // Use the smooth saturation surrogate as Bishop-style coupling so the
-  // pressure output still participates in the effective stress map.
-  sigma = sigma + lambda ⋅ trace(Δeps_to) ⋅ I₂ + 2 ⋅ mu ⋅ Δeps_to -
-          alpha_b ⋅ (χ ⋅ p - χ_prev ⋅ p_LR) ⋅ I₂ -
-          p_sw ⋅ p_swelling ⋅ I₂;
+  const auto n_l_trial = n_l_ref * saturation_from_pressure(p);
+  const auto phi_m_trial = n_l_trial;
+  const auto χ = n_l_trial / n_l_ref;
+  const auto χ_prev = n_l_prev / n_l_ref;
+  const auto dn_l_dp = n_l_ref * dsaturation_dp(p);
+  const auto dχ_dp = dn_l_dp / n_l_ref;
+
+  // Use the micro water-content state as the bridge carrier of saturation-like
+  // coupling. This keeps the current bridge algebra, but makes the notebook
+  // microstate chain explicit inside MFront.
+  sigma = sigma + lambda * trace(Δeps_to) * I₂ + 2 * mu * Δeps_to -
+          alpha_b * (χ * p - χ_prev * p_LR) * I₂ -
+          p_sw * p_swelling * I₂;
   S_L = χ;
+  n_l = n_l_trial;
+  phi_m = phi_m_trial;
 
   if (computeTangentOperator_)
   {
-    ∂sigma∕∂Δeps_to = lambda ⋅ (I₂ ⊗ I₂) + 2 ⋅ mu ⋅ I₄;
-    ∂sigma∕∂Δp_LR = -(alpha_b ⋅ (χ + p ⋅ dsaturation_dp(p)) +
-                      (p < 0.0 ? p_sw : 0.0)) ⋅ I₂;
-    ∂S_L∕∂Δeps_to = 0.0 ⋅ I₂;
-    ∂S_L∕∂Δp_LR = dsaturation_dp(p);
+    ∂sigma∕∂Δeps_to = lambda * (I₂ ⊗ I₂) + 2 * mu * I₄;
+    ∂sigma∕∂Δp_LR = -(alpha_b * (χ + p * dχ_dp) +
+                      (p < 0.0 ? p_sw : 0.0)) * I₂;
+    ∂S_L∕∂Δeps_to = 0.0 * I₂;
+    ∂S_L∕∂Δp_LR = dχ_dp;
   }
+}
+
+@UpdateAuxiliaryStateVariables
+{
+  phi_m = n_l;
 }
