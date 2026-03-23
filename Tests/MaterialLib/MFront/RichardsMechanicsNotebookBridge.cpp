@@ -21,6 +21,7 @@
 #include "BaseLib/ConfigTree.h"
 #include "MaterialLib/SolidModels/CreateConstitutiveRelation.h"
 #include "MaterialLib/SolidModels/MFront/CreateMFrontGeneric.h"
+#include "MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h"
 #include "MaterialLib/SolidModels/MFront/Variable.h"
 #include "ParameterLib/ConstantParameter.h"
 #include "Tests/TestTools.h"
@@ -57,6 +58,12 @@ static double saturationFromPressure(double const pressure,
                                      double const p_sat_scale)
 {
     return 1.0 / (1.0 + std::exp(-pressure / p_sat_scale));
+}
+
+static double dSaturationDp(double const pressure, double const p_sat_scale)
+{
+    auto const saturation = saturationFromPressure(pressure, p_sat_scale);
+    return saturation * (1.0 - saturation) / p_sat_scale;
 }
 
 static auto createBridgeModel(
@@ -231,6 +238,57 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(tangent_matrix.allFinite());
 }
 
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     FactoryPathPressureCoupledBlocks)
+{
+    auto const parameters = createParameters();
+    auto model = createBridgeModelThroughFactory(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto* rm_model = dynamic_cast<MSM::MFrontRichardsMechanics<3>*>(model.get());
+    ASSERT_TRUE(rm_model != nullptr);
+
+    auto state = rm_model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV>(KV::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV>(KV::Zero());
+    variable_array_prev.liquid_phase_pressure = 0.0;
+    variable_array_prev.liquid_saturation = 0.0;
+    variable_array_prev.temperature = 0.0;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+    variable_array.liquid_phase_pressure = 1e3;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = rm_model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 1.0, x, 1.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    double const expected_saturation = saturationFromPressure(1e3, 1e3);
+    double const expected_dS_dp = dSaturationDp(1e3, 1e3);
+    double const expected_dsigma_dp = -(expected_saturation + 1e3 * expected_dS_dp);
+
+    EXPECT_NEAR(response->saturation, expected_saturation, 1e-12);
+    EXPECT_NEAR(response->stress[0], -expected_saturation * 1e3, 1e-12);
+    EXPECT_NEAR(response->stress[1], -expected_saturation * 1e3, 1e-12);
+    EXPECT_NEAR(response->stress[2], -expected_saturation * 1e3, 1e-12);
+    EXPECT_NEAR(response->dStress_dLiquidPressure[0], expected_dsigma_dp, 1e-12);
+    EXPECT_NEAR(response->dStress_dLiquidPressure[1], expected_dsigma_dp, 1e-12);
+    EXPECT_NEAR(response->dStress_dLiquidPressure[2], expected_dsigma_dp, 1e-12);
+    EXPECT_NEAR(response->dStress_dLiquidPressure[3], 0.0, 1e-12);
+    EXPECT_NEAR(response->dStress_dLiquidPressure[4], 0.0, 1e-12);
+    EXPECT_NEAR(response->dStress_dLiquidPressure[5], 0.0, 1e-12);
+    EXPECT_NEAR(response->dSaturation_dLiquidPressure, expected_dS_dp, 1e-12);
+    EXPECT_TRUE(response->dStress_dStrain.allFinite());
+    for (int i = 0; i < response->dSaturation_dStrain.size(); ++i)
+    {
+        EXPECT_NEAR(response->dSaturation_dStrain[i], 0.0, 1e-12);
+    }
+}
 
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
      PressureHistoryResponse)

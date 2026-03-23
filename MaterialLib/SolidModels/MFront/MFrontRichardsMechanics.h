@@ -34,6 +34,23 @@ class MFrontRichardsMechanics
     using KelvinMatrix = typename Base::KelvinMatrix;
 
 public:
+    static constexpr int KelvinSize =
+        MathLib::KelvinVector::kelvin_vector_dimensions(DisplacementDim);
+    using SaturationStrainJacobian = Eigen::Matrix<double, 1, KelvinSize>;
+
+    struct PressureCoupledResponse
+    {
+        KelvinVector stress;
+        double saturation;
+        KelvinMatrix dStress_dStrain;
+        KelvinVector dStress_dLiquidPressure;
+        SaturationStrainJacobian dSaturation_dStrain;
+        double dSaturation_dLiquidPressure;
+        std::unique_ptr<typename MechanicsBase<DisplacementDim>::
+                            MaterialStateVariables>
+            state;
+    };
+
     using Base::Base;
 
     std::unique_ptr<
@@ -52,18 +69,14 @@ public:
         Base::initializeInternalStateVariables(t, x, material_state_variables);
     }
 
-    std::optional<std::tuple<KelvinVector,
-                             std::unique_ptr<typename MechanicsBase<
-                                 DisplacementDim>::MaterialStateVariables>,
-                             KelvinMatrix>>
-    integrateStress(
+    std::optional<PressureCoupledResponse> integrateStressPressureCoupled(
         MaterialPropertyLib::VariableArray const& variable_array_prev,
         MaterialPropertyLib::VariableArray const& variable_array,
         double const t,
         ParameterLib::SpatialPosition const& x,
         double const dt,
         typename MechanicsBase<DisplacementDim>::MaterialStateVariables const&
-            material_state_variables) const override
+            material_state_variables) const
     {
         auto res = Base::integrateStress(variable_array_prev,
                                          variable_array,
@@ -80,15 +93,51 @@ public:
         auto& [forces_data, state, tangent_operator_data] = *res;
         auto const view = this->createThermodynamicForcesView();
 
-        auto const C = blocks_view_.block(stress, strain, tangent_operator_data);
+        PressureCoupledResponse response{
+            view.block(stress, forces_data),
+            view.block(saturation, forces_data),
+            blocks_view_.block(stress, strain, tangent_operator_data),
+            blocks_view_.block(stress, liquid_pressure, tangent_operator_data),
+            blocks_view_.block(saturation, strain, tangent_operator_data),
+            blocks_view_.block(saturation, liquid_pressure,
+                               tangent_operator_data),
+            std::move(state)};
+        return response;
+    }
+
+    std::optional<std::tuple<KelvinVector,
+                             std::unique_ptr<typename MechanicsBase<
+                                 DisplacementDim>::MaterialStateVariables>,
+                             KelvinMatrix>>
+    integrateStress(
+        MaterialPropertyLib::VariableArray const& variable_array_prev,
+        MaterialPropertyLib::VariableArray const& variable_array,
+        double const t,
+        ParameterLib::SpatialPosition const& x,
+        double const dt,
+        typename MechanicsBase<DisplacementDim>::MaterialStateVariables const&
+            material_state_variables) const override
+    {
+        auto response = integrateStressPressureCoupled(variable_array_prev,
+                                                       variable_array,
+                                                       t,
+                                                       x,
+                                                       dt,
+                                                       material_state_variables);
+
+        if (!response)
+        {
+            return std::nullopt;
+        }
 
         return std::optional<
             std::tuple<KelvinVector,
                        std::unique_ptr<typename MechanicsBase<
                            DisplacementDim>::MaterialStateVariables>,
                        KelvinMatrix>>{std::in_place,
-                                      view.block(stress, forces_data),
-                                      std::move(state), C};
+                                      response->stress,
+                                      std::move(response->state),
+                                      response->dStress_dStrain};
     }
 
     std::vector<typename MechanicsBase<DisplacementDim>::InternalVariable>
