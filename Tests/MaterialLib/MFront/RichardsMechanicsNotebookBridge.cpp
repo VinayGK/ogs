@@ -51,6 +51,13 @@ static auto createParameters()
     return parameters;
 }
 
+
+static double saturationFromPressure(double const pressure,
+                                     double const p_sat_scale)
+{
+    return 1.0 / (1.0 + std::exp(-pressure / p_sat_scale));
+}
+
 static auto createBridgeModel(
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters)
 {
@@ -142,6 +149,86 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
         tangent_matrix.data.begin(),
         tangent_matrix.data.end(),
         [](double const v) { return std::isfinite(v); }));
+}
+
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     PressureHistoryResponse)
+{
+    auto const parameters = createParameters();
+    auto model = createBridgeModel(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV>(KV::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV>(KV::Zero());
+    variable_array_prev.liquid_phase_pressure = 0.0;
+    variable_array_prev.liquid_saturation = saturationFromPressure(0.0, 1e3);
+    variable_array_prev.temperature = 0.0;
+
+    std::vector<double> const pressures{0.0, 250.0, 500.0, 750.0, 1000.0};
+    ParameterLib::SpatialPosition x{};
+
+    double previous_pressure = 0.0;
+    double previous_saturation = saturationFromPressure(previous_pressure, 1e3);
+    KV previous_stress = KV::Zero();
+
+    MSM::OGSMFrontThermodynamicForcesView<
+        3, boost::mp11::mp_list<MSM::Stress, MSM::Saturation>>
+        view;
+
+    for (std::size_t step = 0; step < pressures.size(); ++step)
+    {
+        auto variable_array = variable_array_prev;
+        variable_array.liquid_phase_pressure = pressures[step];
+
+        auto solution = model->integrateStress(variable_array_prev,
+                                               variable_array,
+                                               static_cast<double>(step + 1),
+                                               x,
+                                               1.0,
+                                               *state);
+        ASSERT_TRUE(solution);
+
+        auto& [forces_data, new_state, tangent_matrix] = *solution;
+        ASSERT_TRUE(new_state != nullptr);
+
+        auto const stress = view.block(MSM::stress, forces_data);
+        auto const saturation = view.block(MSM::saturation, forces_data);
+
+        auto const expected_saturation =
+            saturationFromPressure(pressures[step], 1e3);
+        auto expected_stress = previous_stress;
+        auto const increment = -(expected_saturation * pressures[step] -
+                                 previous_saturation * previous_pressure);
+        expected_stress[0] += increment;
+        expected_stress[1] += increment;
+        expected_stress[2] += increment;
+
+        EXPECT_NEAR(saturation, expected_saturation, 1e-12);
+        EXPECT_NEAR(stress[0], expected_stress[0], 1e-12);
+        EXPECT_NEAR(stress[1], expected_stress[1], 1e-12);
+        EXPECT_NEAR(stress[2], expected_stress[2], 1e-12);
+        EXPECT_NEAR(stress[3], 0.0, 1e-12);
+        EXPECT_NEAR(stress[4], 0.0, 1e-12);
+        EXPECT_NEAR(stress[5], 0.0, 1e-12);
+
+        ASSERT_FALSE(tangent_matrix.data.empty());
+        EXPECT_TRUE(std::all_of(
+            tangent_matrix.data.begin(), tangent_matrix.data.end(),
+            [](double const v) { return std::isfinite(v); }));
+
+        previous_pressure = pressures[step];
+        previous_saturation = saturation;
+        previous_stress = stress;
+        variable_array_prev = variable_array;
+        variable_array_prev.stress.template emplace<KV>(stress);
+        variable_array_prev.liquid_saturation = saturation;
+        state = std::move(new_state);
+    }
 }
 
 #endif  // OGS_USE_MFRONT
