@@ -19,6 +19,7 @@
 #include <boost/mp11.hpp>
 
 #include "BaseLib/ConfigTree.h"
+#include "MaterialLib/SolidModels/CreateConstitutiveRelation.h"
 #include "MaterialLib/SolidModels/MFront/CreateMFrontGeneric.h"
 #include "MaterialLib/SolidModels/MFront/Variable.h"
 #include "ParameterLib/ConstantParameter.h"
@@ -95,6 +96,40 @@ static auto createBridgeModel(
         parameters, local_coordinate_system, config_tree);
 }
 
+static auto createBridgeModelThroughFactory(
+    std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters)
+{
+    auto local_coordinate_system = std::nullopt;
+
+    const char* xml = R"XML(
+        <type>MFrontRichardsMechanics</type>
+        <behaviour>RichardsMechanicsNotebookBridge</behaviour>
+        <library path_is_relative_to_prj_file="false">libOgsMFrontBehaviour</library>
+        <material_properties>
+            <material_property name="YoungModulus" parameter="E"/>
+            <material_property name="PoissonRatio" parameter="nu"/>
+            <material_property name="CriticalStateLineSlope" parameter="alpha_b"/>
+            <material_property name="SwellingLineSlope" parameter="p_sw"/>
+            <material_property name="VirginConsolidationLineSlope" parameter="lambda_v"/>
+            <material_property name="CharacteristicPreConsolidationPressure" parameter="pc0"/>
+            <material_property name="InitialVolumeRatio" parameter="v0"/>
+            <material_property name="SaturationPressureScale" parameter="p_sat_scale"/>
+        </material_properties>
+        <initial_values>
+            <state_variable name="PreConsolidationPressure" parameter="pc0"/>
+            <state_variable name="VolumeRatio" parameter="v0"/>
+        </initial_values>
+        )XML";
+
+    auto ptree = Tests::readXml(xml);
+    BaseLib::ConfigTree config_tree(std::move(ptree), "FILENAME",
+                                    &BaseLib::ConfigTree::onerror,
+                                    &BaseLib::ConfigTree::onwarning);
+
+    return MaterialLib::Solids::createConstitutiveRelation<3>(
+        parameters, local_coordinate_system, config_tree);
+}
+
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
      OneStepPressureResponse)
 {
@@ -149,6 +184,51 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
         tangent_matrix.data.begin(),
         tangent_matrix.data.end(),
         [](double const v) { return std::isfinite(v); }));
+}
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     FactoryPathOneStepPressureResponse)
+{
+    auto const parameters = createParameters();
+    auto model = createBridgeModelThroughFactory(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV>(KV::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV>(KV::Zero());
+    variable_array_prev.liquid_phase_pressure = 0.0;
+    variable_array_prev.liquid_saturation = 0.0;
+    variable_array_prev.temperature = 0.0;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+    variable_array.liquid_phase_pressure = 1e3;
+
+    ParameterLib::SpatialPosition x{};
+    auto solution = model->integrateStress(variable_array_prev,
+                                           variable_array,
+                                           1.0,
+                                           x,
+                                           1.0,
+                                           *state);
+    ASSERT_TRUE(solution);
+
+    auto& [stress, new_state, tangent_matrix] = *solution;
+    ASSERT_TRUE(new_state != nullptr);
+
+    double const expected_saturation = saturationFromPressure(1e3, 1e3);
+    double const expected_stress_component = -expected_saturation * 1e3;
+
+    EXPECT_NEAR(stress[0], expected_stress_component, 1e-12);
+    EXPECT_NEAR(stress[1], expected_stress_component, 1e-12);
+    EXPECT_NEAR(stress[2], expected_stress_component, 1e-12);
+    EXPECT_NEAR(stress[3], 0.0, 1e-12);
+    EXPECT_NEAR(stress[4], 0.0, 1e-12);
+    EXPECT_NEAR(stress[5], 0.0, 1e-12);
+
+    EXPECT_TRUE(tangent_matrix.allFinite());
 }
 
 
