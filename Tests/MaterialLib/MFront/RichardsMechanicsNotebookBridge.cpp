@@ -11,9 +11,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -21,6 +23,7 @@
 #include <boost/mp11.hpp>
 
 #include "BaseLib/ConfigTree.h"
+#include "InfoLib/TestInfo.h"
 #include "MaterialLib/SolidModels/CreateConstitutiveRelation.h"
 #include "MaterialLib/SolidModels/MFront/CreateMFrontGeneric.h"
 #include "MaterialLib/SolidModels/MFront/Variable.h"
@@ -175,6 +178,61 @@ static double getInternalVariable(Model const& model,
         return std::numeric_limits<double>::quiet_NaN();
     }
     return values[0];
+}
+
+struct BaselineRow
+{
+    int step = 0;
+    double pressure = 0.0;
+    double saturation = 0.0;
+    double stress_xx = 0.0;
+    double n_l = 0.0;
+    double phi_m = 0.0;
+    double dS_dp = 0.0;
+    double dSigma_dp = 0.0;
+};
+
+static std::vector<BaselineRow> loadBaselineRows(std::string const& filename)
+{
+    std::ifstream in(filename);
+    EXPECT_TRUE(in.good()) << filename;
+
+    std::vector<BaselineRow> rows;
+    std::string line;
+
+    std::getline(in, line);  // header
+    while (std::getline(in, line))
+    {
+        if (line.empty())
+        {
+            continue;
+        }
+
+        std::stringstream ss(line);
+        std::string field;
+        BaselineRow row;
+
+        std::getline(ss, field, ',');
+        row.step = std::stoi(field);
+        std::getline(ss, field, ',');
+        row.pressure = std::stod(field);
+        std::getline(ss, field, ',');
+        row.saturation = std::stod(field);
+        std::getline(ss, field, ',');
+        row.stress_xx = std::stod(field);
+        std::getline(ss, field, ',');
+        row.n_l = std::stod(field);
+        std::getline(ss, field, ',');
+        row.phi_m = std::stod(field);
+        std::getline(ss, field, ',');
+        row.dS_dp = std::stod(field);
+        std::getline(ss, field, ',');
+        row.dSigma_dp = std::stod(field);
+
+        rows.push_back(row);
+    }
+
+    return rows;
 }
 
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
@@ -471,6 +529,77 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
         EXPECT_GE(n_l_value, previous_n_l);
 
         previous_n_l = n_l_value;
+        state = std::move(response->state);
+        state->pushBackState();
+        variable_array_prev = variable_array;
+        variable_array_prev.stress.template emplace<KV>(response->stress);
+        variable_array_prev.liquid_saturation = response->saturation;
+    }
+}
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     ReducedNotebookBaselineHistory)
+{
+    auto const baseline_rows = loadBaselineRows(
+        TestInfoLib::TestInfo::data_path +
+        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_history_baseline.csv");
+    ASSERT_EQ(baseline_rows.size(), 5);
+
+    auto const parameters = createParameters();
+    auto model = createBridgeModelThroughFactory(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV>(KV::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV>(KV::Zero());
+    variable_array_prev.liquid_phase_pressure = 0.0;
+    variable_array_prev.liquid_saturation = saturationFromPressure(0.0, 1e3);
+    variable_array_prev.temperature = 0.0;
+
+    ParameterLib::SpatialPosition x{};
+
+    for (auto const& row : baseline_rows)
+    {
+        auto variable_array = variable_array_prev;
+        variable_array.liquid_phase_pressure = row.pressure;
+
+        auto response = model->integrateStressPressureCoupled(
+            variable_array_prev,
+            variable_array,
+            static_cast<double>(row.step + 1),
+            x,
+            1.0,
+            *state);
+        ASSERT_TRUE(response);
+        ASSERT_TRUE(response->state != nullptr);
+
+        auto const n_l_value =
+            getInternalVariable(*model, *response->state, "n_l");
+        auto const phi_m_value =
+            getInternalVariable(*model, *response->state, "phi_m");
+
+        EXPECT_NEAR(response->saturation, row.saturation, 1e-12);
+        EXPECT_NEAR(response->stress[0], row.stress_xx, 1e-12);
+        EXPECT_NEAR(response->stress[1], row.stress_xx, 1e-12);
+        EXPECT_NEAR(response->stress[2], row.stress_xx, 1e-12);
+        EXPECT_NEAR(response->stress[3], 0.0, 1e-12);
+        EXPECT_NEAR(response->stress[4], 0.0, 1e-12);
+        EXPECT_NEAR(response->stress[5], 0.0, 1e-12);
+        EXPECT_NEAR(response->dSaturation_dLiquidPressure, row.dS_dp, 1e-12);
+        EXPECT_NEAR(response->dStress_dLiquidPressure[0], row.dSigma_dp, 1e-12);
+        EXPECT_NEAR(response->dStress_dLiquidPressure[1], row.dSigma_dp, 1e-12);
+        EXPECT_NEAR(response->dStress_dLiquidPressure[2], row.dSigma_dp, 1e-12);
+        EXPECT_NEAR(response->dStress_dLiquidPressure[3], 0.0, 1e-12);
+        EXPECT_NEAR(response->dStress_dLiquidPressure[4], 0.0, 1e-12);
+        EXPECT_NEAR(response->dStress_dLiquidPressure[5], 0.0, 1e-12);
+        EXPECT_NEAR(n_l_value, row.n_l, 1e-12);
+        EXPECT_NEAR(phi_m_value, row.phi_m, 1e-12);
+        EXPECT_NEAR(phi_m_value, n_l_value, 1e-12);
+
         state = std::move(response->state);
         state->pushBackState();
         variable_array_prev = variable_array;
