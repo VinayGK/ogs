@@ -15,6 +15,7 @@
 #include "LiquidDensity.h"
 #include "MicroPressure.h"
 #include "MicroSaturation.h"
+#include "PressureCoupledSolidData.h"
 #include "ProcessLib/ConstitutiveRelations/Base.h"
 #include "ProcessLib/ConstitutiveRelations/EffectiveStressData.h"
 #include "ProcessLib/ConstitutiveRelations/MechanicalStrainData.h"
@@ -61,6 +62,7 @@ template <int DisplacementDim>
 using ConstitutiveData = std::tuple<
     // TODO (CL) check if all that data should stay here
     StiffnessTensor<DisplacementDim>,
+    PressureCoupledSolidData<DisplacementDim>,
     ProcessLib::ThermoRichardsMechanics::PorosityData, Density, LiquidDensity,
     ProcessLib::ThermoRichardsMechanics::BiotData,
     ProcessLib::ThermoRichardsMechanics::SaturationDataDeriv,

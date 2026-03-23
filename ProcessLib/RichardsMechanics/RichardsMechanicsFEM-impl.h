@@ -31,6 +31,44 @@ namespace ProcessLib
 {
 namespace RichardsMechanics
 {
+template <int DisplacementDim, typename Chi, typename DChi>
+void applyPressureCoupledSolidData(
+    PressureCoupledSolidData<DisplacementDim> const& pressure_coupled_solid,
+    MaterialPropertyLib::VariableArray& variables,
+    MaterialPropertyLib::VariableArray& variables_prev,
+    double const p_cap_ip,
+    double const p_cap_prev_ip,
+    double const S_L_prev,
+    Chi const& chi,
+    DChi const& dchi,
+    double& S_L,
+    double& dS_L_dp_cap,
+    double& DeltaS_L_Deltap_cap,
+    double& chi_S_L,
+    double& chi_S_L_prev,
+    double& dchi_dS_L,
+    double& p_FR)
+{
+    if (!pressure_coupled_solid.is_active)
+    {
+        return;
+    }
+
+    S_L = pressure_coupled_solid.saturation;
+    dS_L_dp_cap = pressure_coupled_solid.dS_L_dp_cap;
+    DeltaS_L_Deltap_cap = (p_cap_ip == p_cap_prev_ip)
+                              ? dS_L_dp_cap
+                              : (S_L - S_L_prev) / (p_cap_ip - p_cap_prev_ip);
+    chi_S_L = chi(S_L);
+    chi_S_L_prev = chi(S_L_prev);
+    dchi_dS_L = dchi(S_L);
+    p_FR = -chi_S_L * p_cap_ip;
+    variables.liquid_saturation = S_L;
+    variables_prev.liquid_saturation = S_L_prev;
+    variables.effective_pore_pressure = p_FR;
+    variables_prev.effective_pore_pressure = -chi_S_L_prev * p_cap_prev_ip;
+}
+
 template <int DisplacementDim>
 void updateSwellingStressAndVolumetricStrain(
     MaterialPropertyLib::Medium const& medium,
@@ -508,14 +546,14 @@ void RichardsMechanicsLocalAssembler<
         variables_prev.liquid_saturation = S_L_prev;
 
         // tangent derivative for Jacobian
-        double const dS_L_dp_cap =
+        double dS_L_dp_cap =
             medium->property(MPL::PropertyType::saturation)
                 .template dValue<double>(variables,
                                          MPL::Variable::capillary_pressure,
                                          x_position, t, dt);
         // secant derivative from time discretization for storage
         // use tangent, if secant is not available
-        double const DeltaS_L_Deltap_cap =
+        double DeltaS_L_Deltap_cap =
             (p_cap_ip == p_cap_prev_ip)
                 ? dS_L_dp_cap
                 : (S_L - S_L_prev) / (p_cap_ip - p_cap_prev_ip);
@@ -527,10 +565,19 @@ void RichardsMechanicsLocalAssembler<
             return medium->property(MPL::PropertyType::bishops_effective_stress)
                 .template value<double>(vs, x_position, t, dt);
         };
-        double const chi_S_L = chi(S_L);
-        double const chi_S_L_prev = chi(S_L_prev);
+        auto const dchi = [medium, x_position, t, dt](double const S_L)
+        {
+            MPL::VariableArray vs;
+            vs.liquid_saturation = S_L;
+            return medium->property(MPL::PropertyType::bishops_effective_stress)
+                .template dValue<double>(vs, MPL::Variable::liquid_saturation,
+                                         x_position, t, dt);
+        };
+        double chi_S_L = chi(S_L);
+        double chi_S_L_prev = chi(S_L_prev);
+        double dchi_dS_L = dchi(S_L);
 
-        double const p_FR = -chi_S_L * p_cap_ip;
+        double p_FR = -chi_S_L * p_cap_ip;
         variables.effective_pore_pressure = p_FR;
         variables_prev.effective_pore_pressure = -chi_S_L_prev * p_cap_prev_ip;
 
@@ -630,46 +677,12 @@ void RichardsMechanicsLocalAssembler<
             }
         }
 
-        double const k_rel =
-            medium->property(MPL::PropertyType::relative_permeability)
-                .template value<double>(variables, x_position, t, dt);
-        auto const mu =
-            liquid_phase.property(MPL::PropertyType::viscosity)
-                .template value<double>(variables, x_position, t, dt);
-
         auto const& sigma_sw =
             std::get<ProcessLib::ThermoRichardsMechanics::
                          ConstitutiveStress_StrainTemperature::
                              SwellingDataStateful<DisplacementDim>>(
                 this->current_states_[ip])
                 .sigma_sw;
-        auto const& sigma_eff =
-            std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
-                DisplacementDim>>(this->current_states_[ip])
-                .sigma_eff;
-
-        // Set mechanical variables for the intrinsic permeability model
-        // For stress dependent permeability.
-        {
-            auto const sigma_total =
-                (sigma_eff - alpha * p_FR * identity2).eval();
-
-            // For stress dependent permeability.
-            variables.total_stress.emplace<SymmetricTensor>(
-                MathLib::KelvinVector::kelvinVectorToSymmetricTensor(
-                    sigma_total));
-        }
-
-        variables.equivalent_plastic_strain =
-            this->material_states_[ip]
-                .material_state_variables->getEquivalentPlasticStrain();
-
-        auto const K_intrinsic = MPL::formEigenTensor<DisplacementDim>(
-            medium->property(MPL::PropertyType::permeability)
-                .value(variables, x_position, t, dt));
-
-        GlobalDimMatrixType const rho_K_over_mu =
-            K_intrinsic * rho_LR * k_rel / mu;
 
         //
         // displacement equation, displacement part
@@ -688,6 +701,8 @@ void RichardsMechanicsLocalAssembler<
                 eps_m);
         }
 
+        std::optional<PressureCoupledSolidData<DisplacementDim>>
+            pressure_coupled_solid;
         {
             auto& SD = this->current_states_[ip];
             auto const& SD_prev = this->prev_states_[ip];
@@ -706,11 +721,50 @@ void RichardsMechanicsLocalAssembler<
                                        MechanicalStrainData<DisplacementDim>>>(
                     SD_prev);
 
-            ip_data_[ip].updateConstitutiveRelation(
+            auto constitutive_update = ip_data_[ip].updateConstitutiveRelation(
                 variables, t, x_position, dt, temperature, sigma_eff,
                 sigma_eff_prev, eps_m, eps_m_prev, this->solid_material_,
                 this->material_states_[ip].material_state_variables);
+            pressure_coupled_solid = constitutive_update.pressure_coupled_data;
+
+            if (pressure_coupled_solid)
+            {
+                applyPressureCoupledSolidData<DisplacementDim>(
+                    *pressure_coupled_solid, variables, variables_prev,
+                    p_cap_ip, p_cap_prev_ip, S_L_prev, chi, dchi, S_L,
+                    dS_L_dp_cap, DeltaS_L_Deltap_cap, chi_S_L,
+                    chi_S_L_prev, dchi_dS_L, p_FR);
+            }
         }
+
+        auto const& sigma_eff =
+            std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
+                DisplacementDim>>(this->current_states_[ip])
+                .sigma_eff;
+        auto const mu =
+            liquid_phase.property(MPL::PropertyType::viscosity)
+                .template value<double>(variables, x_position, t, dt);
+        double const k_rel =
+            medium->property(MPL::PropertyType::relative_permeability)
+                .template value<double>(variables, x_position, t, dt);
+
+        {
+            auto const sigma_total =
+                (sigma_eff - alpha * p_FR * identity2).eval();
+            variables.total_stress.emplace<SymmetricTensor>(
+                MathLib::KelvinVector::kelvinVectorToSymmetricTensor(
+                    sigma_total));
+        }
+
+        variables.equivalent_plastic_strain =
+            this->material_states_[ip]
+                .material_state_variables->getEquivalentPlasticStrain();
+
+        auto const K_intrinsic = MPL::formEigenTensor<DisplacementDim>(
+            medium->property(MPL::PropertyType::permeability)
+                .value(variables, x_position, t, dt));
+        GlobalDimMatrixType const rho_K_over_mu =
+            K_intrinsic * rho_LR * k_rel / mu;
 
         // p_SR
         variables.solid_grain_pressure =
@@ -755,9 +809,13 @@ void RichardsMechanicsLocalAssembler<
         //
         // displacement equation, pressure part
         //
-        K.template block<displacement_size, pressure_size>(displacement_index,
-                                                           pressure_index)
-            .noalias() -= B.transpose() * alpha * chi_S_L * identity2 * N_p * w;
+        if (!pressure_coupled_solid)
+        {
+            K.template block<displacement_size, pressure_size>(
+                displacement_index, pressure_index)
+                .noalias() -=
+                B.transpose() * alpha * chi_S_L * identity2 * N_p * w;
+        }
 
         //
         // pressure equation, displacement part.
@@ -839,6 +897,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
     variables.grain_compressibility = beta_SR;
     std::get<ProcessLib::ThermoRichardsMechanics::SolidCompressibilityData>(CD)
         .beta_SR = beta_SR;
+    auto& pressure_coupled_solid =
+        std::get<PressureCoupledSolidData<DisplacementDim>>(CD);
 
     auto const rho_LR =
         liquid_phase.property(MPL::PropertyType::density)
@@ -852,21 +912,17 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
     variables_prev.liquid_saturation = S_L_prev;
 
     // tangent derivative for Jacobian
-    double const dS_L_dp_cap =
+    double dS_L_dp_cap =
         medium->property(MPL::PropertyType::saturation)
             .template dValue<double>(variables,
                                      MPL::Variable::capillary_pressure,
                                      x_position, t, dt);
-    std::get<ProcessLib::ThermoRichardsMechanics::SaturationDataDeriv>(CD)
-        .dS_L_dp_cap = dS_L_dp_cap;
     // secant derivative from time discretization for storage
     // use tangent, if secant is not available
-    double const DeltaS_L_Deltap_cap =
+    double DeltaS_L_Deltap_cap =
         (p_cap_ip == p_cap_prev_ip)
             ? dS_L_dp_cap
             : (S_L - S_L_prev) / (p_cap_ip - p_cap_prev_ip);
-    std::get<SaturationSecantDerivative>(CD).DeltaS_L_Deltap_cap =
-        DeltaS_L_Deltap_cap;
 
     auto const chi = [medium, x_position, t, dt](double const S_L)
     {
@@ -875,21 +931,19 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         return medium->property(MPL::PropertyType::bishops_effective_stress)
             .template value<double>(vs, x_position, t, dt);
     };
-    double const chi_S_L = chi(S_L);
-    std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD).chi_S_L =
-        chi_S_L;
-    double const chi_S_L_prev = chi(S_L_prev);
-    std::get<PrevState<ProcessLib::ThermoRichardsMechanics::BishopsData>>(CD)
-        ->chi_S_L = chi_S_L_prev;
+    auto const dchi = [medium, x_position, t, dt](double const S_L)
+    {
+        MPL::VariableArray vs;
+        vs.liquid_saturation = S_L;
+        return medium->property(MPL::PropertyType::bishops_effective_stress)
+            .template dValue<double>(vs, MPL::Variable::liquid_saturation,
+                                     x_position, t, dt);
+    };
+    double chi_S_L = chi(S_L);
+    double chi_S_L_prev = chi(S_L_prev);
+    double dchi_dS_L = dchi(S_L);
 
-    auto const dchi_dS_L =
-        medium->property(MPL::PropertyType::bishops_effective_stress)
-            .template dValue<double>(
-                variables, MPL::Variable::liquid_saturation, x_position, t, dt);
-    std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD).dchi_dS_L =
-        dchi_dS_L;
-
-    double const p_FR = -chi_S_L * p_cap_ip;
+    double p_FR = -chi_S_L * p_cap_ip;
     variables.effective_pore_pressure = p_FR;
     variables_prev.effective_pore_pressure = -chi_S_L_prev * p_cap_prev_ip;
 
@@ -1067,13 +1121,36 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                    MechanicalStrainData<DisplacementDim>>>(
                 SD_prev);
 
-        auto C = ip_data.updateConstitutiveRelation(
+        auto constitutive_update = ip_data.updateConstitutiveRelation(
             variables, t, x_position, dt, temperature, sigma_eff,
             sigma_eff_prev, eps_m, eps_m_prev, solid_material,
             material_state_data.material_state_variables);
 
-        *std::get<StiffnessTensor<DisplacementDim>>(CD) = std::move(C);
+        *std::get<StiffnessTensor<DisplacementDim>>(CD) =
+            std::move(constitutive_update.C);
+        pressure_coupled_solid = constitutive_update.pressure_coupled_data
+                                     .value_or(PressureCoupledSolidData<
+                                         DisplacementDim>{});
+        applyPressureCoupledSolidData<DisplacementDim>(
+            pressure_coupled_solid, variables, variables_prev, p_cap_ip,
+            p_cap_prev_ip, S_L_prev, chi, dchi, S_L, dS_L_dp_cap,
+            DeltaS_L_Deltap_cap, chi_S_L, chi_S_L_prev, dchi_dS_L, p_FR);
     }
+
+    std::get<ProcessLib::ThermoRichardsMechanics::SaturationDataDeriv>(CD)
+        .dS_L_dp_cap = dS_L_dp_cap;
+    std::get<SaturationSecantDerivative>(CD).DeltaS_L_Deltap_cap =
+        DeltaS_L_Deltap_cap;
+    std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD).chi_S_L =
+        chi_S_L;
+    std::get<PrevState<ProcessLib::ThermoRichardsMechanics::BishopsData>>(CD)
+        ->chi_S_L = chi_S_L_prev;
+    std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD).dchi_dS_L =
+        dchi_dS_L;
+
+    auto const k_rel_effective =
+        medium->property(MPL::PropertyType::relative_permeability)
+            .template value<double>(variables, x_position, t, dt);
 
     // p_SR
     variables.solid_grain_pressure =
@@ -1085,8 +1162,32 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         solid_phase.property(MPL::PropertyType::density)
             .template value<double>(variables, x_position, t, dt);
 
+    {
+        auto const sigma_total =
+            (std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
+                 DisplacementDim>>(SD)
+                 .sigma_eff -
+             alpha * p_FR * identity2)
+                .eval();
+        variables.total_stress.emplace<SymmetricTensor>(
+            MathLib::KelvinVector::kelvinVectorToSymmetricTensor(sigma_total));
+    }
+    variables.equivalent_plastic_strain =
+        material_state_data.material_state_variables
+            ->getEquivalentPlasticStrain();
+
     double const rho = rho_SR * (1 - phi) + S_L * phi * rho_LR;
     *std::get<Density>(CD) = rho;
+
+    auto const K_intrinsic_effective = MPL::formEigenTensor<DisplacementDim>(
+        medium->property(MPL::PropertyType::permeability)
+            .value(variables, x_position, t, dt));
+    std::get<ProcessLib::ThermoRichardsMechanics::PermeabilityData<
+        DisplacementDim>>(CD)
+        .k_rel = k_rel_effective;
+    std::get<ProcessLib::ThermoRichardsMechanics::PermeabilityData<
+        DisplacementDim>>(CD)
+        .Ki = K_intrinsic_effective;
 }
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
@@ -1248,22 +1349,37 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 CD)
                 .dS_L_dp_cap;
 
+        auto const& pressure_coupled_solid =
+            std::get<PressureCoupledSolidData<DisplacementDim>>(CD);
         {
             double const chi_S_L =
                 std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD)
                     .chi_S_L;
-            Kup.noalias() +=
-                B.transpose() * alpha * chi_S_L * identity2 * N_p * w;
-            double const dchi_dS_L =
-                std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD)
-                    .dchi_dS_L;
+            if (pressure_coupled_solid.is_active)
+            {
+                local_Jac
+                    .template block<displacement_size, pressure_size>(
+                        displacement_index, pressure_index)
+                    .noalias() -= B.transpose() *
+                                  pressure_coupled_solid
+                                      .dSigma_dLiquidPressure *
+                                  N_p * w;
+            }
+            else
+            {
+                Kup.noalias() +=
+                    B.transpose() * alpha * chi_S_L * identity2 * N_p * w;
+                double const dchi_dS_L =
+                    std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD)
+                        .dchi_dS_L;
 
-            local_Jac
-                .template block<displacement_size, pressure_size>(
-                    displacement_index, pressure_index)
-                .noalias() -= B.transpose() * alpha *
-                              (chi_S_L + dchi_dS_L * p_cap_ip * dS_L_dp_cap) *
-                              identity2 * N_p * w;
+                local_Jac
+                    .template block<displacement_size, pressure_size>(
+                        displacement_index, pressure_index)
+                    .noalias() -= B.transpose() * alpha *
+                                  (chi_S_L + dchi_dS_L * p_cap_ip * dS_L_dp_cap) *
+                                  identity2 * N_p * w;
+            }
         }
 
         double const phi =
@@ -1823,10 +1939,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                        MechanicalStrainData<DisplacementDim>>>(
                     SD_prev);
 
-            ip_data_[ip].updateConstitutiveRelation(
-                variables, t, x_position, dt, temperature, sigma_eff,
-                sigma_eff_prev, eps_m, eps_m_prev, this->solid_material_,
-                this->material_states_[ip].material_state_variables);
+            [[maybe_unused]] auto const constitutive_update =
+                ip_data_[ip].updateConstitutiveRelation(
+                    variables, t, x_position, dt, temperature, sigma_eff,
+                    sigma_eff_prev, eps_m, eps_m_prev, this->solid_material_,
+                    this->material_states_[ip].material_state_variables);
         }
 
         auto const& b = this->process_data_.specific_body_force;

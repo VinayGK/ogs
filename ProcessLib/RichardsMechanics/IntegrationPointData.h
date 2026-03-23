@@ -11,8 +11,10 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include "ConstitutiveRelations/Base.h"
+#include "ConstitutiveRelations/PressureCoupledSolidData.h"
 #include "MaterialLib/SolidModels/MechanicsBase.h"
 #include "MathLib/KelvinVector.h"
 #include "ProcessLib/ConstitutiveRelations/EffectiveStressData.h"
@@ -28,6 +30,13 @@ struct IntegrationPointData final
 {
     typename ShapeMatrixTypeDisplacement::NodalRowVectorType N_u;
     typename ShapeMatrixTypeDisplacement::GlobalDimNodalMatrixType dNdx_u;
+
+    struct ConstitutiveRelationUpdate final
+    {
+        typename BMatricesType::KelvinMatrixType C;
+        std::optional<PressureCoupledSolidData<DisplacementDim>>
+            pressure_coupled_data;
+    };
 
     typename ShapeMatricesTypePressure::NodalRowVectorType N_p;
     typename ShapeMatricesTypePressure::GlobalDimNodalMatrixType dNdx_p;
@@ -64,7 +73,7 @@ struct IntegrationPointData final
         return C;
     }
 
-    static typename BMatricesType::KelvinMatrixType updateConstitutiveRelation(
+    static ConstitutiveRelationUpdate updateConstitutiveRelation(
         MaterialPropertyLib::VariableArray const& variable_array,
         double const t,
         ParameterLib::SpatialPosition const& x_position,
@@ -91,6 +100,21 @@ struct IntegrationPointData final
                 eps_m_prev->eps_m);
         variable_array_prev.temperature = temperature;
 
+        if (auto pressure_coupled_response =
+                solid_material.integrateStressPressureCoupled(
+                    variable_array_prev, variable_array, t, x_position, dt,
+                    *material_state_variables))
+        {
+            auto pressure_coupled_data =
+                makePressureCoupledSolidData<DisplacementDim>(
+                    *pressure_coupled_response);
+            sigma_eff.sigma_eff = pressure_coupled_response->stress;
+            material_state_variables =
+                std::move(pressure_coupled_response->state);
+            return {std::move(pressure_coupled_response->dStress_dStrain),
+                    std::move(pressure_coupled_data)};
+        }
+
         auto&& solution = solid_material.integrateStress(
             variable_array_prev, variable_array, t, x_position, dt,
             *material_state_variables);
@@ -100,11 +124,11 @@ struct IntegrationPointData final
             OGS_FATAL("Computation of local constitutive relation failed.");
         }
 
-        MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> C;
+        typename BMatricesType::KelvinMatrixType C;
         std::tie(sigma_eff.sigma_eff, material_state_variables, C) =
             std::move(*solution);
 
-        return C;
+        return {std::move(C), std::nullopt};
     }
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
