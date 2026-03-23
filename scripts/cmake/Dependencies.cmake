@@ -19,6 +19,13 @@ if(OGS_BUILD_TESTING)
         )
         add_library(autocheck INTERFACE IMPORTED)
     else()
+        if(CONDA_BUILD)
+            find_program(VTKDIFF_TOOL vtkdiff REQUIRED)
+            add_executable(vtkdiff IMPORTED GLOBAL)
+            set_target_properties(vtkdiff PROPERTIES
+                IMPORTED_LOCATION "${VTKDIFF_TOOL}"
+            )
+        endif()
         CPMAddPackage(
             NAME googletest
             GITHUB_REPOSITORY google/googletest
@@ -365,6 +372,9 @@ endif()
 # ~~~
 if(GUIX_BUILD OR CONDA_BUILD)
     add_library(exprtk INTERFACE IMPORTED)
+    if(CONDA_BUILD AND DEFINED exprtk_SOURCE_DIR)
+        target_include_directories(exprtk SYSTEM INTERFACE ${exprtk_SOURCE_DIR})
+    endif()
 else()
     CPMAddPackage(
         NAME exprtk
