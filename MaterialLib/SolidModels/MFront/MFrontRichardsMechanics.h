@@ -34,22 +34,8 @@ class MFrontRichardsMechanics
     using KelvinMatrix = typename Base::KelvinMatrix;
 
 public:
-    static constexpr int KelvinSize =
-        MathLib::KelvinVector::kelvin_vector_dimensions(DisplacementDim);
-    using SaturationStrainJacobian = Eigen::Matrix<double, 1, KelvinSize>;
-
-    struct PressureCoupledResponse
-    {
-        KelvinVector stress;
-        double saturation;
-        KelvinMatrix dStress_dStrain;
-        KelvinVector dStress_dLiquidPressure;
-        SaturationStrainJacobian dSaturation_dStrain;
-        double dSaturation_dLiquidPressure;
-        std::unique_ptr<typename MechanicsBase<DisplacementDim>::
-                            MaterialStateVariables>
-            state;
-    };
+    using PressureCoupledResponse =
+        typename MechanicsBase<DisplacementDim>::PressureCoupledResponse;
 
     using Base::Base;
 
@@ -76,7 +62,7 @@ public:
         ParameterLib::SpatialPosition const& x,
         double const dt,
         typename MechanicsBase<DisplacementDim>::MaterialStateVariables const&
-            material_state_variables) const
+            material_state_variables) const override
     {
         auto res = Base::integrateStress(variable_array_prev,
                                          variable_array,

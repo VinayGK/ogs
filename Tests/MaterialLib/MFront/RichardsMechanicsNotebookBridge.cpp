@@ -21,7 +21,6 @@
 #include "BaseLib/ConfigTree.h"
 #include "MaterialLib/SolidModels/CreateConstitutiveRelation.h"
 #include "MaterialLib/SolidModels/MFront/CreateMFrontGeneric.h"
-#include "MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h"
 #include "MaterialLib/SolidModels/MFront/Variable.h"
 #include "ParameterLib/ConstantParameter.h"
 #include "Tests/TestTools.h"
@@ -246,10 +245,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     auto model = createBridgeModelThroughFactory(parameters);
     ASSERT_TRUE(model != nullptr);
 
-    auto* rm_model = dynamic_cast<MSM::MFrontRichardsMechanics<3>*>(model.get());
-    ASSERT_TRUE(rm_model != nullptr);
-
-    auto state = rm_model->createMaterialStateVariables();
+    auto state = model->createMaterialStateVariables();
     ASSERT_TRUE(state != nullptr);
 
     MPL::VariableArray variable_array_prev;
@@ -263,7 +259,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     variable_array.liquid_phase_pressure = 1e3;
 
     ParameterLib::SpatialPosition x{};
-    auto response = rm_model->integrateStressPressureCoupled(
+    auto response = model->integrateStressPressureCoupled(
         variable_array_prev, variable_array, 1.0, x, 1.0, *state);
     ASSERT_TRUE(response);
     ASSERT_TRUE(response->state != nullptr);
