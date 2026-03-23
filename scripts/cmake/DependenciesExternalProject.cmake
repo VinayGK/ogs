@@ -52,6 +52,75 @@ if(OGS_USE_MFRONT)
         endif()
         find_package(TFEL)
 
+        # The installed TFEL package exposes imported targets, while the OGS
+        # MFront test helpers still rely on the TFEL CMake module that defines
+        # the behaviour-check helper functions. When building from a CPM source
+        # cache, include that module explicitly and provide the plural wrapper
+        # used by the OGS test CMakeLists.
+        if(NOT COMMAND mfront_behaviour_check_library)
+            if(NOT TARGET check)
+                add_custom_target(check)
+            endif()
+            if(MFRONT AND NOT TARGET mfront)
+                add_executable(mfront IMPORTED GLOBAL)
+                set_target_properties(mfront PROPERTIES
+                    IMPORTED_LOCATION "${MFRONT}"
+                )
+            endif()
+            foreach(_tfel_lib
+                    TFELMaterial TFELMath TFELUtilities TFELException
+                    MFrontProfiling)
+                if(NOT TARGET ${_tfel_lib})
+                    find_library(_${_tfel_lib}_LIBRARY ${_tfel_lib}
+                                 HINTS ${TFELHOME} PATH_SUFFIXES lib REQUIRED)
+                    add_library(${_tfel_lib} STATIC IMPORTED GLOBAL)
+                    set_target_properties(${_tfel_lib} PROPERTIES
+                        IMPORTED_LOCATION "${_${_tfel_lib}_LIBRARY}"
+                        INTERFACE_INCLUDE_DIRECTORIES "${TFELHOME}/include"
+                    )
+                endif()
+            endforeach()
+            file(GLOB _tfel_cmake_modules
+                 "${CPM_SOURCE_CACHE}/_ext/TFEL/*/src/TFEL/cmake/modules/tfel.cmake")
+            list(SORT _tfel_cmake_modules)
+            list(REVERSE _tfel_cmake_modules)
+            list(GET _tfel_cmake_modules 0 _tfel_cmake_module)
+            if(EXISTS "${_tfel_cmake_module}")
+                include("${_tfel_cmake_module}")
+            else()
+                message(FATAL_ERROR
+                    "Could not locate TFEL CMake module tfel.cmake under "
+                    "${CPM_SOURCE_CACHE}/_ext/TFEL; MFront behaviour check "
+                    "helpers are unavailable."
+                )
+            endif()
+            get_filename_component(_tfel_include_dir "${_tfel_cmake_module}"
+                                   DIRECTORY)
+            get_filename_component(_tfel_include_dir "${_tfel_include_dir}"
+                                   DIRECTORY)
+            get_filename_component(_tfel_include_dir "${_tfel_include_dir}"
+                                   DIRECTORY)
+            get_filename_component(_tfel_include_dir "${_tfel_include_dir}"
+                                   DIRECTORY)
+            get_filename_component(_tfel_include_dir "${_tfel_include_dir}"
+                                   DIRECTORY)
+            set(_tfel_include_dir "${_tfel_include_dir}/include")
+            foreach(_tfel_lib
+                    TFELMaterial TFELMath TFELUtilities TFELException
+                    MFrontProfiling)
+                if(TARGET ${_tfel_lib})
+                    set_target_properties(${_tfel_lib} PROPERTIES
+                        INTERFACE_INCLUDE_DIRECTORIES "${_tfel_include_dir}")
+                endif()
+            endforeach()
+        endif()
+        if(COMMAND mfront_behaviour_check_library
+           AND NOT COMMAND mfront_behaviours_check_library)
+            function(mfront_behaviours_check_library lib)
+                mfront_behaviour_check_library(${lib} generic ${ARGN})
+            endfunction()
+        endif()
+
         if(MFRONT AND APPLE)
             # TODO: check for version
             # ~~~

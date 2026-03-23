@@ -19,6 +19,7 @@
 #include "CreateLubby2.h"
 #ifdef OGS_USE_MFRONT
 #include "MFront/CreateMFront.h"
+#include "MFront/CreateMFrontRichardsMechanics.h"
 #endif  // OGS_USE_MFRONT
 
 #include "CreateConstitutiveRelationsGeneric.h"
@@ -80,6 +81,17 @@ createConstitutiveRelation(
 #ifdef OGS_USE_MFRONT
         return MaterialLib::Solids::MFront::createMFront<DisplacementDim>(
             parameters, local_coordinate_system, config);
+#else   // OGS_USE_MFRONT
+        OGS_FATAL(
+            "OGS is compiled without MFront support. See OGS_USE_MFRONT CMake "
+            "option.");
+#endif  // OGS_USE_MFRONT
+    }
+    if (type == "MFrontRichardsMechanics")
+    {
+#ifdef OGS_USE_MFRONT
+        return MaterialLib::Solids::MFront::createMFrontRichardsMechanics<
+            DisplacementDim>(parameters, local_coordinate_system, config);
 #else   // OGS_USE_MFRONT
         OGS_FATAL(
             "OGS is compiled without MFront support. See OGS_USE_MFRONT CMake "

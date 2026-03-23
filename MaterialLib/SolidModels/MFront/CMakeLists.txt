@@ -1,8 +1,12 @@
 set(SOURCES
     CreateMFront.cpp
     CreateMFront.h
+    CreateMFrontRichardsMechanics.cpp
+    CreateMFrontRichardsMechanics.h
     MFront.cpp
     MFront.h
+    MFrontRichardsMechanics.cpp
+    MFrontRichardsMechanics.h
     MFrontGeneric.cpp
     MFrontGeneric.h
     CreateMFrontGeneric.cpp
@@ -49,6 +53,7 @@ set(_mfront_behaviours
     StandardElasticityBrick
     StandardElasticityBrickOrtho
     ThermoPoroElasticity
+    RichardsMechanicsNotebookBridge
     WeakPlaneModel
     WeakPlaneModel_nonIter
 )

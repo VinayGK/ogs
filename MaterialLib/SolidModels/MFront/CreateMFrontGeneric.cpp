@@ -329,7 +329,14 @@ MFrontConfig createMFrontConfig(
     INFO("### MFRONT ########################################################");
 
     //! \ogs_file_param{material__solid__constitutive_relation__type}
-    config.checkConfigParameter("type", "MFront");
+    auto const type = config.getConfigParameter<std::string>("type");
+    if (type != "MFront" && type != "MFrontRichardsMechanics")
+    {
+        OGS_FATAL(
+            "Expected constitutive relation type 'MFront' or "
+            "'MFrontRichardsMechanics', but got '{:s}'.",
+            type);
+    }
 
     //! \ogs_file_param{material__solid__constitutive_relation__MFront__library}
     auto const library = config.getConfigSubtreeOptional("library");

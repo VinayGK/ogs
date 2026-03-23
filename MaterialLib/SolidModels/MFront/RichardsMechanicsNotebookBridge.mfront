@@ -1,0 +1,98 @@
+@DSL DefaultGenericBehaviour;
+@Behaviour RichardsMechanicsNotebookBridge;
+@Author OpenGeoSys Community;
+@Date 2026 / 03 / 23;
+@Description {
+Pressure-aware RichardsMechanics bridge for notebook-to-MFront transfer.
+This first bridge step keeps the process thin and moves the local pressure
+coupling into MFront.
+}
+
+@Gradient StrainStensor eps_to;
+eps_to.setGlossaryName("Strain");
+
+@Gradient real p_LR;
+p_LR.setEntryName("LiquidPressure");
+
+@Flux StressStensor sigma;
+sigma.setGlossaryName("Stress");
+
+// A second scalar thermodynamic force is kept as a bridge placeholder so the
+// generic MFront interface can carry the pressure gradient together with the
+// stress output. The RichardsMechanics adapter ignores this output for now.
+@Flux real S_L;
+S_L.setEntryName("Saturation");
+
+// Keep the bridge compileable and expose all tangent blocks explicitly.
+@TangentOperatorBlocks{∂sigma∕∂Δeps_to, ∂sigma∕∂Δp_LR, ∂S_L∕∂Δeps_to,
+                       ∂S_L∕∂Δp_LR};
+
+@MaterialProperty stress E;
+E.setGlossaryName("YoungModulus");
+@MaterialProperty real nu;
+nu.setGlossaryName("PoissonRatio");
+@MaterialProperty real alpha_b;
+alpha_b.setEntryName("CriticalStateLineSlope");
+@MaterialProperty real p_sw;
+p_sw.setEntryName("SwellingLineSlope");
+@MaterialProperty real lambda_v;
+lambda_v.setEntryName("VirginConsolidationLineSlope");
+@MaterialProperty real pc0;
+pc0.setEntryName("CharacteristicPreConsolidationPressure");
+@MaterialProperty real v0;
+v0.setEntryName("InitialVolumeRatio");
+@MaterialProperty real p_sat_scale;
+p_sat_scale.setEntryName("SaturationPressureScale");
+
+@AuxiliaryStateVariable stress pc;
+pc.setEntryName("PreConsolidationPressure");
+
+@AuxiliaryStateVariable real v;
+v.setEntryName("VolumeRatio");
+
+@ProvidesTangentOperator;
+@Integrator {
+  const auto lambda = computeLambda(E, nu);
+  const auto mu = computeMu(E, nu);
+  const auto p = p_LR + Δp_LR;
+  const auto p_swelling = std::min(p, 0.0);
+
+  // RichardsMechanics notebook bridge:
+  //   elastic stress increment
+  // - pressure contribution
+  // - suction-driven swelling contribution
+  // The bridge also needs a smooth saturation surrogate so the Richards
+  // Jacobian remains well-posed in the process test.
+  const auto saturation_from_pressure = [&](const auto p_arg) {
+    const auto xi = p_arg / p_sat_scale;
+    if (xi >= 0.0)
+    {
+      const auto e = std::exp(-xi);
+      return 1.0 / (1.0 + e);
+    }
+    const auto e = std::exp(xi);
+    return e / (1.0 + e);
+  };
+  const auto dsaturation_dp = [&](const auto p_arg) {
+    const auto s = saturation_from_pressure(p_arg);
+    return s ⋅ (1.0 - s) / p_sat_scale;
+  };
+  const auto χ = saturation_from_pressure(p);
+  const auto χ_prev = saturation_from_pressure(p_LR);
+
+  // Use the smooth saturation surrogate as Bishop-style coupling so the
+  // pressure output still participates in the effective stress map.
+  sigma = sigma + lambda ⋅ trace(Δeps_to) ⋅ I₂ + 2 ⋅ mu ⋅ Δeps_to -
+          alpha_b ⋅ (χ ⋅ p - χ_prev ⋅ p_LR) ⋅ I₂ -
+          p_sw ⋅ p_swelling ⋅ I₂;
+  S_L = χ;
+
+  if (computeTangentOperator_)
+  {
+    ∂sigma∕∂Δeps_to = lambda ⋅ (I₂ ⊗ I₂) + 2 ⋅ mu ⋅ I₄;
+    ∂sigma∕∂Δp_LR = -(alpha_b ⋅ (χ + p ⋅ dsaturation_dp(p)) +
+                      (p < 0.0 ? p_sw : 0.0)) ⋅ I₂;
+    ∂S_L∕∂Δeps_to = 0.0 ⋅ I₂;
+    ∂S_L∕∂Δp_LR = dsaturation_dp(p);
+  }
+}

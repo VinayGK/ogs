@@ -120,8 +120,11 @@ target_link_libraries(
         $<$<TARGET_EXISTS:InSituLib>:InSituLib>
         $<$<TARGET_EXISTS:petsc>:petsc>
         $<$<TARGET_EXISTS:Python::Python>:Python::Python>
-    PUBLIC $<$<BOOL:${OGS_USE_MFRONT}>:OgsMFrontBehaviourForUnitTests>
 )
+
+if(OGS_USE_MFRONT)
+    add_dependencies(testrunner OgsMFrontBehaviourForUnitTests)
+endif()
 
 target_compile_definitions(
     testrunner

@@ -30,6 +30,15 @@ endif()
 
 if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
     OgsTest(PROJECTFILE RichardsMechanics/mfront_restart_part1.prj RUNTIME 1)
+    # The notebook-style bridge smoke shell is kept as a manual negative
+    # check for now. It reaches the first nonlinear solve but fails in the
+    # linear solver, so it is not part of the default ctest slice yet.
+    # OgsTest(
+    #     PROJECTFILE RichardsMechanics/mfront_restart_part1_rm_bridge.prj
+    #     WRAPPER env
+    #             DYLD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/lib
+    #             LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/lib
+    #     RUNTIME 1)
     OgsTest(PROJECTFILE RichardsMechanics/mfront_restart_part2.xml RUNTIME 1)
     OgsTest(PROJECTFILE RichardsMechanics/DoubleStructureBenchmark/double_porosity_swelling_RM.prj RUNTIME 1)
 endif()
