@@ -101,6 +101,8 @@ struct BaselineRow
     double rho_lR = 0.0;
     double mu_lR = 0.0;
     double rho_l_hat = 0.0;
+    double epsilon_v_total = 0.0;
+    double delta_epsilon_v = 0.0;
     double epsilon_sw = 0.0;
     double stress_xx = 0.0;
 };
@@ -126,6 +128,18 @@ static std::vector<BaselineRow> loadBaselineRows(std::string const& filename)
         return std::stod(fields.at(column.at(key)));
     };
 
+    auto const get_optional_value = [&](std::vector<std::string> const& fields,
+                                        std::string const& key,
+                                        double const default_value) -> double
+    {
+        auto const it = column.find(key);
+        if (it == column.end())
+        {
+            return default_value;
+        }
+        return std::stod(fields.at(it->second));
+    };
+
     std::vector<BaselineRow> rows;
     std::string line;
     while (std::getline(in, line))
@@ -141,6 +155,10 @@ static std::vector<BaselineRow> loadBaselineRows(std::string const& filename)
         row.pressure = get_value(fields, "pressure");
         row.saturation = get_value(fields, "S_L");
         row.mu_LR = get_value(fields, "mu_LR");
+        row.epsilon_v_total =
+            get_optional_value(fields, "epsilon_v_total", 0.0);
+        row.delta_epsilon_v =
+            get_optional_value(fields, "delta_epsilon_v", 0.0);
         row.n_l = get_value(fields, "n_l");
         row.phi_m = get_value(fields, "phi_m");
         row.phi_M = get_value(fields, "phi_M");
@@ -160,6 +178,15 @@ static double scaledTolerance(double const value,
                               double const absolute = 1e-12)
 {
     return absolute + relative * std::max(1.0, std::abs(value));
+}
+
+static KV isotropicStrainFromVolumetric(double const epsilon_v)
+{
+    KV eps = KV::Zero();
+    eps[0] = epsilon_v / 3.0;
+    eps[1] = epsilon_v / 3.0;
+    eps[2] = epsilon_v / 3.0;
+    return eps;
 }
 
 static auto createBridgeModel(
@@ -281,6 +308,41 @@ static double getInternalVariable(Model const& model,
         return std::numeric_limits<double>::quiet_NaN();
     }
     return values[0];
+}
+
+template <typename Model>
+static void setInternalVariable(Model const& model,
+                                MB::MaterialStateVariables& state,
+                                std::string const& name,
+                                double const value)
+{
+    auto const internal_variables = model.getInternalVariables();
+    auto const it = std::find_if(
+        internal_variables.begin(), internal_variables.end(),
+        [&name](auto const& internal_variable)
+        { return internal_variable.name == name; });
+    ASSERT_TRUE(it != internal_variables.end()) << name;
+    auto values = it->reference(state);
+    ASSERT_EQ(values.size(), 1);
+    values[0] = value;
+}
+
+static void setThermodynamicForces(MB::MaterialStateVariables& state,
+                                   KV const& stress,
+                                   double const saturation)
+{
+    auto* const mfront_state =
+        dynamic_cast<MSM::MaterialStateVariablesMFront<3>*>(&state);
+    ASSERT_TRUE(mfront_state != nullptr);
+
+    auto& thermodynamic_forces = mfront_state->_behaviour_data.s1.thermodynamic_forces;
+    thermodynamic_forces[0] = stress[0];
+    thermodynamic_forces[1] = stress[1];
+    thermodynamic_forces[2] = stress[2];
+    thermodynamic_forces[3] = stress[3];
+    thermodynamic_forces[4] = stress[4];
+    thermodynamic_forces[5] = stress[5];
+    thermodynamic_forces[6] = saturation;
 }
 
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
@@ -586,6 +648,100 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
         EXPECT_NEAR(rho_l_hat_value, row.rho_l_hat, scaledTolerance(row.rho_l_hat, 1e-2, 1e-8));
         EXPECT_NEAR(epsilon_sw_value, row.epsilon_sw, scaledTolerance(row.epsilon_sw, 5e-3, 1e-8));
         EXPECT_NEAR(phi_m_value, n_l_value, scaledTolerance(row.n_l, 5e-3, 1e-8));
+
+        state = std::move(response->state);
+        state->pushBackState();
+        variable_array_prev = variable_array;
+        variable_array_prev.stress.template emplace<KV>(response->stress);
+        variable_array_prev.liquid_saturation = response->saturation;
+    }
+}
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     StrainCoupledOverlapHistoryResponse)
+{
+    auto const overlap_rows = loadBaselineRows(
+        TestInfoLib::TestInfo::data_path +
+        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+    auto const strain_rows = loadBaselineRows(
+        TestInfoLib::TestInfo::data_path +
+        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_strain_coupled_overlap_baseline.csv");
+    ASSERT_EQ(overlap_rows.size(), 5);
+    ASSERT_EQ(strain_rows.size(), 5);
+    auto const& anchor = overlap_rows.back();
+
+    auto const parameters = createParameters();
+    auto model = createBridgeModelThroughFactory(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+    setInternalVariable(*model, *state, "n_l", anchor.n_l);
+    setInternalVariable(*model, *state, "rho_lR", anchor.rho_lR);
+    setInternalVariable(*model, *state, "epsilon_sw", anchor.epsilon_sw);
+
+    MPL::VariableArray variable_array_prev;
+    KV anchor_stress = KV::Zero();
+    anchor_stress[0] = anchor.stress_xx;
+    anchor_stress[1] = anchor.stress_xx;
+    anchor_stress[2] = anchor.stress_xx;
+    setThermodynamicForces(*state, anchor_stress, anchor.saturation);
+    state->pushBackState();
+
+    variable_array_prev.stress.template emplace<KV>(anchor_stress);
+    variable_array_prev.mechanical_strain.template emplace<KV>(KV::Zero());
+    variable_array_prev.liquid_phase_pressure = anchor.pressure;
+    variable_array_prev.liquid_saturation = anchor.saturation;
+    variable_array_prev.temperature = 0.0;
+
+    ParameterLib::SpatialPosition x{};
+
+    auto constexpr strain_stress_relative_tolerance = 7e-3;
+
+    for (auto const& row : strain_rows)
+    {
+        auto variable_array = variable_array_prev;
+        variable_array.liquid_phase_pressure = row.pressure;
+        variable_array.mechanical_strain.template emplace<KV>(
+            isotropicStrainFromVolumetric(row.epsilon_v_total));
+
+        auto response = model->integrateStressPressureCoupled(
+            variable_array_prev,
+            variable_array,
+            static_cast<double>(row.step + 1),
+            x,
+            1.0,
+            *state);
+        ASSERT_TRUE(response);
+        ASSERT_TRUE(response->state != nullptr);
+
+        auto const n_l_value = getInternalVariable(*model, *response->state, "n_l");
+        auto const phi_m_value = getInternalVariable(*model, *response->state, "phi_m");
+        auto const phi_M_value = getInternalVariable(*model, *response->state, "phi_M");
+        auto const rho_lR_value = getInternalVariable(*model, *response->state, "rho_lR");
+        auto const mu_lR_value = getInternalVariable(*model, *response->state, "mu_lR");
+        auto const rho_l_hat_value = getInternalVariable(*model, *response->state, "rho_l_hat");
+        auto const epsilon_sw_value =
+            getInternalVariable(*model, *response->state, "epsilon_sw");
+
+        EXPECT_NEAR(response->saturation, row.saturation, scaledTolerance(row.saturation));
+        EXPECT_NEAR(response->stress[0], row.stress_xx, scaledTolerance(row.stress_xx, strain_stress_relative_tolerance, 1e-6));
+        EXPECT_NEAR(response->stress[1], row.stress_xx, scaledTolerance(row.stress_xx, strain_stress_relative_tolerance, 1e-6));
+        EXPECT_NEAR(response->stress[2], row.stress_xx, scaledTolerance(row.stress_xx, strain_stress_relative_tolerance, 1e-6));
+        EXPECT_NEAR(response->stress[3], 0.0, 1e-12);
+        EXPECT_NEAR(response->stress[4], 0.0, 1e-12);
+        EXPECT_NEAR(response->stress[5], 0.0, 1e-12);
+        EXPECT_NEAR(response->dSaturation_dLiquidPressure, 0.0, 1e-12);
+        EXPECT_NEAR(n_l_value, row.n_l, scaledTolerance(row.n_l, 5e-3, 1e-8));
+        EXPECT_NEAR(phi_m_value, row.phi_m, scaledTolerance(row.phi_m, 5e-3, 1e-8));
+        EXPECT_NEAR(phi_M_value, row.phi_M, scaledTolerance(row.phi_M, 5e-3, 1e-8));
+        EXPECT_NEAR(rho_lR_value, row.rho_lR, scaledTolerance(row.rho_lR, 1e-3, 1e-6));
+        EXPECT_NEAR(mu_lR_value, row.mu_lR, scaledTolerance(row.mu_lR, 1e-2, 1e-8));
+        EXPECT_NEAR(rho_l_hat_value, row.rho_l_hat, scaledTolerance(row.rho_l_hat, 1e-2, 1e-8));
+        EXPECT_NEAR(epsilon_sw_value, row.epsilon_sw, scaledTolerance(row.epsilon_sw, 5e-3, 1e-8));
+        EXPECT_NEAR(phi_m_value, n_l_value, scaledTolerance(row.n_l, 5e-3, 1e-8));
+        EXPECT_TRUE(response->dStress_dStrain.allFinite());
 
         state = std::move(response->state);
         state->pushBackState();
