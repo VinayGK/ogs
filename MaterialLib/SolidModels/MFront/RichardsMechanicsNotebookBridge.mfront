@@ -1,11 +1,14 @@
 @DSL DefaultGenericBehaviour;
 @Behaviour RichardsMechanicsNotebookBridge;
 @Author OpenGeoSys Community;
-@Date 2026 / 03 / 23;
+@Date 2026 / 03 / 24;
 @Description {
-Pressure-aware RichardsMechanics bridge for notebook-to-MFront transfer.
-This first bridge step keeps the process thin and moves the local pressure
-coupling into MFront.
+Reduced notebook-aligned RichardsMechanics bridge for the verified shared
+pressure-history boundary. This bridge replaces the earlier logistic pressure
+surrogate by a local microstate update with phi_m := n_l, a reduced micro-liquid
+EOS, a van-der-Waals micro potential, and an isotropic swelling-stress update.
+The verified regression boundary of this step is the nonnegative pressure path
+used by the committed notebook overlap-transfer baseline.
 }
 
 @Gradient StrainStensor eps_to;
@@ -17,13 +20,9 @@ p_LR.setEntryName("LiquidPressure");
 @Flux StressStensor sigma;
 sigma.setGlossaryName("Stress");
 
-// A second scalar thermodynamic force is kept as a bridge placeholder so the
-// generic MFront interface can carry the pressure gradient together with the
-// stress output. The RichardsMechanics adapter ignores this output for now.
 @Flux real S_L;
 S_L.setEntryName("Saturation");
 
-// Keep the bridge compileable and expose all tangent blocks explicitly.
 @TangentOperatorBlocks{∂sigma∕∂Δeps_to, ∂sigma∕∂Δp_LR, ∂S_L∕∂Δeps_to,
                        ∂S_L∕∂Δp_LR};
 
@@ -31,94 +30,292 @@ S_L.setEntryName("Saturation");
 E.setGlossaryName("YoungModulus");
 @MaterialProperty real nu;
 nu.setGlossaryName("PoissonRatio");
-@MaterialProperty real alpha_b;
-alpha_b.setEntryName("CriticalStateLineSlope");
-@MaterialProperty real p_sw;
-p_sw.setEntryName("SwellingLineSlope");
-@MaterialProperty real lambda_v;
-lambda_v.setEntryName("VirginConsolidationLineSlope");
-@MaterialProperty real pc0;
-pc0.setEntryName("CharacteristicPreConsolidationPressure");
-@MaterialProperty real v0;
-v0.setEntryName("InitialVolumeRatio");
-@MaterialProperty real p_sat_scale;
-p_sat_scale.setEntryName("SaturationPressureScale");
-@MaterialProperty real n_l_ref;
-n_l_ref.setEntryName("n_l_ref");
 
-@AuxiliaryStateVariable stress pc;
-pc.setEntryName("PreConsolidationPressure");
-
-@AuxiliaryStateVariable real v;
-v.setEntryName("VolumeRatio");
+@MaterialProperty real swelling_slope;
+swelling_slope.setEntryName("SwellingSlope");
+@MaterialProperty real mass_exchange_coefficient;
+mass_exchange_coefficient.setEntryName("MassExchangeCoefficient");
+@MaterialProperty real rho_LR_ref;
+rho_LR_ref.setEntryName("ReferenceLiquidDensityMacro");
+@MaterialProperty real rho_l0;
+rho_l0.setEntryName("ReferenceLiquidDensityMicro");
+@MaterialProperty real rho_SR;
+rho_SR.setEntryName("ReferenceDensitySolid");
+@MaterialProperty real density_a;
+density_a.setEntryName("MicroLiquidDensityA");
+@MaterialProperty real density_b;
+density_b.setEntryName("MicroLiquidDensityB");
+@MaterialProperty real hamaker_constant;
+hamaker_constant.setEntryName("HamakerConstant");
+@MaterialProperty real specific_surface;
+specific_surface.setEntryName("SpecificSurface");
+@MaterialProperty real phi0;
+phi0.setEntryName("InitialPorosity");
+@MaterialProperty real area_factor_tuller;
+area_factor_tuller.setEntryName("AreaFactorTuller");
+@MaterialProperty real pore_area_shape_factor_tuller;
+pore_area_shape_factor_tuller.setEntryName("PoreAreaShapeFactorTuller");
+@MaterialProperty real characteristic_pore_size;
+characteristic_pore_size.setEntryName("CharacteristicPoreSize");
+@MaterialProperty real surface_tension;
+surface_tension.setEntryName("SurfaceTension");
 
 @StateVariable real n_l;
 n_l.setEntryName("n_l");
+@StateVariable real rho_lR;
+rho_lR.setEntryName("rho_lR");
+@StateVariable real epsilon_sw;
+epsilon_sw.setEntryName("epsilon_sw");
 
 @AuxiliaryStateVariable real phi_m;
 phi_m.setEntryName("phi_m");
+@AuxiliaryStateVariable real phi_M;
+phi_M.setEntryName("phi_M");
+@AuxiliaryStateVariable real mu_lR_value;
+mu_lR_value.setEntryName("mu_lR");
+@AuxiliaryStateVariable real rho_l_hat_value;
+rho_l_hat_value.setEntryName("rho_l_hat");
 
 @ProvidesTangentOperator;
 @Integrator {
-  tfel::raise_if(n_l_ref <= 0.0, "Invalid parameter: n_l_ref must be positive.");
+  constexpr const auto pi = 3.14159265358979323846;
+  constexpr const auto pressure_tolerance = 1e-12;
+  constexpr const auto minimum_n_l = 1e-14;
+  constexpr const auto minimum_density_gap = 1e-12;
+  constexpr const auto newton_tolerance = 1e-12;
+  constexpr const auto max_iterations = 64;
+
+  tfel::raise_if(phi0 <= 0.0 || phi0 >= 1.0,
+                 "Invalid parameter: InitialPorosity must lie in (0,1).");
+  tfel::raise_if(rho_LR_ref <= 0.0 || rho_l0 <= 0.0 || rho_SR <= 0.0,
+                 "Invalid density parameter: all reference densities must be positive.");
+  tfel::raise_if(specific_surface <= 0.0,
+                 "Invalid parameter: SpecificSurface must be positive.");
+  tfel::raise_if(characteristic_pore_size <= 0.0,
+                 "Invalid parameter: CharacteristicPoreSize must be positive.");
+  tfel::raise_if(surface_tension <= 0.0,
+                 "Invalid parameter: SurfaceTension must be positive.");
 
   const auto lambda = computeLambda(E, nu);
   const auto mu = computeMu(E, nu);
+  const auto bulk_modulus = E / (3.0 * (1.0 - 2.0 * nu));
   const auto p = p_LR + Δp_LR;
-  const auto p_swelling = std::min(p, 0.0);
+  const auto n_s = 1.0 - phi0;
   const auto n_l_prev = n_l;
+  const auto rho_lR_prev = rho_lR;
+  const auto phi_m_prev = n_l_prev;
+  const auto previous_mass = n_l_prev * rho_lR_prev;
 
-  // RichardsMechanics notebook bridge:
-  //   reduced micro water-content state n_l
-  //   explicit micro-porosity ownership phi_m := n_l
-  //   elastic stress increment
-  // - pressure contribution
-  // - suction-driven swelling contribution
-  // The bridge still uses a smooth pressure surrogate, but the stress update is
-  // now carried through the notebook-style microstate pair (n_l, phi_m).
   const auto saturation_from_pressure = [&](const auto p_arg) {
-    const auto xi = p_arg / p_sat_scale;
-    if (xi >= 0.0)
+    if (p_arg < -pressure_tolerance)
     {
-      const auto e = std::exp(-xi);
-      return 1.0 / (1.0 + e);
+      const auto capillary_prefactor =
+          4.0 * pore_area_shape_factor_tuller * surface_tension * surface_tension /
+          (area_factor_tuller * characteristic_pore_size * characteristic_pore_size);
+      const auto capillary_term = capillary_prefactor / (p_arg * p_arg);
+      return 1.0 - std::exp(-capillary_term);
     }
-    const auto e = std::exp(xi);
-    return e / (1.0 + e);
-  };
-  const auto dsaturation_dp = [&](const auto p_arg) {
-    const auto s = saturation_from_pressure(p_arg);
-    return s * (1.0 - s) / p_sat_scale;
+    return 1.0;
   };
 
-  const auto n_l_trial = n_l_ref * saturation_from_pressure(p);
+  const auto mu_macro_from_pressure = [&](const auto p_arg) {
+    return p_arg > -pressure_tolerance ? 0.0 : p_arg / rho_LR_ref;
+  };
+
+  const auto omega_from_state = [&](const auto n_l_arg, const auto rho_lR_arg) {
+    return n_l_arg * rho_lR_arg / (n_s * rho_SR);
+  };
+
+  const auto rho_micro_eos = [&](const auto n_l_arg, const auto rho_lR_arg) {
+    const auto omega = std::max(omega_from_state(n_l_arg, rho_lR_arg), minimum_n_l);
+    return rho_l0 * std::exp(-density_a * std::pow(omega, density_b)) + rho_LR_ref;
+  };
+
+  const auto mu_micro_from_state = [&](const auto n_l_arg, const auto rho_lR_arg) {
+    const auto omega = std::max(omega_from_state(n_l_arg, rho_lR_arg), minimum_n_l);
+    return (hamaker_constant * rho_lR_arg * rho_lR_arg * rho_lR_arg / (6.0 * pi)) *
+           std::pow(specific_surface / omega, 3.0);
+  };
+
+  const auto solve_microstate = [&](const auto p_arg,
+                                    const auto n_l_prev_arg,
+                                    const auto rho_lR_prev_arg,
+                                    double& n_l_out,
+                                    double& rho_lR_out,
+                                    double& mu_lR_out,
+                                    double& rho_l_hat_out) {
+    const auto mu_LR_arg = mu_macro_from_pressure(p_arg);
+    auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
+    auto rho_lR_trial = std::max(rho_lR_prev_arg, rho_LR_ref + minimum_density_gap);
+    auto converged = false;
+
+    const auto evaluate = [&](const auto n_l_arg,
+                              const auto rho_lR_arg,
+                              double& residual_1,
+                              double& residual_2,
+                              double& mu_lR_arg,
+                              double& rho_l_hat_arg) {
+      mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
+      rho_l_hat_arg = mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
+      residual_1 = n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg;
+      residual_2 = rho_lR_arg - rho_micro_eos(n_l_arg, rho_lR_arg);
+    };
+
+    for (unsigned int iteration = 0; iteration < max_iterations; ++iteration)
+    {
+      double residual_1 = 0.0;
+      double residual_2 = 0.0;
+      double mu_lR_trial = 0.0;
+      double rho_l_hat_trial = 0.0;
+      evaluate(n_l_trial, rho_lR_trial, residual_1, residual_2, mu_lR_trial,
+               rho_l_hat_trial);
+
+      const auto residual_norm = std::abs(residual_1) + std::abs(residual_2);
+      if (residual_norm < newton_tolerance)
+      {
+        n_l_out = n_l_trial;
+        rho_lR_out = rho_lR_trial;
+        mu_lR_out = mu_lR_trial;
+        rho_l_hat_out = rho_l_hat_trial;
+        converged = true;
+        break;
+      }
+
+      const auto h_n_l = std::max(1e-8 * std::abs(n_l_trial), 1e-10);
+      const auto h_rho = std::max(1e-8 * std::abs(rho_lR_trial), 1e-8);
+
+      double residual_1_n = 0.0;
+      double residual_2_n = 0.0;
+      double residual_1_rho = 0.0;
+      double residual_2_rho = 0.0;
+      double dummy_1 = 0.0;
+      double dummy_2 = 0.0;
+      evaluate(n_l_trial + h_n_l, rho_lR_trial, residual_1_n, residual_2_n,
+               dummy_1, dummy_2);
+      evaluate(n_l_trial, rho_lR_trial + h_rho, residual_1_rho, residual_2_rho,
+               dummy_1, dummy_2);
+
+      const auto j11 = (residual_1_n - residual_1) / h_n_l;
+      const auto j21 = (residual_2_n - residual_2) / h_n_l;
+      const auto j12 = (residual_1_rho - residual_1) / h_rho;
+      const auto j22 = (residual_2_rho - residual_2) / h_rho;
+      const auto determinant = j11 * j22 - j12 * j21;
+      tfel::raise_if(std::abs(determinant) < 1e-24,
+                     "Notebook bridge microstate Newton system became singular.");
+
+      const auto delta_n_l = (-residual_1 * j22 + j12 * residual_2) / determinant;
+      const auto delta_rho = (j21 * residual_1 - j11 * residual_2) / determinant;
+
+      auto damping = 1.0;
+      auto accepted = false;
+      while (damping > 1e-6)
+      {
+        const auto n_l_candidate =
+            std::max(n_l_trial + damping * delta_n_l, minimum_n_l);
+        const auto rho_candidate =
+            std::max(rho_lR_trial + damping * delta_rho,
+                     rho_LR_ref + minimum_density_gap);
+
+        double candidate_residual_1 = 0.0;
+        double candidate_residual_2 = 0.0;
+        double dummy_mu = 0.0;
+        double dummy_rho_hat = 0.0;
+        evaluate(n_l_candidate, rho_candidate, candidate_residual_1,
+                 candidate_residual_2, dummy_mu, dummy_rho_hat);
+        const auto candidate_norm =
+            std::abs(candidate_residual_1) + std::abs(candidate_residual_2);
+
+        if (candidate_norm < residual_norm)
+        {
+          n_l_trial = n_l_candidate;
+          rho_lR_trial = rho_candidate;
+          accepted = true;
+          break;
+        }
+        damping *= 0.5;
+      }
+
+      tfel::raise_if(!accepted,
+                     "Notebook bridge microstate Newton line search failed.");
+    }
+
+    tfel::raise_if(!converged,
+                   "Notebook bridge microstate Newton solve did not converge.");
+  };
+
+  double n_l_trial = 0.0;
+  double rho_lR_trial = 0.0;
+  double mu_lR_trial = 0.0;
+  double rho_l_hat_trial = 0.0;
+  solve_microstate(p, n_l_prev, rho_lR_prev, n_l_trial, rho_lR_trial,
+                   mu_lR_trial, rho_l_hat_trial);
+
   const auto phi_m_trial = n_l_trial;
-  const auto χ = n_l_trial / n_l_ref;
-  const auto χ_prev = n_l_prev / n_l_ref;
-  const auto dn_l_dp = n_l_ref * dsaturation_dp(p);
-  const auto dχ_dp = dn_l_dp / n_l_ref;
+  const auto phi_M_trial = phi0 - phi_m_trial;
+  const auto delta_epsilon_sw = swelling_slope * (phi_m_trial - phi_m_prev);
 
-  // Use the micro water-content state as the bridge carrier of saturation-like
-  // coupling. This keeps the current bridge algebra, but makes the notebook
-  // microstate chain explicit inside MFront.
-  sigma = sigma + lambda * trace(Δeps_to) * I₂ + 2 * mu * Δeps_to -
-          alpha_b * (χ * p - χ_prev * p_LR) * I₂ -
-          p_sw * p_swelling * I₂;
-  S_L = χ;
+  sigma = sigma + lambda * trace(Δeps_to) * I₂ + 2.0 * mu * Δeps_to -
+          bulk_modulus * delta_epsilon_sw * I₂;
+  S_L = saturation_from_pressure(p);
+
   n_l = n_l_trial;
+  rho_lR = rho_lR_trial;
+  epsilon_sw = epsilon_sw + delta_epsilon_sw;
   phi_m = phi_m_trial;
+  phi_M = phi_M_trial;
+  mu_lR_value = mu_lR_trial;
+  rho_l_hat_value = rho_l_hat_trial;
 
   if (computeTangentOperator_)
   {
-    ∂sigma∕∂Δeps_to = lambda * (I₂ ⊗ I₂) + 2 * mu * I₄;
-    ∂sigma∕∂Δp_LR = -(alpha_b * (χ + p * dχ_dp) +
-                      (p < 0.0 ? p_sw : 0.0)) * I₂;
+    ∂sigma∕∂Δeps_to = lambda * (I₂ ⊗ I₂) + 2.0 * mu * I₄;
     ∂S_L∕∂Δeps_to = 0.0 * I₂;
-    ∂S_L∕∂Δp_LR = dχ_dp;
+
+    if (p > -pressure_tolerance)
+    {
+      ∂sigma∕∂Δp_LR = 0.0 * I₂;
+      ∂S_L∕∂Δp_LR = 0.0;
+    }
+    else
+    {
+      const auto dp_fd = std::max(1e-6, std::abs(p) * 1e-6);
+      double n_l_plus = 0.0;
+      double rho_lR_plus = 0.0;
+      double mu_lR_plus = 0.0;
+      double rho_l_hat_plus = 0.0;
+      double n_l_minus = 0.0;
+      double rho_lR_minus = 0.0;
+      double mu_lR_minus = 0.0;
+      double rho_l_hat_minus = 0.0;
+
+      solve_microstate(p + dp_fd, n_l_prev, rho_lR_prev, n_l_plus, rho_lR_plus,
+                       mu_lR_plus, rho_l_hat_plus);
+      solve_microstate(p - dp_fd, n_l_prev, rho_lR_prev, n_l_minus,
+                       rho_lR_minus, mu_lR_minus, rho_l_hat_minus);
+
+      const auto dS_dp =
+          (saturation_from_pressure(p + dp_fd) - saturation_from_pressure(p - dp_fd)) /
+          (2.0 * dp_fd);
+      const auto dn_l_dp = (n_l_plus - n_l_minus) / (2.0 * dp_fd);
+
+      ∂sigma∕∂Δp_LR = -(bulk_modulus * swelling_slope * dn_l_dp) * I₂;
+      ∂S_L∕∂Δp_LR = dS_dp;
+    }
   }
 }
 
 @UpdateAuxiliaryStateVariables
 {
+  constexpr const auto pressure_tolerance = 1e-12;
+  constexpr const auto minimum_n_l = 1e-14;
+  constexpr const auto pi = 3.14159265358979323846;
+
+  const auto n_s = 1.0 - phi0;
+  const auto omega = std::max(n_l * rho_lR / (n_s * rho_SR), minimum_n_l);
   phi_m = n_l;
+  phi_M = phi0 - n_l;
+  mu_lR_value = (hamaker_constant * rho_lR * rho_lR * rho_lR / (6.0 * pi)) *
+                std::pow(specific_surface / omega, 3.0);
+  const auto mu_LR = p_LR > -pressure_tolerance ? 0.0 : p_LR / rho_LR_ref;
+  rho_l_hat_value = mass_exchange_coefficient * (mu_LR - mu_lR_value);
 }
