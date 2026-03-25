@@ -54,14 +54,18 @@ struct NotebookOverlapBaselineRow
 {
     int step = 0;
     double pressure = 0.0;
+    double epsilon_v_total = 0.0;
+    double delta_epsilon_v = 0.0;
     double saturation = 0.0;
     double mu_LR = 0.0;
     double n_l = 0.0;
     double phi_m = 0.0;
     double phi_M = 0.0;
+    double phi = 0.0;
     double rho_lR = 0.0;
     double mu_lR = 0.0;
     double rho_l_hat = 0.0;
+    double delta_epsilon_sw = 0.0;
     double epsilon_sw = 0.0;
     double stress_xx = 0.0;
 };
@@ -87,6 +91,17 @@ std::vector<NotebookOverlapBaselineRow> loadNotebookOverlapBaselineRows(
     {
         return std::stod(fields.at(column.at(key)));
     };
+    auto const get_optional_value =
+        [&](std::vector<std::string> const& fields, std::string const& key,
+            double const fallback) -> double
+    {
+        auto const it = column.find(key);
+        if (it == column.end())
+        {
+            return fallback;
+        }
+        return std::stod(fields.at(it->second));
+    };
 
     std::vector<NotebookOverlapBaselineRow> rows;
     std::string line;
@@ -101,14 +116,23 @@ std::vector<NotebookOverlapBaselineRow> loadNotebookOverlapBaselineRows(
         rows.push_back(
             {.step = static_cast<int>(get_value(fields, "step")),
              .pressure = get_value(fields, "pressure"),
+             .epsilon_v_total =
+                 get_optional_value(fields, "epsilon_v_total", 0.0),
+             .delta_epsilon_v =
+                 get_optional_value(fields, "delta_epsilon_v", 0.0),
              .saturation = get_value(fields, "S_L"),
              .mu_LR = get_value(fields, "mu_LR"),
              .n_l = get_value(fields, "n_l"),
              .phi_m = get_value(fields, "phi_m"),
              .phi_M = get_value(fields, "phi_M"),
+             .phi = get_optional_value(fields, "phi",
+                                       get_value(fields, "phi_m") +
+                                           get_value(fields, "phi_M")),
              .rho_lR = get_value(fields, "rho_lR"),
              .mu_lR = get_value(fields, "mu_lR"),
              .rho_l_hat = get_value(fields, "rho_l_hat"),
+             .delta_epsilon_sw =
+                 get_optional_value(fields, "delta_epsilon_sw", 0.0),
              .epsilon_sw = get_value(fields, "epsilon_sw"),
              .stress_xx = get_value(fields, "sigma_S_xx")});
     }
@@ -1383,9 +1407,6 @@ TEST(RichardsMechanics, VKNotebookOverlapTransferBaselineHistory)
         auto const transport = computeVKTransportPorosityUpdate(
             phi, phi - n_l_prev, n_l_prev, coupled_update.n_l, 0.0, 0.0,
             vkp.macro_porosity_update_mode);
-        auto const compatibility_output = computeVKCompatibilityMicroHydraulicOutput(
-            coupled_update.n_l, rho_LR, local_context, vkp);
-
         double const delta_epsilon_sw = vkp.micro_water_content_swelling_slope *
                                         (transport.phi_m - transport.phi_m_prev);
         epsilon_sw += delta_epsilon_sw;
@@ -1421,6 +1442,123 @@ TEST(RichardsMechanics, VKNotebookOverlapTransferBaselineHistory)
 
         n_l_prev = coupled_update.n_l;
         rho_lR_prev = coupled_update.rho_lR;
+    }
+}
+
+TEST(RichardsMechanics, VKNotebookStrainCoupledOverlapBaselineHistory)
+{
+    auto const overlap_rows = loadNotebookOverlapBaselineRows(
+        TestInfoLib::TestInfo::data_path +
+        "/RichardsMechanics/VKNotebookOverlapTransferBaseline.csv");
+    auto const strain_rows = loadNotebookOverlapBaselineRows(
+        TestInfoLib::TestInfo::data_path +
+        "/RichardsMechanics/VKNotebookStrainCoupledOverlapBaseline.csv");
+    ASSERT_EQ(overlap_rows.size(), 5);
+    ASSERT_EQ(strain_rows.size(), 5);
+
+    VKPotentialExchangeParameters vkp;
+    vkp.enabled = true;
+    vkp.pressure_tolerance = 1e-12;
+    vkp.hamaker_constant = 6.0e-20;
+    vkp.specific_surface = 100.0;
+    vkp.micro_solid_density_reference = 2470.0;
+    vkp.micro_solid_volume_fraction_reference = 0.8;
+    vkp.micro_liquid_density_reference = 1300.0;
+    vkp.micro_liquid_density_a = 1.3;
+    vkp.micro_liquid_density_b = 1.0;
+    vkp.micro_potential_convention =
+        VKMicroPotentialConvention::NegativeAttractive;
+    vkp.potential_role_mapping = VKPotentialExchangeRoleMapping::NotebookRoles;
+    vkp.local_nonlinear_solve_mode =
+        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+    vkp.macro_porosity_update_mode = VKMacroPorosityUpdateMode::AlgebraicSplit;
+    vkp.initial_micro_water_content = 0.1;
+    vkp.micro_water_content_swelling_slope = 0.1;
+
+    double const dt = 1.0;
+    double const rho_LR = 1000.0;
+    double const alpha_bar = 1.0e-6;
+    double const mu = 1.0e-3;
+    double const E = 1.0e10;
+    double const nu = 0.25;
+
+    auto const& overlap_anchor = overlap_rows.back();
+
+    double n_l_prev = overlap_anchor.n_l;
+    double rho_lR_prev = overlap_anchor.rho_lR;
+    double epsilon_sw = overlap_anchor.epsilon_sw;
+    double sigma_xx_prev = overlap_anchor.stress_xx;
+    double volumetric_strain_prev = 0.0;
+    double const phi = overlap_anchor.phi;
+
+    for (auto const& row : strain_rows)
+    {
+        auto const local_context = VKLocalSolveContext{
+            .phi = phi,
+            .phi_M_prev = phi - n_l_prev,
+            .phi_m_prev = n_l_prev,
+            .volumetric_strain = row.epsilon_v_total,
+            .volumetric_strain_prev = volumetric_strain_prev,
+        };
+
+        auto const macro_potential = computeYoungLaplaceMacroPotential(
+            row.pressure, rho_LR, vkp.pressure_tolerance);
+        double const rho_l_prev = n_l_prev * rho_lR_prev;
+        auto const coupled_update = solveVKNotebookMassStorageCoupledState(
+            n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
+            macro_potential, local_context, vkp);
+        ASSERT_TRUE(coupled_update.converged);
+
+        auto const transport = computeVKTransportPorosityUpdate(
+            phi, phi - n_l_prev, n_l_prev, coupled_update.n_l,
+            row.epsilon_v_total, volumetric_strain_prev,
+            vkp.macro_porosity_update_mode);
+
+        double const delta_epsilon_sw = vkp.micro_water_content_swelling_slope *
+                                        (transport.phi_m - transport.phi_m_prev);
+        epsilon_sw += delta_epsilon_sw;
+        double const bulk_modulus = E / (3.0 * (1.0 - 2.0 * nu));
+        double const sigma_xx =
+            sigma_xx_prev + bulk_modulus * row.delta_epsilon_v -
+            bulk_modulus * delta_epsilon_sw;
+
+        EXPECT_TRUE(macro_potential.saturated_branch);
+        EXPECT_NEAR(macro_potential.mu_LR, row.mu_LR, 1e-14);
+        EXPECT_NEAR(1.0, row.saturation, 1e-14);
+        EXPECT_NEAR(coupled_update.n_l, row.n_l,
+                    comparisonTolerance(coupled_update.n_l, row.n_l, 5e-3,
+                                        1e-10));
+        EXPECT_NEAR(transport.phi_m, row.phi_m,
+                    comparisonTolerance(transport.phi_m, row.phi_m, 5e-3,
+                                        1e-10));
+        EXPECT_NEAR(transport.phi_M, row.phi_M,
+                    comparisonTolerance(transport.phi_M, row.phi_M, 5e-3,
+                                        1e-10));
+        EXPECT_NEAR(coupled_update.rho_lR, row.rho_lR,
+                    comparisonTolerance(coupled_update.rho_lR, row.rho_lR,
+                                        1e-3, 1e-6));
+        EXPECT_NEAR(coupled_update.micro_potential.mu_lR, row.mu_lR,
+                    comparisonTolerance(coupled_update.micro_potential.mu_lR,
+                                        row.mu_lR, 1e-2, 1e-8));
+        EXPECT_NEAR(coupled_update.exchange.rho_l_hat, row.rho_l_hat,
+                    comparisonTolerance(coupled_update.exchange.rho_l_hat,
+                                        row.rho_l_hat, 1e-2, 1e-8));
+        EXPECT_NEAR(delta_epsilon_sw, row.delta_epsilon_sw,
+                    comparisonTolerance(delta_epsilon_sw, row.delta_epsilon_sw,
+                                        5e-3, 1e-12));
+        EXPECT_NEAR(epsilon_sw, row.epsilon_sw,
+                    comparisonTolerance(epsilon_sw, row.epsilon_sw, 5e-3,
+                                        1e-10));
+        EXPECT_NEAR(sigma_xx, row.stress_xx,
+                    comparisonTolerance(sigma_xx, row.stress_xx, 5e-3, 1e-4));
+        EXPECT_NEAR(transport.phi_m + transport.phi_M, row.phi,
+                    comparisonTolerance(transport.phi_m + transport.phi_M,
+                                        row.phi, 1e-12, 1e-14));
+
+        n_l_prev = coupled_update.n_l;
+        rho_lR_prev = coupled_update.rho_lR;
+        sigma_xx_prev = sigma_xx;
+        volumetric_strain_prev = row.epsilon_v_total;
     }
 }
 

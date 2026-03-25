@@ -700,16 +700,16 @@ solveVKNotebookMassStoragePredictorState(
     {
         double const active_nS = computeVKActiveMicroSolidVolumeFraction(
             n_l, local_context, vkp);
+        auto const micro_liquid_density = computeVKReducedMicroLiquidDensity(
+            n_l, rho_LR, active_nS, vkp);
         auto const micro_potential = computeVanDerWaalsMicroPotential(
-            n_l, rho_LR, active_nS, vkp.micro_solid_density_reference,
-            vkp.hamaker_constant, vkp.specific_surface,
-            vkMicroPotentialSignFactor(vkp));
+            n_l, micro_liquid_density.rho_lR, active_nS,
+            vkp.micro_solid_density_reference, vkp.hamaker_constant,
+            vkp.specific_surface, vkMicroPotentialSignFactor(vkp));
         double const mu_LR_active = macro_potential.mu_LR;
         double const mu_lR_active = micro_potential.mu_lR;
         auto const exchange = computePotentialDrivenMassExchange(
             alpha_M_effective, mu_LR_active, mu_lR_active);
-        auto const micro_liquid_density = computeVKReducedMicroLiquidDensity(
-            n_l, rho_LR, active_nS, vkp);
         double const rho_l = n_l * micro_liquid_density.rho_lR;
         double const residual = rho_l - rho_l_prev -
                                 dt_safe * exchange.rho_l_hat -
@@ -878,8 +878,8 @@ solveVKNotebookMassStorageCoupledState(
         return out;
     }
 
-    double n_l = predictor.n_l;
-    double rho_lR = predictor.rho_lR;
+    double n_l = std::clamp(n_l_prev, n_l_floor, n_l_ceiling);
+    double rho_lR = std::max(rho_floor, rho_lR_prev);
     constexpr int max_iterations = 60;
     constexpr double residual_tolerance = 1e-10;
     constexpr double increment_tolerance = 1e-10;
@@ -898,6 +898,7 @@ solveVKNotebookMassStorageCoupledState(
             out.rho_lR = rho_lR;
             out.micro_potential = micro_potential;
             out.exchange = exchange;
+            out.converged = true;
             return out;
         }
 
