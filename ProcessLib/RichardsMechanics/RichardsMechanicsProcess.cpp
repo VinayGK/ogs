@@ -181,6 +181,12 @@ void RichardsMechanicsProcess<DisplacementDim>::initializeConcreteProcess(
                                       int const num_components,
                                       auto get_ip_values_function)
     {
+        if (_secondary_variables.hasSecondaryVariable(name))
+        {
+            DBUG("Skipping duplicate secondary variable {:s}.", name);
+            return;
+        }
+
         _secondary_variables.addSecondaryVariable(
             name,
             makeExtrapolator(num_components, getExtrapolator(),

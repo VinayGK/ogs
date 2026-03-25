@@ -39,6 +39,12 @@ void SecondaryVariableCollection::addSecondaryVariable(
     }
 }
 
+bool SecondaryVariableCollection::hasSecondaryVariable(
+    std::string const& internal_name) const
+{
+    return _configured_secondary_variables.contains(internal_name);
+}
+
 std::map<std::string, std::string>::const_iterator
 SecondaryVariableCollection::begin() const
 {

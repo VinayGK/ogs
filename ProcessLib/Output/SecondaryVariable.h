@@ -132,6 +132,8 @@ public:
     void addSecondaryVariable(std::string const& internal_name,
                               SecondaryVariableFunctions&& fcts);
 
+    bool hasSecondaryVariable(std::string const& internal_name) const;
+
     //! Returns the secondary variable with the given external name.
     SecondaryVariable const& get(std::string const& external_name) const;
 

@@ -34,6 +34,10 @@ As of 2026-03-25 on branch `dsm-nb-mfront-transition`:
   the benchmark-shaped pair matches at `ts_0` up to machine precision;
 - the same benchmark-shaped pair still diverges at `ts_1`, so the benchmark
   parity task is not closed.
+- the RM process now skips duplicate secondary-variable registrations, which
+  removes the `swelling_stress` name clash between process-owned output and
+  pressure-coupled MFront internal variables without regressing the reduced
+  one-element parity slice.
 
 ## Verified Parity Findings
 
@@ -105,6 +109,17 @@ What is now verified:
 - the earlier large `ts_0` stress jump was caused by starting the benchmark
   bridge shell from a one-element parity microstate that is not in equilibrium
   at the benchmark initial pressure.
+- replaying the native process-owned micro-porosity path
+  (`micro_porosity`, `saturation_micro`, `swelling_stress_rate`,
+  `transport_porosity`) inside the bridge benchmark shell still leaves the
+  `ts_1` gap, so that process-owned DSM update is no longer the primary
+  suspect by itself.
+- a pressure-coupled MCC bridge attempt using `ModCamClay_semiExpl_coupled`
+  reproduces `saturation`, `micro_saturation`, `EquivalentPlasticStrain`,
+  `PreConsolidationPressure`, `PlasticVolumetricStrain`, and
+  `swelling_stress_ip` exactly at `ts_1`, while `pressure`, `micro_pressure`,
+  `displacement`, `sigma`, `ElasticStrain`, `porosity`,
+  `transport_porosity`, and `VolumeRatio` still diverge.
 
 What still fails at `ts_1`:
 
@@ -118,17 +133,20 @@ What still fails at `ts_1`:
 Current interpretation:
 
 - this is no longer an initial-condition bug;
-- the remaining mismatch appears after the first accepted benchmark step and
-  tracks the native process-owned double-structure update rather than a pure
-  stress-output convention issue;
-- the native benchmark shell uses `saturation_micro` together with the
-  solid-phase `swelling_stress_rate` property, which feeds
-  `computeMicroPorosity(...)` in
-  [RichardsMechanicsFEM-impl.h](../ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h);
-- the current bridge shell does not reproduce that benchmark path yet, so a
-  true benchmark compare would require either extending the bridge behaviour to
-  cover the same process-owned evolution or redefining the benchmark boundary
-  so that both sides solve the same reduced problem.
+- the process-owned micro-porosity path is no longer the only plausible
+  blocker, because replaying that path in the bridge shell keeps `ts_0`
+  exact but still leaves the `ts_1` gap;
+- the exact agreement in the plastic state variables, saturation variables,
+  and `swelling_stress_ip` narrows the remaining mismatch to the
+  stress/pressure coupling boundary rather than to MCC plasticity itself;
+- the most likely remaining ownership gap is now the RichardsMechanics
+  pressure-coupled solid contract, especially how
+  [IntegrationPointData.h](../ProcessLib/RichardsMechanics/IntegrationPointData.h),
+  [PressureCoupledSolidData.h](../ProcessLib/RichardsMechanics/ConstitutiveRelations/PressureCoupledSolidData.h),
+  [RichardsMechanicsFEM-impl.h](../ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h),
+  and
+  [MFrontRichardsMechanics.h](../MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h)
+  interpret the returned stress and pressure-coupling blocks.
 
 ## Work Packages
 
@@ -165,31 +183,36 @@ step.
 
 Primary inspection points for that gap:
 
-- [RichardsMechanicsNotebookBridge.mfront](../MaterialLib/SolidModels/MFront/RichardsMechanicsNotebookBridge.mfront);
 - [IntegrationPointData.h](../ProcessLib/RichardsMechanics/IntegrationPointData.h);
+- [PressureCoupledSolidData.h](../ProcessLib/RichardsMechanics/ConstitutiveRelations/PressureCoupledSolidData.h);
 - [RichardsMechanicsFEM-impl.h](../ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h).
+- [MFrontRichardsMechanics.h](../MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h);
 
 Most likely causes to check:
 
-- bridge internal microstate evolution does not yet reproduce the benchmark
-  process-owned `saturation_micro` path;
-- bridge internal swelling update does not yet reproduce the benchmark
-  process-owned `swelling_stress_rate` contribution;
 - pressure-consistent benchmark initialization is now known and should be kept
   fixed while diagnosing the remaining step-1 mismatch;
 - if the benchmark path stays process-owned, the bridge/model interface must be
-  widened instead of compensating with deck-only tuning.
+  widened instead of compensating with deck-only tuning;
+- verify the stress convention expected by the RM pressure-coupled path
+  against the stress convention returned by the candidate MFront behaviour;
+- verify the ownership split for `dStress_dLiquidPressure` and
+  `dSaturation_dLiquidPressure` against the native RM assembly path.
 
 Recommended debugging sequence:
 
 - keep the benchmark bridge initial state at
   `n_l0 = 0.012069019712402708`, `rho_lR0 = 3004.336830222012`;
 - compare the first accepted benchmark step at `t = 1000`;
-- trace the native benchmark update through `computeMicroPorosity(...)`,
-  especially the role of `saturation_micro` and `swelling_stress_rate`;
-- decide whether the benchmark path belongs inside
-  [RichardsMechanicsNotebookBridge.mfront](../MaterialLib/SolidModels/MFront/RichardsMechanicsNotebookBridge.mfront)
-  or in a widened process-to-bridge interface;
+- keep the process-owned micro-porosity replay available as a control case,
+  because it already proves that matching that path alone does not close
+  `ts_1`;
+- trace the RM pressure-coupled solid path from constitutive integration to
+  assembly, especially the returned stress, `dStress_dLiquidPressure`, and
+  `dSaturation_dLiquidPressure`;
+- decide whether the benchmark path belongs inside a dedicated
+  RichardsMechanics-specific MFront bridge behaviour or in a widened
+  process-to-bridge interface;
 - only after that, add or extend unit coverage around the chosen ownership
   boundary.
 
