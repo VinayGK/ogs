@@ -909,4 +909,44 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     }
 }
 
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     ZeroDtPressureCoupledInitialAssemblyResponse)
+{
+    auto const parameters = createParameters();
+    auto model = createBridgeModelThroughFactory(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV>(KV::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV>(KV::Zero());
+    variable_array_prev.liquid_phase_pressure = 0.0;
+    variable_array_prev.liquid_saturation = 1.0;
+    variable_array_prev.temperature = 0.0;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 0.0, x, 1.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    EXPECT_NEAR(response->saturation, 1.0, 1e-12);
+    EXPECT_TRUE(response->stress.allFinite());
+    EXPECT_NEAR(response->stress[0], response->stress[1], 1e-9);
+    EXPECT_NEAR(response->stress[1], response->stress[2], 1e-9);
+    EXPECT_NEAR(response->stress[3], 0.0, 1e-12);
+    EXPECT_NEAR(response->stress[4], 0.0, 1e-12);
+    EXPECT_NEAR(response->stress[5], 0.0, 1e-12);
+    EXPECT_NEAR(response->dSaturation_dLiquidPressure, 0.0, 1e-12);
+
+    EXPECT_TRUE(response->dStress_dStrain.allFinite());
+    EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+}
+
 #endif  // OGS_USE_MFRONT

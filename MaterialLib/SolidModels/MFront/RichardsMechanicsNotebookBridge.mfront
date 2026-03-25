@@ -101,6 +101,7 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   const auto bulk_modulus = E / (3.0 * (1.0 - 2.0 * nu));
   const auto p = p_LR + Δp_LR;
   const auto delta_epsilon_v = trace(Δeps_to);
+  const auto zero_dt = std::abs(dt) < 1e-15;
   const auto n_s = 1.0 - phi0;
   const auto n_l_prev = n_l;
   const auto rho_lR_prev = rho_lR;
@@ -246,12 +247,16 @@ rho_l_hat_value.setEntryName("rho_l_hat");
                    "Notebook bridge microstate Newton solve did not converge.");
   };
 
-  double n_l_trial = 0.0;
-  double rho_lR_trial = 0.0;
-  double mu_lR_trial = 0.0;
-  double rho_l_hat_trial = 0.0;
-  solve_microstate(p, delta_epsilon_v, n_l_prev, rho_lR_prev, n_l_trial,
-                   rho_lR_trial, mu_lR_trial, rho_l_hat_trial);
+  double n_l_trial = n_l_prev;
+  double rho_lR_trial = rho_lR_prev;
+  double mu_lR_trial = mu_micro_from_state(n_l_prev, rho_lR_prev);
+  double rho_l_hat_trial =
+      mass_exchange_coefficient * (mu_macro_from_pressure(p) - mu_lR_trial);
+  if (!zero_dt)
+  {
+    solve_microstate(p, delta_epsilon_v, n_l_prev, rho_lR_prev, n_l_trial,
+                     rho_lR_trial, mu_lR_trial, rho_l_hat_trial);
+  }
 
   const auto phi_m_trial = n_l_trial;
   const auto phi_M_trial = phi0 - phi_m_trial;
@@ -274,58 +279,78 @@ rho_l_hat_value.setEntryName("rho_l_hat");
     ∂sigma∕∂Δeps_to = lambda * (I₂ ⊗ I₂) + 2.0 * mu * I₄;
     ∂S_L∕∂Δeps_to = 0.0 * I₂;
 
-    const auto deps_v_fd = std::max(1e-8, std::abs(delta_epsilon_v) * 1e-6 + 1e-8);
-    double n_l_eps_plus = 0.0;
-    double rho_lR_eps_plus = 0.0;
-    double mu_lR_eps_plus = 0.0;
-    double rho_l_hat_eps_plus = 0.0;
-    double n_l_eps_minus = 0.0;
-    double rho_lR_eps_minus = 0.0;
-    double mu_lR_eps_minus = 0.0;
-    double rho_l_hat_eps_minus = 0.0;
-
-    solve_microstate(p, delta_epsilon_v + deps_v_fd, n_l_prev, rho_lR_prev,
-                     n_l_eps_plus, rho_lR_eps_plus, mu_lR_eps_plus,
-                     rho_l_hat_eps_plus);
-    solve_microstate(p, delta_epsilon_v - deps_v_fd, n_l_prev, rho_lR_prev,
-                     n_l_eps_minus, rho_lR_eps_minus, mu_lR_eps_minus,
-                     rho_l_hat_eps_minus);
-
-    const auto dn_l_dtrace_eps =
-        (n_l_eps_plus - n_l_eps_minus) / (2.0 * deps_v_fd);
-    ∂sigma∕∂Δeps_to = ∂sigma∕∂Δeps_to -
-                      (bulk_modulus * swelling_slope * dn_l_dtrace_eps) *
-                          (I₂ ⊗ I₂);
-
-    if (p > -pressure_tolerance)
+    if (zero_dt)
     {
-      ∂sigma∕∂Δp_LR = 0.0 * I₂;
-      ∂S_L∕∂Δp_LR = 0.0;
+      if (p > -pressure_tolerance)
+      {
+        ∂sigma∕∂Δp_LR = 0.0 * I₂;
+        ∂S_L∕∂Δp_LR = 0.0;
+      }
+      else
+      {
+        const auto dp_fd = std::max(1e-6, std::abs(p) * 1e-6);
+        const auto dS_dp =
+            (saturation_from_pressure(p + dp_fd) - saturation_from_pressure(p - dp_fd)) /
+            (2.0 * dp_fd);
+        ∂sigma∕∂Δp_LR = 0.0 * I₂;
+        ∂S_L∕∂Δp_LR = dS_dp;
+      }
     }
     else
     {
-      const auto dp_fd = std::max(1e-6, std::abs(p) * 1e-6);
-      double n_l_plus = 0.0;
-      double rho_lR_plus = 0.0;
-      double mu_lR_plus = 0.0;
-      double rho_l_hat_plus = 0.0;
-      double n_l_minus = 0.0;
-      double rho_lR_minus = 0.0;
-      double mu_lR_minus = 0.0;
-      double rho_l_hat_minus = 0.0;
+      const auto deps_v_fd = std::max(1e-8, std::abs(delta_epsilon_v) * 1e-6 + 1e-8);
+      double n_l_eps_plus = 0.0;
+      double rho_lR_eps_plus = 0.0;
+      double mu_lR_eps_plus = 0.0;
+      double rho_l_hat_eps_plus = 0.0;
+      double n_l_eps_minus = 0.0;
+      double rho_lR_eps_minus = 0.0;
+      double mu_lR_eps_minus = 0.0;
+      double rho_l_hat_eps_minus = 0.0;
 
-      solve_microstate(p + dp_fd, delta_epsilon_v, n_l_prev, rho_lR_prev,
-                       n_l_plus, rho_lR_plus, mu_lR_plus, rho_l_hat_plus);
-      solve_microstate(p - dp_fd, delta_epsilon_v, n_l_prev, rho_lR_prev,
-                       n_l_minus, rho_lR_minus, mu_lR_minus, rho_l_hat_minus);
+      solve_microstate(p, delta_epsilon_v + deps_v_fd, n_l_prev, rho_lR_prev,
+                       n_l_eps_plus, rho_lR_eps_plus, mu_lR_eps_plus,
+                       rho_l_hat_eps_plus);
+      solve_microstate(p, delta_epsilon_v - deps_v_fd, n_l_prev, rho_lR_prev,
+                       n_l_eps_minus, rho_lR_eps_minus, mu_lR_eps_minus,
+                       rho_l_hat_eps_minus);
 
-      const auto dS_dp =
-          (saturation_from_pressure(p + dp_fd) - saturation_from_pressure(p - dp_fd)) /
-          (2.0 * dp_fd);
-      const auto dn_l_dp = (n_l_plus - n_l_minus) / (2.0 * dp_fd);
+      const auto dn_l_dtrace_eps =
+          (n_l_eps_plus - n_l_eps_minus) / (2.0 * deps_v_fd);
+      ∂sigma∕∂Δeps_to = ∂sigma∕∂Δeps_to -
+                        (bulk_modulus * swelling_slope * dn_l_dtrace_eps) *
+                            (I₂ ⊗ I₂);
 
-      ∂sigma∕∂Δp_LR = -(bulk_modulus * swelling_slope * dn_l_dp) * I₂;
-      ∂S_L∕∂Δp_LR = dS_dp;
+      if (p > -pressure_tolerance)
+      {
+        ∂sigma∕∂Δp_LR = 0.0 * I₂;
+        ∂S_L∕∂Δp_LR = 0.0;
+      }
+      else
+      {
+        const auto dp_fd = std::max(1e-6, std::abs(p) * 1e-6);
+        double n_l_plus = 0.0;
+        double rho_lR_plus = 0.0;
+        double mu_lR_plus = 0.0;
+        double rho_l_hat_plus = 0.0;
+        double n_l_minus = 0.0;
+        double rho_lR_minus = 0.0;
+        double mu_lR_minus = 0.0;
+        double rho_l_hat_minus = 0.0;
+
+        solve_microstate(p + dp_fd, delta_epsilon_v, n_l_prev, rho_lR_prev,
+                         n_l_plus, rho_lR_plus, mu_lR_plus, rho_l_hat_plus);
+        solve_microstate(p - dp_fd, delta_epsilon_v, n_l_prev, rho_lR_prev,
+                         n_l_minus, rho_lR_minus, mu_lR_minus, rho_l_hat_minus);
+
+        const auto dS_dp =
+            (saturation_from_pressure(p + dp_fd) - saturation_from_pressure(p - dp_fd)) /
+            (2.0 * dp_fd);
+        const auto dn_l_dp = (n_l_plus - n_l_minus) / (2.0 * dp_fd);
+
+        ∂sigma∕∂Δp_LR = -(bulk_modulus * swelling_slope * dn_l_dp) * I₂;
+        ∂S_L∕∂Δp_LR = dS_dp;
+      }
     }
   }
 }
