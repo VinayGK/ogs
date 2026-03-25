@@ -8,6 +8,7 @@
 #include "LiquidDensity.h"
 #include "MicroPressure.h"
 #include "MicroSaturation.h"
+#include "VKMicroLiquidDensity.h"
 #include "VKMicroPorosity.h"
 #include "VKMicroWaterContent.h"
 #include "ProcessLib/ConstitutiveRelations/Base.h"
@@ -39,7 +40,7 @@ using StatefulData = std::tuple<
     ProcessLib::ThermoRichardsMechanics::SaturationData,
     ProcessLib::ThermoRichardsMechanics::PorosityData,
     ProcessLib::ThermoRichardsMechanics::TransportPorosityData, MicroPressure,
-    MicroSaturation, VKMicroWaterContent, VKMicroPorosity,
+    MicroSaturation, VKMicroWaterContent, VKMicroLiquidDensity, VKMicroPorosity,
     VKMicroExchangeSource>;
 
 template <int DisplacementDim>
