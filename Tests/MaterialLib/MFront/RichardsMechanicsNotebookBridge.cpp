@@ -29,6 +29,7 @@
 #include "MaterialLib/SolidModels/MFront/CreateMFrontGeneric.h"
 #include "MaterialLib/SolidModels/MFront/Variable.h"
 #include "ParameterLib/ConstantParameter.h"
+#include "ProcessLib/RichardsMechanics/ConstitutiveRelations/PressureCoupledSolidData.h"
 #include "Tests/TestTools.h"
 
 namespace MSM = MaterialLib::Solids::MFront;
@@ -821,6 +822,84 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
         EXPECT_NEAR(mu_lR_value, row.mu_lR, scaledTolerance(row.mu_lR, 1e-2, 1e-8));
         EXPECT_NEAR(rho_l_hat_value, row.rho_l_hat, scaledTolerance(row.rho_l_hat, 1e-2, 1e-8));
         EXPECT_NEAR(epsilon_sw_value, row.epsilon_sw, scaledTolerance(row.epsilon_sw, 5e-3, 1e-8));
+
+        state = std::move(response->state);
+        state->pushBackState();
+        variable_array_prev = variable_array;
+        variable_array_prev.stress.template emplace<KV>(response->stress);
+        variable_array_prev.liquid_saturation = response->saturation;
+    }
+}
+
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     NotebookOverlapCarrierHistory)
+{
+    auto const baseline_rows = loadBaselineRows(
+        TestInfoLib::TestInfo::data_path +
+        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+    ASSERT_EQ(baseline_rows.size(), 5);
+
+    auto const parameters = createParameters();
+    auto model = createBridgeModelThroughFactory(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV>(KV::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV>(KV::Zero());
+    variable_array_prev.liquid_phase_pressure = 0.0;
+    variable_array_prev.liquid_saturation = 1.0;
+    variable_array_prev.temperature = 0.0;
+
+    ParameterLib::SpatialPosition x{};
+
+    for (auto const& row : baseline_rows)
+    {
+        auto variable_array = variable_array_prev;
+        variable_array.liquid_phase_pressure = row.pressure;
+
+        auto response = model->integrateStressPressureCoupled(
+            variable_array_prev,
+            variable_array,
+            static_cast<double>(row.step + 1),
+            x,
+            1.0,
+            *state);
+        ASSERT_TRUE(response);
+        ASSERT_TRUE(response->state != nullptr);
+
+        auto const mapped =
+            ProcessLib::RichardsMechanics::makePressureCoupledSolidData<3>(
+                *response);
+
+        EXPECT_TRUE(mapped.is_active);
+        EXPECT_NEAR(mapped.saturation, row.saturation,
+                    scaledTolerance(row.saturation));
+        EXPECT_NEAR(mapped.dS_L_dp_cap, -response->dSaturation_dLiquidPressure,
+                    1e-12);
+        EXPECT_NEAR(mapped.dS_L_dp_cap, 0.0, 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[0],
+                    response->dStress_dLiquidPressure[0], 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[1],
+                    response->dStress_dLiquidPressure[1], 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[2],
+                    response->dStress_dLiquidPressure[2], 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[3],
+                    response->dStress_dLiquidPressure[3], 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[4],
+                    response->dStress_dLiquidPressure[4], 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[5],
+                    response->dStress_dLiquidPressure[5], 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[0], 0.0, 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[1], 0.0, 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[2], 0.0, 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[3], 0.0, 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[4], 0.0, 1e-12);
+        EXPECT_NEAR(mapped.dSigma_dLiquidPressure[5], 0.0, 1e-12);
 
         state = std::move(response->state);
         state->pushBackState();
