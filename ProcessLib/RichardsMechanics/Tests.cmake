@@ -30,17 +30,49 @@ endif()
 
 if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
     OgsTest(PROJECTFILE RichardsMechanics/mfront_restart_part1.prj RUNTIME 1)
-    # The notebook-style bridge smoke shell is kept as a manual negative
-    # check for now. It reaches the first nonlinear solve but fails in the
-    # linear solver, so it is not part of the default ctest slice yet.
-    # OgsTest(
-    #     PROJECTFILE RichardsMechanics/mfront_restart_part1_rm_bridge.prj
-    #     WRAPPER env
-    #             DYLD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/lib
-    #             LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/lib
-    #     RUNTIME 1)
     OgsTest(PROJECTFILE RichardsMechanics/mfront_restart_part2.xml RUNTIME 1)
     OgsTest(PROJECTFILE RichardsMechanics/DoubleStructureBenchmark/double_porosity_swelling_RM.prj RUNTIME 1)
+
+    # These bridge/parity inputs are smoke runs only. They do not carry
+    # source-side benchmark definitions, so they must run via AddTest rather
+    # than OgsTest's benchmark mode.
+    AddTest(
+        NAME RichardsMechanics_mfront_restart_part1_rm_bridge
+        PATH RichardsMechanics
+        EXECUTABLE ogs
+        EXECUTABLE_ARGS mfront_restart_part1_rm_bridge.prj
+        RUNTIME 1
+    )
+    AddTest(
+        NAME RichardsMechanics_mfront_parity_1element_native
+        PATH RichardsMechanics
+        EXECUTABLE ogs
+        EXECUTABLE_ARGS mfront_parity_1element_native.prj
+        RUNTIME 1
+    )
+    AddTest(
+        NAME RichardsMechanics_mfront_parity_1element_bridge
+        PATH RichardsMechanics
+        EXECUTABLE ogs
+        EXECUTABLE_ARGS mfront_parity_1element_bridge.prj
+        RUNTIME 1
+    )
+    add_test(
+        NAME ogs-RichardsMechanics_mfront_parity_1element_compare
+        COMMAND
+            ${CMAKE_COMMAND}
+            -DOGS_EXE=$<TARGET_FILE:ogs>
+            -DVTKDIFF_EXE=$<TARGET_FILE:vtkdiff>
+            -DSOURCE_PATH=${Data_SOURCE_DIR}/RichardsMechanics
+            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_parity_compare
+            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontParity.cmake
+    )
+    set_tests_properties(
+        ogs-RichardsMechanics_mfront_parity_1element_compare
+        PROPERTIES COST 1
+                   LABELS "RichardsMechanics;default;small"
+                   WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics
+    )
 endif()
 
 AddTest(

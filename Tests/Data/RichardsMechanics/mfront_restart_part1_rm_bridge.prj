@@ -180,9 +180,9 @@
         <parameter>
             <name>sigma0</name>
             <type>Function</type>
-            <expression>0</expression>
-            <expression>0</expression>
-            <expression>0</expression>
+            <expression>-5e3</expression>
+            <expression>-5e3</expression>
+            <expression>-5e3</expression>
             <expression>0</expression>
         </parameter>
         <parameter>
@@ -402,43 +402,43 @@
     </linear_solvers>
     <test_definition>
         <vtkdiff>
-            <regex>mfront_restart_part1_ts_.*_t_.*.vtu</regex>
+            <regex>mfront_restart_part1_rm_bridge_ts_.*_t_.*.vtu</regex>
             <field>displacement</field>
             <absolute_tolerance>2e-14</absolute_tolerance>
             <relative_tolerance>0</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
-            <regex>mfront_restart_part1_ts_.*_t_.*.vtu</regex>
+            <regex>mfront_restart_part1_rm_bridge_ts_.*_t_.*.vtu</regex>
             <field>sigma</field>
             <absolute_tolerance>1e-9</absolute_tolerance>
             <relative_tolerance>0</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
-            <regex>mfront_restart_part1_ts_.*_t_.*.vtu</regex>
+            <regex>mfront_restart_part1_rm_bridge_ts_.*_t_.*.vtu</regex>
             <field>epsilon</field>
             <absolute_tolerance>1e-15</absolute_tolerance>
             <relative_tolerance>0</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
-            <regex>mfront_restart_part1_ts_.*_t_.*.vtu</regex>
+            <regex>mfront_restart_part1_rm_bridge_ts_.*_t_.*.vtu</regex>
             <field>pressure</field>
             <absolute_tolerance>1e-15</absolute_tolerance>
             <relative_tolerance>1e-15</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
-            <regex>mfront_restart_part1_ts_.*_t_.*.vtu</regex>
+            <regex>mfront_restart_part1_rm_bridge_ts_.*_t_.*.vtu</regex>
             <field>velocity</field>
             <absolute_tolerance>1e-15</absolute_tolerance>
             <relative_tolerance>1e-15</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
-            <regex>mfront_restart_part1_ts_.*_t_.*.vtu</regex>
+            <regex>mfront_restart_part1_rm_bridge_ts_.*_t_.*.vtu</regex>
             <field>MassFlowRate</field>
             <absolute_tolerance>1e-15</absolute_tolerance>
             <relative_tolerance>0</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
-            <regex>mfront_restart_part1_ts_.*_t_.*.vtu</regex>
+            <regex>mfront_restart_part1_rm_bridge_ts_.*_t_.*.vtu</regex>
             <field>NodalForces</field>
             <absolute_tolerance>1e-10</absolute_tolerance>
             <relative_tolerance>0</relative_tolerance>
