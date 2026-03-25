@@ -73,6 +73,40 @@ static auto createParameters()
     return parameters;
 }
 
+static auto createBenchmarkParameters()
+{
+    std::vector<std::unique_ptr<ParameterLib::ParameterBase>> parameters;
+
+    auto add_param = [&parameters](char const* name, double const value)
+    {
+        parameters.push_back(
+            std::make_unique<ParameterLib::ConstantParameter<double>>(name,
+                                                                      value));
+    };
+
+    add_param("E", 52e6);
+    add_param("nu", 0.3);
+    add_param("swelling_slope", 0.1);
+    add_param("mass_exchange_coefficient", 1.0);
+    add_param("rho_LR_ref", 1000.0);
+    add_param("rho_l0", 1300.0);
+    add_param("rho_lR0", 1300.0);
+    add_param("rho_SR", 2470.0);
+    add_param("density_a", 1.3);
+    add_param("density_b", 1.0);
+    add_param("hamaker_constant", -6e-20);
+    add_param("specific_surface", 100.0);
+    add_param("phi0", 0.432);
+    add_param("area_factor_tuller", 1.0);
+    add_param("pore_area_shape_factor_tuller", 0.8584073464102069);
+    add_param("characteristic_pore_size", 1e-5);
+    add_param("surface_tension", 0.0715);
+    add_param("n_l0", 0.1);
+    add_param("epsilon_sw0", 0.0);
+
+    return parameters;
+}
+
 static std::string stripQuotes(std::string value)
 {
     value.erase(0, value.find_first_not_of(" \t\r\n\"") );
@@ -1026,6 +1060,39 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_NEAR(response->stress[1], response->stress[2], 1e-9);
     EXPECT_NEAR(response->stress[3], 0.0, 1e-12);
     EXPECT_NEAR(response->dSaturation_dLiquidPressure, 0.0, 1e-12);
+    EXPECT_TRUE(response->dStress_dStrain.allFinite());
+    EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+}
+
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     PlaneStrainFactoryPathZeroDtBenchmarkParameterResponse)
+{
+    auto const parameters = createBenchmarkParameters();
+    auto model = createBridgeModelThroughFactoryPlaneStrain(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.liquid_phase_pressure = 0.0;
+    variable_array_prev.liquid_saturation = 1.0;
+    variable_array_prev.temperature = 293.15;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 0.0, x, 0.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    EXPECT_NEAR(response->saturation, 1.0, 1e-12);
+    EXPECT_TRUE(response->stress.allFinite());
     EXPECT_TRUE(response->dStress_dStrain.allFinite());
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
 }

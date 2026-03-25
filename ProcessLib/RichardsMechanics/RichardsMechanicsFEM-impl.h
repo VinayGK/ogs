@@ -258,7 +258,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
     auto const [p_L, u] = localDOF(local_x);
 
-    constexpr double dt = std::numeric_limits<double>::quiet_NaN();
+    // The initial tangent query must use a real zero step, not NaN, because
+    // the pressure-coupled MFront bridge treats dt as part of the local update.
+    constexpr double dt = 0.0;
     auto const& medium =
         this->process_data_.media_map.getMedium(this->element_.getID());
     MPL::VariableArray variables;
@@ -311,6 +313,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 ->S_L;
         S_L_prev = medium->property(MPL::PropertyType::saturation)
                        .template value<double>(variables, x_position, t, dt);
+        variables.liquid_saturation = S_L_prev;
 
         if (this->process_data_.initial_stress.isTotalStress())
         {
@@ -421,7 +424,17 @@ void RichardsMechanicsLocalAssembler<
     assert(local_x.size() == pressure_size + displacement_size);
 
     auto const [p_L, u] = localDOF(local_x);
-    auto const [p_L_prev, u_prev] = localDOF(local_x_prev);
+    auto const [p_L_prev_raw, u_prev_raw] = localDOF(local_x_prev);
+    auto p_L_prev = p_L_prev_raw.eval();
+    if (!p_L_prev.allFinite())
+    {
+        p_L_prev = p_L;
+    }
+    auto u_prev = u_prev_raw.eval();
+    if (!u_prev.allFinite())
+    {
+        u_prev = u;
+    }
 
     auto K = MathLib::createZeroedMatrix<
         typename ShapeMatricesTypeDisplacement::template MatrixType<
@@ -507,6 +520,9 @@ void RichardsMechanicsLocalAssembler<
         // setting pG to 1 atm
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
+        variables_prev.capillary_pressure = p_cap_prev_ip;
+        variables_prev.liquid_phase_pressure = -p_cap_prev_ip;
+        variables_prev.gas_phase_pressure = 1.0e5;
 
         auto const temperature =
             medium->property(MPL::PropertyType::reference_temperature)
@@ -516,6 +532,10 @@ void RichardsMechanicsLocalAssembler<
         auto const alpha =
             medium->property(MPL::PropertyType::biot_coefficient)
                 .template value<double>(variables, x_position, t, dt);
+        S_L = medium->property(MPL::PropertyType::saturation)
+                  .template value<double>(variables, x_position, t, dt);
+        variables.liquid_saturation = S_L;
+        variables_prev.liquid_saturation = S_L_prev;
         auto& SD = this->current_states_[ip];
         variables.stress =
             std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
@@ -722,8 +742,9 @@ void RichardsMechanicsLocalAssembler<
                     SD_prev);
 
             auto constitutive_update = ip_data_[ip].updateConstitutiveRelation(
-                variables, t, x_position, dt, temperature, sigma_eff,
-                sigma_eff_prev, eps_m, eps_m_prev, this->solid_material_,
+                variables, variables_prev, t, x_position, dt, temperature,
+                sigma_eff, sigma_eff_prev, eps_m, eps_m_prev,
+                this->solid_material_,
                 this->material_states_[ip].material_state_variables);
             pressure_coupled_solid = constitutive_update.pressure_coupled_data;
 
@@ -866,6 +887,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
     double const temperature = T_data();
     double const p_cap_ip = p_cap_data.p_cap;
     double const p_cap_prev_ip = p_cap_data.p_cap_prev;
+    variables_prev.capillary_pressure = p_cap_prev_ip;
+    variables_prev.liquid_phase_pressure = -p_cap_prev_ip;
+    variables_prev.gas_phase_pressure = 1.0e5;
 
     auto const& eps = std::get<StrainData<DisplacementDim>>(SD);
     auto& S_L =
@@ -879,6 +903,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         medium->property(MPL::PropertyType::biot_coefficient)
             .template value<double>(variables, x_position, t, dt);
     *std::get<ProcessLib::ThermoRichardsMechanics::BiotData>(CD) = alpha;
+
+    S_L = medium->property(MPL::PropertyType::saturation)
+              .template value<double>(variables, x_position, t, dt);
+    variables.liquid_saturation = S_L;
+    variables_prev.liquid_saturation = S_L_prev;
 
     variables.stress =
         std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
@@ -905,11 +934,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             .template value<double>(variables, x_position, t, dt);
     variables.density = rho_LR;
     *std::get<LiquidDensity>(CD) = rho_LR;
-
-    S_L = medium->property(MPL::PropertyType::saturation)
-              .template value<double>(variables, x_position, t, dt);
-    variables.liquid_saturation = S_L;
-    variables_prev.liquid_saturation = S_L_prev;
 
     // tangent derivative for Jacobian
     double dS_L_dp_cap =
@@ -1122,8 +1146,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 SD_prev);
 
         auto constitutive_update = ip_data.updateConstitutiveRelation(
-            variables, t, x_position, dt, temperature, sigma_eff,
-            sigma_eff_prev, eps_m, eps_m_prev, solid_material,
+            variables, variables_prev, t, x_position, dt, temperature,
+            sigma_eff, sigma_eff_prev, eps_m, eps_m_prev, solid_material,
             material_state_data.material_state_variables);
 
         *std::get<StiffnessTensor<DisplacementDim>>(CD) =
@@ -1299,6 +1323,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         // setting pG to 1 atm
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
+        variables_prev.capillary_pressure = p_cap_prev_ip;
+        variables_prev.liquid_phase_pressure = -p_cap_prev_ip;
+        variables_prev.gas_phase_pressure = 1.0e5;
 
         auto const temperature =
             medium->property(MPL::PropertyType::reference_temperature)
@@ -1660,7 +1687,17 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                      Eigen::VectorXd const& local_x_prev)
 {
     auto const [p_L, u] = localDOF(local_x);
-    auto const [p_L_prev, u_prev] = localDOF(local_x_prev);
+    auto const [p_L_prev_raw, u_prev_raw] = localDOF(local_x_prev);
+    auto p_L_prev = p_L_prev_raw.eval();
+    if (!p_L_prev.allFinite())
+    {
+        p_L_prev = p_L;
+    }
+    auto u_prev = u_prev_raw.eval();
+    if (!u_prev.allFinite())
+    {
+        u_prev = u;
+    }
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(
@@ -1713,11 +1750,25 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         // setting pG to 1 atm
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
+        variables_prev.capillary_pressure = p_cap_prev_ip;
+        variables_prev.liquid_phase_pressure = -p_cap_prev_ip;
+        variables_prev.gas_phase_pressure = 1.0e5;
 
         auto const temperature =
             medium->property(MPL::PropertyType::reference_temperature)
                 .template value<double>(variables, x_position, t, dt);
         variables.temperature = temperature;
+
+        auto const S_L_prev =
+            std::get<
+                PrevState<ProcessLib::ThermoRichardsMechanics::SaturationData>>(
+                this->prev_states_[ip])
+                ->S_L;
+        auto const S_L_for_tangent =
+            medium->property(MPL::PropertyType::saturation)
+                .template value<double>(variables, x_position, t, dt);
+        variables.liquid_saturation = S_L_for_tangent;
+        variables_prev.liquid_saturation = S_L_prev;
 
         auto& eps =
             std::get<StrainData<DisplacementDim>>(this->current_states_[ip])
@@ -1727,11 +1778,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             std::get<ProcessLib::ThermoRichardsMechanics::SaturationData>(
                 this->current_states_[ip])
                 .S_L;
-        auto const S_L_prev =
-            std::get<
-                PrevState<ProcessLib::ThermoRichardsMechanics::SaturationData>>(
-                this->prev_states_[ip])
-                ->S_L;
         S_L = medium->property(MPL::PropertyType::saturation)
                   .template value<double>(variables, x_position, t, dt);
         variables.liquid_saturation = S_L;
@@ -1941,8 +1987,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
             [[maybe_unused]] auto const constitutive_update =
                 ip_data_[ip].updateConstitutiveRelation(
-                    variables, t, x_position, dt, temperature, sigma_eff,
-                    sigma_eff_prev, eps_m, eps_m_prev, this->solid_material_,
+                    variables, variables_prev, t, x_position, dt,
+                    temperature, sigma_eff, sigma_eff_prev, eps_m,
+                    eps_m_prev, this->solid_material_,
                     this->material_states_[ip].material_state_variables);
         }
 

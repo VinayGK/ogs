@@ -75,6 +75,7 @@ struct IntegrationPointData final
 
     static ConstitutiveRelationUpdate updateConstitutiveRelation(
         MaterialPropertyLib::VariableArray const& variable_array,
+        MaterialPropertyLib::VariableArray const& variable_array_prev,
         double const t,
         ParameterLib::SpatialPosition const& x_position,
         double const dt,
@@ -93,17 +94,17 @@ struct IntegrationPointData final
         std::unique_ptr<typename MaterialLib::Solids::MechanicsBase<
             DisplacementDim>::MaterialStateVariables>& material_state_variables)
     {
-        MaterialPropertyLib::VariableArray variable_array_prev;
-        variable_array_prev.stress = sigma_eff_prev->sigma_eff;
-        variable_array_prev.mechanical_strain
+        auto variable_array_prev_local = variable_array_prev;
+        variable_array_prev_local.stress = sigma_eff_prev->sigma_eff;
+        variable_array_prev_local.mechanical_strain
             .emplace<MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
                 eps_m_prev->eps_m);
-        variable_array_prev.temperature = temperature;
+        variable_array_prev_local.temperature = temperature;
 
         if (auto pressure_coupled_response =
                 solid_material.integrateStressPressureCoupled(
-                    variable_array_prev, variable_array, t, x_position, dt,
-                    *material_state_variables))
+                    variable_array_prev_local, variable_array, t, x_position,
+                    dt, *material_state_variables))
         {
             auto pressure_coupled_data =
                 makePressureCoupledSolidData<DisplacementDim>(
@@ -116,7 +117,7 @@ struct IntegrationPointData final
         }
 
         auto&& solution = solid_material.integrateStress(
-            variable_array_prev, variable_array, t, x_position, dt,
+            variable_array_prev_local, variable_array, t, x_position, dt,
             *material_state_variables);
 
         if (!solution)

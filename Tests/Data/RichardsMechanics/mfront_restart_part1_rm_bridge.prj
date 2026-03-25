@@ -47,13 +47,11 @@
                 <displacement>displacement</displacement>
             </process_variables>
             <secondary_variables>
-                <secondary_variable name="PreConsolidationPressure"/>
                 <secondary_variable name="sigma"/>
                 <secondary_variable name="swelling_stress"/>
                 <secondary_variable name="epsilon"/>
                 <secondary_variable name="velocity"/>
                 <secondary_variable name="saturation"/>
-                <secondary_variable name="VolumeRatio"/>
                 <secondary_variable name="transport_porosity"/>
                 <secondary_variable name="dry_density_solid"/>
             </secondary_variables>
