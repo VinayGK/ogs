@@ -35,7 +35,9 @@
 namespace MSM = MaterialLib::Solids::MFront;
 namespace MPL = MaterialPropertyLib;
 using KV = MathLib::KelvinVector::KelvinVectorType<3>;
+using KV2 = MathLib::KelvinVector::KelvinVectorType<2>;
 using MB = MaterialLib::Solids::MechanicsBase<3>;
+using MB2 = MaterialLib::Solids::MechanicsBase<2>;
 
 static auto createParameters()
 {
@@ -279,9 +281,51 @@ static auto createBridgeModelThroughFactory(
         parameters, local_coordinate_system, config_tree);
 }
 
-template <typename Model>
-static void initializeState(Model const& model,
-                            MB::MaterialStateVariables& state)
+static auto createBridgeModelThroughFactoryPlaneStrain(
+    std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters)
+{
+    auto local_coordinate_system = std::nullopt;
+
+    const char* xml = R"XML(
+        <type>MFrontRichardsMechanics</type>
+        <behaviour>RichardsMechanicsNotebookBridge</behaviour>
+        <library path_is_relative_to_prj_file="false">libOgsMFrontBehaviour</library>
+        <material_properties>
+            <material_property name="YoungModulus" parameter="E"/>
+            <material_property name="PoissonRatio" parameter="nu"/>
+            <material_property name="SwellingSlope" parameter="swelling_slope"/>
+            <material_property name="MassExchangeCoefficient" parameter="mass_exchange_coefficient"/>
+            <material_property name="ReferenceLiquidDensityMacro" parameter="rho_LR_ref"/>
+            <material_property name="ReferenceLiquidDensityMicro" parameter="rho_l0"/>
+            <material_property name="ReferenceDensitySolid" parameter="rho_SR"/>
+            <material_property name="MicroLiquidDensityA" parameter="density_a"/>
+            <material_property name="MicroLiquidDensityB" parameter="density_b"/>
+            <material_property name="HamakerConstant" parameter="hamaker_constant"/>
+            <material_property name="SpecificSurface" parameter="specific_surface"/>
+            <material_property name="InitialPorosity" parameter="phi0"/>
+            <material_property name="AreaFactorTuller" parameter="area_factor_tuller"/>
+            <material_property name="PoreAreaShapeFactorTuller" parameter="pore_area_shape_factor_tuller"/>
+            <material_property name="CharacteristicPoreSize" parameter="characteristic_pore_size"/>
+            <material_property name="SurfaceTension" parameter="surface_tension"/>
+        </material_properties>
+        <initial_values>
+            <state_variable name="n_l" parameter="n_l0"/>
+            <state_variable name="rho_lR" parameter="rho_lR0"/>
+            <state_variable name="epsilon_sw" parameter="epsilon_sw0"/>
+        </initial_values>
+        )XML";
+
+    auto ptree = Tests::readXml(xml);
+    BaseLib::ConfigTree config_tree(std::move(ptree), "FILENAME",
+                                    &BaseLib::ConfigTree::onerror,
+                                    &BaseLib::ConfigTree::onwarning);
+
+    return MaterialLib::Solids::createConstitutiveRelation<2>(
+        parameters, local_coordinate_system, config_tree);
+}
+
+template <typename Model, typename StateVariables>
+static void initializeState(Model const& model, StateVariables& state)
 {
     ParameterLib::SpatialPosition x{};
     model.initializeInternalStateVariables(0.0, x, state);
@@ -932,7 +976,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 
     ParameterLib::SpatialPosition x{};
     auto response = model->integrateStressPressureCoupled(
-        variable_array_prev, variable_array, 0.0, x, 1.0, *state);
+        variable_array_prev, variable_array, 0.0, x, 0.0, *state);
     ASSERT_TRUE(response);
     ASSERT_TRUE(response->state != nullptr);
 
@@ -945,6 +989,43 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_NEAR(response->stress[5], 0.0, 1e-12);
     EXPECT_NEAR(response->dSaturation_dLiquidPressure, 0.0, 1e-12);
 
+    EXPECT_TRUE(response->dStress_dStrain.allFinite());
+    EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+}
+
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     PlaneStrainFactoryPathZeroDtPressureCoupledInitialAssemblyResponse)
+{
+    auto const parameters = createParameters();
+    auto model = createBridgeModelThroughFactoryPlaneStrain(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.liquid_phase_pressure = 0.0;
+    variable_array_prev.liquid_saturation = 1.0;
+    variable_array_prev.temperature = 0.0;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 0.0, x, 0.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    EXPECT_NEAR(response->saturation, 1.0, 1e-12);
+    EXPECT_TRUE(response->stress.allFinite());
+    EXPECT_NEAR(response->stress[0], response->stress[1], 1e-9);
+    EXPECT_NEAR(response->stress[1], response->stress[2], 1e-9);
+    EXPECT_NEAR(response->stress[3], 0.0, 1e-12);
+    EXPECT_NEAR(response->dSaturation_dLiquidPressure, 0.0, 1e-12);
     EXPECT_TRUE(response->dStress_dStrain.allFinite());
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
 }
