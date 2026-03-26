@@ -19,6 +19,8 @@ Two things are already true:
 
 - the reduced one-element native-vs-bridge compare works and is green
 - the benchmark bridge shell now runs on the native part-1 load/time scale
+- the saturated elastic one-element native-vs-bridge compare also works and is
+  exact
 
 One thing is still open:
 
@@ -74,6 +76,40 @@ Observed `sigma` residue:
 So the reduced one-element compare is closed for practical purposes.
 The remaining `sigma` difference is a floating-point issue, not a model-parity
 issue.
+
+## Saturated elastic parity status
+
+There is now also a separate saturated elastic one-element parity gate.
+
+This pair uses:
+
+- the same one-element RM shell on both sides
+- native `LinearElasticIsotropic` on one side
+- `RichardsMechanicsNotebookBridge` with `SwellingSlope = 0` on the other side
+- a shared positive pressure ramp, so both sides stay on the saturated branch
+  with `S_L = 1`
+
+Compared fields:
+
+- `displacement`
+- `pressure`
+- `sigma`
+- `epsilon`
+- `saturation`
+- `velocity`
+
+Result:
+
+- all compared fields match exactly on timesteps `0` through `4`
+
+What this means:
+
+- the basic saturated elastic pressure-coupled RM bridge contract is working on
+  this shared shell
+- the remaining benchmark mismatch is therefore not explained by a generic
+  failure of the bridge on the simplest elastic saturated branch
+- the open benchmark problem must involve constitutive, unsaturated, or other
+  process-level features beyond this branch
 
 ## Benchmark-shell status
 
