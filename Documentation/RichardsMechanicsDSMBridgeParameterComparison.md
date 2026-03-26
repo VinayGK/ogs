@@ -1,141 +1,159 @@
 # RichardsMechanics DSM Native-vs-Bridge Parameter Comparison
 
-## Scope
+## What this note answers
 
-This note compares the current reduced one-element parity pair:
+This note answers a simple question:
+
+Do the current native and bridge parity tests use the same parameters?
+
+Short answer:
+
+- the shared OGS problem setup is aligned well
+- the active constitutive parameter sets are not literally the same
+- the current green compare test is therefore a reduced overlap test, not exact
+  same-parameter MCC plasticity parity
+
+## Files compared
 
 - native shell:
-  [mfront_parity_1element_native.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_native.prj);
+  [mfront_parity_1element_native.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_native.prj)
 - bridge shell:
-  [mfront_parity_1element_bridge.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_bridge.prj).
+  [mfront_parity_1element_bridge.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_bridge.prj)
 
-Current verdict:
+## What is the same
 
-- the shared OGS problem setup is aligned well enough for the existing reduced parity CTest;
-- the two parameter decks are not literally equivalent;
-- the pair is not an exact same-parameter MCC plasticity parity test.
+These items are the same, or intentionally mapped to the same numerical value,
+in the reduced one-element parity pair.
 
-## Shared Setup And Active Overlap Parameters
+| Item | Native shell | Bridge shell | Meaning |
+| --- | --- | --- | --- |
+| Mesh and boundary meshes | same | same | Same geometry and same boundary subsets |
+| Axial symmetry | `true` | `true` | Same kinematics |
+| Time stepping | `t = 0..4`, `4 x dt=1` | same | Same time grid |
+| Pressure history | same ramp | same ramp | Same loading path |
+| Initial macro pressure | `0` | `0` | Same macro pressure start |
+| Initial stress `sigma0` | `(-5e3, -5e3, -5e3, 0)` | same | Same total initial stress |
+| `YoungModulus` | `52e6` | `52e6` | Same elastic modulus |
+| `PoissonRatio` | `0.3` | `0.3` | Same elastic Poisson ratio |
+| Mass exchange coefficient | `5e-15` | `5e-15` | Same numerical value, different hookup |
+| `phi0` | `0.432` | `0.432` | Same initial total porosity |
+| `phi_tr0` | `0.332` | `0.332` | Same initial transport porosity |
+| `biot_coefficient` | `0.6` | `0.6` | Same Biot coupling |
+| `permeability` | `2e-21` | `2e-21` | Same hydraulic conductivity input |
+| `relative_permeability` | `1` | `1` | Same reduced permeability |
+| Macro saturation law | same van Genuchten law | same | Same macro saturation curve |
+| Bishop law | same cutoff law | same | Same effective-stress reduction law |
+| Liquid viscosity | `1e-3` | `1e-3` | Same viscosity |
+| Liquid density | `1e3` | `1e3` | Same macro liquid density |
+| Medium solid density | `2780` | `2780` | Same medium property |
 
-These items are the same, or intentionally mapped with the same numerical value, on both sides of the reduced one-element parity pair.
+## What is not the same
 
-| Item | Native shell | Bridge shell | Status | Notes |
-| --- | --- | --- | --- | --- |
-| Meshes | `square_1x1_quad_1e0` + side meshes | same | same and active | Same geometry and boundary subsets. |
-| Axial symmetry | `true` | `true` | same and active | Same kinematic setting. |
-| Time stepping | `t = 0..4`, `4 x dt=1` | same | same and active | Same output cadence too. |
-| Pressure history | `pressure_ramp_parity` scaled by `1000` | same | same and active | Same ramp and same `pressure_bc_scale`. |
-| Pressure initial condition | `0` | `0` | same and active | Same initial macro pressure. |
-| Initial stress `sigma0` | `(-5e3, -5e3, -5e3, 0)` | same | same and active | Same initial total stress field. |
-| `YoungModulus` | `52e6` | `52e6` | same and active | Consumed by both constitutive laws. |
-| `PoissonRatio` | `0.3` | `0.3` | same and active | Consumed by both constitutive laws. |
-| Mass exchange | `<micro_porosity><mass_exchange_coefficient>5e-15` | `MassExchangeCoefficient = 5e-15` | same value, different hookup | Native uses the RM process micro-porosity block; bridge uses an MFront material property. |
-| `phi0` | `0.432` | `0.432` | same and active | Native uses it as total porosity IC; bridge also feeds `InitialPorosity`. |
-| `phi_tr0` | `0.332` | `0.332` | same and active | Same transport-porosity IC. |
-| `biot_coefficient` | `0.6` | `0.6` | same and active | Same medium property. |
-| `permeability` | `2e-21` | `2e-21` | same and active | Same medium property. |
-| `relative_permeability` | `1` | `1` | same and active | Same medium property. |
-| Macro `saturation` law | van Genuchten, exponent `0.4`, `p_b = 15e6` | same | same and active | Same macro saturation law. |
-| `bishops_effective_stress` | `BishopsSaturationCutoff`, cutoff `1` | same | same and active | Same effective-stress reduction law. |
-| Liquid viscosity | `1e-3` | `1e-3` | same and active | Same medium property. |
-| Liquid density | `1e3` | `1e3` | same and active | Same medium property. |
-| Solid density in medium | `2780` | `2780` | same and active | Same solid phase density property. |
+The main difference is the constitutive law itself.
 
-## Native MCC Parameters Versus Bridge Status
+| Item | Native shell | Bridge shell | Meaning |
+| --- | --- | --- | --- |
+| Constitutive law | `ModCamClay_semiExpl_constE` | `RichardsMechanicsNotebookBridge` | Not the same model |
+| Active plastic state | MCC state variables are active | no matching MCC plastic state | Native has plasticity path; bridge does not expose the same one |
+| Active microstate inputs | process-side DSM + native law inputs | reduced bridge microstate inputs | Different parameter surfaces |
 
-The native reduced shell uses an MCC constitutive law:
-[mfront_parity_1element_native.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_native.prj)
-binds `ModCamClay_semiExpl_constE`.
+## Native MCC parameters vs bridge status
 
-The bridge shell does not bind an MCC law:
-[mfront_parity_1element_bridge.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_bridge.prj)
-binds `RichardsMechanicsNotebookBridge`.
+These parameters are active on the native side.
+Some of them are written into the bridge project file too, but they are not
+used by the current bridge law.
 
-| MCC-related item | Native shell | Bridge shell | Status | Notes |
-| --- | --- | --- | --- | --- |
-| Constitutive behaviour | `ModCamClay_semiExpl_constE` | `RichardsMechanicsNotebookBridge` | not the same | Different constitutive models. |
-| `CriticalStateLineSlope` | `1.2`, active | `1.2`, defined only | same value, inactive on bridge | Not consumed by `RichardsMechanicsNotebookBridge`. |
-| `SwellingLineSlope` | `6.6e-3`, active | `6.6e-3`, defined only | same value, inactive on bridge | Native MCC parameter only. |
-| `VirginConsolidationLineSlope` | `7.7e-2`, active | `7.7e-2`, defined only | same value, inactive on bridge | Native MCC parameter only. |
-| `InitialPreConsolidationPressure` | `2e5`, active | `2e5`, defined only | same value, inactive on bridge | Native hardening state only. |
-| `InitialVolumeRatio` | `1.78571428571428571429`, active | same value, defined only | same value, inactive on bridge | Native hardening state only. |
-| Plastic state outputs | `EquivalentPlasticStrain`, `PlasticVolumetricStrain`, `PreConsolidationPressure`, `VolumeRatio` requested | not requested and not available | native only | Bridge behaviour does not expose matching MCC state. |
+| MCC-related item | Native shell | Bridge shell | Status |
+| --- | --- | --- | --- |
+| `CriticalStateLineSlope` | active | defined only | inactive on bridge |
+| `SwellingLineSlope` | active | defined only | inactive on bridge |
+| `VirginConsolidationLineSlope` | active | defined only | inactive on bridge |
+| `InitialPreConsolidationPressure` | active | defined only | inactive on bridge |
+| `InitialVolumeRatio` | active | defined only | inactive on bridge |
+| Plastic outputs | requested and available | not available | native only |
 
-## Bridge-Only Active Reduced-Microstate Parameters
+So matching numbers in the project files do not automatically mean matching
+constitutive behavior.
 
-These parameters are active only in the bridge behaviour described in
+## Bridge-only active parameters
+
+These parameters are active only in the current bridge law
 [RichardsMechanicsNotebookBridge.mfront](../MaterialLib/SolidModels/MFront/RichardsMechanicsNotebookBridge.mfront).
 
-| Bridge-only item | Value | Status | Notes |
-| --- | --- | --- | --- |
-| `SwellingSlope` | `0.1` | active on bridge only | Bridge uses isotropic swelling from micro-porosity change. |
-| `ReferenceLiquidDensityMacro` | `1000.0` | active on bridge only | Consumed by bridge EOS / chemical potential update. |
-| `ReferenceLiquidDensityMicro` | `2072.8234319102588` | active on bridge only | Consumed by bridge EOS in the current reduced parity shell. |
-| `ReferenceDensitySolid` | `2470.0` | active on bridge only | Internal bridge microstate parameter; distinct from medium solid density `2780`. |
-| `MicroLiquidDensityA` | `1.3` | active on bridge only | Bridge EOS parameter. |
-| `MicroLiquidDensityB` | `1.0` | active on bridge only | Bridge EOS parameter. |
-| `HamakerConstant` | `-6e-20` | active on bridge only | Bridge micro potential parameter. |
-| `SpecificSurface` | `100.0` | active on bridge only | Bridge micro potential parameter. |
-| `AreaFactorTuller` | `1.0` | active on bridge only | Bridge saturation update parameter. |
-| `PoreAreaShapeFactorTuller` | `0.8584073464102069` | active on bridge only | Bridge saturation update parameter. |
-| `CharacteristicPoreSize` | `1e-5` | active on bridge only | Bridge saturation update parameter. |
-| `SurfaceTension` | `0.0715` | active on bridge only | Bridge saturation update parameter. |
-| `n_l0` | `0.1` | active on bridge only | Initial bridge micro-liquid content. |
-| `rho_lR0` | `2072.8234319102588` | active on bridge only | EOS-consistent initial bridge micro-liquid density. |
-| `epsilon_sw0` | `0.0` | active on bridge only | Initial bridge swelling strain state. |
+| Bridge-only item | Value | Meaning |
+| --- | --- | --- |
+| `SwellingSlope` | `0.1` | swelling from micro-porosity change |
+| `ReferenceLiquidDensityMacro` | `1000.0` | macro liquid density reference |
+| `ReferenceLiquidDensityMicro` | `2072.8234319102588` | micro liquid density reference |
+| `ReferenceDensitySolid` | `2470.0` | bridge microstate solid density |
+| `MicroLiquidDensityA` | `1.3` | bridge EOS parameter |
+| `MicroLiquidDensityB` | `1.0` | bridge EOS parameter |
+| `HamakerConstant` | `-6e-20` | bridge micro-potential parameter |
+| `SpecificSurface` | `100.0` | bridge micro-potential parameter |
+| `AreaFactorTuller` | `1.0` | bridge saturation parameter |
+| `PoreAreaShapeFactorTuller` | `0.8584073464102069` | bridge saturation parameter |
+| `CharacteristicPoreSize` | `1e-5` | bridge saturation parameter |
+| `SurfaceTension` | `0.0715` | bridge saturation parameter |
+| `n_l0` | `0.1` | initial bridge micro-liquid content |
+| `rho_lR0` | `2072.8234319102588` | initial bridge micro-liquid density |
+| `epsilon_sw0` | `0.0` | initial bridge swelling strain |
 
-For the native part-1 benchmark pressure level `pressure_ic = -5e3`, these
-one-element bridge initial-state values are not pressure-universal. Solving the
-current bridge microstate equations at the benchmark initial pressure gives a
-different equilibrium anchor:
+## Benchmark-only bridge initial state
 
-| Benchmark-only bridge IC item | Value | Status | Notes |
-| --- | --- | --- | --- |
-| `n_l0` | `0.012069019712402708` | benchmark-equilibrium only | Pressure-consistent bridge micro-liquid content for the native part-1 initial pressure. |
-| `rho_lR0` | `2267.4495975433856` | benchmark-equilibrium only | Pressure-consistent bridge micro-liquid density used by the tracked benchmark bridge shell. |
+The benchmark shell uses a different pressure level than the reduced
+one-element test, so the bridge needs a different pressure-consistent initial
+microstate there.
 
-Those values are now part of the tracked run-level benchmark-shell solution.
-Dedicated material-point tests confirm that the bridge accepts them at
-`pressure_ic = -5e3` for `dt = 0`, for `dt = 1000` at the exact RM-aligned
-first-step anchor, and at the exact former process-failure state. The tracked
-benchmark bridge deck also now runs on the native part-1 load/time scale.
-Benchmark-shell parity is still not closed, however, because the benchmark
-`ts_1` fields still differ materially from the native deck and the bridge
-benchmark deck is still the reduced `RichardsMechanicsNotebookBridge` law, not
-the native MCC benchmark law.
+| Benchmark bridge IC item | Value | Meaning |
+| --- | --- | --- |
+| `n_l0` | `0.012069019712402708` | pressure-consistent micro-liquid content at benchmark pressure |
+| `rho_lR0` | `2267.4495975433856` | pressure-consistent micro-liquid density at benchmark pressure |
 
-## Bridge-Defined But Currently Inactive Parameters
+These values are part of the run-level benchmark-shell fix.
+They do not make the benchmark pair an exact same-model parity pair.
 
-These entries are present in the bridge project file but are not consumed by
-[RichardsMechanicsNotebookBridge.mfront](../MaterialLib/SolidModels/MFront/RichardsMechanicsNotebookBridge.mfront).
+## What exact same-parameter MCC parity would mean
 
-| Bridge parameter | Value | Status | Notes |
-| --- | --- | --- | --- |
-| `CriticalStateLineSlope` | `1.2` | inactive | Present only to mirror the native deck numerically. |
-| `SwellingLineSlope` | `6.6e-3` | inactive | Present only to mirror the native deck numerically. |
-| `VirginConsolidationLineSlope` | `7.7e-2` | inactive | Present only to mirror the native deck numerically. |
-| `InitialPreConsolidationPressure` | `2e5` | inactive | Present only to mirror the native deck numerically. |
-| `InitialVolumeRatio` | `1.78571428571428571429` | inactive | Present only to mirror the native deck numerically. |
-| `SaturationPressureScale` | `1e3` | inactive | Leftover parameter; not wired into the bridge behaviour. |
+For MCC, the yield function is usually written as
 
-## Plasticity Coverage Status
+\[
+f(q,p,p_c) = q^2 + M^2 p (p - p_c),
+\]
 
-Native RM already has MCC-capable test coverage in this repository:
+with mean effective stress and deviatoric stress measure
 
-- [double_porosity_swelling_RM.prj](../Tests/Data/RichardsMechanics/DoubleStructureBenchmark/double_porosity_swelling_RM.prj)
-  is registered in
-  [Tests.cmake](../ProcessLib/RichardsMechanics/Tests.cmake)
-  and uses `ModCamClay_semiExpl`.
+\[
+p = -\frac{1}{3}\mathrm{tr}(\boldsymbol{\sigma}_{eff}),
+\qquad
+q = \sqrt{\frac{3}{2}\,\boldsymbol{s}:\boldsymbol{s}}.
+\]
 
-The current reduced one-element native-vs-bridge parity pair is still not an MCC plasticity parity test:
+An exact same-parameter MCC parity test would therefore need:
 
-- the native one-element shell binds MCC and requests plastic outputs;
-- the bridge behaviour stores only `n_l`, `rho_lR`, and `epsilon_sw`, and updates stress by an elastic law plus swelling contribution;
-- the current one-element pressure path is small (`pressure_bc_scale = 1000`) relative to the native `InitialPreConsolidationPressure = 2e5`, so this shell should be treated as a reduced non-yielding overlap test unless dedicated plastic-state outputs prove otherwise.
+- the same active MCC parameters on both sides
+- the same active hardening state on both sides
+- the same stress meaning on both sides
+- the same plastic-state outputs on both sides
 
-## Consequence For CTests
+In practice that means the bridge would need to consume and expose at least:
 
-The current green compare CTest is valid as a reduced DSM overlap test for:
+- `CriticalStateLineSlope`
+- `SwellingLineSlope`
+- `VirginConsolidationLineSlope`
+- `InitialPreConsolidationPressure`
+- `InitialVolumeRatio`
+- `EquivalentPlasticStrain`
+- `PlasticVolumetricStrain`
+- `PreConsolidationPressure`
+- `VolumeRatio`
+
+The current bridge does not do that yet.
+
+## What the current green CTest is still good for
+
+The current green compare CTest is still valuable.
+
+It is a valid reduced DSM overlap test for:
 
 - `displacement`
 - `pressure`
@@ -144,22 +162,18 @@ The current green compare CTest is valid as a reduced DSM overlap test for:
 - `saturation`
 - `swelling_stress`
 
-It is not valid as proof of exact same-parameter MCC plasticity parity.
+It is just important to describe it honestly:
 
-No CTest was changed here to force plastic yielding, because that would not create an exact same-model comparison and would predictably fail for constitutive-model reasons rather than infrastructure reasons.
+- good description:
+  “reduced native-vs-bridge overlap parity”
+- bad description:
+  “exact same-parameter MCC plasticity parity”
 
-## Plan For Exact Same-Parameter MCC Plasticity Parity
+## Next step for exact MCC parity
 
-1. Replace or extend
-   [RichardsMechanicsNotebookBridge.mfront](../MaterialLib/SolidModels/MFront/RichardsMechanicsNotebookBridge.mfront)
-   so that it consumes the active MCC parameter set:
-   `CriticalStateLineSlope`, `SwellingLineSlope`,
-   `VirginConsolidationLineSlope`, `InitialPreConsolidationPressure`,
-   and `InitialVolumeRatio`.
-2. Expose matching plastic state variables and secondary outputs on the bridge side:
-   `EquivalentPlasticStrain`, `PlasticVolumetricStrain`,
-   `PreConsolidationPressure`, and `VolumeRatio`.
-3. Build a yield-driving one-element shell with the same mesh, BCs, time stepping,
-   and active parameter list on both sides.
-4. Only after steps 1 to 3 are green, extend the compare CTest to diff the plastic
-   state outputs in addition to the existing overlap fields.
+1. Extend or replace the current bridge law so it uses the active MCC parameter
+   set.
+2. Expose matching plastic state variables and outputs on the bridge side.
+3. Build a yield-driving shell where both sides use the same active parameter
+   list.
+4. Only then extend the compare test to include plastic-state outputs.
