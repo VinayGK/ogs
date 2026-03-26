@@ -33,10 +33,9 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
     OgsTest(PROJECTFILE RichardsMechanics/mfront_restart_part2.xml RUNTIME 1)
     OgsTest(PROJECTFILE RichardsMechanics/DoubleStructureBenchmark/double_porosity_swelling_RM.prj RUNTIME 1)
 
-    # These bridge/parity inputs are run-only checks. The bridge restart deck
-    # now exercises the native part-1 load/time shell, but none of these
-    # inputs carry source-side benchmark definitions, so they must still run
-    # via AddTest rather than OgsTest's benchmark mode.
+    # These bridge/parity inputs still run via AddTest because they do not
+    # have source-side benchmark definitions. Native-vs-bridge parity for the
+    # benchmark and reduced shells is enforced by explicit compare tests below.
     AddTest(
         NAME RichardsMechanics_mfront_restart_part1_rm_bridge
         PATH RichardsMechanics
@@ -160,6 +159,22 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
     )
     set_tests_properties(
         ogs-RichardsMechanics_mfront_parity_1element_mcc_compare
+        PROPERTIES COST 1
+                   LABELS "RichardsMechanics;default;small"
+                   WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics
+    )
+    add_test(
+        NAME ogs-RichardsMechanics_mfront_restart_part1_mcc_compare
+        COMMAND
+            ${CMAKE_COMMAND}
+            -DOGS_EXE=$<TARGET_FILE:ogs>
+            -DVTKDIFF_EXE=$<TARGET_FILE:vtkdiff>
+            -DSOURCE_PATH=${Data_SOURCE_DIR}/RichardsMechanics
+            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_restart_part1_mcc_compare
+            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontMCCBenchmarkParity.cmake
+    )
+    set_tests_properties(
+        ogs-RichardsMechanics_mfront_restart_part1_mcc_compare
         PROPERTIES COST 1
                    LABELS "RichardsMechanics;default;small"
                    WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics

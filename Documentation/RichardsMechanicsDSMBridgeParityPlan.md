@@ -18,7 +18,6 @@ The finished state should contain:
 Two things are already true:
 
 - the reduced one-element native-vs-bridge compare works and is green
-- the benchmark bridge shell now runs on the native part-1 load/time scale
 - the saturated elastic one-element native-vs-bridge compare also works and is
   exact
 - the unsaturated elastic one-element native-vs-bridge compare also works and
@@ -27,15 +26,19 @@ Two things are already true:
 - a reduced same-law MCC native-vs-bridge compare also works and is green once
   the bridge side uses a pressure-coupled variant of
   `ModCamClay_semiExpl_constE`
+- a benchmark same-law MCC native-vs-bridge compare now also works and is
+  green on the native part-1 shell
 
 One thing is still open:
 
-- the benchmark native-vs-bridge fields still differ at `ts_1` on the tracked
-  notebook-bridge shell
+- the notebook-derived bridge law `RichardsMechanicsNotebookBridge` is still a
+  different constitutive surface from the native MCC benchmark, so
+  notebook-to-native DSM parity is still open
 
-So the remaining problem is no longer “can the benchmark bridge run?”.
-The remaining problem is “why do the native and bridge benchmark fields still
-separate after the first real step?”.
+So the remaining problem is no longer “can the benchmark bridge run?” and it is
+no longer “can RM carry the native MFront MCC law through the pressure-coupled
+bridge?”. The remaining problem is how far the notebook-derived bridge should
+be widened toward that now-verified MCC benchmark surface.
 
 ## What is already verified
 
@@ -52,6 +55,7 @@ As of 2026-03-26 on branch `dsm-nb-mfront-transition`:
 - `ogs-RichardsMechanics_mfront_parity_1element_elastic_compare`
 - `ogs-RichardsMechanics_mfront_parity_1element_unsat_compare`
 - `ogs-RichardsMechanics_mfront_parity_1element_mcc_compare`
+- `ogs-RichardsMechanics_mfront_restart_part1_mcc_compare`
 - the RM pressure-coupled carrier now keeps the bridge saturation derivative
   with respect to strain `dS/d\varepsilon`, and the pressure-equation
   displacement block now consumes that term instead of dropping it
@@ -321,80 +325,51 @@ The fix is in
 This fix does not close the benchmark mismatch by itself. What it does is make
 the RM bridge state and output honest on unsaturated pressure-coupled runs.
 
-## Benchmark-shell status
+## Benchmark-shell same-law MCC parity status
 
-### What is solved
-
-The benchmark bridge shell now runs on the native part-1 load/time scale.
-
-That run-level result currently depends on three things:
-
-- pressure-consistent bridge initial microstate
-  - `n_l0 = 0.012069019712402708`
-  - `rho_lR0 = 2267.4495975433856`
-- a bracketed fallback in the bridge microstate solve
-- damped global Newton in the benchmark bridge project
-
-Direct bridge tests now also cover:
-
-- `dt = 0` at benchmark pressure with the raw benchmark stress state
-- `dt = 0` at benchmark pressure with the RM-equivalent effective stress state
-- `dt = 1000` at the benchmark first-step anchor
-- the exact former process-failure state
-
-### What is still open
-
-A clean native-vs-bridge benchmark rerun now shows:
-
-- at `ts_0`
-  - `displacement`, `pressure`, `epsilon`, `saturation`, and
-    `swelling_stress` match exactly
-  - `sigma` differs only at machine scale
-- at `ts_1`
-  - the mismatch is still material
-
-Representative `ts_1` differences:
-
-- `|Δu_y|_∞ ≈ 1.51e-4`
-- `|Δp|_∞ ≈ 6.80e3`
-- `|Δσ|_∞ ≈ 9.21e3`
-- `|Δε_yy|_∞ ≈ 1.51e-4`
-- `|ΔS_L|_∞ ≈ 1.87e-1`
-
-So benchmark-shell loadability is closed, but benchmark-shell parity is not.
-
-One useful negative result is now also known:
-
-- the missing bridge saturation-strain tangent was a real carrier omission, and
-  it is now fixed
-- but the benchmark `ts_1` field differences stay at essentially the same scale
-  after that fix
-
-So the remaining benchmark gap is not explained by that dropped tangent alone.
-
-## Why the benchmark gap is still hard to interpret
-
-The benchmark decks still do not use the same constitutive law:
+The tracked benchmark bridge shell now uses the same available MCC law as the
+native benchmark:
 
 - native benchmark law:
   `ModCamClay_semiExpl_constE`
 - bridge benchmark law:
-  `RichardsMechanicsNotebookBridge`
+  `ModCamClay_semiExpl_constE_pressureCoupled`
 
-That means the current benchmark mismatch is not yet a pure same-model
-interface signal.
+The dedicated benchmark compare CTest runs both project files on the native
+part-1 shell and compares:
 
-It may still contain two effects mixed together:
+- `displacement`
+- `pressure`
+- `sigma`
+- `epsilon`
+- `saturation`
+- `velocity`
+- `ElasticStrain`
+- `EquivalentPlasticStrain`
+- `PreConsolidationPressure`
+- `PlasticVolumetricStrain`
+- `VolumeRatio`
+- `swelling_stress`
+- `transport_porosity`
+- `dry_density_solid`
 
-- a real RM pressure-coupled interface issue
-- a real constitutive difference between the native and bridge laws
+Result:
 
-The new reduced same-law MCC gate removes one broad class of uncertainty. We
-now know that a pressure-coupled bridge variant of
-`ModCamClay_semiExpl_constE` can reproduce the native reduced-shell response.
-So the remaining benchmark gap is no longer “can RM carry native MFront MCC
-through the bridge at all?”. The remaining gap is specific to the tracked
-benchmark surface built around `RichardsMechanicsNotebookBridge`.
+- at `ts_0`
+  - all compared fields are exact except for machine-scale `sigma`
+- at `ts_1`
+  - all compared fields still agree up to machine-scale residue only
+  - `pressure` closes with absolute max norm about `1.82e-12`
+  - `sigma` closes with absolute max norm about `5.82e-11`
+
+So the same-law MCC benchmark parity task is now closed in practice. The new
+project-level gate is:
+
+- `ogs-RichardsMechanics_mfront_restart_part1_mcc_compare`
+
+What remains open is not this same-law benchmark surface. What remains open is
+the notebook-derived bridge law and how far it should be widened toward this
+now-verified MCC benchmark boundary.
 
 ## The pressure-coupled contract in plain language
 
@@ -511,12 +486,13 @@ B\, d\Omega.
 That first `dS/d\varepsilon` term was a real RM-side carrier omission. It is
 now assembled.
 
-This gives one useful negative result:
+This gave one useful negative result during the earlier notebook-bridge
+investigation:
 
-- the benchmark `ts_1` gap stays at essentially the same scale after restoring
-  that term
+- restoring the `dS/d\varepsilon` carrier term was a real fix
+- but it did not remove the old notebook-bridge benchmark gap by itself
 
-So the remaining benchmark gap can still come from a wrong meaning of:
+So a notebook-derived benchmark gap can still come from a wrong meaning of:
 
 - returned stress
 - `dS/d\varepsilon`
@@ -536,9 +512,9 @@ on the reduced shared shell that is actually being tested.
 
 It does not prove:
 
-- benchmark-shell parity
-- exact same-parameter MCC plasticity parity
 - full notebook-to-native constitutive equivalence
+- that the notebook-derived bridge law has already reached the same active
+  constitutive closure as the verified MCC bridge
 
 ## Parameter status
 
@@ -581,7 +557,29 @@ Guardrails:
 - keep the benchmark damping unless tests show it is safe to remove
 - keep the direct benchmark-pressure bridge unit tests green
 
-### WP3: Close the benchmark quantitative gap
+### WP3: Close the same-law benchmark quantitative gap
+
+Status:
+
+- complete
+
+Completed result:
+
+- compare clean native and bridge benchmark outputs on the part-1 shell
+- enforce the comparison with a dedicated CTest
+- keep only machine-scale tolerance for `pressure` and `sigma`
+
+### WP4: Add the benchmark comparison CTest
+
+Status:
+
+- complete
+
+Delivered test:
+
+- `ogs-RichardsMechanics_mfront_restart_part1_mcc_compare`
+
+### WP5: Widen the notebook-derived bridge toward the verified MCC boundary
 
 Status:
 
@@ -589,29 +587,10 @@ Status:
 
 Practical task:
 
-- compare clean native and bridge benchmark outputs
-- separate constitutive differences from RM interface differences
-- only then tighten the interpretation of the remaining `ts_1` mismatch
-
-### WP4: Add the benchmark comparison CTest
-
-Status:
-
-- open
-
-Do this only after WP3 is honest enough to interpret.
-
-Recommended shape:
-
-- keep the two run tests
-- add a separate compare test
-- compare:
-  - `displacement`
-  - `pressure`
-  - `sigma`
-  - `epsilon`
-  - `saturation`
-  - `swelling_stress`
+- decide which notebook-owned internal variables must stay explicit
+- decide which available MCC variables and tangents must stay aligned with the
+  verified same-law benchmark surface
+- only then add the next notebook-driven constitutive feature
 
 ## Definition of done
 
@@ -630,6 +609,11 @@ Done means:
 - the native and bridge benchmark shells both run on the native part-1 scale
 - the benchmark fields match up to only justified machine-scale residue
 - the benchmark comparison is enforced by a dedicated CTest
+
+Current state:
+
+- done for the same-law MCC benchmark surface
+- not done for full notebook-to-native constitutive equivalence
 
 ## Useful commands
 
@@ -651,7 +635,7 @@ Focused CTest slice:
 ```bash
 ctest --test-dir /Users/vinaykumar/git/build/release-mfront-tpm \
   --output-on-failure \
-  -R 'ogs-RichardsMechanics/mfront_restart_part1$|ogs-RichardsMechanics/mfront_restart_part2$|ogs-RichardsMechanics_mfront_restart_part1_rm_bridge$|ogs-RichardsMechanics_mfront_parity_1element_native$|ogs-RichardsMechanics_mfront_parity_1element_bridge$|ogs-RichardsMechanics_mfront_parity_1element_compare$'
+  -R 'ogs-RichardsMechanics/mfront_restart_part1$|ogs-RichardsMechanics/mfront_restart_part2$|ogs-RichardsMechanics_mfront_restart_part1_rm_bridge$|ogs-RichardsMechanics_mfront_restart_part1_mcc_compare$|ogs-RichardsMechanics_mfront_parity_1element_native$|ogs-RichardsMechanics_mfront_parity_1element_bridge$|ogs-RichardsMechanics_mfront_parity_1element_compare$'
 ```
 
 Direct benchmark-pressure bridge guardrail:

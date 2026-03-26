@@ -17,29 +17,22 @@
             </jacobian_assembler>
             <constitutive_relation>
                 <type>MFrontRichardsMechanics</type>
-                <behaviour>RichardsMechanicsNotebookBridge</behaviour>
+                <behaviour>ModCamClay_semiExpl_constE_pressureCoupled</behaviour>
                 <material_properties>
                     <material_property name="YoungModulus" parameter="YoungModulus"/>
                     <material_property name="PoissonRatio" parameter="PoissonRatio"/>
-                    <material_property name="SwellingSlope" parameter="SwellingSlope"/>
-                    <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
-                    <material_property name="ReferenceLiquidDensityMacro" parameter="ReferenceLiquidDensityMacro"/>
-                    <material_property name="ReferenceLiquidDensityMicro" parameter="ReferenceLiquidDensityMicro"/>
-                    <material_property name="ReferenceDensitySolid" parameter="ReferenceDensitySolid"/>
-                    <material_property name="MicroLiquidDensityA" parameter="MicroLiquidDensityA"/>
-                    <material_property name="MicroLiquidDensityB" parameter="MicroLiquidDensityB"/>
-                    <material_property name="HamakerConstant" parameter="HamakerConstant"/>
-                    <material_property name="SpecificSurface" parameter="SpecificSurface"/>
-                    <material_property name="InitialPorosity" parameter="phi0"/>
-                    <material_property name="AreaFactorTuller" parameter="AreaFactorTuller"/>
-                    <material_property name="PoreAreaShapeFactorTuller" parameter="PoreAreaShapeFactorTuller"/>
-                    <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize"/>
-                    <material_property name="SurfaceTension" parameter="SurfaceTension"/>
+                    <material_property name="CriticalStateLineSlope" parameter="CriticalStateLineSlope"/>
+                    <material_property name="SwellingLineSlope" parameter="SwellingLineSlope"/>
+                    <material_property name="VirginConsolidationLineSlope" parameter="VirginConsolidationLineSlope"/>
+                    <material_property name="CharacteristicPreConsolidationPressure" parameter="InitialPreConsolidationPressure"/>
+                    <material_property name="ResidualLiquidSaturation" parameter="ResidualLiquidSaturation"/>
+                    <material_property name="ResidualGasSaturation" parameter="ResidualGasSaturation"/>
+                    <material_property name="BubblePressure" parameter="BubblePressure"/>
+                    <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
                 </material_properties>
                 <initial_values>
-                    <state_variable name="n_l" parameter="n_l0"/>
-                    <state_variable name="rho_lR" parameter="rho_lR0"/>
-                    <state_variable name="epsilon_sw" parameter="epsilon_sw0"/>
+                    <state_variable name="PreConsolidationPressure" parameter="InitialPreConsolidationPressure"/>
+                    <state_variable name="VolumeRatio" parameter="InitialVolumeRatio"/>
                 </initial_values>
             </constitutive_relation>
             <process_variables>
@@ -47,11 +40,16 @@
                 <displacement>displacement</displacement>
             </process_variables>
             <secondary_variables>
+                <secondary_variable name="ElasticStrain"/>
+                <secondary_variable name="EquivalentPlasticStrain"/>
+                <secondary_variable name="PreConsolidationPressure"/>
+                <secondary_variable name="PlasticVolumetricStrain"/>
                 <secondary_variable name="sigma"/>
                 <secondary_variable name="swelling_stress"/>
                 <secondary_variable name="epsilon"/>
                 <secondary_variable name="velocity"/>
                 <secondary_variable name="saturation"/>
+                <secondary_variable name="VolumeRatio"/>
                 <secondary_variable name="transport_porosity"/>
                 <secondary_variable name="dry_density_solid"/>
             </secondary_variables>
@@ -221,89 +219,24 @@
             <value>1.78571428571428571429</value>
         </parameter>
         <parameter>
-            <name>SaturationPressureScale</name>
-            <type>Constant</type>
-            <value>1e3</value>
-        </parameter>
-        <parameter>
-            <name>SwellingSlope</name>
-            <type>Constant</type>
-            <value>0.1</value>
-        </parameter>
-        <parameter>
-            <name>MassExchangeCoefficient</name>
-            <type>Constant</type>
-            <value>1.0</value>
-        </parameter>
-        <parameter>
-            <name>ReferenceLiquidDensityMacro</name>
-            <type>Constant</type>
-            <value>1000.0</value>
-        </parameter>
-        <parameter>
-            <name>ReferenceLiquidDensityMicro</name>
-            <type>Constant</type>
-            <value>1300.0</value>
-        </parameter>
-        <parameter>
-            <name>ReferenceDensitySolid</name>
-            <type>Constant</type>
-            <value>2470.0</value>
-        </parameter>
-        <parameter>
-            <name>MicroLiquidDensityA</name>
-            <type>Constant</type>
-            <value>1.3</value>
-        </parameter>
-        <parameter>
-            <name>MicroLiquidDensityB</name>
-            <type>Constant</type>
-            <value>1.0</value>
-        </parameter>
-        <parameter>
-            <name>HamakerConstant</name>
-            <type>Constant</type>
-            <value>-6e-20</value>
-        </parameter>
-        <parameter>
-            <name>SpecificSurface</name>
-            <type>Constant</type>
-            <value>100.0</value>
-        </parameter>
-        <parameter>
-            <name>AreaFactorTuller</name>
-            <type>Constant</type>
-            <value>1.0</value>
-        </parameter>
-        <parameter>
-            <name>PoreAreaShapeFactorTuller</name>
-            <type>Constant</type>
-            <value>0.8584073464102069</value>
-        </parameter>
-        <parameter>
-            <name>CharacteristicPoreSize</name>
-            <type>Constant</type>
-            <value>1e-5</value>
-        </parameter>
-        <parameter>
-            <name>SurfaceTension</name>
-            <type>Constant</type>
-            <value>0.0715</value>
-        </parameter>
-        <parameter>
-            <name>n_l0</name>
-            <type>Constant</type>
-            <value>0.012069019712402708</value>
-        </parameter>
-        <parameter>
-            <name>rho_lR0</name>
-            <type>Constant</type>
-            <value>2267.4495975433856</value>
-        </parameter>
-        <parameter>
-            <name>epsilon_sw0</name>
+            <name>ResidualLiquidSaturation</name>
             <type>Constant</type>
             <value>0.0</value>
+        </parameter>
+        <parameter>
+            <name>ResidualGasSaturation</name>
+            <type>Constant</type>
+            <value>0.0</value>
+        </parameter>
+        <parameter>
+            <name>BubblePressure</name>
+            <type>Constant</type>
+            <value>1e4</value>
+        </parameter>
+        <parameter>
+            <name>VanGenuchtenExponent_m</name>
+            <type>Constant</type>
+            <value>0.4</value>
         </parameter>
         <!-- Initial and boundary values -->
         <parameter>
