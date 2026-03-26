@@ -11,7 +11,7 @@ Establish a native-vs-MFront comparison for the RichardsMechanics double-structu
 
 ## Current Verified State
 
-As of 2026-03-25 on branch `dsm-nb-mfront-transition`:
+As of 2026-03-26 on branch `dsm-nb-mfront-transition`:
 
 - the repository configures and builds with `OGS_USE_MFRONT=ON`;
 - the following targeted test slice passes:
@@ -31,13 +31,23 @@ As of 2026-03-25 on branch `dsm-nb-mfront-transition`:
   (`t_end = 1000`, `pressure_ic = -5e3`, `top_pressure = -1e5`);
 - with a pressure-consistent bridge initial microstate
   `n_l0 = 0.012069019712402708`, `rho_lR0 = 3004.336830222012`,
-  the benchmark-shaped pair matches at `ts_0` up to machine precision;
-- the same benchmark-shaped pair still diverges at `ts_1`, so the benchmark
-  parity task is not closed.
+  the full benchmark-shaped bridge run still fails before any accepted output
+  with `Notebook bridge microstate Newton line search failed`;
+- direct material-point bridge tests at the same benchmark pressure do pass for
+  `dt = 0`, both with the raw benchmark stress state and with the
+  RM-equivalent effective stress state, so the negative-pressure initial state
+  itself is not the remaining blocker;
+- the current benchmark blocker is therefore the first nonzero coupled
+  microstate solve under the native benchmark load/time scale, not the
+  zero-step material-point response;
 - the RM process now skips duplicate secondary-variable registrations, which
   removes the `swelling_stress` name clash between process-owned output and
   pressure-coupled MFront internal variables without regressing the reduced
-  one-element parity slice.
+  one-element parity slice;
+- the RM pressure-coupled assembly now keeps the process-owned Biot/Bishop
+  pressure contribution active even when a pressure-coupled solid returns
+  `dStress_dLiquidPressure`, and that change keeps the focused CTest slice
+  green.
 
 ## Verified Parity Findings
 
@@ -99,54 +109,46 @@ was at the start of this effort.
 
 What is now verified:
 
-- the bridge can be stabilized on the native part-1 load and time scale if its
-  initial bridge microstate is made pressure-consistent for
-  `pressure_ic = -5e3`;
-- with that equilibrium initial state, the benchmark-shaped native and bridge
-  shells match at `ts_0` for `displacement`, `pressure`, `epsilon`,
-  `saturation`, and `swelling_stress`, with `sigma` differing only at
-  machine-precision scale;
-- the earlier large `ts_0` stress jump was caused by starting the benchmark
-  bridge shell from a one-element parity microstate that is not in equilibrium
-  at the benchmark initial pressure.
-- replaying the native process-owned micro-porosity path
-  (`micro_porosity`, `saturation_micro`, `swelling_stress_rate`,
-  `transport_porosity`) inside the bridge benchmark shell still leaves the
-  `ts_1` gap, so that process-owned DSM update is no longer the primary
-  suspect by itself.
-- a pressure-coupled MCC bridge attempt using `ModCamClay_semiExpl_coupled`
-  reproduces `saturation`, `micro_saturation`, `EquivalentPlasticStrain`,
-  `PreConsolidationPressure`, `PlasticVolumetricStrain`, and
-  `swelling_stress_ip` exactly at `ts_1`, while `pressure`, `micro_pressure`,
-  `displacement`, `sigma`, `ElasticStrain`, `porosity`,
-  `transport_porosity`, and `VolumeRatio` still diverge.
+- the bridge material itself accepts the benchmark pressure level
+  `pressure_ic = -5e3` at `dt = 0` when its initial bridge microstate is made
+  pressure-consistent for that pressure;
+- the same direct material-point benchmark response remains finite when the
+  previous stress is given either as the raw benchmark initial stress
+  `(-5e3, -5e3, -5e3, 0)` or as the RM-equivalent effective stress
+  `(-1e4, -1e4, -1e4, 0)`;
+- the full benchmark-shaped process run still fails before producing `ts_0`,
+  and the failure now surfaces the underlying bridge exception text:
+  `Notebook bridge microstate Newton line search failed`;
+- the reduced one-element parity slice still stays green after keeping the
+  process-owned Biot/Bishop contribution active in the pressure-coupled RM
+  assembly path.
 
-What still fails at `ts_1`:
+What is therefore still blocked:
 
-- `displacement` absolute maximum norm about `8.31e-4`;
-- `pressure` absolute maximum norm about `3.22e5`;
-- `sigma` absolute maximum norm about `5.81e4`;
-- `epsilon` absolute maximum norm about `8.31e-4`;
-- `swelling_stress` absolute maximum norm about `5.65e-2`;
-- `saturation` still matches exactly.
+- the first nonzero benchmark constitutive solve inside the full
+  RichardsMechanics process;
+- specifically, the bridge microstate Newton solve under the coupled benchmark
+  load/time step, not the zero-step material-point evaluation.
 
 Current interpretation:
 
-- this is no longer an initial-condition bug;
-- the process-owned micro-porosity path is no longer the only plausible
-  blocker, because replaying that path in the bridge shell keeps `ts_0`
-  exact but still leaves the `ts_1` gap;
-- the exact agreement in the plastic state variables, saturation variables,
-  and `swelling_stress_ip` narrows the remaining mismatch to the
-  stress/pressure coupling boundary rather than to MCC plasticity itself;
-- the most likely remaining ownership gap is now the RichardsMechanics
-  pressure-coupled solid contract, especially how
+- this is no longer a blind `status -1` failure; the verified constitutive
+  failure mode is the bridge microstate Newton line search under the benchmark
+  process step;
+- this is not explained by the negative-pressure initial state alone, because
+  dedicated material-point tests now pass at that pressure for the two stress
+  conventions that matter here;
+- the remaining ownership gap is still centered on the RichardsMechanics
+  pressure-coupled path and how it drives the first nonzero bridge solve,
+  especially through
   [IntegrationPointData.h](../ProcessLib/RichardsMechanics/IntegrationPointData.h),
   [PressureCoupledSolidData.h](../ProcessLib/RichardsMechanics/ConstitutiveRelations/PressureCoupledSolidData.h),
   [RichardsMechanicsFEM-impl.h](../ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h),
   and
-  [MFrontRichardsMechanics.h](../MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h)
-  interpret the returned stress and pressure-coupling blocks.
+  [MFrontRichardsMechanics.h](../MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h);
+- if the benchmark shell is revisited next, the first check should be the
+  bridge microstate nonlinear solve under the benchmark `dt = 1000` step
+  rather than further deck-only tuning of the zero-step initial state.
 
 ## Why The Remaining Gap Looks Interface-Owned
 
@@ -330,8 +332,8 @@ Acceptance criteria:
 ### WP2: Extend The Bridge To The Benchmark Shell
 
 The remaining real work is no longer the reduced one-element `sigma`
-residue. It is the benchmark-shell evolution gap after the first accepted
-step.
+residue. It is the benchmark-shell failure at the first nonzero coupled
+microstate solve.
 
 Primary inspection points for that gap:
 
@@ -343,25 +345,31 @@ Primary inspection points for that gap:
 Most likely causes to check:
 
 - pressure-consistent benchmark initialization is now known and should be kept
-  fixed while diagnosing the remaining step-1 mismatch;
+  fixed while diagnosing the remaining nonzero-step failure;
 - if the benchmark path stays process-owned, the bridge/model interface must be
   widened instead of compensating with deck-only tuning;
 - verify the stress convention expected by the RM pressure-coupled path
   against the stress convention returned by the candidate MFront behaviour;
 - verify the ownership split for `dStress_dLiquidPressure` and
-  `dSaturation_dLiquidPressure` against the native RM assembly path.
+  `dSaturation_dLiquidPressure` against the native RM assembly path;
+- inspect the bridge microstate Newton solve itself under the benchmark
+  `dt = 1000` step, because the current verified failure mode is a line-search
+  breakdown there rather than an opaque MGIS status.
 
 Recommended debugging sequence:
 
 - keep the benchmark bridge initial state at
   `n_l0 = 0.012069019712402708`, `rho_lR0 = 3004.336830222012`;
-- compare the first accepted benchmark step at `t = 1000`;
-- keep the process-owned micro-porosity replay available as a control case,
-  because it already proves that matching that path alone does not close
-  `ts_1`;
+- keep the new direct material-point tests as the zero-step negative-pressure
+  guardrail while changing the full benchmark path;
+- reproduce and inspect the first nonzero bridge solve at the benchmark
+  `dt = 1000` step;
 - trace the RM pressure-coupled solid path from constitutive integration to
   assembly, especially the returned stress, `dStress_dLiquidPressure`, and
   `dSaturation_dLiquidPressure`;
+- if needed, instrument or regularize the bridge microstate Newton solve rather
+  than re-tuning the pressure-consistent initial state that already passes at
+  `dt = 0`;
 - decide whether the benchmark path belongs inside a dedicated
   RichardsMechanics-specific MFront bridge behaviour or in a widened
   process-to-bridge interface;
@@ -416,7 +424,8 @@ Acceptance criteria:
 1. Keep the new compare CTest green while changing the bridge or the native DSM shell.
 2. Keep the benchmark-shell bridge initialization pressure-consistent while debugging the native part-1 load case.
 3. Treat the reduced one-element `sigma` tolerance question as a floating-point reproducibility issue, not as the remaining benchmark blocker.
-4. Reuse the existing binary-vs-binary compare pattern for the benchmark shell only after the step-1 evolution gap is closed.
+4. Use the new direct material-point negative-pressure tests to separate zero-step constitutive behavior from the full benchmark process failure.
+5. Reuse the existing binary-vs-binary compare pattern for the benchmark shell only after the first nonzero benchmark bridge solve is stable.
 
 ## Useful Commands
 
@@ -446,6 +455,13 @@ Manual parity check pattern:
 ```bash
 /Users/vinaykumar/git/build/release-mfront-tpm/bin/vtkdiff \
   native.vtu bridge.vtu -a sigma -b sigma --abs 0 --rel 0
+```
+
+Focused bridge material-point guardrail:
+
+```bash
+/Users/vinaykumar/git/build/release-mfront-tpm/bin/testrunner \
+  --gtest_filter='MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentNegativePressureResponse:MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentRMeffectiveStressResponse'
 ```
 
 ## Definition Of Done

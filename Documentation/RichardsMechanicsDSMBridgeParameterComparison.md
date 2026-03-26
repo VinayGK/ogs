@@ -94,8 +94,12 @@ different equilibrium anchor:
 | `n_l0` | `0.012069019712402708` | benchmark-equilibrium only | Pressure-consistent bridge micro-liquid content for the native part-1 initial pressure. |
 | `rho_lR0` | `3004.336830222012` | benchmark-equilibrium only | Pressure-consistent bridge micro-liquid density for the native part-1 initial pressure. |
 
-Those values remove the benchmark `ts_0` stress jump, but they do not yet close
-the benchmark `ts_1` parity gap.
+Those values are still the correct pressure-consistent benchmark anchor, and
+dedicated material-point tests now confirm that the bridge accepts them at
+`pressure_ic = -5e3` for `dt = 0`. However, the full benchmark-shaped RM run
+still fails in the first nonzero bridge microstate solve with
+`Notebook bridge microstate Newton line search failed`, so benchmark-shell
+parity is still not closed.
 
 ## Bridge-Defined But Currently Inactive Parameters
 

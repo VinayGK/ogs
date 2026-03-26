@@ -568,9 +568,17 @@ public:
         auto const status = mgis::behaviour::integrate(v, _behaviour);
         if (status != 1)
         {
-            throw NumLib::AssemblyException(
+            std::string message =
                 "MFront: integration failed with status " +
-                std::to_string(status) + ".");
+                std::to_string(status);
+            if (behaviour_data.error_message != nullptr &&
+                behaviour_data.error_message[0] != '\0')
+            {
+                message += ". ";
+                message += behaviour_data.error_message;
+            }
+            message += ".";
+            throw NumLib::AssemblyException(message);
         }
 
         OGSMFrontThermodynamicForcesData tdyn_forces_data;

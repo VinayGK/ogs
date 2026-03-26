@@ -107,6 +107,26 @@ static auto createBenchmarkParameters()
     return parameters;
 }
 
+static auto createBenchmarkPressureConsistentParameters()
+{
+    auto parameters = createBenchmarkParameters();
+
+    auto set_param = [&parameters](char const* name, double const value)
+    {
+        auto it = std::find_if(parameters.begin(), parameters.end(),
+                               [name](auto const& parameter)
+                               { return parameter->name == name; });
+        EXPECT_TRUE(it != parameters.end());
+        *it = std::make_unique<ParameterLib::ConstantParameter<double>>(name,
+                                                                        value);
+    };
+
+    set_param("n_l0", 0.012069019712402708);
+    set_param("rho_lR0", 3004.336830222012);
+
+    return parameters;
+}
+
 static std::string stripQuotes(std::string value)
 {
     value.erase(0, value.find_first_not_of(" \t\r\n\"") );
@@ -1095,6 +1115,80 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->stress.allFinite());
     EXPECT_TRUE(response->dStress_dStrain.allFinite());
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+}
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentNegativePressureResponse)
+{
+    auto const parameters = createBenchmarkPressureConsistentParameters();
+    auto model = createBridgeModelThroughFactoryPlaneStrain(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    KV2 sigma0 = KV2::Zero();
+    sigma0[0] = -5e3;
+    sigma0[1] = -5e3;
+    sigma0[2] = -5e3;
+    variable_array_prev.stress.template emplace<KV2>(sigma0);
+    variable_array_prev.mechanical_strain.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.liquid_phase_pressure = -5e3;
+    variable_array_prev.liquid_saturation = 1.0;
+    variable_array_prev.temperature = 293.15;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 0.0, x, 0.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    EXPECT_TRUE(response->stress.allFinite());
+    EXPECT_TRUE(response->dStress_dStrain.allFinite());
+    EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+    EXPECT_TRUE(std::isfinite(response->saturation));
+    EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
+}
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentRMeffectiveStressResponse)
+{
+    auto const parameters = createBenchmarkPressureConsistentParameters();
+    auto model = createBridgeModelThroughFactoryPlaneStrain(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    KV2 sigma_eff0 = KV2::Zero();
+    sigma_eff0[0] = -1e4;
+    sigma_eff0[1] = -1e4;
+    sigma_eff0[2] = -1e4;
+    variable_array_prev.stress.template emplace<KV2>(sigma_eff0);
+    variable_array_prev.mechanical_strain.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.liquid_phase_pressure = -5e3;
+    variable_array_prev.liquid_saturation = 1.0;
+    variable_array_prev.temperature = 293.15;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 0.0, x, 0.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    EXPECT_TRUE(response->stress.allFinite());
+    EXPECT_TRUE(response->dStress_dStrain.allFinite());
+    EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+    EXPECT_TRUE(std::isfinite(response->saturation));
+    EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
 }
 
 #endif  // OGS_USE_MFRONT

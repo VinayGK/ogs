@@ -830,13 +830,10 @@ void RichardsMechanicsLocalAssembler<
         //
         // displacement equation, pressure part
         //
-        if (!pressure_coupled_solid)
-        {
-            K.template block<displacement_size, pressure_size>(
-                displacement_index, pressure_index)
-                .noalias() -=
-                B.transpose() * alpha * chi_S_L * identity2 * N_p * w;
-        }
+        K.template block<displacement_size, pressure_size>(
+            displacement_index, pressure_index)
+            .noalias() -=
+            B.transpose() * alpha * chi_S_L * identity2 * N_p * w;
 
         //
         // pressure equation, displacement part.
@@ -1382,30 +1379,29 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             double const chi_S_L =
                 std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD)
                     .chi_S_L;
+            Kup.noalias() +=
+                B.transpose() * alpha * chi_S_L * identity2 * N_p * w;
+
+            double const dchi_dS_L =
+                std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD)
+                    .dchi_dS_L;
+
+            auto local_Jac_up =
+                local_Jac.template block<displacement_size, pressure_size>(
+                    displacement_index, pressure_index);
+
+            // The pressure-coupled bridge returns effective-stress quantities.
+            // RM must still assemble the process-owned Biot/Bishop contribution.
+            local_Jac_up.noalias() -=
+                B.transpose() * alpha *
+                (chi_S_L + dchi_dS_L * p_cap_ip * dS_L_dp_cap) * identity2 *
+                N_p * w;
+
             if (pressure_coupled_solid.is_active)
             {
-                local_Jac
-                    .template block<displacement_size, pressure_size>(
-                        displacement_index, pressure_index)
-                    .noalias() -= B.transpose() *
-                                  pressure_coupled_solid
-                                      .dSigma_dLiquidPressure *
-                                  N_p * w;
-            }
-            else
-            {
-                Kup.noalias() +=
-                    B.transpose() * alpha * chi_S_L * identity2 * N_p * w;
-                double const dchi_dS_L =
-                    std::get<ProcessLib::ThermoRichardsMechanics::BishopsData>(CD)
-                        .dchi_dS_L;
-
-                local_Jac
-                    .template block<displacement_size, pressure_size>(
-                        displacement_index, pressure_index)
-                    .noalias() -= B.transpose() * alpha *
-                                  (chi_S_L + dchi_dS_L * p_cap_ip * dS_L_dp_cap) *
-                                  identity2 * N_p * w;
+                local_Jac_up.noalias() -=
+                    B.transpose() * pressure_coupled_solid.dSigma_dLiquidPressure *
+                    N_p * w;
             }
         }
 
