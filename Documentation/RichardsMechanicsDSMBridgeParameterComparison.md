@@ -13,12 +13,23 @@ Short answer:
 - the current green compare test is therefore a reduced overlap test, not exact
   same-parameter MCC plasticity parity
 
+There is now also a separate aligned unsaturated elastic pair where both sides
+use the same Tuller saturation law. That pair is exact, but it is only an
+elastic saturation-law parity check, not MCC parity.
+
 ## Files compared
 
 - native shell:
   [mfront_parity_1element_native.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_native.prj)
 - bridge shell:
   [mfront_parity_1element_bridge.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_bridge.prj)
+
+For the aligned unsaturated elastic check:
+
+- native shell:
+  [mfront_parity_1element_unsat_native.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_unsat_native.prj)
+- bridge shell:
+  [mfront_parity_1element_unsat_bridge.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_unsat_bridge.prj)
 
 ## What is the same
 

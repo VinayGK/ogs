@@ -21,6 +21,9 @@ Two things are already true:
 - the benchmark bridge shell now runs on the native part-1 load/time scale
 - the saturated elastic one-element native-vs-bridge compare also works and is
   exact
+- the unsaturated elastic one-element native-vs-bridge compare also works and
+  is exact once the native side uses the same Tuller saturation law as the
+  notebook bridge
 
 One thing is still open:
 
@@ -38,13 +41,17 @@ As of 2026-03-26 on branch `dsm-nb-mfront-transition`:
 - this focused test slice passes:
   - `ogs-RichardsMechanics/mfront_restart_part1`
   - `ogs-RichardsMechanics/mfront_restart_part2`
-  - `ogs-RichardsMechanics_mfront_restart_part1_rm_bridge`
-  - `ogs-RichardsMechanics_mfront_parity_1element_native`
-  - `ogs-RichardsMechanics_mfront_parity_1element_bridge`
-  - `ogs-RichardsMechanics_mfront_parity_1element_compare`
+- `ogs-RichardsMechanics_mfront_restart_part1_rm_bridge`
+- `ogs-RichardsMechanics_mfront_parity_1element_native`
+- `ogs-RichardsMechanics_mfront_parity_1element_bridge`
+- `ogs-RichardsMechanics_mfront_parity_1element_compare`
+- `ogs-RichardsMechanics_mfront_parity_1element_elastic_compare`
+- `ogs-RichardsMechanics_mfront_parity_1element_unsat_compare`
 - the RM pressure-coupled carrier now keeps the bridge saturation derivative
   with respect to strain `dS/d\varepsilon`, and the pressure-equation
   displacement block now consumes that term instead of dropping it
+- the native MPL now has `SaturationTuller`, so RM can use the same notebook
+  saturation law on the native side when that is the honest comparison target
 
 ## Reduced one-element parity status
 
@@ -111,27 +118,32 @@ What this means:
 - the open benchmark problem must involve constitutive, unsaturated, or other
   process-level features beyond this branch
 
-## Unsaturated elastic non-mechanical isolation
+## Unsaturated elastic parity status
 
-To isolate everything except the mechanical constitutive law, a temporary
-one-element probe was run with:
+The first unsaturated elastic probe was useful because it showed that the old
+native shell and the notebook bridge were not using the same saturation law.
+
+That first probe used:
 
 - the same geometry on both sides
 - the same elastic stiffness on both sides
 - zero displacement on all boundaries, so `u = 0` and `\varepsilon = 0`
 - the same prescribed liquid-pressure history
   `p_L = (0, -2.5\times 10^5, -5\times 10^5, -7.5\times 10^5, -10^6)\,\text{Pa}`
-- native `LinearElasticIsotropic`
+- native `LinearElasticIsotropic` with the native medium saturation law
 - bridge `RichardsMechanicsNotebookBridge` with
   `SwellingSlope = 0` and `MassExchangeCoefficient = 0`
 
-This removes MCC plasticity from the picture. In this probe, any mismatch must
-come from saturation, Bishop weighting, or the RM pressure-coupled carrier.
+This removes MCC plasticity from the picture. In that first probe, any
+mismatch had to come from saturation, Bishop weighting, or the RM
+pressure-coupled carrier.
 
-### Saturation laws in this probe
+### What the first probe showed
 
-On the native side, the medium saturation is the van Genuchten law used in the
-existing RM one-element shells:
+At first, the native side still used van Genuchten while the bridge used the
+notebook Tuller law.
+
+On the native side, the medium saturation was
 
 \[
 S_L^{nat} = S_{vG}(p_{cap}),
@@ -139,10 +151,8 @@ S_L^{nat} = S_{vG}(p_{cap}),
 p_{cap} = -p_L,
 \]
 
-with `p_b = 15\times 10^6\,\text{Pa}` and exponent `0.4`.
-
-On the bridge side, the direct material response follows the bridge's own
-pressure-to-saturation law for `p_L < 0`:
+while on the bridge side the direct material response followed
+for `p_L < 0`
 
 \[
 S_L^{bridge}(p_L) = 1 - \exp\!\left(-\frac{A}{p_L^2}\right),
@@ -164,11 +174,9 @@ a_T = 1,
 r_c = 10^{-5}\,\text{m}.
 \]
 
-### What was found
-
 After fixing the RM secondary-variable/state path so that pressure-coupled
 materials keep their returned `S_L` instead of falling back to the medium law,
-the unsaturated elastic probe shows:
+that first unsaturated elastic probe showed:
 
 - `pressure`: exact
 - `displacement`: exact
@@ -185,9 +193,55 @@ Observed `saturation` values:
 - `ts_3`: native `0.9972984069`, bridge `0.00031201481239`
 - `ts_4`: native `0.99564897055`, bridge `0.00017552031277`
 
-So there is a real non-mechanical disparity even with identical elastic
-mechanics. It is a saturation-law / pressure-coupled-state disparity, not an
-MCC plasticity disparity.
+That result did not mean the bridge concept was wrong. It meant the native and
+bridge probes were still asking different saturation questions.
+
+### Alignment step that closes this gap
+
+To make the comparison honest, the native side is now aligned to the notebook
+law too.
+
+The native medium can now use the same Tuller law through the new
+`SaturationTuller` MPL property:
+
+\[
+S_L^{Tuller}(p_{cap}) =
+\begin{cases}
+1 - \exp\!\left(-\dfrac{A}{p_{cap}^2}\right), & p_{cap} > 0, \\[1ex]
+1, & p_{cap} \le 0,
+\end{cases}
+\qquad
+A = \frac{4\,\beta_T\,\gamma^2}{a_T\,r_c^2}.
+\]
+
+Because `p_{cap} = -p_L`, this is the same scalar law as the notebook bridge.
+
+There is now a dedicated unsaturated elastic one-element CTest pair:
+
+- native side:
+  `LinearElasticIsotropic` + `SaturationTuller`
+- bridge side:
+  `RichardsMechanicsNotebookBridge` with
+  `SwellingSlope = 0`, `MassExchangeCoefficient = 0`
+- same pressure path:
+  `p_L = (0, -2.5\times 10^5, -5\times 10^5, -7.5\times 10^5, -10^6)\,\text{Pa}`
+
+Compared fields:
+
+- `displacement`
+- `pressure`
+- `sigma`
+- `epsilon`
+- `saturation`
+- `velocity`
+
+Result:
+
+- all compared fields match exactly on timesteps `0` through `4`
+
+So the old unsaturated elastic mismatch is now closed. It was caused by using
+different saturation laws, not by a generic RM-vs-bridge inconsistency on the
+shared elastic unsaturated branch.
 
 ### RM carrier bug that was hiding this
 
