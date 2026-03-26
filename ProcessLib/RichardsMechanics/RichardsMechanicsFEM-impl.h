@@ -842,6 +842,16 @@ void RichardsMechanicsLocalAssembler<
                                                            displacement_index)
             .noalias() += N_p.transpose() * S_L * rho_LR * alpha *
                           identity2.transpose() * B * w;
+
+        if (pressure_coupled_solid && pressure_coupled_solid->is_active &&
+            !this->process_data_.explicit_hm_coupling_in_unsaturated_zone)
+        {
+            M.template block<pressure_size, displacement_size>(
+                 pressure_index, displacement_index)
+                .noalias() +=
+                N_p.transpose() * phi * rho_LR *
+                pressure_coupled_solid->dS_L_dStrain * B * w;
+        }
     }
 
     if (this->process_data_.apply_mass_lumping)
@@ -1470,6 +1480,13 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         {
             Kpu.noalias() += N_p.transpose() * S_L * rho_LR * alpha *
                              identity2.transpose() * B * w;
+        }
+
+        if (pressure_coupled_solid.is_active &&
+            !this->process_data_.explicit_hm_coupling_in_unsaturated_zone)
+        {
+            Kpu.noalias() += N_p.transpose() * phi * rho_LR *
+                             pressure_coupled_solid.dS_L_dStrain * B * w;
         }
 
         //

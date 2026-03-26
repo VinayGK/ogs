@@ -27,7 +27,7 @@ TEST(RichardsMechanics, makePressureCoupledSolidData)
         0.625,
         KelvinMatrix::Identity(),
         KelvinVector::Constant(2.5),
-        SaturationStrainJacobian::Zero(),
+        SaturationStrainJacobian::Constant(1.5),
         4.0,
         std::make_unique<typename MechanicsBase::MaterialStateVariables>()};
 
@@ -38,6 +38,8 @@ TEST(RichardsMechanics, makePressureCoupledSolidData)
     EXPECT_TRUE(mapped.is_active);
     EXPECT_DOUBLE_EQ(mapped.saturation, 0.625);
     EXPECT_DOUBLE_EQ(mapped.dS_L_dp_cap, -4.0);
+    EXPECT_TRUE(
+        mapped.dS_L_dStrain.isApprox(SaturationStrainJacobian::Constant(1.5)));
     EXPECT_TRUE(mapped.dSigma_dLiquidPressure.isApprox(
         KelvinVector::Constant(2.5)));
 }

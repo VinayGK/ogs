@@ -984,6 +984,8 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
         EXPECT_NEAR(mapped.dS_L_dp_cap, -response->dSaturation_dLiquidPressure,
                     1e-12);
         EXPECT_NEAR(mapped.dS_L_dp_cap, 0.0, 1e-12);
+        EXPECT_TRUE(
+            mapped.dS_L_dStrain.isApprox(response->dSaturation_dStrain));
         EXPECT_NEAR(mapped.dSigma_dLiquidPressure[0],
                     response->dStress_dLiquidPressure[0], 1e-12);
         EXPECT_NEAR(mapped.dSigma_dLiquidPressure[1],
@@ -1049,6 +1051,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 
     EXPECT_TRUE(response->dStress_dStrain.allFinite());
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+    EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
 
@@ -1086,6 +1089,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_NEAR(response->dSaturation_dLiquidPressure, 0.0, 1e-12);
     EXPECT_TRUE(response->dStress_dStrain.allFinite());
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+    EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
 
@@ -1119,6 +1123,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->stress.allFinite());
     EXPECT_TRUE(response->dStress_dStrain.allFinite());
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+    EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
@@ -1156,6 +1161,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
     EXPECT_TRUE(std::isfinite(response->saturation));
     EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
+    EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
@@ -1193,6 +1199,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
     EXPECT_TRUE(std::isfinite(response->saturation));
     EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
+    EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
@@ -1230,6 +1237,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
     EXPECT_TRUE(std::isfinite(response->saturation));
     EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
+    EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
@@ -1267,6 +1275,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
     EXPECT_TRUE(std::isfinite(response->saturation));
     EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
+    EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
@@ -1315,6 +1324,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
     EXPECT_TRUE(std::isfinite(response->saturation));
     EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
+    EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
 #endif  // OGS_USE_MFRONT

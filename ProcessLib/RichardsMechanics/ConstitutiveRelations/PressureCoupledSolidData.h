@@ -18,9 +18,15 @@ namespace ProcessLib::RichardsMechanics
 template <int DisplacementDim>
 struct PressureCoupledSolidData
 {
+    using SaturationStrainJacobian =
+        typename MaterialLib::Solids::MechanicsBase<
+            DisplacementDim>::SaturationStrainJacobian;
+
     bool is_active = false;
     double saturation = std::numeric_limits<double>::quiet_NaN();
     double dS_L_dp_cap = std::numeric_limits<double>::quiet_NaN();
+    SaturationStrainJacobian dS_L_dStrain =
+        SaturationStrainJacobian::Zero();
     MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
         dSigma_dLiquidPressure =
             MathLib::KelvinVector::KelvinVectorType<DisplacementDim>::Zero();
@@ -36,6 +42,7 @@ PressureCoupledSolidData<DisplacementDim> makePressureCoupledSolidData(
         response.saturation,
         // RichardsMechanics assembles in capillary pressure p_cap = -p_L.
         -response.dSaturation_dLiquidPressure,
+        response.dSaturation_dStrain,
         response.dStress_dLiquidPressure,
     };
 }

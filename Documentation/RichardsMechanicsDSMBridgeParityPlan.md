@@ -40,6 +40,9 @@ As of 2026-03-26 on branch `dsm-nb-mfront-transition`:
   - `ogs-RichardsMechanics_mfront_parity_1element_native`
   - `ogs-RichardsMechanics_mfront_parity_1element_bridge`
   - `ogs-RichardsMechanics_mfront_parity_1element_compare`
+- the RM pressure-coupled carrier now keeps the bridge saturation derivative
+  with respect to strain `dS/d\varepsilon`, and the pressure-equation
+  displacement block now consumes that term instead of dropping it
 
 ## Reduced one-element parity status
 
@@ -113,6 +116,15 @@ Representative `ts_1` differences:
 - `|ΔS_L|_∞ ≈ 1.87e-1`
 
 So benchmark-shell loadability is closed, but benchmark-shell parity is not.
+
+One useful negative result is now also known:
+
+- the missing bridge saturation-strain tangent was a real carrier omission, and
+  it is now fixed
+- but the benchmark `ts_1` field differences stay at essentially the same scale
+  after that fix
+
+So the remaining benchmark gap is not explained by that dropped tangent alone.
 
 ## Why the benchmark gap is still hard to interpret
 
@@ -225,9 +237,36 @@ K_{up}
 N_p\, d\Omega.
 \]
 
-So the benchmark gap can come from a wrong meaning of:
+The pressure equation also has a displacement-coupling block. If the liquid
+storage contains a term like
+\[
+m_L \supset \phi \rho_{LR} S_L,
+\]
+then linearizing with respect to displacement gives the saturation-strain part
+\[
+K_{pu}^{(S)}
+=
+\frac{\partial R_p}{\partial \mathbf{d}}
+\supset
+\int_\Omega N_p^T \phi \rho_{LR}
+\left(
+\frac{\partial S_L}{\partial \boldsymbol{\varepsilon}}
+\right)
+B\, d\Omega.
+\]
+
+That first `dS/d\varepsilon` term was a real RM-side carrier omission. It is
+now assembled.
+
+This gives one useful negative result:
+
+- the benchmark `ts_1` gap stays at essentially the same scale after restoring
+  that term
+
+So the remaining benchmark gap can still come from a wrong meaning of:
 
 - returned stress
+- `dS/d\varepsilon`
 - `dSigma/dp_L`
 - `dS_L/dp_L`
 
