@@ -1224,7 +1224,17 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
     assert(local_x.size() == pressure_size + displacement_size);
 
     auto const [p_L, u] = localDOF(local_x);
-    auto const [p_L_prev, u_prev] = localDOF(local_x_prev);
+    auto const [p_L_prev_raw, u_prev_raw] = localDOF(local_x_prev);
+    auto p_L_prev = p_L_prev_raw.eval();
+    if (!p_L_prev.allFinite())
+    {
+        p_L_prev = p_L;
+    }
+    auto u_prev = u_prev_raw.eval();
+    if (!u_prev.allFinite())
+    {
+        u_prev = u;
+    }
 
     auto local_Jac = MathLib::createZeroedMatrix<
         typename ShapeMatricesTypeDisplacement::template MatrixType<

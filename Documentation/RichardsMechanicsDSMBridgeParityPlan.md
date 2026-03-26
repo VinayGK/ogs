@@ -21,25 +21,33 @@ As of 2026-03-26 on branch `dsm-nb-mfront-transition`:
   - `ogs-RichardsMechanics_mfront_parity_1element_native`
   - `ogs-RichardsMechanics_mfront_parity_1element_bridge`
   - `ogs-RichardsMechanics_mfront_parity_1element_compare`
-- the bridge restart smoke input is stable enough to be part of the default CTest slice;
+- the bridge restart run input is stable enough to be part of the default CTest slice;
 - the one-element parity inputs both run successfully and produce five VTU outputs (`ts_0` through `ts_4`).
 - the parity comparison CTest runs both one-element shells and compares the generated VTUs directly in the build output directory.
-- the bridge restart shell itself is still only a reduced smoke case at
-  `t_end = 1`, `pressure_ic = -100`, `top_pressure = -100`;
-- an exploratory benchmark-shaped native-vs-bridge pair was rerun on the
-  native part-1 load and time scale
+- the tracked bridge restart shell now runs on the native part-1 load and time
+  scale
   (`t_end = 1000`, `pressure_ic = -5e3`, `top_pressure = -1e5`);
-- with a pressure-consistent bridge initial microstate
-  `n_l0 = 0.012069019712402708`, `rho_lR0 = 3004.336830222012`,
-  the full benchmark-shaped bridge run still fails before any accepted output
-  with `Notebook bridge microstate Newton line search failed`;
-- direct material-point bridge tests at the same benchmark pressure do pass for
-  `dt = 0`, both with the raw benchmark stress state and with the
-  RM-equivalent effective stress state, so the negative-pressure initial state
-  itself is not the remaining blocker;
-- the current benchmark blocker is therefore the first nonzero coupled
-  microstate solve under the native benchmark load/time scale, not the
-  zero-step material-point response;
+- that run-level benchmark-shell fix has three verified pieces:
+  - a pressure-consistent bridge initial microstate
+    `n_l0 = 0.012069019712402708`, `rho_lR0 = 2267.4495975433856`;
+  - a bracketed fallback for the bridge microstate solve when the original
+    Newton line search stalls;
+  - damped global Newton in the benchmark bridge deck
+    (`damping = 0.1`, `damping_reduction = 20`);
+- direct material-point bridge tests now pass for:
+  - `dt = 0` at the benchmark pressure with the raw benchmark stress state;
+  - `dt = 0` at the benchmark pressure with the RM-equivalent effective stress
+    state;
+  - `dt = 1000` at the benchmark pressure/state anchor;
+  - the exact former process-failure state extracted from the coupled run;
+- a clean native-vs-bridge benchmark-shell rerun shows exact agreement at
+  `ts_0` for `displacement`, `pressure`, `epsilon`, `saturation`, and
+  `swelling_stress`, with only machine-precision `sigma` residue
+  (`1.8e-12` absolute, `3.6e-16` relative);
+- that same clean rerun still shows a material benchmark-shell mismatch at
+  `ts_1`, with maximum absolute differences
+  `|Δu_y|_∞ ≈ 1.51e-4`, `|Δp|_∞ ≈ 6.80e3`, `|Δσ|_∞ ≈ 9.21e3`,
+  `|Δε_yy|_∞ ≈ 1.51e-4`, and `|ΔS_L|_∞ ≈ 1.87e-1`;
 - the RM process now skips duplicate secondary-variable registrations, which
   removes the `swelling_stress` name clash between process-owned output and
   pressure-coupled MFront internal variables without regressing the reduced
@@ -104,8 +112,8 @@ Important consequence:
 
 ## Benchmark-Shell Status
 
-The benchmark-shell blocker is now narrower and better characterized than it
-was at the start of this effort.
+The benchmark-shell loadability problem is solved for the current tracked
+bridge benchmark deck.
 
 What is now verified:
 
@@ -116,41 +124,37 @@ What is now verified:
   previous stress is given either as the raw benchmark initial stress
   `(-5e3, -5e3, -5e3, 0)` or as the RM-equivalent effective stress
   `(-1e4, -1e4, -1e4, 0)`;
-- the full benchmark-shaped process run still fails before producing `ts_0`,
-  and the failure now surfaces the underlying bridge exception text:
-  `Notebook bridge microstate Newton line search failed`;
-- the reduced one-element parity slice still stays green after keeping the
-  process-owned Biot/Bishop contribution active in the pressure-coupled RM
-  assembly path.
+- the exact former process-failure state now also passes as a direct bridge
+  regression;
+- the tracked benchmark bridge deck now reaches `ts_0` and `ts_1` on the true
+  native part-1 load/time scale;
+- the reduced one-element parity slice still stays green after the benchmark
+  loadability fixes.
 
 What is therefore still blocked:
 
-- the first nonzero benchmark constitutive solve inside the full
-  RichardsMechanics process;
-- specifically, the bridge microstate Newton solve under the coupled benchmark
-  load/time step, not the zero-step material-point evaluation.
+- quantitative native-vs-bridge benchmark-shell parity at `ts_1`;
+- a benchmark compare CTest on the true part-1 shell.
 
 Current interpretation:
 
-- this is no longer a blind `status -1` failure; the verified constitutive
-  failure mode is the bridge microstate Newton line search under the benchmark
-  process step;
-- this is not explained by the negative-pressure initial state alone, because
-  dedicated material-point tests now pass at that pressure for the two stress
-  conventions that matter here;
-- the remaining ownership gap is still centered on the RichardsMechanics
-  pressure-coupled path and how it drives the first nonzero bridge solve,
-  especially through
-  [IntegrationPointData.h](../ProcessLib/RichardsMechanics/IntegrationPointData.h),
-  [PressureCoupledSolidData.h](../ProcessLib/RichardsMechanics/ConstitutiveRelations/PressureCoupledSolidData.h),
-  [RichardsMechanicsFEM-impl.h](../ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h),
-  and
-  [MFrontRichardsMechanics.h](../MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h);
-- if the benchmark shell is revisited next, the first check should be the
-  bridge microstate nonlinear solve under the benchmark `dt = 1000` step
-  rather than further deck-only tuning of the zero-step initial state.
+- the solved part is benchmark-shell run stability, not benchmark-shell
+  quantitative parity;
+- the verified run-level solution is a combination of the pressure-consistent
+  bridge initial microstate, the bracketing fallback in the bridge microstate
+  solve, and damped global Newton in the benchmark bridge deck;
+- the clean `ts_0` match shows that shell alignment and initialization are now
+  good enough to compare the first real benchmark step;
+- the remaining `ts_1` mismatch cannot yet be interpreted as a pure RM
+  interface bug, because the tracked bridge benchmark deck still binds the
+  reduced `RichardsMechanicsNotebookBridge` behaviour while the native
+  benchmark deck binds `ModCamClay_semiExpl_constE`;
+- the continuum pressure-coupled contract below therefore remains the correct
+  audit baseline for future interface work, but the current tracked
+  benchmark-shell mismatch is still a combined reduced-law-plus-process gap,
+  not an isolated same-model parity result.
 
-## Why The Remaining Gap Looks Interface-Owned
+## Why Benchmark-Shell Parity Is Still Open
 
 At continuum level the quasi-static balance of momentum is
 
@@ -256,51 +260,45 @@ with pressure derivative
 If the bridge instead returns total stress while RM still interprets it as
 effective stress, the pore-pressure contribution is subtracted twice.
 
-The current diagnostics say the plastic law itself is probably not the dominant
-problem. For the coupled MCC benchmark attempt, the following quantities match
-exactly at `ts_1`:
+The continuum contract above is still the right interpretation surface for
+future RM pressure-coupled audit work, but the current tracked benchmark-shell
+comparison does not yet isolate an interface bug by itself.
 
-\[
-\Lambda_p,\qquad
-p_c,\qquad
-\varepsilon_v^p,\qquad
-S_L,\qquad
-S_L^m,\qquad
-\boldsymbol{\sigma}_{sw}.
-\]
+What is now solved is the run-level benchmark-shell failure. The bridge deck
+reaches the native part-1 load/time scale and produces both `ts_0` and `ts_1`
+after:
 
-Those are the key state variables for the MCC yield and hardening part:
+- using the pressure-consistent initial bridge microstate
+  `n_l0 = 0.012069019712402708`,
+  `rho_lR0 = 2267.4495975433856`;
+- falling back from the original microstate Newton line search to a bracketed
+  reduced solve when necessary;
+- damping the global Newton process solve.
 
-\[
-f(q,p,p_c) = q^2 + M^2\,p\,(p-p_c),
-\qquad
-p = -\frac{1}{3}\operatorname{tr}(\boldsymbol{\sigma}_\mathrm{eff}),
-\qquad
-q = \sqrt{\frac{3}{2}\,\boldsymbol{s}:\boldsymbol{s}}.
-\]
+The clean benchmark-shell comparison is now easy to summarize:
 
-If the dominant bug were in MCC plasticity itself, one would expect
-\(\Lambda_p\), \(p_c\), or \(\varepsilon_v^p\) to drift as well. They do not.
+- at `ts_0`, `displacement`, `pressure`, `epsilon`, `saturation`, and
+  `swelling_stress` match exactly, while `sigma` differs only by the same
+  machine-scale residue already seen in the reduced one-element shell;
+- at `ts_1`, the benchmark-shell mismatch is still material:
+  `|Δu_y|_∞ ≈ 1.51e-4`, `|Δp|_∞ ≈ 6.80e3`,
+  `|Δσ|_∞ ≈ 9.21e3`, `|Δε_yy|_∞ ≈ 1.51e-4`,
+  `|ΔS_L|_∞ ≈ 1.87e-1`.
 
-What still mismatches at `ts_1` is the hydro-mechanical side:
+That mismatch is not yet a pure same-model parity signal, because the tracked
+native and bridge benchmark decks still do not bind the same constitutive law:
 
-\[
-p_L,\qquad
-p_L^m,\qquad
-\mathbf{u},\qquad
-\boldsymbol{\sigma},\qquad
-\boldsymbol{\varepsilon}^{el},\qquad
-\phi,\qquad
-\phi_{tr},\qquad
-v^r.
-\]
+- the native deck uses `ModCamClay_semiExpl_constE`;
+- the bridge deck uses `RichardsMechanicsNotebookBridge`.
 
-That pattern is much more consistent with a contract mismatch in how the RM
-pressure-coupled path interprets
-\(\boldsymbol{\sigma}^{\star}\) and
-\(\partial\boldsymbol{\sigma}^{\star}/\partial p_L\), or with a mismatch in
-how the returned pressure-coupled stress feeds the momentum equation and the
-pressure Jacobian.
+So the current benchmark-shell result is:
+
+- loadability on the native part-1 shell is solved;
+- quantitative parity on that shell is still open;
+- a benchmark compare CTest would still be misleading until the constitutive
+  surface is aligned more strictly or the remaining mismatch is intentionally
+  scoped as reduced-law mismatch rather than native-vs-native-equivalent
+  parity.
 
 ## Work Packages
 
@@ -329,11 +327,10 @@ Acceptance criteria:
 - both runs remain green as standalone CTests;
 - field mismatch analysis is meaningful because the inputs are genuinely comparable.
 
-### WP2: Extend The Bridge To The Benchmark Shell
+### WP2: Keep The Benchmark Shell Loadable
 
-The remaining real work is no longer the reduced one-element `sigma`
-residue. It is the benchmark-shell failure at the first nonzero coupled
-microstate solve.
+This work package is complete for benchmark-shell run stability on the tracked
+reduced bridge deck.
 
 Primary inspection points for that gap:
 
@@ -342,47 +339,33 @@ Primary inspection points for that gap:
 - [RichardsMechanicsFEM-impl.h](../ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h).
 - [MFrontRichardsMechanics.h](../MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h);
 
-Most likely causes to check:
+What solved it:
 
-- pressure-consistent benchmark initialization is now known and should be kept
-  fixed while diagnosing the remaining nonzero-step failure;
-- if the benchmark path stays process-owned, the bridge/model interface must be
-  widened instead of compensating with deck-only tuning;
-- verify the stress convention expected by the RM pressure-coupled path
-  against the stress convention returned by the candidate MFront behaviour;
-- verify the ownership split for `dStress_dLiquidPressure` and
-  `dSaturation_dLiquidPressure` against the native RM assembly path;
-- inspect the bridge microstate Newton solve itself under the benchmark
-  `dt = 1000` step, because the current verified failure mode is a line-search
-  breakdown there rather than an opaque MGIS status.
+- pressure-consistent benchmark initialization
+  `n_l0 = 0.012069019712402708`,
+  `rho_lR0 = 2267.4495975433856`;
+- a bracketed fallback inside the bridge microstate solve;
+- damped global Newton in the benchmark bridge deck.
 
-Recommended debugging sequence:
+Regression guardrails that should stay:
 
 - keep the benchmark bridge initial state at
-  `n_l0 = 0.012069019712402708`, `rho_lR0 = 3004.336830222012`;
-- keep the new direct material-point tests as the zero-step negative-pressure
-  guardrail while changing the full benchmark path;
-- reproduce and inspect the first nonzero bridge solve at the benchmark
-  `dt = 1000` step;
-- trace the RM pressure-coupled solid path from constitutive integration to
-  assembly, especially the returned stress, `dStress_dLiquidPressure`, and
-  `dSaturation_dLiquidPressure`;
-- if needed, instrument or regularize the bridge microstate Newton solve rather
-  than re-tuning the pressure-consistent initial state that already passes at
-  `dt = 0`;
-- decide whether the benchmark path belongs inside a dedicated
-  RichardsMechanics-specific MFront bridge behaviour or in a widened
-  process-to-bridge interface;
-- only after that, add or extend unit coverage around the chosen ownership
-  boundary.
+  `n_l0 = 0.012069019712402708`,
+  `rho_lR0 = 2267.4495975433856`;
+- keep the direct material-point tests for the benchmark pressure anchor,
+  `dt = 1000` first step, and the exact former process-failure state;
+- keep the tracked bridge deck damping unless a later parity fix proves it is
+  no longer needed;
+- do not regress the reduced one-element parity slice while changing the
+  benchmark shell.
 
 Acceptance criteria:
 
 - the benchmark-shaped native and bridge shells both run on the native part-1
   load and time scale;
-- `displacement`, `pressure`, `sigma`, `epsilon`, `saturation`, and
-  `swelling_stress` match at the benchmark output timesteps with only
-  machine-precision residue where justified.
+- the direct bridge unit tests cover the former process-failure state and stay
+  green;
+- the tracked bridge restart shell stays green in the focused CTest slice.
 
 ### WP3: Add The Benchmark Comparison CTest
 
@@ -425,7 +408,7 @@ Acceptance criteria:
 2. Keep the benchmark-shell bridge initialization pressure-consistent while debugging the native part-1 load case.
 3. Treat the reduced one-element `sigma` tolerance question as a floating-point reproducibility issue, not as the remaining benchmark blocker.
 4. Use the new direct material-point negative-pressure tests to separate zero-step constitutive behavior from the full benchmark process failure.
-5. Reuse the existing binary-vs-binary compare pattern for the benchmark shell only after the first nonzero benchmark bridge solve is stable.
+5. Treat benchmark-shell loadability as closed on the tracked reduced bridge deck, and only reuse the existing binary-vs-binary compare pattern after the constitutive surface is aligned tightly enough for the result to be interpretable.
 
 ## Useful Commands
 
@@ -461,7 +444,7 @@ Focused bridge material-point guardrail:
 
 ```bash
 /Users/vinaykumar/git/build/release-mfront-tpm/bin/testrunner \
-  --gtest_filter='MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentNegativePressureResponse:MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentRMeffectiveStressResponse'
+  --gtest_filter='MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentExactRMStateResponse:MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathBenchmarkPressureConsistentExactRMStateFirstStepResponse:MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathBenchmarkPressureConsistentProcessFailureStateResponse'
 ```
 
 ## Definition Of Done
@@ -480,6 +463,9 @@ The benchmark-shell parity task is done only when all of the following are true:
   shell back to the smoke-only boundary;
 - the bridge uses a pressure-consistent initial microstate for the benchmark
   pressure level;
+- the bridge keeps the microstate fallback and benchmark-shell damping needed to
+  maintain that run-level boundary, unless later parity work proves they can be
+  removed;
 - `displacement`, `pressure`, `sigma`, `epsilon`, `saturation`, and
   `swelling_stress` match for the benchmark outputs with only justified
   machine-precision residue;

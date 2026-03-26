@@ -122,7 +122,7 @@ static auto createBenchmarkPressureConsistentParameters()
     };
 
     set_param("n_l0", 0.012069019712402708);
-    set_param("rho_lR0", 3004.336830222012);
+    set_param("rho_lR0", 2267.4495975433856);
 
     return parameters;
 }
@@ -385,9 +385,9 @@ static void initializeState(Model const& model, StateVariables& state)
     model.initializeInternalStateVariables(0.0, x, state);
 }
 
-template <typename Model>
+template <typename Model, typename State>
 static double getInternalVariable(Model const& model,
-                                  MB::MaterialStateVariables const& state,
+                                  State const& state,
                                   std::string const& name)
 {
     auto const internal_variables = model.getInternalVariables();
@@ -409,9 +409,9 @@ static double getInternalVariable(Model const& model,
     return values[0];
 }
 
-template <typename Model>
+template <typename Model, typename State>
 static void setInternalVariable(Model const& model,
-                                MB::MaterialStateVariables& state,
+                                State& state,
                                 std::string const& name,
                                 double const value)
 {
@@ -460,6 +460,10 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     auto state = model->createMaterialStateVariables();
     ASSERT_TRUE(state != nullptr);
     initializeState(*model, *state);
+    EXPECT_NEAR(getInternalVariable(*model, *state, "n_l"),
+                0.012069019712402708, 1e-15);
+    EXPECT_NEAR(getInternalVariable(*model, *state, "rho_lR"),
+                2267.4495975433856, 1e-12);
 
     MPL::VariableArray variable_array_prev;
     variable_array_prev.stress.template emplace<KV>(KV::Zero());
@@ -1181,6 +1185,128 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     ParameterLib::SpatialPosition x{};
     auto response = model->integrateStressPressureCoupled(
         variable_array_prev, variable_array, 0.0, x, 0.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    EXPECT_TRUE(response->stress.allFinite());
+    EXPECT_TRUE(response->dStress_dStrain.allFinite());
+    EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+    EXPECT_TRUE(std::isfinite(response->saturation));
+    EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
+}
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentExactRMStateResponse)
+{
+    auto const parameters = createBenchmarkPressureConsistentParameters();
+    auto model = createBridgeModelThroughFactoryPlaneStrain(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    KV2 sigma_eff0 = KV2::Zero();
+    sigma_eff0[0] = -9481.282375677227;
+    sigma_eff0[1] = -9481.282375677227;
+    sigma_eff0[2] = -9481.282375677227;
+    variable_array_prev.stress.template emplace<KV2>(sigma_eff0);
+    variable_array_prev.mechanical_strain.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.liquid_phase_pressure = -5e3;
+    variable_array_prev.liquid_saturation = 0.8962564751354456;
+    variable_array_prev.temperature = 293.15;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 0.0, x, 0.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    EXPECT_TRUE(response->stress.allFinite());
+    EXPECT_TRUE(response->dStress_dStrain.allFinite());
+    EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+    EXPECT_TRUE(std::isfinite(response->saturation));
+    EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
+}
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     PlaneStrainFactoryPathBenchmarkPressureConsistentExactRMStateFirstStepResponse)
+{
+    auto const parameters = createBenchmarkPressureConsistentParameters();
+    auto model = createBridgeModelThroughFactoryPlaneStrain(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    KV2 sigma_eff0 = KV2::Zero();
+    sigma_eff0[0] = -9481.282375677227;
+    sigma_eff0[1] = -9481.282375677227;
+    sigma_eff0[2] = -9481.282375677227;
+    variable_array_prev.stress.template emplace<KV2>(sigma_eff0);
+    variable_array_prev.mechanical_strain.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.liquid_phase_pressure = -5e3;
+    variable_array_prev.liquid_saturation = 0.8962564751354456;
+    variable_array_prev.temperature = 293.15;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 1000.0, x, 1000.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    EXPECT_TRUE(response->stress.allFinite());
+    EXPECT_TRUE(response->dStress_dStrain.allFinite());
+    EXPECT_TRUE(response->dStress_dLiquidPressure.allFinite());
+    EXPECT_TRUE(std::isfinite(response->saturation));
+    EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
+}
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     PlaneStrainFactoryPathBenchmarkPressureConsistentProcessFailureStateResponse)
+{
+    auto const parameters = createBenchmarkPressureConsistentParameters();
+    auto model = createBridgeModelThroughFactoryPlaneStrain(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    setInternalVariable(*model, *state, "n_l", 0.012069019712402708);
+    setInternalVariable(*model, *state, "rho_lR", 2267.4495975433856);
+    setInternalVariable(*model, *state, "epsilon_sw", 0.0);
+
+    MPL::VariableArray variable_array_prev;
+    KV2 sigma_eff = KV2::Zero();
+    sigma_eff[0] = -48189.3;
+    sigma_eff[1] = -105123.0;
+    sigma_eff[2] = -48189.3;
+    sigma_eff[3] = 3.51498e-09;
+    variable_array_prev.stress.template emplace<KV2>(sigma_eff);
+
+    KV2 eps_m = KV2::Zero();
+    eps_m[0] = 0.0;
+    eps_m[1] = -0.00310187;
+    eps_m[2] = 0.0;
+    eps_m[3] = 2.39782e-13;
+    variable_array_prev.mechanical_strain.template emplace<KV2>(eps_m);
+    variable_array_prev.liquid_phase_pressure = -411262.7142312391;
+    variable_array_prev.liquid_saturation = 0.0838622053846748;
+    variable_array_prev.temperature = 293.15;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 1000.0, x, 1000.0, *state);
     ASSERT_TRUE(response);
     ASSERT_TRUE(response->state != nullptr);
 

@@ -92,14 +92,17 @@ different equilibrium anchor:
 | Benchmark-only bridge IC item | Value | Status | Notes |
 | --- | --- | --- | --- |
 | `n_l0` | `0.012069019712402708` | benchmark-equilibrium only | Pressure-consistent bridge micro-liquid content for the native part-1 initial pressure. |
-| `rho_lR0` | `3004.336830222012` | benchmark-equilibrium only | Pressure-consistent bridge micro-liquid density for the native part-1 initial pressure. |
+| `rho_lR0` | `2267.4495975433856` | benchmark-equilibrium only | Pressure-consistent bridge micro-liquid density used by the tracked benchmark bridge shell. |
 
-Those values are still the correct pressure-consistent benchmark anchor, and
-dedicated material-point tests now confirm that the bridge accepts them at
-`pressure_ic = -5e3` for `dt = 0`. However, the full benchmark-shaped RM run
-still fails in the first nonzero bridge microstate solve with
-`Notebook bridge microstate Newton line search failed`, so benchmark-shell
-parity is still not closed.
+Those values are now part of the tracked run-level benchmark-shell solution.
+Dedicated material-point tests confirm that the bridge accepts them at
+`pressure_ic = -5e3` for `dt = 0`, for `dt = 1000` at the exact RM-aligned
+first-step anchor, and at the exact former process-failure state. The tracked
+benchmark bridge deck also now runs on the native part-1 load/time scale.
+Benchmark-shell parity is still not closed, however, because the benchmark
+`ts_1` fields still differ materially from the native deck and the bridge
+benchmark deck is still the reduced `RichardsMechanicsNotebookBridge` law, not
+the native MCC benchmark law.
 
 ## Bridge-Defined But Currently Inactive Parameters
 

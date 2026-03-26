@@ -33,9 +33,10 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
     OgsTest(PROJECTFILE RichardsMechanics/mfront_restart_part2.xml RUNTIME 1)
     OgsTest(PROJECTFILE RichardsMechanics/DoubleStructureBenchmark/double_porosity_swelling_RM.prj RUNTIME 1)
 
-    # These bridge/parity inputs are smoke runs only. They do not carry
-    # source-side benchmark definitions, so they must run via AddTest rather
-    # than OgsTest's benchmark mode.
+    # These bridge/parity inputs are run-only checks. The bridge restart deck
+    # now exercises the native part-1 load/time shell, but none of these
+    # inputs carry source-side benchmark definitions, so they must still run
+    # via AddTest rather than OgsTest's benchmark mode.
     AddTest(
         NAME RichardsMechanics_mfront_restart_part1_rm_bridge
         PATH RichardsMechanics

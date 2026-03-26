@@ -82,7 +82,10 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   constexpr const auto pressure_tolerance = 1e-12;
   constexpr const auto minimum_n_l = 1e-14;
   constexpr const auto minimum_density_gap = 1e-12;
-  constexpr const auto newton_tolerance = 1e-12;
+  // Finite-difference tangent probes around the benchmark equilibrium hit
+  // round-off before 1e-12, which can trigger a spurious line-search failure
+  // in an already converged microstate solve.
+  constexpr const auto newton_tolerance = 1e-11;
   constexpr const auto max_iterations = 64;
 
   tfel::raise_if(phi0 <= 0.0 || phi0 >= 1.0,
@@ -165,6 +168,192 @@ rho_l_hat_value.setEntryName("rho_l_hat");
       residual_2 = rho_lR_arg - rho_micro_eos(n_l_arg, rho_lR_arg);
     };
 
+    const auto solve_rho_for_n_l = [&](const auto n_l_arg,
+                                       const auto rho_initial_guess,
+                                       double& rho_lR_out_arg) {
+      auto rho_lR_trial_local =
+          std::max(rho_initial_guess, rho_LR_ref + minimum_density_gap);
+
+      for (unsigned int iteration = 0; iteration < 4 * max_iterations;
+           ++iteration)
+      {
+        const auto rho_candidate = rho_micro_eos(n_l_arg, rho_lR_trial_local);
+        const auto rho_change = std::abs(rho_candidate - rho_lR_trial_local);
+        rho_lR_trial_local = std::max(rho_candidate, rho_LR_ref + minimum_density_gap);
+
+        if (rho_change <
+            newton_tolerance * std::max(1.0, std::abs(rho_lR_trial_local)))
+        {
+          rho_lR_out_arg = rho_lR_trial_local;
+          return true;
+        }
+      }
+
+      rho_lR_out_arg = rho_lR_trial_local;
+      return false;
+    };
+
+    const auto evaluate_reduced = [&](const auto n_l_arg,
+                                      const auto rho_initial_guess,
+                                      double& residual_1,
+                                      double& rho_lR_arg,
+                                      double& mu_lR_arg,
+                                      double& rho_l_hat_arg) {
+      const auto rho_converged =
+          solve_rho_for_n_l(n_l_arg, rho_initial_guess, rho_lR_arg);
+      mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
+      rho_l_hat_arg = mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
+      residual_1 =
+          n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
+          n_l_arg * rho_lR_arg * delta_epsilon_v_arg;
+      return rho_converged;
+    };
+
+    const auto solve_microstate_bracketed =
+        [&](double& n_l_bracketed_out,
+            double& rho_lR_bracketed_out,
+            double& mu_lR_bracketed_out,
+            double& rho_l_hat_bracketed_out) {
+          constexpr const auto bracket_scan_points = 256u;
+          auto n_l_lo = minimum_n_l;
+          auto n_l_hi = std::max(phi0, std::max(n_l_prev_arg, minimum_n_l * 10.0));
+
+          double residual_lo = 0.0;
+          double residual_hi = 0.0;
+          double rho_lo = 0.0;
+          double rho_hi = 0.0;
+          double mu_lo = 0.0;
+          double mu_hi = 0.0;
+          double rho_hat_lo = 0.0;
+          double rho_hat_hi = 0.0;
+
+          auto bracket_ok =
+              evaluate_reduced(n_l_lo, rho_lR_prev_arg, residual_lo, rho_lo,
+                               mu_lo, rho_hat_lo) &&
+              evaluate_reduced(n_l_hi, rho_lR_prev_arg, residual_hi, rho_hi,
+                               mu_hi, rho_hat_hi);
+
+          if (!bracket_ok)
+          {
+            return false;
+          }
+
+          if (residual_lo * residual_hi > 0.0)
+          {
+            const auto log_n_l_min = std::log10(minimum_n_l);
+            const auto log_n_l_max = std::log10(n_l_hi);
+            auto previous_n_l = n_l_lo;
+            auto previous_residual = residual_lo;
+            auto previous_rho = rho_lo;
+            auto previous_mu = mu_lo;
+            auto previous_rho_hat = rho_hat_lo;
+            auto found_bracket = false;
+
+            for (unsigned int i = 1; i <= bracket_scan_points; ++i)
+            {
+              const auto log_n_l =
+                  log_n_l_min +
+                  (log_n_l_max - log_n_l_min) *
+                      (static_cast<double>(i) / bracket_scan_points);
+              const auto n_l_candidate = std::pow(10.0, log_n_l);
+
+              double residual_candidate = 0.0;
+              double rho_candidate = 0.0;
+              double mu_candidate = 0.0;
+              double rho_hat_candidate = 0.0;
+              if (!evaluate_reduced(n_l_candidate, rho_lR_prev_arg,
+                                    residual_candidate, rho_candidate,
+                                    mu_candidate, rho_hat_candidate))
+              {
+                return false;
+              }
+
+              if (previous_residual * residual_candidate <= 0.0)
+              {
+                n_l_lo = previous_n_l;
+                residual_lo = previous_residual;
+                rho_lo = previous_rho;
+                mu_lo = previous_mu;
+                rho_hat_lo = previous_rho_hat;
+
+                n_l_hi = n_l_candidate;
+                residual_hi = residual_candidate;
+                rho_hi = rho_candidate;
+                mu_hi = mu_candidate;
+                rho_hat_hi = rho_hat_candidate;
+                found_bracket = true;
+                break;
+              }
+
+              previous_n_l = n_l_candidate;
+              previous_residual = residual_candidate;
+              previous_rho = rho_candidate;
+              previous_mu = mu_candidate;
+              previous_rho_hat = rho_hat_candidate;
+            }
+
+            if (!found_bracket)
+            {
+              return false;
+            }
+          }
+
+          for (unsigned int iteration = 0; iteration < 4 * max_iterations;
+               ++iteration)
+          {
+            const auto n_l_mid = 0.5 * (n_l_lo + n_l_hi);
+            double residual_mid = 0.0;
+            double rho_mid = 0.0;
+            double mu_mid = 0.0;
+            double rho_hat_mid = 0.0;
+
+            if (!evaluate_reduced(n_l_mid, rho_lR_prev_arg, residual_mid,
+                                  rho_mid, mu_mid, rho_hat_mid))
+            {
+              return false;
+            }
+
+            if (std::abs(residual_mid) < newton_tolerance ||
+                std::abs(n_l_hi - n_l_lo) <
+                    newton_tolerance * std::max(1.0, std::abs(n_l_mid)))
+            {
+              n_l_bracketed_out = n_l_mid;
+              rho_lR_bracketed_out = rho_mid;
+              mu_lR_bracketed_out = mu_mid;
+              rho_l_hat_bracketed_out = rho_hat_mid;
+              return true;
+            }
+
+            if (residual_lo * residual_mid <= 0.0)
+            {
+              n_l_hi = n_l_mid;
+              residual_hi = residual_mid;
+            }
+            else
+            {
+              n_l_lo = n_l_mid;
+              residual_lo = residual_mid;
+            }
+          }
+
+          const auto n_l_mid = 0.5 * (n_l_lo + n_l_hi);
+          double residual_mid = 0.0;
+          double rho_mid = 0.0;
+          double mu_mid = 0.0;
+          double rho_hat_mid = 0.0;
+          if (!evaluate_reduced(n_l_mid, rho_lR_prev_arg, residual_mid,
+                                rho_mid, mu_mid, rho_hat_mid))
+          {
+            return false;
+          }
+
+          n_l_bracketed_out = n_l_mid;
+          rho_lR_bracketed_out = rho_mid;
+          mu_lR_bracketed_out = mu_mid;
+          rho_l_hat_bracketed_out = rho_hat_mid;
+          return true;
+        };
+
     for (unsigned int iteration = 0; iteration < max_iterations; ++iteration)
     {
       double residual_1 = 0.0;
@@ -239,12 +428,30 @@ rho_l_hat_value.setEntryName("rho_l_hat");
         damping *= 0.5;
       }
 
-      tfel::raise_if(!accepted,
-                     "Notebook bridge microstate Newton line search failed.");
+      if (!accepted)
+      {
+        if (solve_microstate_bracketed(n_l_out, rho_lR_out, mu_lR_out,
+                                       rho_l_hat_out))
+        {
+          converged = true;
+          break;
+        }
+        tfel::raise_if(true,
+                       "Notebook bridge microstate Newton line search failed.");
+      }
     }
 
-    tfel::raise_if(!converged,
-                   "Notebook bridge microstate Newton solve did not converge.");
+    if (!converged)
+    {
+      if (solve_microstate_bracketed(n_l_out, rho_lR_out, mu_lR_out,
+                                     rho_l_hat_out))
+      {
+        return;
+      }
+
+      tfel::raise_if(true,
+                     "Notebook bridge microstate Newton solve did not converge.");
+    }
   };
 
   double n_l_trial = n_l_prev;

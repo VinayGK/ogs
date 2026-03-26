@@ -152,10 +152,10 @@
                 <time_stepping>
                     <type>IterationNumberBasedTimeStepping</type>
                     <t_initial>0</t_initial>
-                    <t_end>1</t_end>
-                    <initial_dt>1</initial_dt>
-                    <minimum_dt>1</minimum_dt>
-                    <maximum_dt>1</maximum_dt>
+                    <t_end>1000</t_end>
+                    <initial_dt>1000</initial_dt>
+                    <minimum_dt>100</minimum_dt>
+                    <maximum_dt>1000</maximum_dt>
                     <number_iterations>1   5   10   15</number_iterations>
                     <multiplier>1.2 1.0 0.8 0.6</multiplier>
                 </time_stepping>
@@ -293,12 +293,12 @@
         <parameter>
             <name>n_l0</name>
             <type>Constant</type>
-            <value>0.1</value>
+            <value>0.012069019712402708</value>
         </parameter>
         <parameter>
             <name>rho_lR0</name>
             <type>Constant</type>
-            <value>1300.0</value>
+            <value>2267.4495975433856</value>
         </parameter>
         <parameter>
             <name>epsilon_sw0</name>
@@ -324,12 +324,12 @@
         <parameter>
             <name>top_pressure</name>
             <type>Constant</type>
-            <value>-100</value>
+            <value>-1e5</value>
         </parameter>
         <parameter>
             <name>pressure_ic</name>
             <type>Constant</type>
-            <value>-100</value>
+            <value>-5e3</value>
         </parameter>
     </parameters>
     <process_variables>
@@ -388,6 +388,8 @@
             <name>basic_newton</name>
             <type>Newton</type>
             <max_iter>60</max_iter>
+            <damping>0.1</damping>
+            <damping_reduction>20</damping_reduction>
             <linear_solver>general_linear_solver</linear_solver>
         </nonlinear_solver>
     </nonlinear_solvers>

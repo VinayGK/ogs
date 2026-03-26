@@ -19,6 +19,7 @@
 #include <MGIS/Behaviour/BehaviourData.hxx>
 #include <MGIS/Behaviour/Integrate.hxx>
 #include <boost/mp11.hpp>
+#include <sstream>
 
 #include "MaterialLib/MPL/Utils/GetSymmetricTensor.h"
 #include "MaterialLib/MPL/Utils/Tensor.h"
@@ -568,6 +569,22 @@ public:
         auto const status = mgis::behaviour::integrate(v, _behaviour);
         if (status != 1)
         {
+            auto const format_values = [](auto const& values)
+            {
+                std::ostringstream oss;
+                oss << "[";
+                for (std::size_t i = 0; i < values.size(); ++i)
+                {
+                    if (i != 0)
+                    {
+                        oss << ", ";
+                    }
+                    oss << values[i];
+                }
+                oss << "]";
+                return oss.str();
+            };
+
             std::string message =
                 "MFront: integration failed with status " +
                 std::to_string(status);
@@ -577,6 +594,17 @@ public:
                 message += ". ";
                 message += behaviour_data.error_message;
             }
+            message += fmt::format(
+                " [dt={}, p_L_prev={}, p_L={}, S_L_prev={}, S_L={}, T_prev={}, T={}, grads_prev={}, grads={}, forces_prev={}, isvs_prev={}]",
+                dt, variable_array_prev.liquid_phase_pressure,
+                variable_array.liquid_phase_pressure,
+                variable_array_prev.liquid_saturation,
+                variable_array.liquid_saturation,
+                variable_array_prev.temperature, variable_array.temperature,
+                format_values(behaviour_data.s0.gradients),
+                format_values(behaviour_data.s1.gradients),
+                format_values(behaviour_data.s0.thermodynamic_forces),
+                format_values(behaviour_data.s0.internal_state_variables));
             message += ".";
             throw NumLib::AssemblyException(message);
         }
