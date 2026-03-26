@@ -111,6 +111,104 @@ What this means:
 - the open benchmark problem must involve constitutive, unsaturated, or other
   process-level features beyond this branch
 
+## Unsaturated elastic non-mechanical isolation
+
+To isolate everything except the mechanical constitutive law, a temporary
+one-element probe was run with:
+
+- the same geometry on both sides
+- the same elastic stiffness on both sides
+- zero displacement on all boundaries, so `u = 0` and `\varepsilon = 0`
+- the same prescribed liquid-pressure history
+  `p_L = (0, -2.5\times 10^5, -5\times 10^5, -7.5\times 10^5, -10^6)\,\text{Pa}`
+- native `LinearElasticIsotropic`
+- bridge `RichardsMechanicsNotebookBridge` with
+  `SwellingSlope = 0` and `MassExchangeCoefficient = 0`
+
+This removes MCC plasticity from the picture. In this probe, any mismatch must
+come from saturation, Bishop weighting, or the RM pressure-coupled carrier.
+
+### Saturation laws in this probe
+
+On the native side, the medium saturation is the van Genuchten law used in the
+existing RM one-element shells:
+
+\[
+S_L^{nat} = S_{vG}(p_{cap}),
+\qquad
+p_{cap} = -p_L,
+\]
+
+with `p_b = 15\times 10^6\,\text{Pa}` and exponent `0.4`.
+
+On the bridge side, the direct material response follows the bridge's own
+pressure-to-saturation law for `p_L < 0`:
+
+\[
+S_L^{bridge}(p_L) = 1 - \exp\!\left(-\frac{A}{p_L^2}\right),
+\]
+
+\[
+A = \frac{4\,\beta_T\,\gamma^2}{a_T\,r_c^2},
+\]
+
+where in the current bridge parameters
+
+\[
+\beta_T = 0.8584073464102069,
+\quad
+\gamma = 0.0715,
+\quad
+a_T = 1,
+\quad
+r_c = 10^{-5}\,\text{m}.
+\]
+
+### What was found
+
+After fixing the RM secondary-variable/state path so that pressure-coupled
+materials keep their returned `S_L` instead of falling back to the medium law,
+the unsaturated elastic probe shows:
+
+- `pressure`: exact
+- `displacement`: exact
+- `epsilon`: exact
+- `sigma`: exact
+- `velocity`: exact
+- `saturation`: not equal from `ts_1` onward
+
+Observed `saturation` values:
+
+- `ts_0`: native `1`, bridge `1`
+- `ts_1`: native `0.99956534554`, bridge `0.0028046311451`
+- `ts_2`: native `0.99862233608`, bridge `0.00070189642845`
+- `ts_3`: native `0.9972984069`, bridge `0.00031201481239`
+- `ts_4`: native `0.99564897055`, bridge `0.00017552031277`
+
+So there is a real non-mechanical disparity even with identical elastic
+mechanics. It is a saturation-law / pressure-coupled-state disparity, not an
+MCC plasticity disparity.
+
+### RM carrier bug that was hiding this
+
+One RM bug was also found and fixed during this probe.
+
+Before the fix, the bridge run exported the medium saturation in the
+secondary-variable path, even after the constitutive update had returned a
+different pressure-coupled saturation. That made the bridge output look
+artificially close to the native output on unsaturated elastic shells.
+
+The fix is in
+`ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h`:
+
+- the secondary-variable path now rebuilds the local
+  `dS_L/dp_{cap}`, `\Delta S_L / \Delta p_{cap}`, and `d\chi/dS_L` terms
+- after the constitutive update, it reapplies the pressure-coupled solid data
+  so the stored/output `S_L` matches the bridge response
+
+This fix does not close the benchmark mismatch by itself. What it does is make
+the RM bridge state and output honest on unsaturated pressure-coupled runs.
+
 ## Benchmark-shell status
 
 ### What is solved

@@ -127,6 +127,19 @@ static auto createBenchmarkPressureConsistentParameters()
     return parameters;
 }
 
+static void overwriteParameter(
+    std::vector<std::unique_ptr<ParameterLib::ParameterBase>>& parameters,
+    char const* name,
+    double const value)
+{
+    auto it = std::find_if(parameters.begin(), parameters.end(),
+                           [name](auto const& parameter)
+                           { return parameter->name == name; });
+    ASSERT_TRUE(it != parameters.end()) << name;
+    *it = std::make_unique<ParameterLib::ConstantParameter<double>>(name,
+                                                                    value);
+}
+
 static std::string stripQuotes(std::string value)
 {
     value.erase(0, value.find_first_not_of(" \t\r\n\"") );
@@ -1238,6 +1251,57 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(std::isfinite(response->saturation));
     EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
     EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
+}
+
+TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+     PlaneStrainFactoryPathZeroDtElasticNegativePressureSaturationResponse)
+{
+    auto parameters = createBenchmarkParameters();
+    overwriteParameter(parameters, "swelling_slope", 0.0);
+    overwriteParameter(parameters, "mass_exchange_coefficient", 0.0);
+
+    auto model = createBridgeModelThroughFactoryPlaneStrain(parameters);
+    ASSERT_TRUE(model != nullptr);
+
+    auto state = model->createMaterialStateVariables();
+    ASSERT_TRUE(state != nullptr);
+    initializeState(*model, *state);
+
+    MPL::VariableArray variable_array_prev;
+    variable_array_prev.stress.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.mechanical_strain.template emplace<KV2>(KV2::Zero());
+    variable_array_prev.liquid_phase_pressure = -2.5e5;
+    variable_array_prev.liquid_saturation = 1.0;
+    variable_array_prev.temperature = 293.15;
+
+    MPL::VariableArray variable_array = variable_array_prev;
+
+    ParameterLib::SpatialPosition x{};
+    auto response = model->integrateStressPressureCoupled(
+        variable_array_prev, variable_array, 0.0, x, 0.0, *state);
+    ASSERT_TRUE(response);
+    ASSERT_TRUE(response->state != nullptr);
+
+    auto constexpr area_factor_tuller = 1.0;
+    auto constexpr pore_area_shape_factor_tuller = 0.8584073464102069;
+    auto constexpr characteristic_pore_size = 1e-5;
+    auto constexpr surface_tension = 0.0715;
+    auto constexpr liquid_pressure = -2.5e5;
+    auto const capillary_prefactor =
+        4.0 * pore_area_shape_factor_tuller * surface_tension *
+        surface_tension /
+        (area_factor_tuller * characteristic_pore_size *
+         characteristic_pore_size);
+    auto const expected_saturation =
+        1.0 -
+        std::exp(-capillary_prefactor /
+                 (liquid_pressure * liquid_pressure));
+
+    EXPECT_NEAR(response->saturation,
+                expected_saturation,
+                scaledTolerance(expected_saturation, 1e-12, 1e-15));
+    EXPECT_LT(response->saturation, 1e-2);
+    EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
 }
 
 TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,

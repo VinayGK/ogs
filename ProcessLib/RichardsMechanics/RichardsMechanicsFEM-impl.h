@@ -1805,6 +1805,15 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                   .template value<double>(variables, x_position, t, dt);
         variables.liquid_saturation = S_L;
         variables_prev.liquid_saturation = S_L_prev;
+        double dS_L_dp_cap =
+            medium->property(MPL::PropertyType::saturation)
+                .template dValue<double>(variables,
+                                         MPL::Variable::capillary_pressure,
+                                         x_position, t, dt);
+        double DeltaS_L_Deltap_cap =
+            (p_cap_ip == p_cap_prev_ip)
+                ? dS_L_dp_cap
+                : (S_L - S_L_prev) / (p_cap_ip - p_cap_prev_ip);
 
         auto const chi = [medium, x_position, t, dt](double const S_L)
         {
@@ -1813,8 +1822,17 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             return medium->property(MPL::PropertyType::bishops_effective_stress)
                 .template value<double>(vs, x_position, t, dt);
         };
-        double const chi_S_L = chi(S_L);
-        double const chi_S_L_prev = chi(S_L_prev);
+        auto const dchi = [medium, x_position, t, dt](double const S_L)
+        {
+            MPL::VariableArray vs;
+            vs.liquid_saturation = S_L;
+            return medium->property(MPL::PropertyType::bishops_effective_stress)
+                .template dValue<double>(vs, MPL::Variable::liquid_saturation,
+                                         x_position, t, dt);
+        };
+        double chi_S_L = chi(S_L);
+        double chi_S_L_prev = chi(S_L_prev);
+        double dchi_dS_L = dchi(S_L);
 
         auto const alpha =
             medium->property(MPL::PropertyType::biot_coefficient)
@@ -1836,7 +1854,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                                t, x_position, &C_el);
         variables.grain_compressibility = beta_SR;
 
-        variables.effective_pore_pressure = -chi_S_L * p_cap_ip;
+        double p_FR = -chi_S_L * p_cap_ip;
+        variables.effective_pore_pressure = p_FR;
         variables_prev.effective_pore_pressure = -chi_S_L_prev * p_cap_prev_ip;
 
         // Set volumetric strain rate for the general case without swelling.
@@ -1961,7 +1980,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
         GlobalDimMatrixType const K_over_mu = k_rel * K_intrinsic / mu;
 
-        double const p_FR = -chi_S_L * p_cap_ip;
         // p_SR
         variables.solid_grain_pressure =
             p_FR - sigma_eff.dot(identity2) / (3 * (1 - phi));
@@ -2008,12 +2026,23 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                        MechanicalStrainData<DisplacementDim>>>(
                     SD_prev);
 
-            [[maybe_unused]] auto const constitutive_update =
+            auto const constitutive_update =
                 ip_data_[ip].updateConstitutiveRelation(
                     variables, variables_prev, t, x_position, dt,
                     temperature, sigma_eff, sigma_eff_prev, eps_m,
                     eps_m_prev, this->solid_material_,
                     this->material_states_[ip].material_state_variables);
+
+            if (constitutive_update.pressure_coupled_data)
+            {
+                // Keep stored/output saturation consistent with the
+                // pressure-coupled material response.
+                applyPressureCoupledSolidData<DisplacementDim>(
+                    *constitutive_update.pressure_coupled_data, variables,
+                    variables_prev, p_cap_ip, p_cap_prev_ip, S_L_prev, chi,
+                    dchi, S_L, dS_L_dp_cap, DeltaS_L_Deltap_cap, chi_S_L,
+                    chi_S_L_prev, dchi_dS_L, p_FR);
+            }
         }
 
         auto const& b = this->process_data_.specific_body_force;
