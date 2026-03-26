@@ -24,10 +24,14 @@ Two things are already true:
 - the unsaturated elastic one-element native-vs-bridge compare also works and
   is exact once the native side uses the same Tuller saturation law as the
   notebook bridge
+- a reduced same-law MCC native-vs-bridge compare also works and is green once
+  the bridge side uses a pressure-coupled variant of
+  `ModCamClay_semiExpl_constE`
 
 One thing is still open:
 
-- the benchmark native-vs-bridge fields still differ at `ts_1`
+- the benchmark native-vs-bridge fields still differ at `ts_1` on the tracked
+  notebook-bridge shell
 
 So the remaining problem is no longer “can the benchmark bridge run?”.
 The remaining problem is “why do the native and bridge benchmark fields still
@@ -47,6 +51,7 @@ As of 2026-03-26 on branch `dsm-nb-mfront-transition`:
 - `ogs-RichardsMechanics_mfront_parity_1element_compare`
 - `ogs-RichardsMechanics_mfront_parity_1element_elastic_compare`
 - `ogs-RichardsMechanics_mfront_parity_1element_unsat_compare`
+- `ogs-RichardsMechanics_mfront_parity_1element_mcc_compare`
 - the RM pressure-coupled carrier now keeps the bridge saturation derivative
   with respect to strain `dS/d\varepsilon`, and the pressure-equation
   displacement block now consumes that term instead of dropping it
@@ -243,6 +248,59 @@ So the old unsaturated elastic mismatch is now closed. It was caused by using
 different saturation laws, not by a generic RM-vs-bridge inconsistency on the
 shared elastic unsaturated branch.
 
+## Reduced same-law MCC parity status
+
+There is now also a reduced one-element same-law MCC gate.
+
+This pair uses:
+
+- the same one-element RM shell on both sides
+- the same van Genuchten medium saturation law on both sides
+- native `ModCamClay_semiExpl_constE` on one side
+- `ModCamClay_semiExpl_constE_pressureCoupled` under
+  `MFrontRichardsMechanics` on the other side
+
+Compared fields:
+
+- `displacement`
+- `pressure`
+- `sigma`
+- `epsilon`
+- `saturation`
+- `velocity`
+- `ElasticStrain`
+- `EquivalentPlasticStrain`
+- `PreConsolidationPressure`
+- `PlasticVolumetricStrain`
+- `VolumeRatio`
+
+Result:
+
+- all compared history fields match up to machine-scale floating-point residue
+- the project-level parity CTest is green
+- the focused material-point test is green
+
+The observed residue is only round-off:
+
+- `sigma` closes with `5e-11` absolute tolerance in the project-level compare
+- the material-point tangent match closes with `1e-8` absolute tolerance
+
+The focused material-point check also verifies the bridge-side pressure blocks:
+
+- `dσ/dp_L = 0`
+- `dS_L/dε = 0`
+- `dS_L/dp_L` matches the native van Genuchten formula
+
+What this means:
+
+- native MFront MCC already works through the RM pressure-coupled bridge on a
+  reduced shell
+- no MCC law had to be reimplemented on the native OGS side
+- the remaining benchmark ambiguity is now narrower than before
+- the tracked benchmark gap is no longer a generic question of whether RM can
+  carry native `ModCamClay_semiExpl_constE` through
+  `MFrontRichardsMechanics`
+
 ### RM carrier bug that was hiding this
 
 One RM bug was also found and fixed during this probe.
@@ -330,6 +388,13 @@ It may still contain two effects mixed together:
 
 - a real RM pressure-coupled interface issue
 - a real constitutive difference between the native and bridge laws
+
+The new reduced same-law MCC gate removes one broad class of uncertainty. We
+now know that a pressure-coupled bridge variant of
+`ModCamClay_semiExpl_constE` can reproduce the native reduced-shell response.
+So the remaining benchmark gap is no longer “can RM carry native MFront MCC
+through the bridge at all?”. The remaining gap is specific to the tracked
+benchmark surface built around `RichardsMechanicsNotebookBridge`.
 
 ## The pressure-coupled contract in plain language
 

@@ -41,6 +41,7 @@ set(_mfront_behaviours
     ModCamClay_semiExpl
     ModCamClay_semiExpl_absP
     ModCamClay_semiExpl_constE
+    ModCamClay_semiExpl_constE_pressureCoupled
     ModCamClay_semiExpl_coupled
     MohrCoulombAbboSloan
     MohrCoulombAbboSloanAniso

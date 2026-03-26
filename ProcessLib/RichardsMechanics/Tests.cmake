@@ -86,6 +86,20 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
         EXECUTABLE_ARGS mfront_parity_1element_unsat_bridge.prj
         RUNTIME 1
     )
+    AddTest(
+        NAME RichardsMechanics_mfront_parity_1element_mcc_native
+        PATH RichardsMechanics
+        EXECUTABLE ogs
+        EXECUTABLE_ARGS mfront_parity_1element_mcc_native.prj
+        RUNTIME 1
+    )
+    AddTest(
+        NAME RichardsMechanics_mfront_parity_1element_mcc_bridge
+        PATH RichardsMechanics
+        EXECUTABLE ogs
+        EXECUTABLE_ARGS mfront_parity_1element_mcc_bridge.prj
+        RUNTIME 1
+    )
     add_test(
         NAME ogs-RichardsMechanics_mfront_parity_1element_compare
         COMMAND
@@ -130,6 +144,22 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
     )
     set_tests_properties(
         ogs-RichardsMechanics_mfront_parity_1element_unsat_compare
+        PROPERTIES COST 1
+                   LABELS "RichardsMechanics;default;small"
+                   WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics
+    )
+    add_test(
+        NAME ogs-RichardsMechanics_mfront_parity_1element_mcc_compare
+        COMMAND
+            ${CMAKE_COMMAND}
+            -DOGS_EXE=$<TARGET_FILE:ogs>
+            -DVTKDIFF_EXE=$<TARGET_FILE:vtkdiff>
+            -DSOURCE_PATH=${Data_SOURCE_DIR}/RichardsMechanics
+            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_parity_mcc_compare
+            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontMCCParity.cmake
+    )
+    set_tests_properties(
+        ogs-RichardsMechanics_mfront_parity_1element_mcc_compare
         PROPERTIES COST 1
                    LABELS "RichardsMechanics;default;small"
                    WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics

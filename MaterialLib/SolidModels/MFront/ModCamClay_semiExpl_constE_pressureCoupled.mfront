@@ -1,0 +1,255 @@
+@DSL ImplicitGenericBehaviour;
+@Behaviour ModCamClay_semiExpl_constE_pressureCoupled;
+@Author OpenGeoSys Community;
+@Date 26 / 03 / 2026;
+@Description{
+    Pressure-coupled RichardsMechanics bridge variant of
+    ModCamClay_semiExpl_constE. The mechanical return mapping stays on the
+    native effective-stress modified Cam-Clay path with constant elastic
+    parameters. Liquid pressure only enters through the returned van
+    Genuchten saturation and its tangent, so RichardsMechanics can assemble
+    the pore-pressure coupling outside the solid law exactly as on the native
+    path.
+}
+
+@Theta 1.0;
+@Epsilon 1e-14;
+@MaximumNumberOfIterations 200;
+@ModellingHypotheses{".+"};
+@Algorithm NewtonRaphson;
+
+@Gradient StrainStensor εᵗᵒ;
+εᵗᵒ.setGlossaryName("Strain");
+
+@ThermodynamicForce StressStensor σ;
+σ.setGlossaryName("Stress");
+
+@Gradient real pᴸᴿ;
+pᴸᴿ.setEntryName("LiquidPressure");
+
+@ThermodynamicForce real Sᴸ;
+Sᴸ.setEntryName("Saturation");
+
+@StateVariable StrainStensor εᵉˡ;
+εᵉˡ.setGlossaryName("ElasticStrain");
+
+@StateVariable real Λₚ;
+Λₚ.setGlossaryName("EquivalentPlasticStrain");
+
+@IntegrationVariable strain rpc;
+
+@AuxiliaryStateVariable stress pc;
+pc.setEntryName("PreConsolidationPressure");
+
+@AuxiliaryStateVariable real εᵛₚₗ;
+εᵛₚₗ.setEntryName("PlasticVolumetricStrain");
+
+@AuxiliaryStateVariable real vʳ;
+vʳ.setEntryName("VolumeRatio");
+
+@Parameter stress pamb = 1e+3;
+@PhysicalBounds pamb in [0:*[;
+pamb.setEntryName("AmbientPressure");
+
+@MaterialProperty stress young;
+@PhysicalBounds young in [0:*[;
+young.setGlossaryName("YoungModulus");
+
+@MaterialProperty real ν;
+@PhysicalBounds ν in [-1:0.5];
+ν.setGlossaryName("PoissonRatio");
+
+@MaterialProperty real M;
+@PhysicalBounds M in [0:*[;
+M.setEntryName("CriticalStateLineSlope");
+
+@MaterialProperty real ka;
+@PhysicalBounds ka in [0:*[;
+ka.setEntryName("SwellingLineSlope");
+
+@MaterialProperty real la;
+@PhysicalBounds la in [0:*[;
+la.setEntryName("VirginConsolidationLineSlope");
+
+@MaterialProperty stress pc_char;
+@PhysicalBounds pc_char in [0:*[;
+pc_char.setEntryName("CharacteristicPreConsolidationPressure");
+
+@MaterialProperty real Sᴸʳ;
+Sᴸʳ.setEntryName("ResidualLiquidSaturation");
+
+@MaterialProperty real Sᴳʳ;
+Sᴳʳ.setEntryName("ResidualGasSaturation");
+
+@MaterialProperty real pᵇ;
+pᵇ.setEntryName("BubblePressure");
+
+@MaterialProperty real mⱽᴳ;
+mⱽᴳ.setEntryName("VanGenuchtenExponent_m");
+
+@LocalVariable bool withinElasticRange;
+@LocalVariable real M²;
+@LocalVariable real pc_min;
+@LocalVariable real rpc_min;
+@LocalVariable real K;
+@LocalVariable StressStensor σ₀;
+@LocalVariable StiffnessTensor ∂σ∕∂εᵉˡ;
+
+@TangentOperatorBlocks{∂σ∕∂Δεᵗᵒ, ∂σ∕∂Δpᴸᴿ, ∂Sᴸ∕∂Δεᵗᵒ, ∂Sᴸ∕∂Δpᴸᴿ};
+
+@InitializeLocalVariables
+{
+    const auto Sₑ = [&](const auto pᶜᵃᵖ) {
+        return std::pow(
+            std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ, 1.0 / (1.0 - mⱽᴳ)) + 1.0, -mⱽᴳ);
+    };
+
+    const auto S = Sₑ(-(pᴸᴿ + Δpᴸᴿ)) * (1.0 - Sᴳʳ - Sᴸʳ) + Sᴸʳ;
+    Sᴸ = std::clamp(S, Sᴸʳ, 1.0 - Sᴳʳ);
+
+    tfel::raise_if(la < ka, "Invalid parameters: la<ka");
+    M² = M * M;
+
+    εᵉˡ = (1.0 + ν) / young * σ - ν / young * trace(σ) * I₂;
+    σ₀ = σ;
+
+    rpc = pc / young;
+    pc_min = 1e-15 * pc_char;
+    rpc_min = pc_min / young;
+
+    K = young / (3.0 * (1.0 - 2.0 * ν));
+    ∂σ∕∂εᵉˡ = young / (1.0 + ν) * Stensor4::K() + K * Stensor4::IxI();
+
+    const auto σᵉˡ = σ₀ + ∂σ∕∂εᵉˡ * Δεᵗᵒ;
+    const auto sᵉˡ = deviator(σᵉˡ);
+    const auto qᵉˡ = sqrt(1.5 * sᵉˡ | sᵉˡ);
+    const auto pᵉˡ = -trace(σᵉˡ) / 3.0 + pamb;
+    const auto fᵉˡ = qᵉˡ * qᵉˡ + M² * pᵉˡ * (pᵉˡ - pc);
+    withinElasticRange = fᵉˡ < 0;
+}
+
+@ComputeThermodynamicForces
+{
+    σ = σ₀ + θ * ∂σ∕∂εᵉˡ * Δεᵉˡ;
+}
+
+@Integrator
+{
+    constexpr const auto Pr4 = Stensor4::K();
+    const auto the = vʳ / (la - ka);
+
+    if (withinElasticRange)
+    {
+        fεᵉˡ -= Δεᵗᵒ;
+        return true;
+    }
+
+    const auto epsr = strain(1.e-12);
+    const auto s = deviator(σ);
+    const auto q = sqrt(1.5 * s | s);
+    const auto p = -trace(σ) / 3.0 + pamb;
+
+    const auto rpc_new = rpc + θ * Δrpc;
+    const auto pc_new = rpc_new * young;
+
+    const auto f = q * q + M² * p * (p - pc_new);
+    const auto ∂f∕∂p = M² * (2.0 * p - pc_new);
+    const auto ∂f∕∂σ = eval(3.0 * s - ∂f∕∂p * I₂ / 3.0);
+    auto norm = sqrt(6.0 * q * q + ∂f∕∂p * ∂f∕∂p / 3.0);
+    norm = max(norm, epsr * young);
+    const auto n = ∂f∕∂σ / norm;
+    const auto ntr = -∂f∕∂p / norm;
+
+    const auto Δεᵖˡ = eval(ΔΛₚ * n);
+    const auto Δεᵖˡᵛ = trace(Δεᵖˡ);
+
+    const auto fchar = pc_char * young;
+
+    fεᵉˡ = Δεᵉˡ + Δεᵖˡ - Δεᵗᵒ;
+    fΛₚ = f / fchar;
+    frpc = Δrpc + Δεᵖˡᵛ * the * (rpc_new - rpc_min);
+
+    const auto ∂norm∕∂σ =
+        (9.0 * s - 2.0 * M² / 9.0 * ∂f∕∂p * I₂) / norm;
+    const auto ∂n∕∂Δεᵉˡ =
+        (3.0 * Pr4 + 2.0 * M² / 9.0 * (I₂ ⊗ I₂) - (n ⊗ ∂norm∕∂σ)) / norm *
+        ∂σ∕∂εᵉˡ * θ;
+    const auto ∂n∕∂Δrpc =
+        (I₂ + ∂f∕∂p * n / norm) * M² / (3.0 * norm) * θ * young;
+    const auto ∂frpc∕∂Δεᵖˡᵛ = the * (rpc_new - rpc_min);
+
+    ∂fεᵉˡ∕∂Δεᵉˡ += ΔΛₚ * ∂n∕∂Δεᵉˡ;
+    ∂fεᵉˡ∕∂ΔΛₚ = n;
+    ∂fεᵉˡ∕∂Δrpc = ΔΛₚ * ∂n∕∂Δrpc;
+
+    ∂fΛₚ∕∂Δεᵉˡ = (∂f∕∂σ | ∂σ∕∂εᵉˡ) * θ / fchar;
+    ∂fΛₚ∕∂ΔΛₚ = strain(0);
+    ∂fΛₚ∕∂Δrpc = -M² * p * θ / fchar * young;
+
+    ∂frpc∕∂ΔΛₚ = ∂frpc∕∂Δεᵖˡᵛ * ntr;
+    ∂frpc∕∂Δεᵉˡ = ∂frpc∕∂Δεᵖˡᵛ * ΔΛₚ * (I₂ | ∂n∕∂Δεᵉˡ);
+    ∂frpc∕∂Δrpc =
+        1.0 + Δεᵖˡᵛ * the * θ + ∂frpc∕∂Δεᵖˡᵛ * ΔΛₚ * trace(∂n∕∂Δrpc);
+}
+
+@ComputeFinalThermodynamicForces
+{
+    σ = σ₀ + ∂σ∕∂εᵉˡ * Δεᵉˡ;
+}
+
+@UpdateAuxiliaryStateVariables
+{
+    pc += Δrpc * young;
+    εᵛₚₗ += trace(Δεᵗᵒ - Δεᵉˡ);
+    vʳ *= exp(trace(Δεᵗᵒ));
+}
+
+@AdditionalConvergenceChecks
+{
+    if (converged)
+    {
+        if (!withinElasticRange)
+        {
+            if (ΔΛₚ < 0)
+            {
+                converged = false;
+                withinElasticRange = true;
+            }
+        }
+    }
+}
+
+@TangentOperator
+{
+    const auto ∂Sᴸ∕∂pᶜᵃᵖ = [&](const auto pᶜᵃᵖ) {
+        return (1.0 - Sᴳʳ - Sᴸʳ) *
+               (Sᴸ < (1.0 - Sᴳʳ) && Sᴸ > Sᴸʳ
+                    ? -mⱽᴳ / (pᵇ * (1.0 - mⱽᴳ)) *
+                          std::pow(std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ,
+                                            1.0 / (1.0 - mⱽᴳ)) +
+                                       1.0,
+                                   -mⱽᴳ - 1.0) *
+                          std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ,
+                                   1.0 / (1.0 - mⱽᴳ) - 1.0)
+                    : 0.0);
+    };
+
+    ∂σ∕∂Δpᴸᴿ = 0.0 * I₂;
+    ∂Sᴸ∕∂Δεᵗᵒ = 0.0 * I₂;
+    ∂Sᴸ∕∂Δpᴸᴿ = -∂Sᴸ∕∂pᶜᵃᵖ(-(pᴸᴿ + Δpᴸᴿ));
+
+    if ((smt == ELASTIC) || (smt == SECANTOPERATOR))
+    {
+        ∂σ∕∂Δεᵗᵒ = ∂σ∕∂εᵉˡ;
+    }
+    else if (smt == CONSISTENTTANGENTOPERATOR)
+    {
+        Stensor4 Je;
+        getPartialJacobianInvert(Je);
+        ∂σ∕∂Δεᵗᵒ = ∂σ∕∂εᵉˡ * Je;
+    }
+    else
+    {
+        return false;
+    }
+}
