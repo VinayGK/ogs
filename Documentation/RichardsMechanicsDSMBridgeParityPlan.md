@@ -148,6 +148,158 @@ Current interpretation:
   [MFrontRichardsMechanics.h](../MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h)
   interpret the returned stress and pressure-coupling blocks.
 
+## Why The Remaining Gap Looks Interface-Owned
+
+At continuum level the quasi-static balance of momentum is
+
+\[
+\nabla\cdot\boldsymbol{\sigma}_\mathrm{tot} + \rho\mathbf{b} = \mathbf{0}.
+\]
+
+The native RichardsMechanics benchmark is assembled around the split
+
+\[
+p_\mathrm{cap} = -p_L,
+\qquad
+p_F^R = -\chi(S_L)\,p_\mathrm{cap} = \chi(S_L)\,p_L,
+\]
+
+with total and effective stress related by
+
+\[
+\boldsymbol{\sigma}_\mathrm{tot}
+=
+\boldsymbol{\sigma}_\mathrm{eff}
+- \alpha\,p_F^R\,\mathbf{I}.
+\]
+
+Here:
+
+- \(p_L\) is the liquid pressure;
+- \(p_\mathrm{cap}\) is the capillary pressure;
+- \(\chi(S_L)\) is Bishop's effective-stress factor;
+- \(\alpha\) is the Biot coefficient;
+- \(\mathbf{I}\) is the identity tensor.
+
+So the continuum stress closure expected by RM is
+
+\[
+\boldsymbol{\sigma}_\mathrm{tot}
+=
+\boldsymbol{\sigma}_\mathrm{eff}
+- \alpha\,\chi(S_L)\,p_L\,\mathbf{I}.
+\]
+
+The native DSM microstate update is also process-owned. In reduced form, the
+benchmark advances
+
+\[
+(\Delta \phi_m,\ \Delta \varepsilon_{sw},\ \Delta p_L^m,\ \Delta
+\boldsymbol{\sigma}_{sw})
+=
+\mathcal{G}(S_L^m,\ \dot{\boldsymbol{\sigma}}_{sw},\ k_{ex},\dots),
+\]
+
+where \(\phi_m\) is the micro-porosity, \(\varepsilon_{sw}\) is the swelling
+strain, \(p_L^m\) is the micro-liquid pressure, and \(k_{ex}\) is the mass
+exchange coefficient. In OGS this update is carried by
+`computeMicroPorosity(...)`.
+
+The pressure-coupled MFront bridge contract is different in shape. It returns a
+constitutive package
+
+\[
+\left(
+\boldsymbol{\sigma}^{\star},
+S_L^{\star},
+\frac{\partial \boldsymbol{\sigma}^{\star}}{\partial p_L},
+\frac{\partial S_L^{\star}}{\partial p_L}
+\right),
+\]
+
+which RichardsMechanics then consumes through the pressure-coupled solid path.
+The benchmark only closes if both sides agree that
+\(\boldsymbol{\sigma}^{\star}\) means
+
+- effective stress,
+- total stress,
+- or a mixed stress already containing some pore-pressure contribution.
+
+The formal continuum contract required by RM is that
+
+\[
+\boldsymbol{\sigma}^{\star} = \boldsymbol{\sigma}_\mathrm{eff},
+\qquad
+\boldsymbol{\sigma}_\mathrm{tot}
+=
+\boldsymbol{\sigma}^{\star}
+- \alpha\,\chi(S_L^\star)\,p_L\,\mathbf{I},
+\]
+
+with pressure derivative
+
+\[
+\frac{\partial \boldsymbol{\sigma}_\mathrm{tot}}{\partial p_L}
+=
+\frac{\partial \boldsymbol{\sigma}^{\star}}{\partial p_L}
+- \alpha
+\left[
+\chi(S_L^\star)
++ p_L\,\chi'(S_L^\star)\,
+\frac{\partial S_L^\star}{\partial p_L}
+\right]
+\mathbf{I}.
+\]
+
+If the bridge instead returns total stress while RM still interprets it as
+effective stress, the pore-pressure contribution is subtracted twice.
+
+The current diagnostics say the plastic law itself is probably not the dominant
+problem. For the coupled MCC benchmark attempt, the following quantities match
+exactly at `ts_1`:
+
+\[
+\Lambda_p,\qquad
+p_c,\qquad
+\varepsilon_v^p,\qquad
+S_L,\qquad
+S_L^m,\qquad
+\boldsymbol{\sigma}_{sw}.
+\]
+
+Those are the key state variables for the MCC yield and hardening part:
+
+\[
+f(q,p,p_c) = q^2 + M^2\,p\,(p-p_c),
+\qquad
+p = -\frac{1}{3}\operatorname{tr}(\boldsymbol{\sigma}_\mathrm{eff}),
+\qquad
+q = \sqrt{\frac{3}{2}\,\boldsymbol{s}:\boldsymbol{s}}.
+\]
+
+If the dominant bug were in MCC plasticity itself, one would expect
+\(\Lambda_p\), \(p_c\), or \(\varepsilon_v^p\) to drift as well. They do not.
+
+What still mismatches at `ts_1` is the hydro-mechanical side:
+
+\[
+p_L,\qquad
+p_L^m,\qquad
+\mathbf{u},\qquad
+\boldsymbol{\sigma},\qquad
+\boldsymbol{\varepsilon}^{el},\qquad
+\phi,\qquad
+\phi_{tr},\qquad
+v^r.
+\]
+
+That pattern is much more consistent with a contract mismatch in how the RM
+pressure-coupled path interprets
+\(\boldsymbol{\sigma}^{\star}\) and
+\(\partial\boldsymbol{\sigma}^{\star}/\partial p_L\), or with a mismatch in
+how the returned pressure-coupled stress feeds the momentum equation and the
+pressure Jacobian.
+
 ## Work Packages
 
 ### WP1: Keep The Reduced One-Element Parity Slice Green
