@@ -934,6 +934,57 @@ What remains open later:
 - notebook-owned non-neutral widening beyond the current support-state,
   swelling-stress, and Tuller-saturation steps
 
+## BEACON smoke native-vs-bridge check
+
+Status:
+
+- completed as a direct run-and-compare study
+- not promoted to CTest parity yet
+- bridge smoke copies run in the current MFront work tree
+- native VK smoke projects do not parse in the current MFront work tree yet,
+  because the process key `vk_potential_exchange` is still native-only there
+
+What was run:
+
+- native smoke rerun attempt in the current MFront build:
+  - `beacon_1a01_vk_smoke.prj`
+  - `beacon_1b_vk_smoke.prj`
+  - `beacon_1c_vk_smoke.prj`
+  - all three stop at project parsing with
+    `Key <vk_potential_exchange> has been read 1 time(s) less than it was present`
+- native baseline for the quantitative comparison: the committed BEACON
+  reference VTUs from the main `ogs` tree at `t = 1000 s`
+- bridge side: direct `ogs` runs of
+  - `Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_bridge.prj`
+  - `Tests/Data/RichardsMechanics/beacon_1b_vk_notebook_mcc_bridge.prj`
+  - `Tests/Data/RichardsMechanics/beacon_1c_vk_notebook_mcc_bridge.prj`
+
+Bridge surface used:
+
+- `RichardsMechanicsNotebookBridge_MCC`
+- notebook saturation mode left on the native Van Genuchten carrier
+- notebook swelling feedback kept neutral for this smoke check
+- preconsolidation pressure kept high so the bridge stays elastic on these
+  smoke cases
+
+Comparison summary:
+
+| Case | Native VK rerun in current MFront build | Bridge rerun | Exact overlap fields | Nonzero overlap mismatch | Likely reason | Suggested solution |
+| --- | --- | --- | --- | --- | --- | --- |
+| `1a01` | no, parse fails on `vk_potential_exchange` | yes | `displacement`, `swelling_stress`, `sigma` | `pressure`: abs max `4.61e2`, rel max `4.78e-4`; `saturation`: abs max `1.84e-4`, rel max `2.52e-4` | Only the top pressure is fixed, so the interior state exposes the remaining storage-carrier difference between the native VK path and the bridge notebook state path. | First port or bridge the native-only `vk_potential_exchange` process key so the native smoke deck runs in the same tree. Then add a BEACON-specific notebook storage-carrier mode before making `1a01` a parity gate. |
+| `1b` | no, parse fails on `vk_potential_exchange` | yes | `displacement`, `pressure`, `saturation`, `swelling_stress`, `sigma` | none on the compared overlap fields | One medium and two pressure Dirichlet boundaries suppress the remaining carrier ambiguity. | First port or bridge the native-only `vk_potential_exchange` process key so the native smoke deck runs in the same tree. Then use `1b` as the first exact BEACON native-vs-bridge compare gate. |
+| `1c` | no, parse fails on `vk_potential_exchange` | yes | `displacement`, `porosity`, `swelling_stress`, `sigma` | `pressure`: abs max `7.12e1`, rel max `3.15e-4`; `saturation`: abs max `2.86e-5`, rel max `3.00e-5`; `transport_porosity`: abs max `2.00e-2`, rel max `8.00e-2` | The native VK path has a dedicated heterogeneous `transport_porosity` split update; the bridge path still uses the generic pressure-coupled carrier there. | First port or bridge the native-only `vk_potential_exchange` process key so the native smoke deck runs in the same tree. Then widen the bridge/process contract so the bridge can drive `phi_M` or `transport_porosity` explicitly on heterogeneous VK cases. |
+
+Main conclusion:
+
+- the bridge BEACON copies do run for `1a01`, `1b`, and `1c`
+- the native VK smoke decks do not yet run in the current MFront work tree
+  because `vk_potential_exchange` is still a native-only process key there
+- the mismatch is not a generic elastic failure
+- `1b` is already exact on the overlap fields
+- the remaining BEACON work is concentrated on the native VK storage carrier
+  and, for `1c`, the heterogeneous transport-porosity split
+
 ## Generated parity and benchmark files
 
 These are the generated project and compare files that define the current
