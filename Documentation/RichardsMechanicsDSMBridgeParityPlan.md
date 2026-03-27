@@ -31,12 +31,18 @@ Two things are already true:
 - a widened notebook-MCC hybrid bridge can now carry notebook auxiliary state
   explicitly while still collapsing exactly to the verified MCC bridge when
   notebook coupling is neutral
+- the hybrid bridge now also feeds notebook swelling back into the returned
+  effective stress and `d\sigma/dp_L`, while still keeping the verified MCC
+  saturation carrier surface unchanged
+- a neutral notebook-MCC benchmark compare now also works and is green on the
+  native part-1 shell
 
 One thing is still open:
 
-- the notebook-derived constitutive content is still not fed back into the
-  returned stress, tangents, and saturation of the new hybrid bridge, so full
-  notebook-to-native DSM parity is still open
+- the notebook-derived microstate still does not modify the returned
+  saturation law, and the benchmark has not yet been rerun on a non-neutral
+  notebook constitutive branch, so full notebook-to-native DSM parity is still
+  open
 
 So the remaining problem is no longer “can the benchmark bridge run?” and it is
 no longer “can RM carry the native MFront MCC law through the pressure-coupled
@@ -61,7 +67,10 @@ As of 2026-03-27 on branch `dsm-nb-mfront-transition`:
 - `ogs-RichardsMechanics_mfront_restart_part1_mcc_compare`
 - `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_bridge`
 - `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_compare`
+- `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_bridge`
+- `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_compare`
 - `MaterialLib_RMBridgeMFront_NotebookMCC.NeutralNotebookStateMatchesVerifiedMCCBridge`
+- `MaterialLib_RMBridgeMFront_NotebookMCC.SwellingFeedbackChangesStressButKeepsCarrierSaturation`
 - the RM pressure-coupled carrier now keeps the bridge saturation derivative
   with respect to strain `dS/d\varepsilon`, and the pressure-equation
   displacement block now consumes that term instead of dropping it
@@ -440,8 +449,33 @@ but its returned constitutive surface is still the verified MCC one:
 \mathcal{C}_{MCC}^{pc}(\varepsilon, p_L, \eta_{MCC}).
 \]
 
-That is intentional. This step widens the state first without changing the
-already verified benchmark surface.
+The first hybrid step only widened the state. The current hybrid step adds the
+first constitutive feedback too:
+
+\[
+\boldsymbol{\sigma}_{eff}^{hybrid}
+=
+\boldsymbol{\sigma}_{eff}^{MCC}
+- K\,\Delta\varepsilon_{sw}\,\mathbf{I},
+\qquad
+\Delta\varepsilon_{sw}
+=
+\text{SwellingSlope}\,(n_l^{new} - n_l^{old}).
+\]
+
+At the moment, the saturation surface is still intentionally kept equal to the
+verified MCC carrier surface:
+
+\[
+S_L^{hybrid} = S_L^{MCC},
+\qquad
+\frac{\partial S_L^{hybrid}}{\partial p_L}
+=
+\frac{\partial S_L^{MCC}}{\partial p_L},
+\qquad
+\frac{\partial S_L^{hybrid}}{\partial \varepsilon}
+= 0.
+\]
 
 ### What is already verified for the hybrid bridge
 
@@ -480,12 +514,24 @@ Verified carried notebook state:
 - `mu_lR`
 - `rho_l_hat`
 
+Verified hybrid constitutive feedback:
+
+- the returned stress differs from the verified MCC bridge exactly by the
+  isotropic notebook swelling correction
+- the returned `dStress_dLiquidPressure` matches a direct finite-difference
+  probe on the active-swelling hybrid branch
+- the returned `saturation`, `dSaturation_dLiquidPressure`, and
+  `dSaturation_dStrain` stay identical to the verified MCC bridge on that same
+  active-swelling branch
+
 So this first widening step proves a narrow but important point:
 
 - notebook state can be added to the bridge without breaking the verified MCC
   carrier surface
-- the next changes can focus on constitutive feedback, not on basic state
-  plumbing
+- notebook swelling can be fed back into the returned stress without breaking
+  the verified MCC carrier saturation surface
+- the benchmark shell can still collapse exactly to the verified MCC benchmark
+  surface when notebook coupling is kept neutral
 
 ## The pressure-coupled contract in plain language
 
@@ -712,15 +758,15 @@ Delivered result:
 
 Status:
 
-- open
+- complete
 
-Practical task:
+Delivered result:
 
-- define the first non-neutral feedback from notebook state into the returned
-  effective stress
-- keep the verified MCC plastic core and add only the notebook-owned swelling
-  correction
-- return the matching pressure and strain tangents
+- keep the verified MCC plastic core
+- add the notebook isotropic swelling correction to the returned effective
+  stress
+- return the matching `dStress_dLiquidPressure`
+- lock the active-swelling branch with a direct material-point regression
 
 Target form:
 
@@ -731,37 +777,47 @@ Target form:
 - K_{sw}(\eta_{NB})\,\Delta \varepsilon_{sw}\,\mathbf{I}.
 \]
 
-The important rule is that this must be introduced together with consistent
-tangents, not as an output-only post-processing term.
+Current verified boundary:
+
+- the stress correction is active and tested
+- the pressure tangent is active and tested
+- the hybrid still preserves the verified MCC saturation carrier surface
 
 ### WP7: Decide whether notebook microstate should modify saturation or stay auxiliary
 
 Status:
 
-- open
+- complete for the current hybrid boundary
 
-Practical task:
+Decision for the current branch:
 
-- decide whether the final notebook bridge should still return the same
-  saturation law as the verified MCC bridge
-- or whether notebook microstate should also alter `S_L`, `dS_L/dp_L`, or
-  `dS_L/d\varepsilon`
-- if that feedback is activated, add a dedicated reduced-shell parity gate for
-  that branch before touching the benchmark shell
+- keep the returned saturation law on the verified MCC carrier surface for now
+- keep notebook microstate as a stress-side widening step first
+- prove on a direct active-swelling material-point test that `S_L`,
+  `dS_L/dp_L`, and `dS_L/d\varepsilon` stay equal to the verified MCC bridge
+
+What remains open later:
+
+- whether a future notebook-driven branch should also widen the returned
+  saturation law
 
 ### WP8: Benchmark the widened notebook hybrid against the verified MCC boundary
 
 Status:
 
-- open
+- complete for the neutral notebook branch
 
-Practical task:
+Delivered result:
 
-- clone the current same-law MCC benchmark shell
-- swap only the constitutive behaviour to the widened notebook-MCC hybrid
-- compare the shared fields first on a benchmark shell with tightly controlled
-  notebook coupling
-- only then claim progress toward notebook-to-native parity
+- add `mfront_restart_part1_notebook_mcc_bridge.prj`
+- keep notebook coupling neutral on that benchmark shell
+- compare the shared benchmark fields against the native part-1 surface with
+  `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_compare`
+
+What remains open later:
+
+- rerun the benchmark on a non-neutral notebook branch once the intended final
+  notebook constitutive feedback is defined
 
 ## Definition of done
 

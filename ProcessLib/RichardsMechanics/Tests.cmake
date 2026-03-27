@@ -44,6 +44,13 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
         RUNTIME 1
     )
     AddTest(
+        NAME RichardsMechanics_mfront_restart_part1_notebook_mcc_bridge
+        PATH RichardsMechanics
+        EXECUTABLE ogs
+        EXECUTABLE_ARGS mfront_restart_part1_notebook_mcc_bridge.prj
+        RUNTIME 1
+    )
+    AddTest(
         NAME RichardsMechanics_mfront_parity_1element_native
         PATH RichardsMechanics
         EXECUTABLE ogs
@@ -198,6 +205,22 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
     )
     set_tests_properties(
         ogs-RichardsMechanics_mfront_restart_part1_mcc_compare
+        PROPERTIES COST 1
+                   LABELS "RichardsMechanics;default;small"
+                   WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics
+    )
+    add_test(
+        NAME ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_compare
+        COMMAND
+            ${CMAKE_COMMAND}
+            -DOGS_EXE=$<TARGET_FILE:ogs>
+            -DVTKDIFF_EXE=$<TARGET_FILE:vtkdiff>
+            -DSOURCE_PATH=${Data_SOURCE_DIR}/RichardsMechanics
+            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_restart_part1_notebook_mcc_compare
+            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontNotebookMCCBenchmarkParity.cmake
+    )
+    set_tests_properties(
+        ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_compare
         PROPERTIES COST 1
                    LABELS "RichardsMechanics;default;small"
                    WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics

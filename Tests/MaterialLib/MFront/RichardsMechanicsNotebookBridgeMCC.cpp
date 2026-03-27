@@ -31,7 +31,11 @@ using MB = MaterialLib::Solids::MechanicsBase<3>;
 namespace
 {
 std::vector<std::unique_ptr<ParameterLib::ParameterBase>>
-createNotebookMCCParameters()
+createNotebookMCCParameters(double const swelling_slope = 0.0,
+                            double const mass_exchange_coefficient = 0.0,
+                            double const n_l0 = 0.1,
+                            double const rho_lR0 = 1300.0,
+                            double const epsilon_sw0 = 0.0)
 {
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> parameters;
 
@@ -56,8 +60,8 @@ createNotebookMCCParameters()
 
     // Neutral first-step notebook coupling: state is updated and visible, but
     // the verified MCC stress/saturation surface stays unchanged.
-    add_param("SwellingSlope", 0.0);
-    add_param("MassExchangeCoefficient", 0.0);
+    add_param("SwellingSlope", swelling_slope);
+    add_param("MassExchangeCoefficient", mass_exchange_coefficient);
     add_param("ReferenceLiquidDensityMacro", 1000.0);
     add_param("ReferenceLiquidDensityMicro", 1300.0);
     add_param("ReferenceDensitySolid", 2470.0);
@@ -66,9 +70,9 @@ createNotebookMCCParameters()
     add_param("HamakerConstant", -6e-20);
     add_param("SpecificSurface", 100.0);
     add_param("InitialPorosity", 0.432);
-    add_param("n_l0", 0.1);
-    add_param("rho_lR0", 1300.0);
-    add_param("epsilon_sw0", 0.0);
+    add_param("n_l0", n_l0);
+    add_param("rho_lR0", rho_lR0);
+    add_param("epsilon_sw0", epsilon_sw0);
 
     return parameters;
 }
@@ -374,6 +378,94 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
         notebook_previous = notebook_current;
         notebook_previous.stress.emplace<KV>(notebook_response->stress);
     }
+}
+
+TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+     SwellingFeedbackChangesStressButKeepsCarrierSaturation)
+{
+    auto parameters = createNotebookMCCParameters(2.0, 1e-4, 0.1, 1300.0, 0.0);
+    auto reference = createReferenceMCCModel(parameters);
+    auto notebook_mcc = createNotebookMCCModel(parameters);
+
+    auto reference_state = reference->createMaterialStateVariables();
+    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    initializeState(*reference, *reference_state);
+    initializeState(*notebook_mcc, *notebook_state);
+
+    ParameterLib::SpatialPosition x{};
+
+    MPL::VariableArray previous;
+    previous.mechanical_strain.emplace<KV>(KV::Zero());
+    previous.stress.emplace<KV>(notebookMCCIsotropicStress(-5e3));
+    previous.liquid_phase_pressure = -5e3;
+    previous.temperature = 293.15;
+
+    constexpr double t = 1.0;
+    constexpr double dt = 1.0;
+    constexpr double eps_v = -2e-5;
+    constexpr double liquid_pressure = -4e4;
+
+    MPL::VariableArray current = previous;
+    current.mechanical_strain.emplace<KV>(
+        notebookMCCIsotropicStrainFromVolumetric(eps_v));
+    current.liquid_phase_pressure = liquid_pressure;
+
+    auto reference_response = reference->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *reference_state);
+    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *notebook_state);
+
+    ASSERT_TRUE(reference_response);
+    ASSERT_TRUE(notebook_response);
+    ASSERT_TRUE(reference_response->state);
+    ASSERT_TRUE(notebook_response->state);
+
+    auto const epsilon_sw =
+        getInternalScalar(*notebook_mcc, *notebook_response->state,
+                          "epsilon_sw");
+    EXPECT_GT(std::abs(epsilon_sw), 1e-12);
+
+    double const bulk_modulus = 52e6 / (3.0 * (1.0 - 2.0 * 0.3));
+    auto const expected_stress =
+        reference_response->stress -
+        notebookMCCIsotropicStress(bulk_modulus * epsilon_sw);
+    EXPECT_TRUE((expected_stress - notebook_response->stress).isZero(5e-8));
+
+    EXPECT_NEAR(reference_response->saturation, notebook_response->saturation,
+                1e-15);
+    EXPECT_TRUE((reference_response->dSaturation_dStrain -
+                 notebook_response->dSaturation_dStrain)
+                    .isZero(1e-12));
+    EXPECT_NEAR(reference_response->dSaturation_dLiquidPressure,
+                notebook_response->dSaturation_dLiquidPressure, 1e-15);
+
+    auto evaluate_notebook_response =
+        [&](double const eps_v_value, double const pressure_value)
+    {
+        auto local_parameters =
+            createNotebookMCCParameters(2.0, 1e-4, 0.1, 1300.0, 0.0);
+        auto local_model = createNotebookMCCModel(local_parameters);
+        auto local_state = local_model->createMaterialStateVariables();
+        initializeState(*local_model, *local_state);
+
+        MPL::VariableArray local_current = previous;
+        local_current.mechanical_strain.emplace<KV>(
+            notebookMCCIsotropicStrainFromVolumetric(eps_v_value));
+        local_current.liquid_phase_pressure = pressure_value;
+
+        return local_model->integrateStressPressureCoupled(
+            previous, local_current, t, x, dt, *local_state);
+    };
+
+    double const dp_fd = std::max(1e-6, std::abs(liquid_pressure) * 1e-6);
+    auto notebook_p_plus = evaluate_notebook_response(eps_v, liquid_pressure + dp_fd);
+    auto notebook_p_minus = evaluate_notebook_response(eps_v, liquid_pressure - dp_fd);
+    ASSERT_TRUE(notebook_p_plus);
+    ASSERT_TRUE(notebook_p_minus);
+    auto const dsigma_dp_fd =
+        (notebook_p_plus->stress - notebook_p_minus->stress) / (2.0 * dp_fd);
+    EXPECT_TRUE((notebook_response->dStress_dLiquidPressure - dsigma_dp_fd)
+                    .isZero(5e-4));
 }
 
 #endif  // OGS_USE_MFRONT

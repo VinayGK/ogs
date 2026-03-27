@@ -23,6 +23,13 @@ surface but also stores notebook auxiliary state. That new hybrid surface is a
 staging step toward notebook-driven parity; it is not yet the final
 notebook-derived constitutive closure.
 
+In the current verified hybrid step:
+
+- notebook microstate now feeds back into the returned effective stress through
+  the swelling correction
+- the returned saturation law is still intentionally kept equal to the
+  verified MCC carrier surface
+
 ## Files compared
 
 - native shell:
@@ -243,3 +250,10 @@ That means the remaining open work is no longer â€œadd MCC state to the bridgeâ€
 That step is already done. The open work is to decide how notebook state should
 feed back into the returned stress, tangents, and possibly saturation without
 breaking the verified MCC carrier surface.
+
+That decision is now partially implemented:
+
+- stress-side notebook feedback is active in the hybrid bridge
+- saturation-side notebook feedback is still intentionally inactive
+- the neutral benchmark shell for the hybrid bridge is now tested in
+  [mfront_restart_part1_notebook_mcc_bridge.prj](../Tests/Data/RichardsMechanics/mfront_restart_part1_notebook_mcc_bridge.prj)
