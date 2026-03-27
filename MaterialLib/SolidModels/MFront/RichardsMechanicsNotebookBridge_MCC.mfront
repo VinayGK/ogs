@@ -6,11 +6,12 @@
     Pressure-coupled RichardsMechanics bridge that keeps the verified
     ModCamClay_semiExpl_constE mechanical and saturation surface, while also
     carrying the notebook microstate variables n_l, rho_lR, epsilon_sw, phi_m,
-    phi_M, mu_lR, and rho_l_hat as persistent auxiliary state. The returned
-    saturation matches either the verified MCC bridge or, when explicitly
-    enabled, the notebook Tuller law. The returned effective stress also
-    includes the notebook isotropic swelling correction driven by the updated
-    microstate.
+    phi_M, mu_lR, rho_l_hat, phi, n_S, n_L, rho_LR, omega_l,
+    delta_epsilon_sw, and sigma_S as persistent notebook support state. The
+    returned saturation matches either the verified MCC bridge or, when
+    explicitly enabled, the notebook Tuller law. The returned effective stress
+    also includes the notebook isotropic swelling correction driven by the
+    updated microstate.
 }
 
 @Theta 1.0;
@@ -63,11 +64,32 @@ phi_m.setEntryName("phi_m");
 @AuxiliaryStateVariable real phi_M;
 phi_M.setEntryName("phi_M");
 
+@AuxiliaryStateVariable real phi_value;
+phi_value.setEntryName("phi");
+
+@AuxiliaryStateVariable real n_S_value;
+n_S_value.setEntryName("n_S");
+
+@AuxiliaryStateVariable real n_L_value;
+n_L_value.setEntryName("n_L");
+
+@AuxiliaryStateVariable real rho_LR_value;
+rho_LR_value.setEntryName("rho_LR");
+
+@AuxiliaryStateVariable real omega_l_value;
+omega_l_value.setEntryName("omega_l");
+
 @AuxiliaryStateVariable real mu_lR_value;
 mu_lR_value.setEntryName("mu_lR");
 
 @AuxiliaryStateVariable real rho_l_hat_value;
 rho_l_hat_value.setEntryName("rho_l_hat");
+
+@AuxiliaryStateVariable real delta_epsilon_sw_value;
+delta_epsilon_sw_value.setEntryName("delta_epsilon_sw");
+
+@AuxiliaryStateVariable Stensor sigma_S_value;
+sigma_S_value.setEntryName("sigma_S");
 
 @Parameter stress pamb = 1e+3;
 @PhysicalBounds pamb in [0:*[;
@@ -173,6 +195,7 @@ phi0.setEntryName("InitialPorosity");
 @LocalVariable real dn_l_dp_trial;
 @LocalVariable bool use_notebook_saturation;
 @LocalVariable real tuller_capillary_prefactor;
+@LocalVariable real notebook_support_saturation_trial_value;
 
 @TangentOperatorBlocks{∂σ∕∂Δεᵗᵒ, ∂σ∕∂Δpᴸᴿ, ∂Sᴸ∕∂Δεᵗᵒ, ∂Sᴸ∕∂Δpᴸᴿ};
 
@@ -211,6 +234,7 @@ phi0.setEntryName("InitialPorosity");
                        ? saturation_notebook(pᴸᴿ + Δpᴸᴿ)
                        : Sₑ(-(pᴸᴿ + Δpᴸᴿ)) * (1.0 - Sᴳʳ - Sᴸʳ) + Sᴸʳ;
     Sᴸ = use_notebook_saturation ? S : std::clamp(S, Sᴸʳ, 1.0 - Sᴳʳ);
+    notebook_support_saturation_trial_value = saturation_notebook(pᴸᴿ + Δpᴸᴿ);
 
     tfel::raise_if(la < ka, "Invalid parameters: la<ka");
     M² = M * M;
@@ -784,8 +808,15 @@ phi0.setEntryName("InitialPorosity");
     epsilon_sw += epsilon_sw_increment_trial;
     phi_m = phi_m_trial_value;
     phi_M = phi_M_trial_value;
+    phi_value = phi_m + phi_M;
+    n_S_value = 1.0 - phi_value;
+    n_L_value = phi_M * notebook_support_saturation_trial_value;
+    rho_LR_value = rho_LR_ref;
+    omega_l_value = n_l * rho_lR / (n_S_value * rho_SR);
     mu_lR_value = mu_lR_trial_value;
     rho_l_hat_value = rho_l_hat_trial_value;
+    delta_epsilon_sw_value = epsilon_sw_increment_trial;
+    sigma_S_value = -K * epsilon_sw * I₂;
 }
 
 @AdditionalConvergenceChecks

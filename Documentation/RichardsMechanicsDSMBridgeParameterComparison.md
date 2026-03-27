@@ -29,6 +29,8 @@ In the current verified hybrid step:
   the swelling correction
 - the returned saturation law is still intentionally kept equal to the
   verified MCC carrier surface
+- the hybrid now also exposes the notebook support-state outputs `phi`, `n_S`,
+  `n_L`, `rho_LR`, `omega_l`, `delta_epsilon_sw`, and `sigma_S`
 
 ## Files compared
 
@@ -238,6 +240,20 @@ and also stores notebook auxiliary-state inputs
 - `CharacteristicPoreSize`
 - `SurfaceTension`
 - `InitialPorosity`
+
+The widened hybrid bridge now exposes these notebook support-state outputs too:
+
+- `phi`
+- `n_S`
+- `n_L`
+- `rho_LR`
+- `omega_l`
+- `delta_epsilon_sw`
+- `sigma_S`
+
+Those support-state outputs are locked against the committed notebook baseline
+histories in
+[RichardsMechanicsNotebookBridgeMCC.cpp](../Tests/MaterialLib/MFront/RichardsMechanicsNotebookBridgeMCC.cpp).
 - `n_l0`
 - `rho_lR0`
 - `epsilon_sw0`

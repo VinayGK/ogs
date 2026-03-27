@@ -11,20 +11,26 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #include "BaseLib/ConfigTree.h"
+#include "InfoLib/TestInfo.h"
 #include "MaterialLib/SolidModels/CreateConstitutiveRelation.h"
+#include "MaterialLib/SolidModels/MFront/MFrontGeneric.h"
 #include "ParameterLib/ConstantParameter.h"
 #include "Tests/TestTools.h"
 
 namespace MPL = MaterialPropertyLib;
+namespace MSM = MaterialLib::Solids::MFront;
 using KV = MathLib::KelvinVector::KelvinVectorType<3>;
 using MB = MaterialLib::Solids::MechanicsBase<3>;
 
@@ -79,6 +85,54 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
     add_param("n_l0", n_l0);
     add_param("rho_lR0", rho_lR0);
     add_param("epsilon_sw0", epsilon_sw0);
+
+    return parameters;
+}
+
+std::vector<std::unique_ptr<ParameterLib::ParameterBase>>
+createNotebookSupportParameters(double const notebook_saturation_mode = 0.0)
+{
+    std::vector<std::unique_ptr<ParameterLib::ParameterBase>> parameters;
+
+    auto add_param = [&parameters](char const* name, double const value)
+    {
+        parameters.push_back(
+            std::make_unique<ParameterLib::ConstantParameter<double>>(name,
+                                                                      value));
+    };
+
+    // Use the original notebook support-state settings for the auxiliary
+    // surface, while keeping the MCC carrier mechanically stable.
+    add_param("YoungModulus", 1e10);
+    add_param("PoissonRatio", 0.25);
+    add_param("CriticalStateLineSlope", 1.2);
+    add_param("SwellingLineSlope", 6.6e-3);
+    add_param("VirginConsolidationLineSlope", 7.7e-2);
+    add_param("InitialPreConsolidationPressure", 1e9);
+    add_param("InitialVolumeRatio", 1.7857142857142858);
+    add_param("ResidualLiquidSaturation", 0.0);
+    add_param("ResidualGasSaturation", 0.0);
+    add_param("BubblePressure", 1e4);
+    add_param("VanGenuchtenExponent_m", 0.4);
+    add_param("NotebookSaturationMode", notebook_saturation_mode);
+
+    add_param("SwellingSlope", 0.1);
+    add_param("MassExchangeCoefficient", 1.0);
+    add_param("ReferenceLiquidDensityMacro", 1000.0);
+    add_param("ReferenceLiquidDensityMicro", 1300.0);
+    add_param("ReferenceDensitySolid", 2470.0);
+    add_param("MicroLiquidDensityA", 1.3);
+    add_param("MicroLiquidDensityB", 1.0);
+    add_param("HamakerConstant", -6e-20);
+    add_param("SpecificSurface", 100.0);
+    add_param("AreaFactorTuller", 1.0);
+    add_param("PoreAreaShapeFactorTuller", 0.8584073464102069);
+    add_param("CharacteristicPoreSize", 1e-5);
+    add_param("SurfaceTension", 0.0715);
+    add_param("InitialPorosity", 0.2);
+    add_param("n_l0", 0.1);
+    add_param("rho_lR0", 1300.0);
+    add_param("epsilon_sw0", 0.0);
 
     return parameters;
 }
@@ -223,6 +277,42 @@ std::vector<double> getInternalVector(MB const& model,
     return {values.begin(), values.end()};
 }
 
+void setInternalScalar(MB const& model,
+                       MB::MaterialStateVariables& state,
+                       std::string const& name,
+                       double const value)
+{
+    auto const internal_variables = model.getInternalVariables();
+    auto const it = std::find_if(
+        internal_variables.begin(), internal_variables.end(),
+        [&name](auto const& internal_variable)
+        { return internal_variable.name == name; });
+
+    ASSERT_TRUE(it != internal_variables.end()) << name;
+    auto values = it->reference(state);
+    ASSERT_EQ(values.size(), 1u);
+    values[0] = value;
+}
+
+void setNotebookMCCThermodynamicForces(MB::MaterialStateVariables& state,
+                                       KV const& stress,
+                                       double const saturation)
+{
+    auto* const mfront_state =
+        dynamic_cast<MSM::MaterialStateVariablesMFront<3>*>(&state);
+    ASSERT_TRUE(mfront_state != nullptr);
+
+    auto& thermodynamic_forces =
+        mfront_state->_behaviour_data.s1.thermodynamic_forces;
+    thermodynamic_forces[0] = stress[0];
+    thermodynamic_forces[1] = stress[1];
+    thermodynamic_forces[2] = stress[2];
+    thermodynamic_forces[3] = stress[3];
+    thermodynamic_forces[4] = stress[4];
+    thermodynamic_forces[5] = stress[5];
+    thermodynamic_forces[6] = saturation;
+}
+
 KV notebookMCCIsotropicStress(double const value)
 {
     KV sigma = KV::Zero();
@@ -279,6 +369,122 @@ double notebookTullerDSaturationDLiquidPressure(double const liquid_pressure)
     double const inv_p = 1.0 / liquid_pressure;
     double const exp_term = std::exp(-prefactor * inv_p * inv_p);
     return -2.0 * prefactor * exp_term * inv_p * inv_p * inv_p;
+}
+
+std::string notebookMCCStripQuotes(std::string value)
+{
+    value.erase(0, value.find_first_not_of(" \t\r\n\""));
+    value.erase(value.find_last_not_of(" \t\r\n\"") + 1);
+    return value;
+}
+
+std::vector<std::string> notebookMCCSplitCommaLine(std::string const& line)
+{
+    std::stringstream ss(line);
+    std::string field;
+    std::vector<std::string> fields;
+    while (std::getline(ss, field, ','))
+    {
+        fields.push_back(notebookMCCStripQuotes(field));
+    }
+    return fields;
+}
+
+struct NotebookSupportBaselineRow
+{
+    int step = 0;
+    double pressure = 0.0;
+    double epsilon_v_total = 0.0;
+    double saturation = 0.0;
+    double n_l = 0.0;
+    double phi_m = 0.0;
+    double phi_M = 0.0;
+    double phi = 0.0;
+    double n_S = 0.0;
+    double n_L = 0.0;
+    double rho_lR = 0.0;
+    double rho_LR = 0.0;
+    double omega_l = 0.0;
+    double mu_lR = 0.0;
+    double rho_l_hat = 0.0;
+    double delta_epsilon_sw = 0.0;
+    double epsilon_sw = 0.0;
+    double sigma_S_xx = 0.0;
+};
+
+std::vector<NotebookSupportBaselineRow> loadNotebookSupportBaselineRows(
+    std::string const& filename)
+{
+    std::ifstream in(filename);
+    EXPECT_TRUE(in.good()) << filename;
+
+    std::string header_line;
+    std::getline(in, header_line);
+    auto const headers = notebookMCCSplitCommaLine(header_line);
+
+    std::unordered_map<std::string, std::size_t> column;
+    for (std::size_t i = 0; i < headers.size(); ++i)
+    {
+        column[headers[i]] = i;
+    }
+
+    auto const get_value = [&](std::vector<std::string> const& fields,
+                               std::string const& key) -> double
+    { return std::stod(fields.at(column.at(key))); };
+
+    auto const get_optional_value = [&](std::vector<std::string> const& fields,
+                                        std::string const& key,
+                                        double const default_value) -> double
+    {
+        auto const it = column.find(key);
+        if (it == column.end())
+        {
+            return default_value;
+        }
+        return std::stod(fields.at(it->second));
+    };
+
+    std::vector<NotebookSupportBaselineRow> rows;
+    std::string line;
+    while (std::getline(in, line))
+    {
+        if (line.empty())
+        {
+            continue;
+        }
+
+        auto const fields = notebookMCCSplitCommaLine(line);
+        NotebookSupportBaselineRow row;
+        row.step = static_cast<int>(get_value(fields, "step"));
+        row.pressure = get_value(fields, "pressure");
+        row.epsilon_v_total =
+            get_optional_value(fields, "epsilon_v_total", 0.0);
+        row.saturation = get_value(fields, "S_L");
+        row.n_l = get_value(fields, "n_l");
+        row.phi_m = get_value(fields, "phi_m");
+        row.phi_M = get_value(fields, "phi_M");
+        row.phi = get_value(fields, "phi");
+        row.n_S = get_value(fields, "n_S");
+        row.n_L = get_value(fields, "n_L");
+        row.rho_lR = get_value(fields, "rho_lR");
+        row.rho_LR = get_value(fields, "rho_LR");
+        row.omega_l = get_value(fields, "omega_l");
+        row.mu_lR = get_value(fields, "mu_lR");
+        row.rho_l_hat = get_value(fields, "rho_l_hat");
+        row.delta_epsilon_sw = get_value(fields, "delta_epsilon_sw");
+        row.epsilon_sw = get_value(fields, "epsilon_sw");
+        row.sigma_S_xx = get_value(fields, "sigma_S_xx");
+        rows.push_back(row);
+    }
+
+    return rows;
+}
+
+double notebookMCCScaledTolerance(double const value,
+                                  double const relative = 1e-8,
+                                  double const absolute = 1e-12)
+{
+    return absolute + relative * std::max(1.0, std::abs(value));
 }
 }  // namespace
 
@@ -592,6 +798,268 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
     EXPECT_NEAR(saturated_response->saturation, 1.0, 1e-15);
     EXPECT_NEAR(saturated_response->dSaturation_dLiquidPressure, 0.0, 1e-15);
     EXPECT_TRUE(saturated_response->dSaturation_dStrain.isZero(1e-12));
+}
+
+TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+     NotebookSupportStateMatchesOverlapTransferBaseline)
+{
+    auto const baseline_rows = loadNotebookSupportBaselineRows(
+        TestInfoLib::TestInfo::data_path +
+        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+    ASSERT_EQ(baseline_rows.size(), 5);
+
+    auto parameters = createNotebookSupportParameters();
+    auto notebook_mcc = createNotebookMCCModel(parameters);
+
+    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    initializeState(*notebook_mcc, *notebook_state);
+
+    ParameterLib::SpatialPosition x{};
+
+    MPL::VariableArray previous;
+    previous.mechanical_strain.emplace<KV>(KV::Zero());
+    previous.stress.emplace<KV>(KV::Zero());
+    previous.liquid_phase_pressure = 0.0;
+    previous.liquid_saturation = 1.0;
+    previous.temperature = 293.15;
+
+    for (auto const& row : baseline_rows)
+    {
+        MPL::VariableArray current = previous;
+        current.liquid_phase_pressure = row.pressure;
+
+        auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
+            previous, current, static_cast<double>(row.step + 1), x, 1.0,
+            *notebook_state);
+
+        ASSERT_TRUE(notebook_response);
+        ASSERT_TRUE(notebook_response->state);
+
+        auto const n_l =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_l");
+        auto const phi_m =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_m");
+        auto const phi_M =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_M");
+        auto const phi =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi");
+        auto const n_S =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_S");
+        auto const n_L =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_L");
+        auto const rho_lR =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "rho_lR");
+        auto const rho_LR =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "rho_LR");
+        auto const omega_l =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "omega_l");
+        auto const mu_lR =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "mu_lR");
+        auto const rho_l_hat =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "rho_l_hat");
+        auto const delta_epsilon_sw = getInternalScalar(
+            *notebook_mcc, *notebook_response->state, "delta_epsilon_sw");
+        auto const epsilon_sw = getInternalScalar(
+            *notebook_mcc, *notebook_response->state, "epsilon_sw");
+        auto const sigma_S =
+            getInternalVector(*notebook_mcc, *notebook_response->state,
+                              "sigma_S");
+
+        EXPECT_NEAR(notebook_response->saturation, row.saturation,
+                    notebookMCCScaledTolerance(row.saturation));
+        EXPECT_NEAR(n_l, row.n_l,
+                    notebookMCCScaledTolerance(row.n_l, 5e-3, 1e-8));
+        EXPECT_NEAR(phi_m, row.phi_m,
+                    notebookMCCScaledTolerance(row.phi_m, 5e-3, 1e-8));
+        EXPECT_NEAR(phi_M, row.phi_M,
+                    notebookMCCScaledTolerance(row.phi_M, 5e-3, 1e-8));
+        EXPECT_NEAR(phi, row.phi,
+                    notebookMCCScaledTolerance(row.phi, 1e-12, 1e-12));
+        EXPECT_NEAR(n_S, row.n_S,
+                    notebookMCCScaledTolerance(row.n_S, 1e-12, 1e-12));
+        EXPECT_NEAR(n_L, row.n_L,
+                    notebookMCCScaledTolerance(row.n_L, 5e-3, 1e-8));
+        EXPECT_NEAR(rho_lR, row.rho_lR,
+                    notebookMCCScaledTolerance(row.rho_lR, 1e-3, 1e-6));
+        EXPECT_NEAR(rho_LR, row.rho_LR,
+                    notebookMCCScaledTolerance(row.rho_LR, 1e-12, 1e-12));
+        EXPECT_NEAR(omega_l, row.omega_l,
+                    notebookMCCScaledTolerance(row.omega_l, 5e-3, 1e-8));
+        EXPECT_NEAR(mu_lR, row.mu_lR,
+                    notebookMCCScaledTolerance(row.mu_lR, 1e-2, 1e-8));
+        EXPECT_NEAR(rho_l_hat, row.rho_l_hat,
+                    notebookMCCScaledTolerance(row.rho_l_hat, 1e-2, 1e-8));
+        EXPECT_NEAR(delta_epsilon_sw, row.delta_epsilon_sw,
+                    notebookMCCScaledTolerance(row.delta_epsilon_sw, 5e-3,
+                                               1e-8));
+        EXPECT_NEAR(epsilon_sw, row.epsilon_sw,
+                    notebookMCCScaledTolerance(row.epsilon_sw, 5e-3, 1e-8));
+        ASSERT_EQ(sigma_S.size(), 6u);
+        EXPECT_NEAR(sigma_S[0], row.sigma_S_xx,
+                    notebookMCCScaledTolerance(row.sigma_S_xx, 5e-3, 1e-6));
+        EXPECT_NEAR(sigma_S[1], row.sigma_S_xx,
+                    notebookMCCScaledTolerance(row.sigma_S_xx, 5e-3, 1e-6));
+        EXPECT_NEAR(sigma_S[2], row.sigma_S_xx,
+                    notebookMCCScaledTolerance(row.sigma_S_xx, 5e-3, 1e-6));
+        EXPECT_NEAR(sigma_S[3], 0.0, 1e-12);
+        EXPECT_NEAR(sigma_S[4], 0.0, 1e-12);
+        EXPECT_NEAR(sigma_S[5], 0.0, 1e-12);
+
+        notebook_state = std::move(notebook_response->state);
+        notebook_state->pushBackState();
+
+        previous = current;
+        previous.stress.emplace<KV>(notebook_response->stress);
+        previous.liquid_saturation = notebook_response->saturation;
+    }
+}
+
+TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+     NotebookSupportStateMatchesStrainCoupledBaseline)
+{
+    auto const overlap_rows = loadNotebookSupportBaselineRows(
+        TestInfoLib::TestInfo::data_path +
+        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+    auto const strain_rows = loadNotebookSupportBaselineRows(
+        TestInfoLib::TestInfo::data_path +
+        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_strain_coupled_overlap_baseline.csv");
+    ASSERT_EQ(overlap_rows.size(), 5);
+    ASSERT_EQ(strain_rows.size(), 5);
+    auto const& anchor = overlap_rows.back();
+
+    auto parameters = createNotebookSupportParameters();
+    auto notebook_mcc = createNotebookMCCModel(parameters);
+
+    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    initializeState(*notebook_mcc, *notebook_state);
+    setInternalScalar(*notebook_mcc, *notebook_state, "n_l", anchor.n_l);
+    setInternalScalar(*notebook_mcc, *notebook_state, "rho_lR", anchor.rho_lR);
+    setInternalScalar(*notebook_mcc, *notebook_state, "epsilon_sw",
+                      anchor.epsilon_sw);
+
+    KV anchor_stress = KV::Zero();
+    anchor_stress[0] = anchor.sigma_S_xx;
+    anchor_stress[1] = anchor.sigma_S_xx;
+    anchor_stress[2] = anchor.sigma_S_xx;
+    setNotebookMCCThermodynamicForces(*notebook_state, anchor_stress,
+                                      anchor.saturation);
+    notebook_state->pushBackState();
+
+    ParameterLib::SpatialPosition x{};
+
+    MPL::VariableArray previous;
+    previous.mechanical_strain.emplace<KV>(KV::Zero());
+    previous.stress.emplace<KV>(anchor_stress);
+    previous.liquid_phase_pressure = anchor.pressure;
+    previous.liquid_saturation = anchor.saturation;
+    previous.temperature = 293.15;
+
+    for (auto const& row : strain_rows)
+    {
+        MPL::VariableArray current = previous;
+        current.liquid_phase_pressure = row.pressure;
+        current.mechanical_strain.emplace<KV>(
+            notebookMCCIsotropicStrainFromVolumetric(row.epsilon_v_total));
+
+        auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
+            previous, current, static_cast<double>(row.step + 1), x, 1.0,
+            *notebook_state);
+
+        ASSERT_TRUE(notebook_response);
+        ASSERT_TRUE(notebook_response->state);
+
+        auto const n_l =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_l");
+        auto const phi_m =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_m");
+        auto const phi_M =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_M");
+        auto const phi =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi");
+        auto const n_S =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_S");
+        auto const n_L =
+            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_L");
+        auto const rho_lR =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "rho_lR");
+        auto const rho_LR =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "rho_LR");
+        auto const omega_l =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "omega_l");
+        auto const mu_lR =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "mu_lR");
+        auto const rho_l_hat =
+            getInternalScalar(*notebook_mcc, *notebook_response->state,
+                              "rho_l_hat");
+        auto const delta_epsilon_sw = getInternalScalar(
+            *notebook_mcc, *notebook_response->state, "delta_epsilon_sw");
+        auto const epsilon_sw = getInternalScalar(
+            *notebook_mcc, *notebook_response->state, "epsilon_sw");
+        auto const sigma_S =
+            getInternalVector(*notebook_mcc, *notebook_response->state,
+                              "sigma_S");
+
+        EXPECT_NEAR(notebook_response->saturation, row.saturation,
+                    notebookMCCScaledTolerance(row.saturation));
+        EXPECT_NEAR(n_l, row.n_l,
+                    notebookMCCScaledTolerance(row.n_l, 5e-3, 1e-8));
+        EXPECT_NEAR(phi_m, row.phi_m,
+                    notebookMCCScaledTolerance(row.phi_m, 5e-3, 1e-8));
+        EXPECT_NEAR(phi_M, row.phi_M,
+                    notebookMCCScaledTolerance(row.phi_M, 5e-3, 1e-8));
+        EXPECT_NEAR(phi, row.phi,
+                    notebookMCCScaledTolerance(row.phi, 1e-12, 1e-12));
+        EXPECT_NEAR(n_S, row.n_S,
+                    notebookMCCScaledTolerance(row.n_S, 1e-12, 1e-12));
+        EXPECT_NEAR(n_L, row.n_L,
+                    notebookMCCScaledTolerance(row.n_L, 5e-3, 1e-8));
+        EXPECT_NEAR(rho_lR, row.rho_lR,
+                    notebookMCCScaledTolerance(row.rho_lR, 1e-3, 1e-6));
+        EXPECT_NEAR(rho_LR, row.rho_LR,
+                    notebookMCCScaledTolerance(row.rho_LR, 1e-12, 1e-12));
+        EXPECT_NEAR(omega_l, row.omega_l,
+                    notebookMCCScaledTolerance(row.omega_l, 5e-3, 1e-8));
+        EXPECT_NEAR(mu_lR, row.mu_lR,
+                    notebookMCCScaledTolerance(row.mu_lR, 1e-2, 1e-8));
+        EXPECT_NEAR(rho_l_hat, row.rho_l_hat,
+                    notebookMCCScaledTolerance(row.rho_l_hat, 1e-2, 1e-8));
+        EXPECT_NEAR(delta_epsilon_sw, row.delta_epsilon_sw,
+                    notebookMCCScaledTolerance(row.delta_epsilon_sw, 5e-3,
+                                               1e-8));
+        EXPECT_NEAR(epsilon_sw, row.epsilon_sw,
+                    notebookMCCScaledTolerance(row.epsilon_sw, 5e-3, 1e-8));
+        double const bulk_modulus = 1e10 / (3.0 * (1.0 - 2.0 * 0.25));
+        double const expected_sigma_S_xx = -bulk_modulus * row.epsilon_sw;
+        ASSERT_EQ(sigma_S.size(), 6u);
+        EXPECT_NEAR(sigma_S[0], expected_sigma_S_xx,
+                    notebookMCCScaledTolerance(expected_sigma_S_xx, 5e-3,
+                                               1e-6));
+        EXPECT_NEAR(sigma_S[1], expected_sigma_S_xx,
+                    notebookMCCScaledTolerance(expected_sigma_S_xx, 5e-3,
+                                               1e-6));
+        EXPECT_NEAR(sigma_S[2], expected_sigma_S_xx,
+                    notebookMCCScaledTolerance(expected_sigma_S_xx, 5e-3,
+                                               1e-6));
+        EXPECT_NEAR(sigma_S[3], 0.0, 1e-12);
+        EXPECT_NEAR(sigma_S[4], 0.0, 1e-12);
+        EXPECT_NEAR(sigma_S[5], 0.0, 1e-12);
+
+        notebook_state = std::move(notebook_response->state);
+        notebook_state->pushBackState();
+
+        previous = current;
+        previous.stress.emplace<KV>(notebook_response->stress);
+        previous.liquid_saturation = notebook_response->saturation;
+    }
 }
 
 #endif  // OGS_USE_MFRONT

@@ -900,6 +900,40 @@ What remains open later:
 - notebook-owned non-neutral widening beyond the current Tuller saturation
   branch and swelling-stress correction
 
+### WP11: Expose notebook support state on the hybrid MCC bridge
+
+Status:
+
+- complete
+
+Delivered result:
+
+- widen `RichardsMechanicsNotebookBridge_MCC` so it exposes the notebook
+  support-state outputs `phi`, `n_S`, `n_L`, `rho_LR`, `omega_l`,
+  `delta_epsilon_sw`, and `sigma_S`
+- keep these outputs notebook-owned even when the returned RM carrier
+  saturation stays on the verified MCC surface
+- reuse the committed notebook overlap-transfer and anchored strain-coupled
+  baseline CSVs as the direct support-state reference surface
+
+Delivered tests:
+
+- `MaterialLib_RMBridgeMFront_NotebookMCC.NotebookSupportStateMatchesOverlapTransferBaseline`
+- `MaterialLib_RMBridgeMFront_NotebookMCC.NotebookSupportStateMatchesStrainCoupledBaseline`
+
+Current verified boundary:
+
+- the hybrid bridge now exposes the full notebook support state needed by the
+  committed notebook overlap-transfer and strain-coupled histories
+- the direct notebook support-state regressions are green
+- the reduced and benchmark notebook-MCC compare CTests remain green after the
+  widening step
+
+What remains open later:
+
+- notebook-owned non-neutral widening beyond the current support-state,
+  swelling-stress, and Tuller-saturation steps
+
 ## Generated parity and benchmark files
 
 These are the generated project and compare files that define the current
