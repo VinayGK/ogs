@@ -84,7 +84,7 @@
             <mass_lumping>true</mass_lumping>
         </process>
     </processes>
-       <media>
+    <media>
         <medium>
             <phases>
                 <phase>
@@ -141,22 +141,22 @@
                 </property>
                 <property>
                     <name>saturation</name>
-                    <type>SaturationVanGenuchten</type>
-                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
-                    <residual_gas_saturation>0</residual_gas_saturation>
-                    <exponent>0.4</exponent>
-                    <p_b>1e4</p_b>
+                    <type>SaturationTuller</type>
+                    <area_factor_tuller>1.0</area_factor_tuller>
+                    <pore_area_shape_factor_tuller>0.8584073464102069</pore_area_shape_factor_tuller>
+                    <characteristic_pore_size>1e-5</characteristic_pore_size>
+                    <surface_tension>0.0715</surface_tension>
                 </property>
                 <property>
                     <name>bishops_effective_stress</name>
-                    <type>BishopsPowerLaw</type>
-                    <exponent>1</exponent>
+                    <type>BishopsSaturationCutoff</type>
+                    <cutoff_value>1</cutoff_value>
                 </property>
-                     <property>
-                            <name>biot_coefficient</name>
-                            <type>Constant</type>
-                            <value>1.0</value>
-                        </property>
+                <property>
+                    <name>biot_coefficient</name>
+                    <type>Constant</type>
+                    <value>1.0</value>
+                </property>
             </properties>
         </medium>
     </media>
@@ -173,25 +173,26 @@
                     <type>BackwardEuler</type>
                 </time_discretization>
                 <time_stepping>
-                    <type>IterationNumberBasedTimeStepping</type>
+                    <type>FixedTimeStepping</type>
                     <t_initial>0</t_initial>
                     <t_end>1000</t_end>
-                    <initial_dt>1000</initial_dt>
-                    <minimum_dt>100</minimum_dt>
-                    <maximum_dt>1000</maximum_dt>
-                    <number_iterations>1   5   10   15</number_iterations>
-                    <multiplier>1.2 1.0 0.8 0.6</multiplier>
+                    <timesteps>
+                        <pair>
+                            <repeat>1000</repeat>
+                            <delta_t>1</delta_t>
+                        </pair>
+                    </timesteps>
                 </time_stepping>
             </process>
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>mfront_restart_part1_notebook_mcc_bridge</prefix>
+            <prefix>mfront_restart_part1_notebook_mcc_tuller_bridge</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
             <timesteps>
                 <pair>
                     <repeat>1</repeat>
-                    <each_steps>1</each_steps>
+                    <each_steps>1000</each_steps>
                 </pair>
             </timesteps>
             <variables>
@@ -199,7 +200,6 @@
         </output>
     </time_loop>
     <parameters>
-        <!--Modified Cam clay parameters-->
         <parameter>
             <name>sigma0</name>
             <type>Function</type>
@@ -211,7 +211,7 @@
         <parameter>
             <name>YoungModulus</name>
             <type>Constant</type>
-            <value>52e6</value><!--Pa-->
+            <value>52e6</value>
         </parameter>
         <parameter>
             <name>PoissonRatio</name>
@@ -266,7 +266,7 @@
         <parameter>
             <name>NotebookSaturationMode</name>
             <type>Constant</type>
-            <value>0.0</value>
+            <value>1.0</value>
         </parameter>
         <parameter>
             <name>NotebookSwellingSlope</name>
@@ -348,7 +348,6 @@
             <type>Constant</type>
             <value>0.0</value>
         </parameter>
-        <!-- Initial and boundary values -->
         <parameter>
             <name>displacement0</name>
             <type>Constant</type>
@@ -362,7 +361,7 @@
         <parameter>
             <name>phi0</name>
             <type>Constant</type>
-            <value>0.432</value> <!-- TODO 0.44-->
+            <value>0.432</value>
         </parameter>
         <parameter>
             <name>top_pressure</name>
@@ -382,28 +381,24 @@
             <order>1</order>
             <initial_condition>displacement0</initial_condition>
             <boundary_conditions>
-                <!--fix left in radial direction-->
                 <boundary_condition>
                     <mesh>square_1x1_quad_1e0_left</mesh>
                     <type>Dirichlet</type>
                     <component>0</component>
                     <parameter>zero</parameter>
                 </boundary_condition>
-                <!--fix bottom in axial direction-->
                 <boundary_condition>
                     <mesh>square_1x1_quad_1e0_bottom</mesh>
                     <type>Dirichlet</type>
                     <component>1</component>
                     <parameter>zero</parameter>
                 </boundary_condition>
-                <!--compression in axial direction -->
                 <boundary_condition>
                     <mesh>square_1x1_quad_1e0_top</mesh>
                     <type>Neumann</type>
                     <component>1</component>
                     <parameter>top_pressure</parameter>
                 </boundary_condition>
-                <!--compression in -radial direction-->
                 <boundary_condition>
                     <mesh>square_1x1_quad_1e0_right</mesh>
                     <type>Dirichlet</type>
@@ -445,48 +440,4 @@
             </eigen>
         </linear_solver>
     </linear_solvers>
-    <test_definition>
-        <vtkdiff>
-            <regex>mfront_restart_part1_notebook_mcc_bridge_ts_.*_t_.*.vtu</regex>
-            <field>displacement</field>
-            <absolute_tolerance>2e-14</absolute_tolerance>
-            <relative_tolerance>0</relative_tolerance>
-        </vtkdiff>
-        <vtkdiff>
-            <regex>mfront_restart_part1_notebook_mcc_bridge_ts_.*_t_.*.vtu</regex>
-            <field>sigma</field>
-            <absolute_tolerance>1e-9</absolute_tolerance>
-            <relative_tolerance>0</relative_tolerance>
-        </vtkdiff>
-        <vtkdiff>
-            <regex>mfront_restart_part1_notebook_mcc_bridge_ts_.*_t_.*.vtu</regex>
-            <field>epsilon</field>
-            <absolute_tolerance>1e-15</absolute_tolerance>
-            <relative_tolerance>0</relative_tolerance>
-        </vtkdiff>
-        <vtkdiff>
-            <regex>mfront_restart_part1_notebook_mcc_bridge_ts_.*_t_.*.vtu</regex>
-            <field>pressure</field>
-            <absolute_tolerance>1e-15</absolute_tolerance>
-            <relative_tolerance>1e-15</relative_tolerance>
-        </vtkdiff>
-        <vtkdiff>
-            <regex>mfront_restart_part1_notebook_mcc_bridge_ts_.*_t_.*.vtu</regex>
-            <field>velocity</field>
-            <absolute_tolerance>1e-15</absolute_tolerance>
-            <relative_tolerance>1e-15</relative_tolerance>
-        </vtkdiff>
-        <vtkdiff>
-            <regex>mfront_restart_part1_notebook_mcc_bridge_ts_.*_t_.*.vtu</regex>
-            <field>MassFlowRate</field>
-            <absolute_tolerance>1e-15</absolute_tolerance>
-            <relative_tolerance>0</relative_tolerance>
-        </vtkdiff>
-        <vtkdiff>
-            <regex>mfront_restart_part1_notebook_mcc_bridge_ts_.*_t_.*.vtu</regex>
-            <field>NodalForces</field>
-            <absolute_tolerance>1e-10</absolute_tolerance>
-            <relative_tolerance>0</relative_tolerance>
-        </vtkdiff>
-    </test_definition>
 </OpenGeoSysProject>

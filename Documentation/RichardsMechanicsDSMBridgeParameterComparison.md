@@ -220,6 +220,7 @@ This hybrid bridge uses the active MCC carrier parameters
 - `ResidualGasSaturation`
 - `BubblePressure`
 - `VanGenuchtenExponent_m`
+- `NotebookSaturationMode`
 
 and also stores notebook auxiliary-state inputs
 
@@ -232,6 +233,10 @@ and also stores notebook auxiliary-state inputs
 - `MicroLiquidDensityB`
 - `HamakerConstant`
 - `SpecificSurface`
+- `AreaFactorTuller`
+- `PoreAreaShapeFactorTuller`
+- `CharacteristicPoreSize`
+- `SurfaceTension`
 - `InitialPorosity`
 - `n_l0`
 - `rho_lR0`
@@ -254,6 +259,46 @@ breaking the verified MCC carrier surface.
 That decision is now partially implemented:
 
 - stress-side notebook feedback is active in the hybrid bridge
-- saturation-side notebook feedback is still intentionally inactive
+- saturation-side notebook feedback is now also available in an optional
+  reduced-shell Tuller mode
+- the same notebook Tuller saturation branch is now also benchmark-compared on
+  the part-1 shell
 - the neutral benchmark shell for the hybrid bridge is now tested in
   [mfront_restart_part1_notebook_mcc_bridge.prj](../Tests/Data/RichardsMechanics/mfront_restart_part1_notebook_mcc_bridge.prj)
+
+The reduced same-law MCC + notebook saturation pair is now also tested in
+
+- [mfront_parity_1element_notebook_mcc_tuller_native.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_notebook_mcc_tuller_native.prj)
+- [mfront_parity_1element_notebook_mcc_tuller_bridge.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_notebook_mcc_tuller_bridge.prj)
+
+with the compare CTest
+
+- `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_compare`
+
+The benchmark same-law MCC + notebook saturation pair is now also tested in
+
+- [mfront_restart_part1_notebook_mcc_tuller_native.prj](../Tests/Data/RichardsMechanics/mfront_restart_part1_notebook_mcc_tuller_native.prj)
+- [mfront_restart_part1_notebook_mcc_tuller_bridge.prj](../Tests/Data/RichardsMechanics/mfront_restart_part1_notebook_mcc_tuller_bridge.prj)
+
+with the compare CTest
+
+- `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_compare`
+
+So the narrower remaining open question is now:
+
+- which notebook-owned non-neutral constitutive branches should be widened
+  beyond the now-tested Tuller saturation branch
+
+## What the new project files test
+
+| File | Purpose | Exact test meaning |
+| --- | --- | --- |
+| [mfront_parity_1element_notebook_mcc_tuller_native.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_notebook_mcc_tuller_native.prj) | Reduced native MCC shell with native MPL Tuller saturation | Native reduced reference for notebook-Tuller saturation on the one-element shell |
+| [mfront_parity_1element_notebook_mcc_tuller_bridge.prj](../Tests/Data/RichardsMechanics/mfront_parity_1element_notebook_mcc_tuller_bridge.prj) | Reduced hybrid bridge shell with `NotebookSaturationMode = 1` | Bridge reduced reference for the same notebook-Tuller saturation branch |
+| [mfront_restart_part1_notebook_mcc_tuller_native.prj](../Tests/Data/RichardsMechanics/mfront_restart_part1_notebook_mcc_tuller_native.prj) | Native benchmark part-1 MCC shell with native MPL Tuller saturation | Native benchmark reference for the notebook-Tuller saturation branch on the full part-1 load scale |
+| [mfront_restart_part1_notebook_mcc_tuller_bridge.prj](../Tests/Data/RichardsMechanics/mfront_restart_part1_notebook_mcc_tuller_bridge.prj) | Hybrid bridge benchmark part-1 shell with `NotebookSaturationMode = 1` and neutral notebook swelling/mass exchange | Bridge benchmark reference for the same notebook-Tuller saturation branch |
+
+For the benchmark Tuller pair, the same native part-1 geometry and load range
+are kept, but the branch is substepped with fixed `\Delta t = 1` and only the
+start and end states are compared. That keeps the benchmark-scale load path
+while making the non-neutral saturation branch loadable on both sides.

@@ -35,7 +35,8 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
                             double const mass_exchange_coefficient = 0.0,
                             double const n_l0 = 0.1,
                             double const rho_lR0 = 1300.0,
-                            double const epsilon_sw0 = 0.0)
+                            double const epsilon_sw0 = 0.0,
+                            double const notebook_saturation_mode = 0.0)
 {
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> parameters;
 
@@ -57,6 +58,7 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
     add_param("ResidualGasSaturation", 0.0);
     add_param("BubblePressure", 1e4);
     add_param("VanGenuchtenExponent_m", 0.4);
+    add_param("NotebookSaturationMode", notebook_saturation_mode);
 
     // Neutral first-step notebook coupling: state is updated and visible, but
     // the verified MCC stress/saturation surface stays unchanged.
@@ -69,6 +71,10 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
     add_param("MicroLiquidDensityB", 1.0);
     add_param("HamakerConstant", -6e-20);
     add_param("SpecificSurface", 100.0);
+    add_param("AreaFactorTuller", 1.0);
+    add_param("PoreAreaShapeFactorTuller", 0.8584073464102069);
+    add_param("CharacteristicPoreSize", 1e-5);
+    add_param("SurfaceTension", 0.0715);
     add_param("InitialPorosity", 0.432);
     add_param("n_l0", n_l0);
     add_param("rho_lR0", rho_lR0);
@@ -138,6 +144,7 @@ std::unique_ptr<MB> createNotebookMCCModel(
             <material_property name="ResidualGasSaturation" parameter="ResidualGasSaturation"/>
             <material_property name="BubblePressure" parameter="BubblePressure"/>
             <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
+            <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
             <material_property name="SwellingSlope" parameter="SwellingSlope"/>
             <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
             <material_property name="ReferenceLiquidDensityMacro" parameter="ReferenceLiquidDensityMacro"/>
@@ -147,6 +154,10 @@ std::unique_ptr<MB> createNotebookMCCModel(
             <material_property name="MicroLiquidDensityB" parameter="MicroLiquidDensityB"/>
             <material_property name="HamakerConstant" parameter="HamakerConstant"/>
             <material_property name="SpecificSurface" parameter="SpecificSurface"/>
+            <material_property name="AreaFactorTuller" parameter="AreaFactorTuller"/>
+            <material_property name="PoreAreaShapeFactorTuller" parameter="PoreAreaShapeFactorTuller"/>
+            <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize"/>
+            <material_property name="SurfaceTension" parameter="SurfaceTension"/>
             <material_property name="InitialPorosity" parameter="InitialPorosity"/>
         </material_properties>
         <initial_values>
@@ -228,6 +239,46 @@ KV notebookMCCIsotropicStrainFromVolumetric(double const epsilon_v)
     eps[1] = epsilon_v / 3.0;
     eps[2] = epsilon_v / 3.0;
     return eps;
+}
+
+double notebookTullerSaturation(double const liquid_pressure)
+{
+    if (liquid_pressure >= -1e-12)
+    {
+        return 1.0;
+    }
+
+    constexpr double area_factor_tuller = 1.0;
+    constexpr double pore_area_shape_factor_tuller = 0.8584073464102069;
+    constexpr double characteristic_pore_size = 1e-5;
+    constexpr double surface_tension = 0.0715;
+
+    double const prefactor =
+        4.0 * pore_area_shape_factor_tuller * surface_tension * surface_tension /
+        (area_factor_tuller * characteristic_pore_size *
+         characteristic_pore_size);
+    return 1.0 - std::exp(-prefactor / (liquid_pressure * liquid_pressure));
+}
+
+double notebookTullerDSaturationDLiquidPressure(double const liquid_pressure)
+{
+    if (liquid_pressure >= -1e-12)
+    {
+        return 0.0;
+    }
+
+    constexpr double area_factor_tuller = 1.0;
+    constexpr double pore_area_shape_factor_tuller = 0.8584073464102069;
+    constexpr double characteristic_pore_size = 1e-5;
+    constexpr double surface_tension = 0.0715;
+
+    double const prefactor =
+        4.0 * pore_area_shape_factor_tuller * surface_tension * surface_tension /
+        (area_factor_tuller * characteristic_pore_size *
+         characteristic_pore_size);
+    double const inv_p = 1.0 / liquid_pressure;
+    double const exp_term = std::exp(-prefactor * inv_p * inv_p);
+    return -2.0 * prefactor * exp_term * inv_p * inv_p * inv_p;
 }
 }  // namespace
 
@@ -466,6 +517,81 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
         (notebook_p_plus->stress - notebook_p_minus->stress) / (2.0 * dp_fd);
     EXPECT_TRUE((notebook_response->dStress_dLiquidPressure - dsigma_dp_fd)
                     .isZero(5e-4));
+}
+
+TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+     NotebookSaturationModeMatchesTullerLawAndKeepsStressSurface)
+{
+    auto parameters = createNotebookMCCParameters(0.0, 0.0, 0.1, 1300.0, 0.0,
+                                                  1.0);
+    auto reference = createReferenceMCCModel(parameters);
+    auto notebook_mcc = createNotebookMCCModel(parameters);
+
+    auto reference_state = reference->createMaterialStateVariables();
+    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    initializeState(*reference, *reference_state);
+    initializeState(*notebook_mcc, *notebook_state);
+
+    ParameterLib::SpatialPosition x{};
+
+    MPL::VariableArray previous;
+    previous.mechanical_strain.emplace<KV>(KV::Zero());
+    previous.stress.emplace<KV>(notebookMCCIsotropicStress(-5e3));
+    previous.liquid_phase_pressure = -5e3;
+    previous.temperature = 293.15;
+
+    constexpr double t = 1.0;
+    constexpr double dt = 1.0;
+    constexpr double eps_v = -2e-5;
+    constexpr double liquid_pressure = -4e4;
+
+    MPL::VariableArray current = previous;
+    current.mechanical_strain.emplace<KV>(
+        notebookMCCIsotropicStrainFromVolumetric(eps_v));
+    current.liquid_phase_pressure = liquid_pressure;
+
+    auto reference_response = reference->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *reference_state);
+    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *notebook_state);
+
+    ASSERT_TRUE(reference_response);
+    ASSERT_TRUE(notebook_response);
+    ASSERT_TRUE(reference_response->state);
+    ASSERT_TRUE(notebook_response->state);
+
+    EXPECT_TRUE((reference_response->stress - notebook_response->stress)
+                    .isZero(5e-11));
+    EXPECT_TRUE((reference_response->dStress_dStrain -
+                 notebook_response->dStress_dStrain)
+                    .isZero(1e-8));
+    EXPECT_TRUE((reference_response->dStress_dLiquidPressure -
+                 notebook_response->dStress_dLiquidPressure)
+                    .isZero(1e-12));
+
+    EXPECT_NEAR(notebook_response->saturation,
+                notebookTullerSaturation(liquid_pressure), 1e-15);
+    EXPECT_NEAR(notebook_response->dSaturation_dLiquidPressure,
+                notebookTullerDSaturationDLiquidPressure(liquid_pressure),
+                1e-15);
+    EXPECT_TRUE(notebook_response->dSaturation_dStrain.isZero(1e-12));
+
+    auto const epsilon_sw =
+        getInternalScalar(*notebook_mcc, *notebook_response->state,
+                          "epsilon_sw");
+    EXPECT_NEAR(epsilon_sw, 0.0, 1e-14);
+
+    MPL::VariableArray saturated_current = previous;
+    saturated_current.mechanical_strain.emplace<KV>(
+        notebookMCCIsotropicStrainFromVolumetric(eps_v));
+    saturated_current.liquid_phase_pressure = 1e3;
+
+    auto saturated_response = notebook_mcc->integrateStressPressureCoupled(
+        previous, saturated_current, t, x, dt, *notebook_state);
+    ASSERT_TRUE(saturated_response);
+    EXPECT_NEAR(saturated_response->saturation, 1.0, 1e-15);
+    EXPECT_NEAR(saturated_response->dSaturation_dLiquidPressure, 0.0, 1e-15);
+    EXPECT_TRUE(saturated_response->dSaturation_dStrain.isZero(1e-12));
 }
 
 #endif  // OGS_USE_MFRONT

@@ -36,13 +36,16 @@ Two things are already true:
   saturation carrier surface unchanged
 - a neutral notebook-MCC benchmark compare now also works and is green on the
   native part-1 shell
+- a benchmark same-law MCC + notebook Tuller saturation compare now also
+  works and is green on the native part-1 shell once that non-neutral
+  saturation branch is substepped with `\Delta t = 1` over `t = 0..1000`
 
 One thing is still open:
 
-- the notebook-derived microstate still does not modify the returned
-  saturation law, and the benchmark has not yet been rerun on a non-neutral
-  notebook constitutive branch, so full notebook-to-native DSM parity is still
-  open
+- full notebook-to-native DSM parity is still open, because the current
+  notebook widening still covers only the Tuller saturation branch plus the
+  swelling stress correction, not the full notebook-owned constitutive
+  closure
 
 So the remaining problem is no longer “can the benchmark bridge run?” and it is
 no longer “can RM carry the native MFront MCC law through the pressure-coupled
@@ -67,10 +70,17 @@ As of 2026-03-27 on branch `dsm-nb-mfront-transition`:
 - `ogs-RichardsMechanics_mfront_restart_part1_mcc_compare`
 - `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_bridge`
 - `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_compare`
+- `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_native`
+- `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_bridge`
+- `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_compare`
 - `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_bridge`
 - `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_compare`
+- `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_native`
+- `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_bridge`
+- `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_compare`
 - `MaterialLib_RMBridgeMFront_NotebookMCC.NeutralNotebookStateMatchesVerifiedMCCBridge`
 - `MaterialLib_RMBridgeMFront_NotebookMCC.SwellingFeedbackChangesStressButKeepsCarrierSaturation`
+- `MaterialLib_RMBridgeMFront_NotebookMCC.NotebookSaturationModeMatchesTullerLawAndKeepsStressSurface`
 - the RM pressure-coupled carrier now keeps the bridge saturation derivative
   with respect to strain `dS/d\varepsilon`, and the pressure-equation
   displacement block now consumes that term instead of dropping it
@@ -787,7 +797,7 @@ Current verified boundary:
 
 Status:
 
-- complete for the current hybrid boundary
+- complete for the current reduced hybrid boundary
 
 Decision for the current branch:
 
@@ -799,7 +809,7 @@ Decision for the current branch:
 What remains open later:
 
 - whether a future notebook-driven branch should also widen the returned
-  saturation law
+  saturation law on the benchmark shell
 
 ### WP8: Benchmark the widened notebook hybrid against the verified MCC boundary
 
@@ -818,6 +828,91 @@ What remains open later:
 
 - rerun the benchmark on a non-neutral notebook branch once the intended final
   notebook constitutive feedback is defined
+
+### WP9: Add a reduced same-law MCC + notebook saturation parity gate
+
+Status:
+
+- complete
+
+Delivered result:
+
+- add an optional notebook saturation mode to
+  `RichardsMechanicsNotebookBridge_MCC`
+- keep the existing neutral benchmark branch unchanged by default
+- activate the notebook Tuller saturation law only when
+  `NotebookSaturationMode = 1`
+- lock that mode with a direct material-point regression
+- add the reduced native-vs-bridge parity pair
+  `mfront_parity_1element_notebook_mcc_tuller_native.prj` and
+  `mfront_parity_1element_notebook_mcc_tuller_bridge.prj`
+- enforce the reduced compare with
+  `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_compare`
+
+Current verified boundary:
+
+- reduced same-law MCC + notebook Tuller saturation parity is green
+- the old neutral notebook benchmark path is still green
+- the optional notebook saturation mode introduces only machine-scale residue
+  in `pressure` and `sigma` on the reduced shell
+
+What remains open later:
+
+- benchmark-sized notebook widening beyond the current Tuller-only saturation
+  branch
+
+### WP10: Add a benchmark same-law MCC + notebook saturation parity gate
+
+Status:
+
+- complete for the current notebook Tuller saturation branch
+
+Delivered result:
+
+- add the native benchmark shell
+  `mfront_restart_part1_notebook_mcc_tuller_native.prj`
+- add the bridge benchmark shell
+  `mfront_restart_part1_notebook_mcc_tuller_bridge.prj`
+- keep the same native part-1 geometry, loads, and MCC material parameters
+- activate the notebook Tuller saturation branch on the bridge side with
+  `NotebookSaturationMode = 1`
+- use the same Tuller saturation law and Bishop cutoff on the native side
+- substep that non-neutral saturation benchmark with fixed `\Delta t = 1`
+  over `t = 0..1000`
+- emit only the start and end states on that benchmark pair
+- enforce the benchmark compare with
+  `ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_compare`
+
+Current verified boundary:
+
+- the native Tuller benchmark shell runs
+- the bridge Tuller benchmark shell runs
+- the native-vs-bridge benchmark compare is green
+- the final-time benchmark residue is small and measured, not guessed:
+  - `displacement`: about `9.75e-14`
+  - `pressure`: about `8.02e-7` absolute and `2.65e-10` relative
+  - `sigma`: about `8.15e-10`
+  - `saturation`: about `1.97e-13`
+  - `dry_density_solid`: about `2.99e-10`
+
+What remains open later:
+
+- notebook-owned non-neutral widening beyond the current Tuller saturation
+  branch and swelling-stress correction
+
+## Generated parity and benchmark files
+
+These are the generated project and compare files that define the current
+notebook-MCC saturation surfaces.
+
+| File | What it runs | What it tests exactly |
+| --- | --- | --- |
+| `Tests/Data/RichardsMechanics/mfront_parity_1element_notebook_mcc_tuller_native.prj` | Native reduced one-element MCC shell with native MPL Tuller saturation and Bishop cutoff | Native reduced reference for the notebook Tuller saturation branch, with no bridge state |
+| `Tests/Data/RichardsMechanics/mfront_parity_1element_notebook_mcc_tuller_bridge.prj` | Reduced one-element `RichardsMechanicsNotebookBridge_MCC` shell with `NotebookSaturationMode = 1` and neutral notebook swelling/mass exchange | Bridge reduced reference for the same Tuller saturation branch |
+| `scripts/cmake/test/CompareRichardsMechanicsMFrontNotebookMCCTullerParity.cmake` | Runs the reduced native and bridge Tuller shells and compares their VTU outputs | Enforces reduced same-law MCC + notebook Tuller parity on `displacement`, `pressure`, `sigma`, `epsilon`, `saturation`, `velocity`, and MCC internal variables |
+| `Tests/Data/RichardsMechanics/mfront_restart_part1_notebook_mcc_tuller_native.prj` | Native benchmark part-1 shell with native MPL Tuller saturation and Bishop cutoff | Native benchmark reference for the non-neutral notebook Tuller saturation branch on the part-1 geometry and load scale |
+| `Tests/Data/RichardsMechanics/mfront_restart_part1_notebook_mcc_tuller_bridge.prj` | Benchmark part-1 `RichardsMechanicsNotebookBridge_MCC` shell with `NotebookSaturationMode = 1`, neutral notebook swelling/mass exchange, damped Newton, and fixed `\Delta t = 1` | Bridge benchmark reference for the same Tuller saturation branch |
+| `scripts/cmake/test/CompareRichardsMechanicsMFrontNotebookMCCTullerBenchmarkParity.cmake` | Runs the benchmark native and bridge Tuller shells and compares the start and end states | Enforces benchmark same-law MCC + notebook Tuller parity on the part-1 shell |
 
 ## Definition of done
 
@@ -840,6 +935,7 @@ Done means:
 Current state:
 
 - done for the same-law MCC benchmark surface
+- done for the same-law MCC + notebook Tuller benchmark surface
 - not done for full notebook-to-native constitutive equivalence
 
 ## Useful commands
@@ -862,7 +958,7 @@ Focused CTest slice:
 ```bash
 ctest --test-dir /Users/vinaykumar/git/build/release-mfront-tpm \
   --output-on-failure \
-  -R 'ogs-RichardsMechanics/mfront_restart_part1$|ogs-RichardsMechanics/mfront_restart_part2$|ogs-RichardsMechanics_mfront_restart_part1_rm_bridge$|ogs-RichardsMechanics_mfront_restart_part1_mcc_compare$|ogs-RichardsMechanics_mfront_parity_1element_native$|ogs-RichardsMechanics_mfront_parity_1element_bridge$|ogs-RichardsMechanics_mfront_parity_1element_compare$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_bridge$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_compare$'
+  -R 'ogs-RichardsMechanics/mfront_restart_part1$|ogs-RichardsMechanics/mfront_restart_part2$|ogs-RichardsMechanics_mfront_restart_part1_rm_bridge$|ogs-RichardsMechanics_mfront_restart_part1_mcc_compare$|ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_compare$|ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_(native|bridge|compare)$|ogs-RichardsMechanics_mfront_parity_1element_native$|ogs-RichardsMechanics_mfront_parity_1element_bridge$|ogs-RichardsMechanics_mfront_parity_1element_compare$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_bridge$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_compare$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_compare$'
 ```
 
 Direct benchmark-pressure bridge guardrail:

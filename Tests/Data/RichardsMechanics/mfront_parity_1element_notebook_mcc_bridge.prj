@@ -29,6 +29,7 @@
                     <material_property name="ResidualGasSaturation" parameter="ResidualGasSaturation"/>
                     <material_property name="BubblePressure" parameter="BubblePressure"/>
                     <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
+                    <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
                     <material_property name="SwellingSlope" parameter="NotebookSwellingSlope"/>
                     <material_property name="MassExchangeCoefficient" parameter="NotebookMassExchangeCoefficient"/>
                     <material_property name="ReferenceLiquidDensityMacro" parameter="ReferenceLiquidDensityMacro"/>
@@ -38,6 +39,10 @@
                     <material_property name="MicroLiquidDensityB" parameter="MicroLiquidDensityB"/>
                     <material_property name="HamakerConstant" parameter="HamakerConstant"/>
                     <material_property name="SpecificSurface" parameter="SpecificSurface"/>
+                    <material_property name="AreaFactorTuller" parameter="AreaFactorTuller"/>
+                    <material_property name="PoreAreaShapeFactorTuller" parameter="PoreAreaShapeFactorTuller"/>
+                    <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize"/>
+                    <material_property name="SurfaceTension" parameter="SurfaceTension"/>
                     <material_property name="InitialPorosity" parameter="phi0"/>
                 </material_properties>
                 <initial_values>
@@ -274,6 +279,11 @@
             <value>0.4</value>
         </parameter>
         <parameter>
+            <name>NotebookSaturationMode</name>
+            <type>Constant</type>
+            <value>0.0</value>
+        </parameter>
+        <parameter>
             <name>NotebookSwellingSlope</name>
             <type>Constant</type>
             <value>0.0</value>
@@ -317,6 +327,26 @@
             <name>SpecificSurface</name>
             <type>Constant</type>
             <value>100.0</value>
+        </parameter>
+        <parameter>
+            <name>AreaFactorTuller</name>
+            <type>Constant</type>
+            <value>1.0</value>
+        </parameter>
+        <parameter>
+            <name>PoreAreaShapeFactorTuller</name>
+            <type>Constant</type>
+            <value>0.8584073464102069</value>
+        </parameter>
+        <parameter>
+            <name>CharacteristicPoreSize</name>
+            <type>Constant</type>
+            <value>1e-5</value>
+        </parameter>
+        <parameter>
+            <name>SurfaceTension</name>
+            <type>Constant</type>
+            <value>0.0715</value>
         </parameter>
         <parameter>
             <name>phi0</name>

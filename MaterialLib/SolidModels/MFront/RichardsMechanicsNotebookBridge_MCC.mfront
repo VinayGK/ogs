@@ -7,9 +7,10 @@
     ModCamClay_semiExpl_constE mechanical and saturation surface, while also
     carrying the notebook microstate variables n_l, rho_lR, epsilon_sw, phi_m,
     phi_M, mu_lR, and rho_l_hat as persistent auxiliary state. The returned
-    saturation still matches the verified MCC bridge, while the returned
-    effective stress now also includes the notebook isotropic swelling
-    correction driven by the updated microstate.
+    saturation matches either the verified MCC bridge or, when explicitly
+    enabled, the notebook Tuller law. The returned effective stress also
+    includes the notebook isotropic swelling correction driven by the updated
+    microstate.
 }
 
 @Theta 1.0;
@@ -108,6 +109,10 @@ pᵇ.setEntryName("BubblePressure");
 @MaterialProperty real mⱽᴳ;
 mⱽᴳ.setEntryName("VanGenuchtenExponent_m");
 
+@MaterialProperty real notebook_saturation_mode;
+@PhysicalBounds notebook_saturation_mode in [0:*[;
+notebook_saturation_mode.setEntryName("NotebookSaturationMode");
+
 @MaterialProperty real swelling_slope;
 swelling_slope.setEntryName("SwellingSlope");
 
@@ -135,6 +140,18 @@ hamaker_constant.setEntryName("HamakerConstant");
 @MaterialProperty real specific_surface;
 specific_surface.setEntryName("SpecificSurface");
 
+@MaterialProperty real area_factor_tuller;
+area_factor_tuller.setEntryName("AreaFactorTuller");
+
+@MaterialProperty real pore_area_shape_factor_tuller;
+pore_area_shape_factor_tuller.setEntryName("PoreAreaShapeFactorTuller");
+
+@MaterialProperty real characteristic_pore_size;
+characteristic_pore_size.setEntryName("CharacteristicPoreSize");
+
+@MaterialProperty real surface_tension;
+surface_tension.setEntryName("SurfaceTension");
+
 @MaterialProperty real phi0;
 phi0.setEntryName("InitialPorosity");
 
@@ -154,6 +171,8 @@ phi0.setEntryName("InitialPorosity");
 @LocalVariable real rho_l_hat_trial_value;
 @LocalVariable real dn_l_dtrace_eps_trial;
 @LocalVariable real dn_l_dp_trial;
+@LocalVariable bool use_notebook_saturation;
+@LocalVariable real tuller_capillary_prefactor;
 
 @TangentOperatorBlocks{∂σ∕∂Δεᵗᵒ, ∂σ∕∂Δpᴸᴿ, ∂Sᴸ∕∂Δεᵗᵒ, ∂Sᴸ∕∂Δpᴸᴿ};
 
@@ -164,8 +183,34 @@ phi0.setEntryName("InitialPorosity");
             std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ, 1.0 / (1.0 - mⱽᴳ)) + 1.0, -mⱽᴳ);
     };
 
-    const auto S = Sₑ(-(pᴸᴿ + Δpᴸᴿ)) * (1.0 - Sᴳʳ - Sᴸʳ) + Sᴸʳ;
-    Sᴸ = std::clamp(S, Sᴸʳ, 1.0 - Sᴳʳ);
+    constexpr const auto pressure_tolerance = 1e-12;
+
+    use_notebook_saturation = notebook_saturation_mode > 0.5;
+    tfel::raise_if(area_factor_tuller <= 0.0,
+                   "Invalid parameter: AreaFactorTuller must be positive.");
+    tfel::raise_if(pore_area_shape_factor_tuller <= 0.0,
+                   "Invalid parameter: PoreAreaShapeFactorTuller must be positive.");
+    tfel::raise_if(characteristic_pore_size <= 0.0,
+                   "Invalid parameter: CharacteristicPoreSize must be positive.");
+    tfel::raise_if(surface_tension <= 0.0,
+                   "Invalid parameter: SurfaceTension must be positive.");
+    tuller_capillary_prefactor =
+        4.0 * pore_area_shape_factor_tuller * surface_tension * surface_tension /
+        (area_factor_tuller * characteristic_pore_size * characteristic_pore_size);
+
+    const auto saturation_notebook = [&](const auto p_arg) {
+        if (p_arg < -pressure_tolerance)
+        {
+            const auto capillary_term = tuller_capillary_prefactor / (p_arg * p_arg);
+            return 1.0 - std::exp(-capillary_term);
+        }
+        return 1.0;
+    };
+
+    const auto S = use_notebook_saturation
+                       ? saturation_notebook(pᴸᴿ + Δpᴸᴿ)
+                       : Sₑ(-(pᴸᴿ + Δpᴸᴿ)) * (1.0 - Sᴳʳ - Sᴸʳ) + Sᴸʳ;
+    Sᴸ = use_notebook_saturation ? S : std::clamp(S, Sᴸʳ, 1.0 - Sᴳʳ);
 
     tfel::raise_if(la < ka, "Invalid parameters: la<ka");
     M² = M * M;
@@ -188,7 +233,6 @@ phi0.setEntryName("InitialPorosity");
     withinElasticRange = fᵉˡ < 0;
 
     constexpr const auto pi = 3.14159265358979323846;
-    constexpr const auto pressure_tolerance = 1e-12;
     constexpr const auto minimum_n_l = 1e-14;
     constexpr const auto minimum_density_gap = 1e-12;
     constexpr const auto newton_tolerance = 1e-11;
@@ -774,9 +818,24 @@ phi0.setEntryName("InitialPorosity");
                     : 0.0);
     };
 
+    const auto ∂Sᴸ_notebook∕∂p = [&](const auto p_arg) {
+        if (p_arg >= -1e-12)
+        {
+            return 0.0;
+        }
+
+        const auto inv_p = 1.0 / p_arg;
+        const auto exp_term =
+            std::exp(-tuller_capillary_prefactor * inv_p * inv_p);
+        return -2.0 * tuller_capillary_prefactor * exp_term * inv_p * inv_p *
+               inv_p;
+    };
+
     ∂σ∕∂Δpᴸᴿ = -(K * swelling_slope * dn_l_dp_trial) * I₂;
     ∂Sᴸ∕∂Δεᵗᵒ = 0.0 * I₂;
-    ∂Sᴸ∕∂Δpᴸᴿ = -∂Sᴸ∕∂pᶜᵃᵖ(-(pᴸᴿ + Δpᴸᴿ));
+    ∂Sᴸ∕∂Δpᴸᴿ = use_notebook_saturation
+                     ? ∂Sᴸ_notebook∕∂p(pᴸᴿ + Δpᴸᴿ)
+                     : -∂Sᴸ∕∂pᶜᵃᵖ(-(pᴸᴿ + Δpᴸᴿ));
 
     if ((smt == ELASTIC) || (smt == SECANTOPERATOR))
     {
