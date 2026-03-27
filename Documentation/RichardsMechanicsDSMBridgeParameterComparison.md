@@ -17,6 +17,12 @@ There is now also a separate aligned unsaturated elastic pair where both sides
 use the same Tuller saturation law. That pair is exact, but it is only an
 elastic saturation-law parity check, not MCC parity.
 
+There is also now a second bridge surface, the hybrid
+`RichardsMechanicsNotebookBridge_MCC`, which keeps the verified MCC carrier
+surface but also stores notebook auxiliary state. That new hybrid surface is a
+staging step toward notebook-driven parity; it is not yet the final
+notebook-derived constitutive closure.
+
 ## Files compared
 
 - native shell:
@@ -188,3 +194,52 @@ It is just important to describe it honestly:
 3. Build a yield-driving shell where both sides use the same active parameter
    list.
 4. Only then extend the compare test to include plastic-state outputs.
+
+## What the new hybrid bridge changes
+
+The repository now has a new pressure-coupled bridge:
+
+- [RichardsMechanicsNotebookBridge_MCC.mfront](../MaterialLib/SolidModels/MFront/RichardsMechanicsNotebookBridge_MCC.mfront)
+
+This hybrid bridge uses the active MCC carrier parameters
+
+- `YoungModulus`
+- `PoissonRatio`
+- `CriticalStateLineSlope`
+- `SwellingLineSlope`
+- `VirginConsolidationLineSlope`
+- `CharacteristicPreConsolidationPressure`
+- `ResidualLiquidSaturation`
+- `ResidualGasSaturation`
+- `BubblePressure`
+- `VanGenuchtenExponent_m`
+
+and also stores notebook auxiliary-state inputs
+
+- `SwellingSlope`
+- `MassExchangeCoefficient`
+- `ReferenceLiquidDensityMacro`
+- `ReferenceLiquidDensityMicro`
+- `ReferenceDensitySolid`
+- `MicroLiquidDensityA`
+- `MicroLiquidDensityB`
+- `HamakerConstant`
+- `SpecificSurface`
+- `InitialPorosity`
+- `n_l0`
+- `rho_lR0`
+- `epsilon_sw0`
+
+So the hybrid bridge now has
+
+\[
+\eta_{hybrid} = (\eta_{MCC}, \eta_{NB}),
+\]
+
+but in the current verified step it still returns the same constitutive
+surface as the pressure-coupled MCC bridge when notebook coupling is neutral.
+
+That means the remaining open work is no longer “add MCC state to the bridge”.
+That step is already done. The open work is to decide how notebook state should
+feed back into the returned stress, tangents, and possibly saturation without
+breaking the verified MCC carrier surface.

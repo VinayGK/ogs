@@ -55,6 +55,7 @@ set(_mfront_behaviours
     StandardElasticityBrickOrtho
     ThermoPoroElasticity
     RichardsMechanicsNotebookBridge
+    RichardsMechanicsNotebookBridge_MCC
     WeakPlaneModel
     WeakPlaneModel_nonIter
 )

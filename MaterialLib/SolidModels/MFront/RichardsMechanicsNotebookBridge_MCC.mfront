@@ -1,0 +1,712 @@
+@DSL ImplicitGenericBehaviour;
+@Behaviour RichardsMechanicsNotebookBridge_MCC;
+@Author OpenGeoSys Community;
+@Date 27 / 03 / 2026;
+@Description{
+    Pressure-coupled RichardsMechanics bridge that keeps the verified
+    ModCamClay_semiExpl_constE mechanical and saturation surface, while also
+    carrying the notebook microstate variables n_l, rho_lR, epsilon_sw, phi_m,
+    phi_M, mu_lR, and rho_l_hat as persistent auxiliary state. In this first
+    widening step, the notebook state update is explicit and process-visible,
+    but the returned stress and saturation still match the verified MCC bridge.
+}
+
+@Theta 1.0;
+@Epsilon 1e-14;
+@MaximumNumberOfIterations 200;
+@ModellingHypotheses{".+"};
+@Algorithm NewtonRaphson;
+
+@Gradient StrainStensor εᵗᵒ;
+εᵗᵒ.setGlossaryName("Strain");
+
+@ThermodynamicForce StressStensor σ;
+σ.setGlossaryName("Stress");
+
+@Gradient real pᴸᴿ;
+pᴸᴿ.setEntryName("LiquidPressure");
+
+@ThermodynamicForce real Sᴸ;
+Sᴸ.setEntryName("Saturation");
+
+@StateVariable StrainStensor εᵉˡ;
+εᵉˡ.setGlossaryName("ElasticStrain");
+
+@StateVariable real Λₚ;
+Λₚ.setGlossaryName("EquivalentPlasticStrain");
+
+@IntegrationVariable strain rpc;
+
+@AuxiliaryStateVariable stress pc;
+pc.setEntryName("PreConsolidationPressure");
+
+@AuxiliaryStateVariable real εᵛₚₗ;
+εᵛₚₗ.setEntryName("PlasticVolumetricStrain");
+
+@AuxiliaryStateVariable real vʳ;
+vʳ.setEntryName("VolumeRatio");
+
+@AuxiliaryStateVariable real n_l;
+n_l.setEntryName("n_l");
+
+@AuxiliaryStateVariable real rho_lR;
+rho_lR.setEntryName("rho_lR");
+
+@AuxiliaryStateVariable real epsilon_sw;
+epsilon_sw.setEntryName("epsilon_sw");
+
+@AuxiliaryStateVariable real phi_m;
+phi_m.setEntryName("phi_m");
+
+@AuxiliaryStateVariable real phi_M;
+phi_M.setEntryName("phi_M");
+
+@AuxiliaryStateVariable real mu_lR_value;
+mu_lR_value.setEntryName("mu_lR");
+
+@AuxiliaryStateVariable real rho_l_hat_value;
+rho_l_hat_value.setEntryName("rho_l_hat");
+
+@Parameter stress pamb = 1e+3;
+@PhysicalBounds pamb in [0:*[;
+pamb.setEntryName("AmbientPressure");
+
+@MaterialProperty stress young;
+@PhysicalBounds young in [0:*[;
+young.setGlossaryName("YoungModulus");
+
+@MaterialProperty real ν;
+@PhysicalBounds ν in [-1:0.5];
+ν.setGlossaryName("PoissonRatio");
+
+@MaterialProperty real M;
+@PhysicalBounds M in [0:*[;
+M.setEntryName("CriticalStateLineSlope");
+
+@MaterialProperty real ka;
+@PhysicalBounds ka in [0:*[;
+ka.setEntryName("SwellingLineSlope");
+
+@MaterialProperty real la;
+@PhysicalBounds la in [0:*[;
+la.setEntryName("VirginConsolidationLineSlope");
+
+@MaterialProperty stress pc_char;
+@PhysicalBounds pc_char in [0:*[;
+pc_char.setEntryName("CharacteristicPreConsolidationPressure");
+
+@MaterialProperty real Sᴸʳ;
+Sᴸʳ.setEntryName("ResidualLiquidSaturation");
+
+@MaterialProperty real Sᴳʳ;
+Sᴳʳ.setEntryName("ResidualGasSaturation");
+
+@MaterialProperty real pᵇ;
+pᵇ.setEntryName("BubblePressure");
+
+@MaterialProperty real mⱽᴳ;
+mⱽᴳ.setEntryName("VanGenuchtenExponent_m");
+
+@MaterialProperty real swelling_slope;
+swelling_slope.setEntryName("SwellingSlope");
+
+@MaterialProperty real mass_exchange_coefficient;
+mass_exchange_coefficient.setEntryName("MassExchangeCoefficient");
+
+@MaterialProperty real rho_LR_ref;
+rho_LR_ref.setEntryName("ReferenceLiquidDensityMacro");
+
+@MaterialProperty real rho_l0;
+rho_l0.setEntryName("ReferenceLiquidDensityMicro");
+
+@MaterialProperty real rho_SR;
+rho_SR.setEntryName("ReferenceDensitySolid");
+
+@MaterialProperty real density_a;
+density_a.setEntryName("MicroLiquidDensityA");
+
+@MaterialProperty real density_b;
+density_b.setEntryName("MicroLiquidDensityB");
+
+@MaterialProperty real hamaker_constant;
+hamaker_constant.setEntryName("HamakerConstant");
+
+@MaterialProperty real specific_surface;
+specific_surface.setEntryName("SpecificSurface");
+
+@MaterialProperty real phi0;
+phi0.setEntryName("InitialPorosity");
+
+@LocalVariable bool withinElasticRange;
+@LocalVariable real M²;
+@LocalVariable real pc_min;
+@LocalVariable real rpc_min;
+@LocalVariable real K;
+@LocalVariable StressStensor σ₀;
+@LocalVariable StiffnessTensor ∂σ∕∂εᵉˡ;
+
+@TangentOperatorBlocks{∂σ∕∂Δεᵗᵒ, ∂σ∕∂Δpᴸᴿ, ∂Sᴸ∕∂Δεᵗᵒ, ∂Sᴸ∕∂Δpᴸᴿ};
+
+@InitializeLocalVariables
+{
+    const auto Sₑ = [&](const auto pᶜᵃᵖ) {
+        return std::pow(
+            std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ, 1.0 / (1.0 - mⱽᴳ)) + 1.0, -mⱽᴳ);
+    };
+
+    const auto S = Sₑ(-(pᴸᴿ + Δpᴸᴿ)) * (1.0 - Sᴳʳ - Sᴸʳ) + Sᴸʳ;
+    Sᴸ = std::clamp(S, Sᴸʳ, 1.0 - Sᴳʳ);
+
+    tfel::raise_if(la < ka, "Invalid parameters: la<ka");
+    M² = M * M;
+
+    εᵉˡ = (1.0 + ν) / young * σ - ν / young * trace(σ) * I₂;
+    σ₀ = σ;
+
+    rpc = pc / young;
+    pc_min = 1e-15 * pc_char;
+    rpc_min = pc_min / young;
+
+    K = young / (3.0 * (1.0 - 2.0 * ν));
+    ∂σ∕∂εᵉˡ = young / (1.0 + ν) * Stensor4::K() + K * Stensor4::IxI();
+
+    const auto σᵉˡ = σ₀ + ∂σ∕∂εᵉˡ * Δεᵗᵒ;
+    const auto sᵉˡ = deviator(σᵉˡ);
+    const auto qᵉˡ = sqrt(1.5 * sᵉˡ | sᵉˡ);
+    const auto pᵉˡ = -trace(σᵉˡ) / 3.0 + pamb;
+    const auto fᵉˡ = qᵉˡ * qᵉˡ + M² * pᵉˡ * (pᵉˡ - pc);
+    withinElasticRange = fᵉˡ < 0;
+}
+
+@ComputeThermodynamicForces
+{
+    σ = σ₀ + θ * ∂σ∕∂εᵉˡ * Δεᵉˡ;
+}
+
+@Integrator
+{
+    constexpr const auto Pr4 = Stensor4::K();
+    const auto the = vʳ / (la - ka);
+
+    if (withinElasticRange)
+    {
+        fεᵉˡ -= Δεᵗᵒ;
+        return true;
+    }
+
+    const auto epsr = strain(1.e-12);
+    const auto s = deviator(σ);
+    const auto q = sqrt(1.5 * s | s);
+    const auto p = -trace(σ) / 3.0 + pamb;
+
+    const auto rpc_new = rpc + θ * Δrpc;
+    const auto pc_new = rpc_new * young;
+
+    const auto f = q * q + M² * p * (p - pc_new);
+    const auto ∂f∕∂p = M² * (2.0 * p - pc_new);
+    const auto ∂f∕∂σ = eval(3.0 * s - ∂f∕∂p * I₂ / 3.0);
+    auto norm = sqrt(6.0 * q * q + ∂f∕∂p * ∂f∕∂p / 3.0);
+    norm = max(norm, epsr * young);
+    const auto n = ∂f∕∂σ / norm;
+    const auto ntr = -∂f∕∂p / norm;
+
+    const auto Δεᵖˡ = eval(ΔΛₚ * n);
+    const auto Δεᵖˡᵛ = trace(Δεᵖˡ);
+
+    const auto fchar = pc_char * young;
+
+    fεᵉˡ = Δεᵉˡ + Δεᵖˡ - Δεᵗᵒ;
+    fΛₚ = f / fchar;
+    frpc = Δrpc + Δεᵖˡᵛ * the * (rpc_new - rpc_min);
+
+    const auto ∂norm∕∂σ =
+        (9.0 * s - 2.0 * M² / 9.0 * ∂f∕∂p * I₂) / norm;
+    const auto ∂n∕∂Δεᵉˡ =
+        (3.0 * Pr4 + 2.0 * M² / 9.0 * (I₂ ⊗ I₂) - (n ⊗ ∂norm∕∂σ)) / norm *
+        ∂σ∕∂εᵉˡ * θ;
+    const auto ∂n∕∂Δrpc =
+        (I₂ + ∂f∕∂p * n / norm) * M² / (3.0 * norm) * θ * young;
+    const auto ∂frpc∕∂Δεᵖˡᵛ = the * (rpc_new - rpc_min);
+
+    ∂fεᵉˡ∕∂Δεᵉˡ += ΔΛₚ * ∂n∕∂Δεᵉˡ;
+    ∂fεᵉˡ∕∂ΔΛₚ = n;
+    ∂fεᵉˡ∕∂Δrpc = ΔΛₚ * ∂n∕∂Δrpc;
+
+    ∂fΛₚ∕∂Δεᵉˡ = (∂f∕∂σ | ∂σ∕∂εᵉˡ) * θ / fchar;
+    ∂fΛₚ∕∂ΔΛₚ = strain(0);
+    ∂fΛₚ∕∂Δrpc = -M² * p * θ / fchar * young;
+
+    ∂frpc∕∂ΔΛₚ = ∂frpc∕∂Δεᵖˡᵛ * ntr;
+    ∂frpc∕∂Δεᵉˡ = ∂frpc∕∂Δεᵖˡᵛ * ΔΛₚ * (I₂ | ∂n∕∂Δεᵉˡ);
+    ∂frpc∕∂Δrpc =
+        1.0 + Δεᵖˡᵛ * the * θ + ∂frpc∕∂Δεᵖˡᵛ * ΔΛₚ * trace(∂n∕∂Δrpc);
+}
+
+@ComputeFinalThermodynamicForces
+{
+    σ = σ₀ + ∂σ∕∂εᵉˡ * Δεᵉˡ;
+}
+
+@UpdateAuxiliaryStateVariables
+{
+    pc += Δrpc * young;
+    εᵛₚₗ += trace(Δεᵗᵒ - Δεᵉˡ);
+    vʳ *= exp(trace(Δεᵗᵒ));
+
+    constexpr const auto pi = 3.14159265358979323846;
+    constexpr const auto pressure_tolerance = 1e-12;
+    constexpr const auto minimum_n_l = 1e-14;
+    constexpr const auto minimum_density_gap = 1e-12;
+    constexpr const auto newton_tolerance = 1e-11;
+    constexpr const auto max_iterations = 64u;
+
+    tfel::raise_if(phi0 <= 0.0 || phi0 >= 1.0,
+                   "Invalid parameter: InitialPorosity must lie in (0,1).");
+    tfel::raise_if(rho_LR_ref <= 0.0 || rho_l0 <= 0.0 || rho_SR <= 0.0,
+                   "Invalid density parameter: all reference densities must be positive.");
+    tfel::raise_if(specific_surface <= 0.0,
+                   "Invalid parameter: SpecificSurface must be positive.");
+
+    const auto p = pᴸᴿ + Δpᴸᴿ;
+    const auto delta_epsilon_v = trace(Δεᵗᵒ);
+    const auto zero_dt = std::abs(dt) < 1e-15;
+    const auto n_s = 1.0 - phi0;
+    const auto n_l_prev = std::max(n_l, minimum_n_l);
+    const auto rho_lR_prev =
+        std::max(rho_lR, rho_LR_ref + minimum_density_gap);
+    const auto phi_m_prev = n_l_prev;
+    const auto previous_mass = n_l_prev * rho_lR_prev;
+
+    const auto mu_macro_from_pressure = [&](const auto p_arg) {
+        return p_arg > -pressure_tolerance ? 0.0 : p_arg / rho_LR_ref;
+    };
+
+    const auto omega_from_state = [&](const auto n_l_arg,
+                                      const auto rho_lR_arg) {
+        return n_l_arg * rho_lR_arg / (n_s * rho_SR);
+    };
+
+    const auto rho_micro_eos = [&](const auto n_l_arg,
+                                   const auto rho_lR_arg) {
+        const auto omega =
+            std::max(omega_from_state(n_l_arg, rho_lR_arg), minimum_n_l);
+        return rho_l0 * std::exp(-density_a * std::pow(omega, density_b)) +
+               rho_LR_ref;
+    };
+
+    const auto mu_micro_from_state = [&](const auto n_l_arg,
+                                         const auto rho_lR_arg) {
+        const auto omega =
+            std::max(omega_from_state(n_l_arg, rho_lR_arg), minimum_n_l);
+        return (hamaker_constant * rho_lR_arg * rho_lR_arg * rho_lR_arg /
+                (6.0 * pi)) *
+               std::pow(specific_surface / omega, 3.0);
+    };
+
+    const auto solve_microstate = [&](const auto p_arg,
+                                      const auto delta_epsilon_v_arg,
+                                      const auto n_l_prev_arg,
+                                      const auto rho_lR_prev_arg,
+                                      double& n_l_out,
+                                      double& rho_lR_out,
+                                      double& mu_lR_out,
+                                      double& rho_l_hat_out) {
+        const auto mu_LR_arg = mu_macro_from_pressure(p_arg);
+        auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
+        auto rho_lR_trial =
+            std::max(rho_lR_prev_arg, rho_LR_ref + minimum_density_gap);
+        auto converged = false;
+
+        const auto evaluate = [&](const auto n_l_arg,
+                                  const auto rho_lR_arg,
+                                  double& residual_1,
+                                  double& residual_2,
+                                  double& mu_lR_arg,
+                                  double& rho_l_hat_arg) {
+            mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
+            rho_l_hat_arg =
+                mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
+            residual_1 =
+                n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
+                n_l_arg * rho_lR_arg * delta_epsilon_v_arg;
+            residual_2 = rho_lR_arg - rho_micro_eos(n_l_arg, rho_lR_arg);
+        };
+
+        const auto solve_rho_for_n_l = [&](const auto n_l_arg,
+                                           const auto rho_initial_guess,
+                                           double& rho_lR_out_arg) {
+            auto rho_lR_trial_local =
+                std::max(rho_initial_guess, rho_LR_ref + minimum_density_gap);
+
+            for (unsigned int iteration = 0; iteration < 4 * max_iterations;
+                 ++iteration)
+            {
+                const auto rho_candidate =
+                    rho_micro_eos(n_l_arg, rho_lR_trial_local);
+                const auto rho_change =
+                    std::abs(rho_candidate - rho_lR_trial_local);
+                rho_lR_trial_local =
+                    std::max(rho_candidate, rho_LR_ref + minimum_density_gap);
+
+                if (rho_change < newton_tolerance *
+                                     std::max(1.0, std::abs(rho_lR_trial_local)))
+                {
+                    rho_lR_out_arg = rho_lR_trial_local;
+                    return true;
+                }
+            }
+
+            rho_lR_out_arg = rho_lR_trial_local;
+            return false;
+        };
+
+        const auto evaluate_reduced = [&](const auto n_l_arg,
+                                          const auto rho_initial_guess,
+                                          double& residual_1,
+                                          double& rho_lR_arg,
+                                          double& mu_lR_arg,
+                                          double& rho_l_hat_arg) {
+            const auto rho_converged = solve_rho_for_n_l(
+                n_l_arg, rho_initial_guess, rho_lR_arg);
+            mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
+            rho_l_hat_arg =
+                mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
+            residual_1 =
+                n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
+                n_l_arg * rho_lR_arg * delta_epsilon_v_arg;
+            return rho_converged;
+        };
+
+        const auto solve_microstate_bracketed =
+            [&](double& n_l_bracketed_out,
+                double& rho_lR_bracketed_out,
+                double& mu_lR_bracketed_out,
+                double& rho_l_hat_bracketed_out) {
+                constexpr const auto bracket_scan_points = 256u;
+                auto n_l_lo = minimum_n_l;
+                auto n_l_hi = std::max(
+                    phi0, std::max(n_l_prev_arg, minimum_n_l * 10.0));
+
+                double residual_lo = 0.0;
+                double residual_hi = 0.0;
+                double rho_lo = 0.0;
+                double rho_hi = 0.0;
+                double mu_lo = 0.0;
+                double mu_hi = 0.0;
+                double rho_hat_lo = 0.0;
+                double rho_hat_hi = 0.0;
+
+                auto bracket_ok =
+                    evaluate_reduced(n_l_lo, rho_lR_prev_arg, residual_lo,
+                                     rho_lo, mu_lo, rho_hat_lo) &&
+                    evaluate_reduced(n_l_hi, rho_lR_prev_arg, residual_hi,
+                                     rho_hi, mu_hi, rho_hat_hi);
+
+                if (!bracket_ok)
+                {
+                    return false;
+                }
+
+                if (residual_lo * residual_hi > 0.0)
+                {
+                    const auto log_n_l_min = std::log10(minimum_n_l);
+                    const auto log_n_l_max = std::log10(n_l_hi);
+                    auto previous_n_l = n_l_lo;
+                    auto previous_residual = residual_lo;
+                    auto previous_rho = rho_lo;
+                    auto previous_mu = mu_lo;
+                    auto previous_rho_hat = rho_hat_lo;
+                    auto found_bracket = false;
+
+                    for (unsigned int i = 1; i <= bracket_scan_points; ++i)
+                    {
+                        const auto log_n_l =
+                            log_n_l_min +
+                            (log_n_l_max - log_n_l_min) *
+                                (static_cast<double>(i) / bracket_scan_points);
+                        const auto n_l_candidate = std::pow(10.0, log_n_l);
+
+                        double residual_candidate = 0.0;
+                        double rho_candidate = 0.0;
+                        double mu_candidate = 0.0;
+                        double rho_hat_candidate = 0.0;
+                        if (!evaluate_reduced(n_l_candidate, rho_lR_prev_arg,
+                                              residual_candidate, rho_candidate,
+                                              mu_candidate,
+                                              rho_hat_candidate))
+                        {
+                            return false;
+                        }
+
+                        if (previous_residual * residual_candidate <= 0.0)
+                        {
+                            n_l_lo = previous_n_l;
+                            residual_lo = previous_residual;
+                            rho_lo = previous_rho;
+                            mu_lo = previous_mu;
+                            rho_hat_lo = previous_rho_hat;
+
+                            n_l_hi = n_l_candidate;
+                            residual_hi = residual_candidate;
+                            rho_hi = rho_candidate;
+                            mu_hi = mu_candidate;
+                            rho_hat_hi = rho_hat_candidate;
+                            found_bracket = true;
+                            break;
+                        }
+
+                        previous_n_l = n_l_candidate;
+                        previous_residual = residual_candidate;
+                        previous_rho = rho_candidate;
+                        previous_mu = mu_candidate;
+                        previous_rho_hat = rho_hat_candidate;
+                    }
+
+                    if (!found_bracket)
+                    {
+                        return false;
+                    }
+                }
+
+                for (unsigned int iteration = 0; iteration < 4 * max_iterations;
+                     ++iteration)
+                {
+                    const auto n_l_mid = 0.5 * (n_l_lo + n_l_hi);
+                    double residual_mid = 0.0;
+                    double rho_mid = 0.0;
+                    double mu_mid = 0.0;
+                    double rho_hat_mid = 0.0;
+
+                    if (!evaluate_reduced(n_l_mid, rho_lR_prev_arg,
+                                          residual_mid, rho_mid, mu_mid,
+                                          rho_hat_mid))
+                    {
+                        return false;
+                    }
+
+                    if (std::abs(residual_mid) < newton_tolerance ||
+                        std::abs(n_l_hi - n_l_lo) <
+                            newton_tolerance *
+                                std::max(1.0, std::abs(n_l_mid)))
+                    {
+                        n_l_bracketed_out = n_l_mid;
+                        rho_lR_bracketed_out = rho_mid;
+                        mu_lR_bracketed_out = mu_mid;
+                        rho_l_hat_bracketed_out = rho_hat_mid;
+                        return true;
+                    }
+
+                    if (residual_lo * residual_mid <= 0.0)
+                    {
+                        n_l_hi = n_l_mid;
+                        residual_hi = residual_mid;
+                    }
+                    else
+                    {
+                        n_l_lo = n_l_mid;
+                        residual_lo = residual_mid;
+                    }
+                }
+
+                const auto n_l_mid = 0.5 * (n_l_lo + n_l_hi);
+                double residual_mid = 0.0;
+                double rho_mid = 0.0;
+                double mu_mid = 0.0;
+                double rho_hat_mid = 0.0;
+                if (!evaluate_reduced(n_l_mid, rho_lR_prev_arg, residual_mid,
+                                      rho_mid, mu_mid, rho_hat_mid))
+                {
+                    return false;
+                }
+
+                n_l_bracketed_out = n_l_mid;
+                rho_lR_bracketed_out = rho_mid;
+                mu_lR_bracketed_out = mu_mid;
+                rho_l_hat_bracketed_out = rho_hat_mid;
+                return true;
+            };
+
+        for (unsigned int iteration = 0; iteration < max_iterations;
+             ++iteration)
+        {
+            double residual_1 = 0.0;
+            double residual_2 = 0.0;
+            double mu_lR_trial = 0.0;
+            double rho_l_hat_trial = 0.0;
+            evaluate(n_l_trial, rho_lR_trial, residual_1, residual_2,
+                     mu_lR_trial, rho_l_hat_trial);
+
+            const auto residual_norm =
+                std::abs(residual_1) + std::abs(residual_2);
+            if (residual_norm < newton_tolerance)
+            {
+                n_l_out = n_l_trial;
+                rho_lR_out = rho_lR_trial;
+                mu_lR_out = mu_lR_trial;
+                rho_l_hat_out = rho_l_hat_trial;
+                converged = true;
+                break;
+            }
+
+            const auto h_n_l = std::max(1e-8 * std::abs(n_l_trial), 1e-10);
+            const auto h_rho = std::max(1e-8 * std::abs(rho_lR_trial), 1e-8);
+
+            double residual_1_n = 0.0;
+            double residual_2_n = 0.0;
+            double residual_1_rho = 0.0;
+            double residual_2_rho = 0.0;
+            double dummy_1 = 0.0;
+            double dummy_2 = 0.0;
+            evaluate(n_l_trial + h_n_l, rho_lR_trial, residual_1_n,
+                     residual_2_n, dummy_1, dummy_2);
+            evaluate(n_l_trial, rho_lR_trial + h_rho, residual_1_rho,
+                     residual_2_rho, dummy_1, dummy_2);
+
+            const auto j11 = (residual_1_n - residual_1) / h_n_l;
+            const auto j21 = (residual_2_n - residual_2) / h_n_l;
+            const auto j12 = (residual_1_rho - residual_1) / h_rho;
+            const auto j22 = (residual_2_rho - residual_2) / h_rho;
+            const auto determinant = j11 * j22 - j12 * j21;
+            tfel::raise_if(
+                std::abs(determinant) < 1e-24,
+                "Notebook-MCC bridge microstate Newton system became singular.");
+
+            const auto delta_n_l =
+                (-residual_1 * j22 + j12 * residual_2) / determinant;
+            const auto delta_rho =
+                (j21 * residual_1 - j11 * residual_2) / determinant;
+
+            auto damping = 1.0;
+            auto accepted = false;
+            while (damping > 1e-6)
+            {
+                const auto n_l_candidate =
+                    std::max(n_l_trial + damping * delta_n_l, minimum_n_l);
+                const auto rho_candidate =
+                    std::max(rho_lR_trial + damping * delta_rho,
+                             rho_LR_ref + minimum_density_gap);
+
+                double candidate_residual_1 = 0.0;
+                double candidate_residual_2 = 0.0;
+                double dummy_mu = 0.0;
+                double dummy_rho_hat = 0.0;
+                evaluate(n_l_candidate, rho_candidate, candidate_residual_1,
+                         candidate_residual_2, dummy_mu, dummy_rho_hat);
+                const auto candidate_norm =
+                    std::abs(candidate_residual_1) +
+                    std::abs(candidate_residual_2);
+
+                if (candidate_norm < residual_norm)
+                {
+                    n_l_trial = n_l_candidate;
+                    rho_lR_trial = rho_candidate;
+                    accepted = true;
+                    break;
+                }
+                damping *= 0.5;
+            }
+
+            if (!accepted)
+            {
+                if (solve_microstate_bracketed(n_l_out, rho_lR_out, mu_lR_out,
+                                               rho_l_hat_out))
+                {
+                    converged = true;
+                    break;
+                }
+                tfel::raise_if(
+                    true,
+                    "Notebook-MCC bridge microstate Newton line search failed.");
+            }
+        }
+
+        if (!converged)
+        {
+            if (solve_microstate_bracketed(n_l_out, rho_lR_out, mu_lR_out,
+                                           rho_l_hat_out))
+            {
+                return;
+            }
+
+            tfel::raise_if(
+                true,
+                "Notebook-MCC bridge microstate Newton solve did not converge.");
+        }
+    };
+
+    double n_l_trial = n_l_prev;
+    double rho_lR_trial = rho_lR_prev;
+    double mu_lR_trial = mu_micro_from_state(n_l_prev, rho_lR_prev);
+    double rho_l_hat_trial =
+        mass_exchange_coefficient *
+        (mu_macro_from_pressure(p) - mu_lR_trial);
+
+    if (!zero_dt)
+    {
+        solve_microstate(p, delta_epsilon_v, n_l_prev, rho_lR_prev, n_l_trial,
+                         rho_lR_trial, mu_lR_trial, rho_l_hat_trial);
+    }
+
+    const auto phi_m_trial = n_l_trial;
+    const auto phi_M_trial = phi0 - phi_m_trial;
+    const auto delta_epsilon_sw =
+        swelling_slope * (phi_m_trial - phi_m_prev);
+
+    n_l = n_l_trial;
+    rho_lR = rho_lR_trial;
+    epsilon_sw += delta_epsilon_sw;
+    phi_m = phi_m_trial;
+    phi_M = phi_M_trial;
+    mu_lR_value = mu_lR_trial;
+    rho_l_hat_value = rho_l_hat_trial;
+}
+
+@AdditionalConvergenceChecks
+{
+    if (converged)
+    {
+        if (!withinElasticRange)
+        {
+            if (ΔΛₚ < 0)
+            {
+                converged = false;
+                withinElasticRange = true;
+            }
+        }
+    }
+}
+
+@TangentOperator
+{
+    const auto ∂Sᴸ∕∂pᶜᵃᵖ = [&](const auto pᶜᵃᵖ) {
+        return (1.0 - Sᴳʳ - Sᴸʳ) *
+               (Sᴸ < (1.0 - Sᴳʳ) && Sᴸ > Sᴸʳ
+                    ? -mⱽᴳ / (pᵇ * (1.0 - mⱽᴳ)) *
+                          std::pow(std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ,
+                                            1.0 / (1.0 - mⱽᴳ)) +
+                                       1.0,
+                                   -mⱽᴳ - 1.0) *
+                          std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ,
+                                   1.0 / (1.0 - mⱽᴳ) - 1.0)
+                    : 0.0);
+    };
+
+    ∂σ∕∂Δpᴸᴿ = 0.0 * I₂;
+    ∂Sᴸ∕∂Δεᵗᵒ = 0.0 * I₂;
+    ∂Sᴸ∕∂Δpᴸᴿ = -∂Sᴸ∕∂pᶜᵃᵖ(-(pᴸᴿ + Δpᴸᴿ));
+
+    if ((smt == ELASTIC) || (smt == SECANTOPERATOR))
+    {
+        ∂σ∕∂Δεᵗᵒ = ∂σ∕∂εᵉˡ;
+    }
+    else if (smt == CONSISTENTTANGENTOPERATOR)
+    {
+        Stensor4 Je;
+        getPartialJacobianInvert(Je);
+        ∂σ∕∂Δεᵗᵒ = ∂σ∕∂εᵉˡ * Je;
+    }
+    else
+    {
+        return false;
+    }
+}

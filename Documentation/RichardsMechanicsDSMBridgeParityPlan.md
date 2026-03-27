@@ -28,11 +28,14 @@ Two things are already true:
   `ModCamClay_semiExpl_constE`
 - a benchmark same-law MCC native-vs-bridge compare now also works and is
   green on the native part-1 shell
+- a widened notebook-MCC hybrid bridge can now carry notebook auxiliary state
+  explicitly while still collapsing exactly to the verified MCC bridge when
+  notebook coupling is neutral
 
 One thing is still open:
 
-- the notebook-derived bridge law `RichardsMechanicsNotebookBridge` is still a
-  different constitutive surface from the native MCC benchmark, so
+- the notebook-derived constitutive content is still not fed back into the
+  returned stress, tangents, and saturation of the new hybrid bridge, so full
   notebook-to-native DSM parity is still open
 
 So the remaining problem is no longer “can the benchmark bridge run?” and it is
@@ -42,7 +45,7 @@ be widened toward that now-verified MCC benchmark surface.
 
 ## What is already verified
 
-As of 2026-03-26 on branch `dsm-nb-mfront-transition`:
+As of 2026-03-27 on branch `dsm-nb-mfront-transition`:
 
 - the repository configures and builds with `OGS_USE_MFRONT=ON`
 - this focused test slice passes:
@@ -56,6 +59,9 @@ As of 2026-03-26 on branch `dsm-nb-mfront-transition`:
 - `ogs-RichardsMechanics_mfront_parity_1element_unsat_compare`
 - `ogs-RichardsMechanics_mfront_parity_1element_mcc_compare`
 - `ogs-RichardsMechanics_mfront_restart_part1_mcc_compare`
+- `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_bridge`
+- `ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_compare`
+- `MaterialLib_RMBridgeMFront_NotebookMCC.NeutralNotebookStateMatchesVerifiedMCCBridge`
 - the RM pressure-coupled carrier now keeps the bridge saturation derivative
   with respect to strain `dS/d\varepsilon`, and the pressure-equation
   displacement block now consumes that term instead of dropping it
@@ -371,6 +377,116 @@ What remains open is not this same-law benchmark surface. What remains open is
 the notebook-derived bridge law and how far it should be widened toward this
 now-verified MCC benchmark boundary.
 
+## Notebook-MCC hybrid bridge status
+
+There is now a first widening step between the old reduced notebook bridge and
+the verified MCC bridge.
+
+New behaviour:
+
+- `MaterialLib/SolidModels/MFront/RichardsMechanicsNotebookBridge_MCC.mfront`
+
+New regression checks:
+
+- material-point:
+  `Tests/MaterialLib/MFront/RichardsMechanicsNotebookBridgeMCC.cpp`
+- project-level reduced shell:
+  `Tests/Data/RichardsMechanics/mfront_parity_1element_notebook_mcc_bridge.prj`
+- compare driver:
+  `scripts/cmake/test/CompareRichardsMechanicsMFrontNotebookMCCParity.cmake`
+
+### What this new bridge does
+
+It starts from the verified pressure-coupled MCC bridge surface and adds the
+notebook auxiliary state variables as persistent process-visible state:
+
+\[
+\eta_{MCC}
+=
+\left(
+\varepsilon^{el},
+\Lambda_p,
+p_c,
+\varepsilon_v^p,
+v^r
+\right),
+\]
+
+\[
+\eta_{NB}
+=
+\left(
+n_l,
+\rho_{lR},
+\varepsilon_{sw},
+\phi_m,
+\phi_M,
+\mu_{lR},
+\hat{\rho}_l
+\right).
+\]
+
+The current hybrid bridge stores
+
+\[
+\eta_{hybrid} = (\eta_{MCC}, \eta_{NB}),
+\]
+
+but its returned constitutive surface is still the verified MCC one:
+
+\[
+\mathcal{C}_{hybrid}^{(0)}(\varepsilon, p_L, \eta_{hybrid})
+=
+\mathcal{C}_{MCC}^{pc}(\varepsilon, p_L, \eta_{MCC}).
+\]
+
+That is intentional. This step widens the state first without changing the
+already verified benchmark surface.
+
+### What is already verified for the hybrid bridge
+
+When notebook coupling is neutral,
+
+\[
+\text{SwellingSlope} = 0,
+\qquad
+\text{MassExchangeCoefficient} = 0,
+\]
+
+the hybrid bridge collapses to the verified MCC bridge on the same loading
+path.
+
+Verified equal outputs:
+
+- `stress`
+- `dStress_dStrain`
+- `dStress_dLiquidPressure`
+- `saturation`
+- `dSaturation_dStrain`
+- `dSaturation_dLiquidPressure`
+- `ElasticStrain`
+- `EquivalentPlasticStrain`
+- `PreConsolidationPressure`
+- `PlasticVolumetricStrain`
+- `VolumeRatio`
+
+Verified carried notebook state:
+
+- `n_l`
+- `rho_lR`
+- `epsilon_sw`
+- `phi_m`
+- `phi_M`
+- `mu_lR`
+- `rho_l_hat`
+
+So this first widening step proves a narrow but important point:
+
+- notebook state can be added to the bridge without breaking the verified MCC
+  carrier surface
+- the next changes can focus on constitutive feedback, not on basic state
+  plumbing
+
 ## The pressure-coupled contract in plain language
 
 The key question is simple:
@@ -579,7 +695,20 @@ Delivered test:
 
 - `ogs-RichardsMechanics_mfront_restart_part1_mcc_compare`
 
-### WP5: Widen the notebook-derived bridge toward the verified MCC boundary
+### WP5: Add a notebook-MCC hybrid bridge that preserves the verified MCC surface
+
+Status:
+
+- complete
+
+Delivered result:
+
+- add `RichardsMechanicsNotebookBridge_MCC`
+- carry notebook auxiliary state explicitly in the pressure-coupled bridge
+- prove, with a material-point test and a reduced-shell CTest, that the hybrid
+  bridge collapses to the verified MCC bridge when notebook coupling is neutral
+
+### WP6: Feed notebook swelling back into the constitutive response
 
 Status:
 
@@ -587,10 +716,52 @@ Status:
 
 Practical task:
 
-- decide which notebook-owned internal variables must stay explicit
-- decide which available MCC variables and tangents must stay aligned with the
-  verified same-law benchmark surface
-- only then add the next notebook-driven constitutive feature
+- define the first non-neutral feedback from notebook state into the returned
+  effective stress
+- keep the verified MCC plastic core and add only the notebook-owned swelling
+  correction
+- return the matching pressure and strain tangents
+
+Target form:
+
+\[
+\boldsymbol{\sigma}_{eff}^{hybrid}
+=
+\boldsymbol{\sigma}_{eff}^{MCC}
+- K_{sw}(\eta_{NB})\,\Delta \varepsilon_{sw}\,\mathbf{I}.
+\]
+
+The important rule is that this must be introduced together with consistent
+tangents, not as an output-only post-processing term.
+
+### WP7: Decide whether notebook microstate should modify saturation or stay auxiliary
+
+Status:
+
+- open
+
+Practical task:
+
+- decide whether the final notebook bridge should still return the same
+  saturation law as the verified MCC bridge
+- or whether notebook microstate should also alter `S_L`, `dS_L/dp_L`, or
+  `dS_L/d\varepsilon`
+- if that feedback is activated, add a dedicated reduced-shell parity gate for
+  that branch before touching the benchmark shell
+
+### WP8: Benchmark the widened notebook hybrid against the verified MCC boundary
+
+Status:
+
+- open
+
+Practical task:
+
+- clone the current same-law MCC benchmark shell
+- swap only the constitutive behaviour to the widened notebook-MCC hybrid
+- compare the shared fields first on a benchmark shell with tightly controlled
+  notebook coupling
+- only then claim progress toward notebook-to-native parity
 
 ## Definition of done
 
@@ -635,7 +806,7 @@ Focused CTest slice:
 ```bash
 ctest --test-dir /Users/vinaykumar/git/build/release-mfront-tpm \
   --output-on-failure \
-  -R 'ogs-RichardsMechanics/mfront_restart_part1$|ogs-RichardsMechanics/mfront_restart_part2$|ogs-RichardsMechanics_mfront_restart_part1_rm_bridge$|ogs-RichardsMechanics_mfront_restart_part1_mcc_compare$|ogs-RichardsMechanics_mfront_parity_1element_native$|ogs-RichardsMechanics_mfront_parity_1element_bridge$|ogs-RichardsMechanics_mfront_parity_1element_compare$'
+  -R 'ogs-RichardsMechanics/mfront_restart_part1$|ogs-RichardsMechanics/mfront_restart_part2$|ogs-RichardsMechanics_mfront_restart_part1_rm_bridge$|ogs-RichardsMechanics_mfront_restart_part1_mcc_compare$|ogs-RichardsMechanics_mfront_parity_1element_native$|ogs-RichardsMechanics_mfront_parity_1element_bridge$|ogs-RichardsMechanics_mfront_parity_1element_compare$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_bridge$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_compare$'
 ```
 
 Direct benchmark-pressure bridge guardrail:
@@ -643,4 +814,11 @@ Direct benchmark-pressure bridge guardrail:
 ```bash
 /Users/vinaykumar/git/build/release-mfront-tpm/bin/testrunner \
   --gtest_filter='MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentExactRMStateResponse:MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathBenchmarkPressureConsistentExactRMStateFirstStepResponse:MaterialLib_RichardsMechanicsNotebookBridgeMFront.PlaneStrainFactoryPathBenchmarkPressureConsistentProcessFailureStateResponse'
+```
+
+Notebook-MCC hybrid guardrail:
+
+```bash
+/Users/vinaykumar/git/build/release-mfront-tpm/bin/testrunner \
+  --gtest_filter='MaterialLib_RMBridgeMFront_NotebookMCC.*'
 ```
