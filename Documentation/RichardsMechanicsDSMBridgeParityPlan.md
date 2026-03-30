@@ -1162,6 +1162,27 @@ The current meshes for both `1a01` and `1b` are still one element through the
 height. That means the present OGS runs can only produce a uniform end-state
 dry-density field, not a resolved dry-density profile.
 
+### Meshes and boundary conditions
+
+The native and bridge comparisons in this section use the same specimen meshes
+and the same boundary-condition layout. The figures below show the actual mesh
+size and the active Dirichlet conditions for the compared `1a01` and `1b`
+project files.
+
+![BEACON 1a01 mesh and boundary conditions](figures/beacon_1a01_mesh_bc.png)
+
+`1a01`: one quadrilateral element over a `25 mm x 20 mm` axisymmetric specimen.
+The radial displacement is fixed on `left` and `right`, the axial displacement
+is fixed on `bottom` and `top`, and the liquid pressure is prescribed on the
+`top` edge with `p = 2e3 Pa`. The initial pressure is also `2e3 Pa`.
+
+![BEACON 1b mesh and boundary conditions](figures/beacon_1b_mesh_bc.png)
+
+`1b`: one quadrilateral element over a `120 mm x 105.15 mm` axisymmetric
+specimen. The displacement constraints are the same as in `1a01`. The liquid
+pressure is prescribed on both axial faces: `p = 0 Pa` at the `top` and
+`p = 1e4 Pa` at the `bottom`. The initial pressure is `-1e6 Pa`.
+
 ### What was taken from the report
 
 For `1a01`, D5.1.1 gives two different targets:
