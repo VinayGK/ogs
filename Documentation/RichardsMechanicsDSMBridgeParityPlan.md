@@ -1144,6 +1144,103 @@ What is still open:
 - port `vk_potential_exchange` into the MFront tree if one executable for both
   native and bridge project families is still desired
 
+## BEACON report comparison for `1a01` and `1b`
+
+This section compares the current native and bridge OGS runs against the
+benchmark values reported in BEACON D5.1.1 for `1a01` and `1b`.
+
+The comparison rules used here are:
+
+- axial swelling pressure from OGS:
+  `p_sw^ax = |sigma_yy|`
+- radial swelling pressure from OGS:
+  `p_sw^rad = |sigma_xx|`
+- dry density from OGS:
+  `dry_density_solid`
+
+The current meshes for both `1a01` and `1b` are still one element through the
+height. That means the present OGS runs can only produce a uniform end-state
+dry-density field, not a resolved dry-density profile.
+
+### What was taken from the report
+
+For `1a01`, D5.1.1 gives two different targets:
+
+- Table 3-1 gives the end of stage 1 (`intermediate`) at constant volume:
+  - axial stress `604 kPa`
+  - radial stress `994 kPa`
+  - dry density `1655 kg/m^3`
+- Table 3-2 gives the final post-mortem density profile after the full test,
+  including stage 2 with added volume:
+  - from bottom `2.5 mm`: `1466 kg/m^3`
+  - from bottom `7.5 mm`: `1454 kg/m^3`
+  - from bottom `12.5 mm`: `1427 kg/m^3`
+  - from bottom `17.5 mm`: `1353 kg/m^3`
+  - average: `1425 kg/m^3`
+
+For `1b`, D5.1.1 gives:
+
+- Table 4-3 after the volume adjustment:
+  - dry density `1.52 g/cm^3 = 1520 kg/m^3`
+- Figure 4-6 and the surrounding text:
+  - swelling pressure is nonzero
+  - a stabilized state is reached after about `500 days`
+
+The extracted report text does not provide a tabulated dry-density profile for
+`1b`, and it does not provide a machine-readable swelling-pressure plateau
+value. So the `1b` report comparison is partly qualitative.
+
+### Current native and bridge runs used here
+
+| Case | Native run | Bridge run | End time used |
+| --- | --- | --- | --- |
+| `1a01` | `beacon_1a01_vk_inflow.prj` | `beacon_1a01_vk_notebook_mcc_inflow_bridge.prj` | `1e5 s` |
+| `1b` | temporary long-horizon copy of `beacon_1b_vk_smoke.prj` | temporary long-horizon copy of `beacon_1b_vk_notebook_mcc_bridge.prj` | `4.32e7 s = 500 days` |
+
+The `1b` long-horizon runs were temporary report-comparison runs only. They are
+not committed CTests.
+
+### Comparison table
+
+| Case | Quantity | BEACON report target | Native OGS | MFront OGS | Match status | Main reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `1a01` | Stage-1 axial swelling pressure | `604 kPa` | `3.563 kPa` | `3.563 kPa` | strong mismatch | The current `1a01` inflow implementation builds only a very small support stress on the stage-1 path. |
+| `1a01` | Stage-1 radial swelling pressure | `994 kPa` | `3.562 kPa` | `3.562 kPa` | strong mismatch | Same as above; both native and bridge remain far below the benchmark pressure level. |
+| `1a01` | Stage-1 dry density | `1655 kg/m^3` | `1668.009 kg/m^3` | `1668.009 kg/m^3` | close | The current stage-1 case keeps dry density near the initial compacted state. |
+| `1a01` | Final post-mortem dry-density profile after full test | `1466, 1454, 1427, 1353 kg/m^3` from bottom to top | uniform `1668.0 kg/m^3` field on a one-element mesh | uniform `1668.0 kg/m^3` field on a one-element mesh | mismatch and not fully comparable | The current OGS case is still stage-1 only, and the FE mesh has no axial resolution for a true profile. |
+| `1b` | Dry density after volume adjustment | `1520 kg/m^3` | `1389.975 kg/m^3` | `1389.975 kg/m^3` | mismatch | The current surrogate uses `phi0 = 0.5`, which fixes the bulk dry density near `1390 kg/m^3` instead of the report value `1520 kg/m^3`. |
+| `1b` | Swelling pressure after long saturation | nonzero and stabilized after about `500 days` | `0 kPa` | `0 kPa` | mismatch | The current `1b` native and bridge surrogates remain mechanically inactive even on the report-style time horizon. |
+| `1b` | Dry-density profile | not tabulated in the extracted D5.1.1 text | uniform `1389.975 kg/m^3` field | uniform `1389.975 kg/m^3` field | report value not available, OGS unresolved | The report text gives a requested profile definition, but not a tabulated profile; the current OGS mesh is also too coarse to resolve one. |
+
+### Interpretation
+
+The current picture is now clear:
+
+- `1a01`: native and bridge match each other well on the current OGS setup, but
+  both are still far below the BEACON stage-1 swelling-pressure target.
+- `1a01`: dry density is close to the stage-1 report value, but the current
+  case cannot reproduce the final post-mortem profile because it does not yet
+  include the second benchmark stage and it has only one element over the
+  specimen height.
+- `1b`: native and bridge again match each other, but they do not match the
+  report-facing dry density or the nonzero swelling-pressure development.
+
+So the current limiting factor is no longer native-vs-bridge disagreement for
+these two cases. The limiting factor is benchmark realism of the OGS surrogate.
+
+### Suggested next steps
+
+- `1a01`: keep the current native/bridge matched stage-1 branch, but retune the
+  microscale swelling path until stage-1 swelling pressure reaches the reported
+  `604/994 kPa` range.
+- `1a01`: add axial resolution and the second benchmark stage before claiming
+  any match to the post-mortem dry-density profile in Table 3-2.
+- `1b`: set the initial dry density to the reported `1520 kg/m^3` level first;
+  without that, a swelling-pressure comparison is already off on the initial
+  state.
+- `1b`: after the density correction, check why the present constitutive branch
+  still gives zero stress on a `500 day` run.
+
 ## Generated parity and benchmark files
 
 These are the generated project and compare files that define the current
