@@ -135,11 +135,18 @@ mⱽᴳ.setEntryName("VanGenuchtenExponent_m");
 @PhysicalBounds notebook_saturation_mode in [0:*[;
 notebook_saturation_mode.setEntryName("NotebookSaturationMode");
 
+@MaterialProperty real micro_potential_convention;
+@PhysicalBounds micro_potential_convention in [0:*[;
+micro_potential_convention.setEntryName("MicroPotentialConvention");
+
 @MaterialProperty real swelling_slope;
 swelling_slope.setEntryName("SwellingSlope");
 
 @MaterialProperty real mass_exchange_coefficient;
 mass_exchange_coefficient.setEntryName("MassExchangeCoefficient");
+
+@MaterialProperty real macro_viscosity;
+macro_viscosity.setEntryName("MacroViscosity");
 
 @MaterialProperty real rho_LR_ref;
 rho_LR_ref.setEntryName("ReferenceLiquidDensityMacro");
@@ -194,6 +201,7 @@ phi0.setEntryName("InitialPorosity");
 @LocalVariable real dn_l_dtrace_eps_trial;
 @LocalVariable real dn_l_dp_trial;
 @LocalVariable bool use_notebook_saturation;
+@LocalVariable real micro_potential_sign;
 @LocalVariable real tuller_capillary_prefactor;
 @LocalVariable real notebook_support_saturation_trial_value;
 
@@ -261,17 +269,27 @@ phi0.setEntryName("InitialPorosity");
     constexpr const auto minimum_density_gap = 1e-12;
     constexpr const auto newton_tolerance = 1e-11;
     constexpr const auto max_iterations = 64u;
+    const auto hamaker_magnitude = std::abs(hamaker_constant);
+    micro_potential_sign =
+        (micro_potential_convention > 0.5 ? -1.0 : 1.0) *
+        (hamaker_constant >= 0.0 ? 1.0 : -1.0);
 
     tfel::raise_if(phi0 <= 0.0 || phi0 >= 1.0,
                    "Invalid parameter: InitialPorosity must lie in (0,1).");
     tfel::raise_if(rho_LR_ref <= 0.0 || rho_l0 <= 0.0 || rho_SR <= 0.0,
                    "Invalid density parameter: all reference densities must be positive.");
+    tfel::raise_if(macro_viscosity <= 0.0,
+                   "Invalid parameter: MacroViscosity must be positive.");
+    tfel::raise_if(hamaker_magnitude <= 0.0,
+                   "Invalid parameter: HamakerConstant must be non-zero.");
     tfel::raise_if(specific_surface <= 0.0,
                    "Invalid parameter: SpecificSurface must be positive.");
 
     const auto p = pᴸᴿ + Δpᴸᴿ;
     const auto delta_epsilon_v = trace(Δεᵗᵒ);
     const auto zero_dt = std::abs(dt) < 1e-15;
+    const auto alpha_M_effective =
+        mass_exchange_coefficient * rho_LR_ref / macro_viscosity;
     const auto n_s = 1.0 - phi0;
     const auto n_l_prev = std::max(n_l, minimum_n_l);
     const auto rho_lR_prev =
@@ -300,7 +318,8 @@ phi0.setEntryName("InitialPorosity");
                                          const auto rho_lR_arg) {
         const auto omega =
             std::max(omega_from_state(n_l_arg, rho_lR_arg), minimum_n_l);
-        return (hamaker_constant * rho_lR_arg * rho_lR_arg * rho_lR_arg /
+        return (micro_potential_sign * hamaker_magnitude * rho_lR_arg *
+                rho_lR_arg * rho_lR_arg /
                 (6.0 * pi)) *
                std::pow(specific_surface / omega, 3.0);
     };
@@ -327,7 +346,7 @@ phi0.setEntryName("InitialPorosity");
                                   double& rho_l_hat_arg) {
             mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
             rho_l_hat_arg =
-                mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
+                alpha_M_effective * (mu_LR_arg - mu_lR_arg);
             residual_1 =
                 n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
                 n_l_arg * rho_lR_arg * delta_epsilon_v_arg;
@@ -372,7 +391,7 @@ phi0.setEntryName("InitialPorosity");
                 n_l_arg, rho_initial_guess, rho_lR_arg);
             mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
             rho_l_hat_arg =
-                mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
+                alpha_M_effective * (mu_LR_arg - mu_lR_arg);
             residual_1 =
                 n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
                 n_l_arg * rho_lR_arg * delta_epsilon_v_arg;
@@ -667,7 +686,7 @@ phi0.setEntryName("InitialPorosity");
     rho_lR_trial_value = rho_lR_prev;
     mu_lR_trial_value = mu_micro_from_state(n_l_prev, rho_lR_prev);
     rho_l_hat_trial_value =
-        mass_exchange_coefficient *
+        alpha_M_effective *
         (mu_macro_from_pressure(p) - mu_lR_trial_value);
     dn_l_dtrace_eps_trial = 0.0;
     dn_l_dp_trial = 0.0;

@@ -42,7 +42,10 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
                             double const n_l0 = 0.1,
                             double const rho_lR0 = 1300.0,
                             double const epsilon_sw0 = 0.0,
-                            double const notebook_saturation_mode = 0.0)
+                            double const notebook_saturation_mode = 0.0,
+                            double const micro_potential_convention = 0.0,
+                            double const hamaker_constant = -6e-20,
+                            double const macro_viscosity = 1000.0)
 {
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> parameters;
 
@@ -65,17 +68,19 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
     add_param("BubblePressure", 1e4);
     add_param("VanGenuchtenExponent_m", 0.4);
     add_param("NotebookSaturationMode", notebook_saturation_mode);
+    add_param("MicroPotentialConvention", micro_potential_convention);
 
     // Neutral first-step notebook coupling: state is updated and visible, but
     // the verified MCC stress/saturation surface stays unchanged.
     add_param("SwellingSlope", swelling_slope);
     add_param("MassExchangeCoefficient", mass_exchange_coefficient);
+    add_param("MacroViscosity", macro_viscosity);
     add_param("ReferenceLiquidDensityMacro", 1000.0);
     add_param("ReferenceLiquidDensityMicro", 1300.0);
     add_param("ReferenceDensitySolid", 2470.0);
     add_param("MicroLiquidDensityA", 1.3);
     add_param("MicroLiquidDensityB", 1.0);
-    add_param("HamakerConstant", -6e-20);
+    add_param("HamakerConstant", hamaker_constant);
     add_param("SpecificSurface", 100.0);
     add_param("AreaFactorTuller", 1.0);
     add_param("PoreAreaShapeFactorTuller", 0.8584073464102069);
@@ -90,7 +95,9 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
 }
 
 std::vector<std::unique_ptr<ParameterLib::ParameterBase>>
-createNotebookSupportParameters(double const notebook_saturation_mode = 0.0)
+createNotebookSupportParameters(double const notebook_saturation_mode = 0.0,
+                                double const micro_potential_convention = 0.0,
+                                double const hamaker_constant = -6e-20)
 {
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> parameters;
 
@@ -115,15 +122,17 @@ createNotebookSupportParameters(double const notebook_saturation_mode = 0.0)
     add_param("BubblePressure", 1e4);
     add_param("VanGenuchtenExponent_m", 0.4);
     add_param("NotebookSaturationMode", notebook_saturation_mode);
+    add_param("MicroPotentialConvention", micro_potential_convention);
 
     add_param("SwellingSlope", 0.1);
     add_param("MassExchangeCoefficient", 1.0);
+    add_param("MacroViscosity", 1000.0);
     add_param("ReferenceLiquidDensityMacro", 1000.0);
     add_param("ReferenceLiquidDensityMicro", 1300.0);
     add_param("ReferenceDensitySolid", 2470.0);
     add_param("MicroLiquidDensityA", 1.3);
     add_param("MicroLiquidDensityB", 1.0);
-    add_param("HamakerConstant", -6e-20);
+    add_param("HamakerConstant", hamaker_constant);
     add_param("SpecificSurface", 100.0);
     add_param("AreaFactorTuller", 1.0);
     add_param("PoreAreaShapeFactorTuller", 0.8584073464102069);
@@ -199,8 +208,10 @@ std::unique_ptr<MB> createNotebookMCCModel(
             <material_property name="BubblePressure" parameter="BubblePressure"/>
             <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
             <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
+            <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
             <material_property name="SwellingSlope" parameter="SwellingSlope"/>
             <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
+            <material_property name="MacroViscosity" parameter="MacroViscosity"/>
             <material_property name="ReferenceLiquidDensityMacro" parameter="ReferenceLiquidDensityMacro"/>
             <material_property name="ReferenceLiquidDensityMicro" parameter="ReferenceLiquidDensityMicro"/>
             <material_property name="ReferenceDensitySolid" parameter="ReferenceDensitySolid"/>
@@ -688,6 +699,18 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
         notebookMCCIsotropicStress(bulk_modulus * epsilon_sw);
     EXPECT_TRUE((expected_stress - notebook_response->stress).isZero(5e-8));
 
+    auto const sigma_S_values =
+        getInternalVector(*notebook_mcc, *notebook_response->state, "sigma_S");
+    ASSERT_EQ(sigma_S_values.size(), static_cast<std::size_t>(KV::RowsAtCompileTime));
+    KV sigma_S = KV::Zero();
+    for (Eigen::Index i = 0; i < KV::RowsAtCompileTime; ++i)
+    {
+        sigma_S[i] = sigma_S_values[static_cast<std::size_t>(i)];
+    }
+    auto const added_swelling_stress =
+        notebook_response->stress - reference_response->stress;
+    EXPECT_TRUE((added_swelling_stress - sigma_S).isZero(5e-8));
+
     EXPECT_NEAR(reference_response->saturation, notebook_response->saturation,
                 1e-15);
     EXPECT_TRUE((reference_response->dSaturation_dStrain -
@@ -723,6 +746,125 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
         (notebook_p_plus->stress - notebook_p_minus->stress) / (2.0 * dp_fd);
     EXPECT_TRUE((notebook_response->dStress_dLiquidPressure - dsigma_dp_fd)
                     .isZero(5e-4));
+}
+
+TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+     NativeAlignedStageOneStressGapIsMicroSupportStress)
+{
+    auto parameters = createNotebookMCCParameters(
+        0.1, 1e-13, 0.1, 2095.3222465784393, 0.0, 0.0, 1.0, 6e-20, 1e-3);
+    auto reference = createReferenceMCCModel(parameters);
+    auto notebook_mcc = createNotebookMCCModel(parameters);
+
+    auto reference_state = reference->createMaterialStateVariables();
+    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    initializeState(*reference, *reference_state);
+    initializeState(*notebook_mcc, *notebook_state);
+
+    ParameterLib::SpatialPosition x{};
+
+    MPL::VariableArray previous;
+    previous.mechanical_strain.emplace<KV>(KV::Zero());
+    previous.stress.emplace<KV>(notebookMCCIsotropicStress(0.0));
+    previous.liquid_phase_pressure = -1e6;
+    previous.temperature = 293.15;
+
+    MPL::VariableArray current = previous;
+    current.liquid_phase_pressure = 2e3;
+
+    constexpr double t = 1e3;
+    constexpr double dt = 1e3;
+
+    auto reference_response = reference->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *reference_state);
+    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *notebook_state);
+
+    ASSERT_TRUE(reference_response);
+    ASSERT_TRUE(notebook_response);
+    ASSERT_TRUE(reference_response->state);
+    ASSERT_TRUE(notebook_response->state);
+
+    auto const sigma_S_values =
+        getInternalVector(*notebook_mcc, *notebook_response->state, "sigma_S");
+    ASSERT_EQ(sigma_S_values.size(), static_cast<std::size_t>(KV::RowsAtCompileTime));
+    KV sigma_S = KV::Zero();
+    for (Eigen::Index i = 0; i < KV::RowsAtCompileTime; ++i)
+    {
+        sigma_S[i] = sigma_S_values[static_cast<std::size_t>(i)];
+    }
+
+    auto const added_swelling_stress =
+        notebook_response->stress - reference_response->stress;
+    EXPECT_GT(sigma_S.norm(), 1e-3);
+    EXPECT_TRUE((added_swelling_stress - sigma_S).isZero(1e-6));
+    EXPECT_NEAR(reference_response->saturation, notebook_response->saturation,
+                1e-15);
+}
+
+TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+     NegativeAttractiveConventionMatchesLegacyNegativeHamakerPath)
+{
+    auto legacy_parameters = createNotebookMCCParameters(
+        8.0, 1e-13, 0.1, 1300.0, 0.0, 0.0, 0.0, -6e-20);
+    auto native_aligned_parameters = createNotebookMCCParameters(
+        8.0, 1e-13, 0.1, 1300.0, 0.0, 0.0, 1.0, 6e-20);
+
+    auto legacy_model = createNotebookMCCModel(legacy_parameters);
+    auto native_aligned_model =
+        createNotebookMCCModel(native_aligned_parameters);
+
+    auto legacy_state = legacy_model->createMaterialStateVariables();
+    auto native_aligned_state =
+        native_aligned_model->createMaterialStateVariables();
+    initializeState(*legacy_model, *legacy_state);
+    initializeState(*native_aligned_model, *native_aligned_state);
+
+    ParameterLib::SpatialPosition x{};
+
+    MPL::VariableArray previous;
+    previous.mechanical_strain.emplace<KV>(KV::Zero());
+    previous.stress.emplace<KV>(notebookMCCIsotropicStress(0.0));
+    previous.liquid_phase_pressure = -1e6;
+    previous.temperature = 293.15;
+
+    MPL::VariableArray current = previous;
+    current.liquid_phase_pressure = 2e3;
+
+    constexpr double t = 1e5;
+    constexpr double dt = 1e5;
+
+    auto legacy_response = legacy_model->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *legacy_state);
+    auto native_aligned_response =
+        native_aligned_model->integrateStressPressureCoupled(
+            previous, current, t, x, dt, *native_aligned_state);
+
+    ASSERT_TRUE(legacy_response);
+    ASSERT_TRUE(native_aligned_response);
+    ASSERT_TRUE(legacy_response->state);
+    ASSERT_TRUE(native_aligned_response->state);
+
+    EXPECT_TRUE((legacy_response->stress - native_aligned_response->stress)
+                    .isZero(1e-8));
+    EXPECT_TRUE(
+        (legacy_response->dStress_dStrain -
+         native_aligned_response->dStress_dStrain)
+            .isZero(1e-8));
+    EXPECT_TRUE((legacy_response->dStress_dLiquidPressure -
+                 native_aligned_response->dStress_dLiquidPressure)
+                    .isZero(1e-8));
+    EXPECT_NEAR(legacy_response->saturation, native_aligned_response->saturation,
+                1e-15);
+    EXPECT_NEAR(legacy_response->dSaturation_dLiquidPressure,
+                native_aligned_response->dSaturation_dLiquidPressure, 1e-15);
+
+    auto const legacy_epsilon_sw =
+        getInternalScalar(*legacy_model, *legacy_response->state, "epsilon_sw");
+    auto const aligned_epsilon_sw = getInternalScalar(
+        *native_aligned_model, *native_aligned_response->state, "epsilon_sw");
+    EXPECT_GT(std::abs(legacy_epsilon_sw), 1e-8);
+    EXPECT_NEAR(legacy_epsilon_sw, aligned_epsilon_sw, 1e-12);
 }
 
 TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
