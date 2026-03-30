@@ -991,6 +991,159 @@ Main conclusion:
 - the remaining BEACON work is concentrated on the native VK storage carrier
   and, for `1c`, the heterogeneous transport-porosity split
 
+## BEACON matching
+
+This section records the exact changes that were needed to make the bridge-side
+`1a01` stage-1 inflow case reproduce the native stage-1 end state.
+
+Scope:
+
+- native target:
+  `/Users/vinaykumar/Documents/GitHub/ogs/Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow.prj`
+- native reference end state:
+  `/Users/vinaykumar/Documents/GitHub/ogs/Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow_reference_t_100000.000000.vtu`
+- bridge run deck:
+  `Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_bridge.prj`
+- bridge executable:
+  `/Users/vinaykumar/git/build/release-mfront-tpm/bin/ogs`
+- comparison time:
+  `t = 100000 s`
+
+### What had to match conceptually
+
+The native `1a01` inflow case is sensitive to the local storage solve. The top
+pressure is fixed, but the interior state is not, so the bridge had to replay
+the same constitutive logic as the native scalar notebook-storage path.
+
+The final bridge matching setup uses:
+
+- the verified pressure-coupled MCC carrier for mechanics
+- notebook microstate evolution for swelling and exchange
+- a scalar notebook-storage local solve on `n_l`
+- process-visible transfer of notebook exchange and notebook swelling stress
+
+The three key constitutive relations are:
+
+\[
+\sigma_{\mathrm{eff}}^{\mathrm{hybrid}}
+=
+\sigma_{\mathrm{eff}}^{\mathrm{MCC}}
+\sigma_S,
+\qquad
+\sigma_S = -K\,\epsilon_{sw}\,\mathbf I
+\]
+
+\[
+\hat\rho_l
+=
+\alpha_M^{\mathrm{eff}}
+\left(\mu_{LR}-\mu_{lR}\right),
+\qquad
+\alpha_M^{\mathrm{eff}}=\bar\alpha\,\rho_{LR}/\mu
+\]
+
+\[
+R_{n_l}
+=
+n_l^{n+1}
+- n_l^n
+- \Delta t\,\hat\rho_l/\rho_{LR}^{\mathrm{ref}}
+- n_l^{n+1}\,\Delta\varepsilon_v
+= 0
+\]
+
+The first equation ensures that the added swelling stress is micro-driven. The
+second and third equations ensure that the notebook exchange term enters the
+same storage balance that the native scalar notebook-storage path uses.
+
+### Code changes needed
+
+| File | Change | Why it was needed for `1a01` matching |
+| --- | --- | --- |
+| `MaterialLib/SolidModels/MFront/RichardsMechanicsNotebookBridge_MCC.mfront` | Added material property `NotebookLocalSolveMode`; added scalar local-storage branch `use_scalar_notebook_storage`; kept `rho_lR = rho_LR_ref` in that branch; exposed `rho_l_hat` and `sigma_S`; kept the hybrid stress rule `sigma_eff^hybrid = sigma_eff^MCC + sigma_S` | The native `1a01` inflow path is driven by a scalar notebook-storage solve. Without this branch, the bridge used the older coupled `(n_l, rho_lR)` solve and drifted in `pressure` and `saturation`. |
+| `MaterialLib/SolidModels/MechanicsBase.h` | Extended `PressureCoupledResponse` with `swelling_stress` and `liquid_mass_exchange_source` | The notebook bridge already knew `sigma_S` and `rho_l_hat`, but RM had no generic place to carry them out of the constitutive update. |
+| `ProcessLib/RichardsMechanics/ConstitutiveRelations/PressureCoupledSolidData.h` | Added `swelling_stress` and `liquid_mass_exchange_source` to the bridge-side constitutive carrier | Needed to move the new bridge outputs into assembly and process-state storage. |
+| `MaterialLib/SolidModels/MFront/MFrontRichardsMechanics.h` | Mapped internal variable `sigma_S` to public `swelling_stress`; mapped `-rho_l_hat` to `liquid_mass_exchange_source` | This is the bridge-to-RM handoff that makes the notebook support stress and notebook exchange source visible to the process. |
+| `ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h` | Added `liquid_mass_exchange_source` to the pressure residual and wrote bridge `swelling_stress` into the process-owned swelling state | Without the residual source, the pressure equation ignored notebook mass exchange. Without the state write-back, the user-facing `swelling_stress` output stayed zero even when `sigma_S` and `sigma` were correct. |
+| `Tests/MaterialLib/MFront/RichardsMechanicsNotebookBridgeMCC.cpp` | Added bridge regressions for the swelling-stress split and the native-aligned stage-1 local step | These tests prove the constitutive split before the FE run. |
+| `Tests/ProcessLib/RichardsMechanics/PressureCoupledSolidData.cpp` | Added mapping checks for `swelling_stress` and `liquid_mass_exchange_source` | This protects the carrier path between MFront and RM assembly. |
+| `Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_bridge.prj` | Added the dedicated bridge inflow deck | This is the first bridge BEACON deck that targets the full stage-1 end state at `t=100000 s`, not just the smoke state at `t=1000 s`. |
+
+### Project and calibration choices used for the match
+
+The `1a01` inflow match was not obtained by changing the geometry or the load
+path. Those stay on the native stage-1 setup. The required calibration choices
+were inside the bridge constitutive deck.
+
+| Project quantity | Value in `beacon_1a01_vk_notebook_mcc_inflow_bridge.prj` | Purpose |
+| --- | --- | --- |
+| `InitialPreConsolidationPressure` | `1e10` | Keeps the MCC carrier elastic so the stage-1 swelling comparison is driven by the notebook microstate, not by plastic yielding. |
+| `InitialVolumeRatio` | `1.6666666666666667` | Keeps the pressure-coupled MCC carrier on the same reference surface as the verified MCC bridge decks. |
+| `NotebookLocalSolveMode` | `1` | Activates the scalar notebook-storage local solve that matches the native `scalar_notebook_storage` logic. |
+| `MicroPotentialConvention` | `1` | Uses the native-aligned sign convention for the notebook micro-potential. |
+| `NotebookSwellingSlope` | `0.1` | Transfers notebook micro-swelling into the returned stress. This is not an independent dominant macro swelling law; it is the coefficient that maps the micro swelling strain into the support stress `sigma_S = -K epsilon_sw I`. |
+| `MassExchangeCoefficient` | `1e-13` | Keeps the micro-to-macro exchange rate on the committed notebook scale. |
+| `MacroViscosity` | `1e-3` | Enters the native-style exchange scaling `alpha_M^eff = bar alpha rho_LR / mu`. |
+| `n_l0` | `0.01` | Native-aligned initial notebook liquid content. |
+| `rho_lR0` | `2276.031917690513` | Native-aligned initial micro liquid density for the stage-1 inflow state. |
+| `epsilon_sw0` | `0.0` | Starts the notebook swelling strain from zero, so the stage-1 swelling stress is generated by the run itself. |
+
+### Why each change was necessary
+
+The matching problem had three layers.
+
+1. The local storage solve had to match the native logic.
+   The old bridge solve evolved `(n_l, rho_lR)` together. That is acceptable on
+   reduced notebook tests, but it is not the same closure as the native scalar
+   notebook-storage branch used by `1a01` inflow. Switching to
+   `NotebookLocalSolveMode = 1` removed the remaining saturation mismatch.
+
+2. The exchange source had to enter the pressure equation.
+   The notebook bridge computes `rho_l_hat`, but until the bridge carrier was
+   widened, RM did not use it in the pressure residual. After the widening, the
+   pressure residual sees the source term
+   `R_p <- R_p + integral N_p^T (-rho_l_hat) dOmega`.
+
+3. The public swelling-stress output had to be populated from the bridge.
+   Before the new `swelling_stress` carrier was added, the bridge already
+   produced the correct support stress internally as `sigma_S`, but the user
+   output `swelling_stress` stayed zero because only the native MPL path wrote
+   that process-owned field.
+
+### Final `1a01` stage-1 comparison at `t = 100000 s`
+
+The current bridge inflow run is close to the native reference:
+
+| Field | Native vs bridge end-state comparison |
+| --- | --- |
+| `pressure` | abs max `2.875603146608796e-02`, rel max `1.686365460364637e-04` |
+| `saturation` | exact |
+| `swelling_stress` | abs max `1.350759650645159e-01`, rel max `3.790781457621327e-05` |
+| `sigma` | abs max `1.350759650654254e-01`, rel max `3.790781457646852e-05` |
+
+This means the bridge now reproduces the stage-1 native end state to a very
+good approximation, and it does so with micro-driven swelling:
+
+- the swelling stress exposed to the user is the bridge notebook support stress
+  `sigma_S`
+- the hybrid stress gap relative to the plain MCC carrier is also `sigma_S`
+- the remaining mismatch is small numerical residue in `pressure`, `sigma`, and
+  `swelling_stress`, not a missing constitutive branch
+
+### Practical boundary after the matching work
+
+For BEACON `1a01` stage 1, the remaining work is no longer “make swelling
+appear” or “make the bridge use the notebook exchange term”. Those are done.
+
+What is still open:
+
+- add a tracked compare CTest for the bridge inflow case once the tolerated
+  thresholds are agreed
+- extend the same storage-carrier treatment from `1a01` to the heterogeneous
+  `1c` path, where `transport_porosity` is still native-specific
+- port `vk_potential_exchange` into the MFront tree if one executable for both
+  native and bridge project families is still desired
+
 ## Generated parity and benchmark files
 
 These are the generated project and compare files that define the current

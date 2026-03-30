@@ -30,6 +30,9 @@ struct PressureCoupledSolidData
     MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
         dSigma_dLiquidPressure =
             MathLib::KelvinVector::KelvinVectorType<DisplacementDim>::Zero();
+    MathLib::KelvinVector::KelvinVectorType<DisplacementDim> swelling_stress =
+        MathLib::KelvinVector::KelvinVectorType<DisplacementDim>::Zero();
+    double liquid_mass_exchange_source = 0.0;
 };
 
 template <int DisplacementDim>
@@ -44,6 +47,8 @@ PressureCoupledSolidData<DisplacementDim> makePressureCoupledSolidData(
         -response.dSaturation_dLiquidPressure,
         response.dSaturation_dStrain,
         response.dStress_dLiquidPressure,
+        response.swelling_stress,
+        response.liquid_mass_exchange_source,
     };
 }
 

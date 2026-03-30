@@ -755,6 +755,11 @@ void RichardsMechanicsLocalAssembler<
                     p_cap_ip, p_cap_prev_ip, S_L_prev, chi, dchi, S_L,
                     dS_L_dp_cap, DeltaS_L_Deltap_cap, chi_S_L,
                     chi_S_L_prev, dchi_dS_L, p_FR);
+                std::get<ProcessLib::ThermoRichardsMechanics::
+                             ConstitutiveStress_StrainTemperature::
+                                 SwellingDataStateful<DisplacementDim>>(
+                    this->current_states_[ip])
+                    .sigma_sw = pressure_coupled_solid->swelling_stress;
             }
         }
 
@@ -1166,6 +1171,13 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             pressure_coupled_solid, variables, variables_prev, p_cap_ip,
             p_cap_prev_ip, S_L_prev, chi, dchi, S_L, dS_L_dp_cap,
             DeltaS_L_Deltap_cap, chi_S_L, chi_S_L_prev, dchi_dS_L, p_FR);
+        if (pressure_coupled_solid.is_active)
+        {
+            std::get<ProcessLib::ThermoRichardsMechanics::
+                         ConstitutiveStress_StrainTemperature::
+                             SwellingDataStateful<DisplacementDim>>(SD)
+                .sigma_sw = pressure_coupled_solid.swelling_stress;
+        }
     }
 
     std::get<ProcessLib::ThermoRichardsMechanics::SaturationDataDeriv>(CD)
@@ -1588,6 +1600,19 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
         local_rhs.template segment<pressure_size>(pressure_index).noalias() +=
             dNdx_p.transpose() * rho_LR * k_rel * rho_Ki_over_mu * b * w;
+
+        if (pressure_coupled_solid.is_active)
+        {
+            // Bridge-side notebook exchange can contribute a macro liquid
+            // source term even when RM does not own a native micro-pressure
+            // carrier state. The current bridge exposes only the source value;
+            // a consistent Jacobian term can be added later once the
+            // pressure-coupled solid contract is widened accordingly.
+            local_rhs.template segment<pressure_size>(pressure_index)
+                .noalias() +=
+                N_p.transpose() *
+                pressure_coupled_solid.liquid_mass_exchange_source * w;
+        }
 
         if (medium->hasProperty(MPL::PropertyType::saturation_micro))
         {
@@ -2042,6 +2067,12 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     variables_prev, p_cap_ip, p_cap_prev_ip, S_L_prev, chi,
                     dchi, S_L, dS_L_dp_cap, DeltaS_L_Deltap_cap, chi_S_L,
                     chi_S_L_prev, dchi_dS_L, p_FR);
+                std::get<ProcessLib::ThermoRichardsMechanics::
+                             ConstitutiveStress_StrainTemperature::
+                                 SwellingDataStateful<DisplacementDim>>(
+                    this->current_states_[ip])
+                    .sigma_sw =
+                    constitutive_update.pressure_coupled_data->swelling_stress;
             }
         }
 

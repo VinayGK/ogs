@@ -135,6 +135,10 @@ mⱽᴳ.setEntryName("VanGenuchtenExponent_m");
 @PhysicalBounds notebook_saturation_mode in [0:*[;
 notebook_saturation_mode.setEntryName("NotebookSaturationMode");
 
+@MaterialProperty real notebook_local_solve_mode;
+@PhysicalBounds notebook_local_solve_mode in [0:*[;
+notebook_local_solve_mode.setEntryName("NotebookLocalSolveMode");
+
 @MaterialProperty real micro_potential_convention;
 @PhysicalBounds micro_potential_convention in [0:*[;
 micro_potential_convention.setEntryName("MicroPotentialConvention");
@@ -201,6 +205,7 @@ phi0.setEntryName("InitialPorosity");
 @LocalVariable real dn_l_dtrace_eps_trial;
 @LocalVariable real dn_l_dp_trial;
 @LocalVariable bool use_notebook_saturation;
+@LocalVariable bool use_scalar_notebook_storage;
 @LocalVariable real micro_potential_sign;
 @LocalVariable real tuller_capillary_prefactor;
 @LocalVariable real notebook_support_saturation_trial_value;
@@ -217,6 +222,7 @@ phi0.setEntryName("InitialPorosity");
     constexpr const auto pressure_tolerance = 1e-12;
 
     use_notebook_saturation = notebook_saturation_mode > 0.5;
+    use_scalar_notebook_storage = notebook_local_solve_mode > 0.5;
     tfel::raise_if(area_factor_tuller <= 0.0,
                    "Invalid parameter: AreaFactorTuller must be positive.");
     tfel::raise_if(pore_area_shape_factor_tuller <= 0.0,
@@ -333,6 +339,226 @@ phi0.setEntryName("InitialPorosity");
                                       double& mu_lR_out,
                                       double& rho_l_hat_out) {
         const auto mu_LR_arg = mu_macro_from_pressure(p_arg);
+
+        if (use_scalar_notebook_storage)
+        {
+            auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
+            const auto rho_scalar = rho_LR_ref;
+
+            const auto evaluate_scalar = [&](const auto n_l_arg,
+                                             double& residual_arg,
+                                             double& mu_lR_arg,
+                                             double& rho_l_hat_arg) {
+                mu_lR_arg = mu_micro_from_state(n_l_arg, rho_scalar);
+                rho_l_hat_arg = alpha_M_effective * (mu_LR_arg - mu_lR_arg);
+                residual_arg = n_l_arg - n_l_prev_arg -
+                               dt * rho_l_hat_arg / rho_scalar -
+                               n_l_arg * delta_epsilon_v_arg;
+            };
+
+            const auto solve_scalar_bracketed =
+                [&](double& n_l_bracketed_out,
+                    double& mu_lR_bracketed_out,
+                    double& rho_l_hat_bracketed_out) {
+                    constexpr const auto bracket_scan_points = 256u;
+                    auto n_l_lo = minimum_n_l;
+                    auto n_l_hi = std::max(
+                        phi0, std::max(n_l_prev_arg, minimum_n_l * 10.0));
+
+                    double residual_lo = 0.0;
+                    double residual_hi = 0.0;
+                    double mu_lo = 0.0;
+                    double mu_hi = 0.0;
+                    double rho_hat_lo = 0.0;
+                    double rho_hat_hi = 0.0;
+
+                    evaluate_scalar(n_l_lo, residual_lo, mu_lo, rho_hat_lo);
+                    evaluate_scalar(n_l_hi, residual_hi, mu_hi, rho_hat_hi);
+
+                    if (residual_lo * residual_hi > 0.0)
+                    {
+                        const auto log_n_l_min = std::log10(minimum_n_l);
+                        const auto log_n_l_max = std::log10(n_l_hi);
+                        auto previous_n_l = n_l_lo;
+                        auto previous_residual = residual_lo;
+                        auto previous_mu = mu_lo;
+                        auto previous_rho_hat = rho_hat_lo;
+                        auto found_bracket = false;
+
+                        for (unsigned int i = 1; i <= bracket_scan_points; ++i)
+                        {
+                            const auto log_n_l =
+                                log_n_l_min +
+                                (log_n_l_max - log_n_l_min) *
+                                    (static_cast<double>(i) /
+                                     bracket_scan_points);
+                            const auto n_l_candidate = std::pow(10.0, log_n_l);
+
+                            double residual_candidate = 0.0;
+                            double mu_candidate = 0.0;
+                            double rho_hat_candidate = 0.0;
+                            evaluate_scalar(n_l_candidate, residual_candidate,
+                                            mu_candidate,
+                                            rho_hat_candidate);
+
+                            if (previous_residual * residual_candidate <= 0.0)
+                            {
+                                n_l_lo = previous_n_l;
+                                residual_lo = previous_residual;
+                                mu_lo = previous_mu;
+                                rho_hat_lo = previous_rho_hat;
+
+                                n_l_hi = n_l_candidate;
+                                residual_hi = residual_candidate;
+                                mu_hi = mu_candidate;
+                                rho_hat_hi = rho_hat_candidate;
+                                found_bracket = true;
+                                break;
+                            }
+
+                            previous_n_l = n_l_candidate;
+                            previous_residual = residual_candidate;
+                            previous_mu = mu_candidate;
+                            previous_rho_hat = rho_hat_candidate;
+                        }
+
+                        if (!found_bracket)
+                        {
+                            return false;
+                        }
+                    }
+
+                    for (unsigned int iteration = 0;
+                         iteration < 4 * max_iterations; ++iteration)
+                    {
+                        const auto n_l_mid = 0.5 * (n_l_lo + n_l_hi);
+                        double residual_mid = 0.0;
+                        double mu_mid = 0.0;
+                        double rho_hat_mid = 0.0;
+                        evaluate_scalar(n_l_mid, residual_mid, mu_mid,
+                                        rho_hat_mid);
+
+                        if (std::abs(residual_mid) < newton_tolerance ||
+                            std::abs(n_l_hi - n_l_lo) <
+                                newton_tolerance *
+                                    std::max(1.0, std::abs(n_l_mid)))
+                        {
+                            n_l_bracketed_out = n_l_mid;
+                            mu_lR_bracketed_out = mu_mid;
+                            rho_l_hat_bracketed_out = rho_hat_mid;
+                            return true;
+                        }
+
+                        if (residual_lo * residual_mid <= 0.0)
+                        {
+                            n_l_hi = n_l_mid;
+                            residual_hi = residual_mid;
+                        }
+                        else
+                        {
+                            n_l_lo = n_l_mid;
+                            residual_lo = residual_mid;
+                        }
+                    }
+
+                    const auto n_l_mid = 0.5 * (n_l_lo + n_l_hi);
+                    double residual_mid = 0.0;
+                    double mu_mid = 0.0;
+                    double rho_hat_mid = 0.0;
+                    evaluate_scalar(n_l_mid, residual_mid, mu_mid,
+                                    rho_hat_mid);
+                    n_l_bracketed_out = n_l_mid;
+                    mu_lR_bracketed_out = mu_mid;
+                    rho_l_hat_bracketed_out = rho_hat_mid;
+                    return true;
+                };
+
+            for (unsigned int iteration = 0; iteration < max_iterations;
+                 ++iteration)
+            {
+                double residual = 0.0;
+                double mu_trial = 0.0;
+                double rho_hat_trial = 0.0;
+                evaluate_scalar(n_l_trial, residual, mu_trial, rho_hat_trial);
+
+                if (std::abs(residual) < newton_tolerance)
+                {
+                    n_l_out = n_l_trial;
+                    rho_lR_out = rho_scalar;
+                    mu_lR_out = mu_trial;
+                    rho_l_hat_out = rho_hat_trial;
+                    return;
+                }
+
+                const auto dn_scale =
+                    std::max(1e-8, std::abs(n_l_trial) * 1e-6);
+                double residual_n = 0.0;
+                double mu_n = 0.0;
+                double rho_hat_n = 0.0;
+                evaluate_scalar(std::max(n_l_trial + dn_scale, minimum_n_l),
+                                residual_n, mu_n, rho_hat_n);
+
+                const auto scalar_jacobian =
+                    (residual_n - residual) / dn_scale;
+                if (!(std::isfinite(scalar_jacobian) &&
+                      std::abs(scalar_jacobian) > newton_tolerance))
+                {
+                    break;
+                }
+
+                const auto delta_n = -residual / scalar_jacobian;
+                auto step_scale = 1.0;
+                auto accepted = false;
+
+                for (unsigned int line_search = 0; line_search < 8;
+                     ++line_search)
+                {
+                    const auto n_candidate =
+                        std::max(n_l_trial + step_scale * delta_n,
+                                 minimum_n_l);
+                    double residual_candidate = 0.0;
+                    double mu_candidate = 0.0;
+                    double rho_hat_candidate = 0.0;
+                    evaluate_scalar(n_candidate, residual_candidate,
+                                    mu_candidate, rho_hat_candidate);
+
+                    if (std::abs(residual_candidate) <
+                        std::abs(residual) * (1.0 - 1e-4 * step_scale))
+                    {
+                        n_l_trial = n_candidate;
+                        accepted = true;
+                        break;
+                    }
+
+                    step_scale *= 0.5;
+                }
+
+                if (!accepted)
+                {
+                    if (solve_scalar_bracketed(n_l_out, mu_lR_out,
+                                               rho_l_hat_out))
+                    {
+                        rho_lR_out = rho_scalar;
+                        return;
+                    }
+
+                    tfel::raise_if(
+                        true,
+                        "Notebook-MCC bridge scalar notebook-storage Newton line search failed.");
+                }
+            }
+
+            if (solve_scalar_bracketed(n_l_out, mu_lR_out, rho_l_hat_out))
+            {
+                rho_lR_out = rho_scalar;
+                return;
+            }
+
+            tfel::raise_if(
+                true,
+                "Notebook-MCC bridge scalar notebook-storage solve did not converge.");
+        }
+
         auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
         auto rho_lR_trial =
             std::max(rho_lR_prev_arg, rho_LR_ref + minimum_density_gap);

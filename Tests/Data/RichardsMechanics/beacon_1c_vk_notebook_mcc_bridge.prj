@@ -22,6 +22,7 @@
                     <material_property name="BubblePressure" parameter="BubblePressure_block"/>
                     <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
                     <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
+                    <material_property name="NotebookLocalSolveMode" parameter="NotebookLocalSolveMode"/>
                     <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
                     <material_property name="SwellingSlope" parameter="NotebookSwellingSlope_block"/>
                     <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient_block"/>
@@ -62,6 +63,7 @@
                     <material_property name="BubblePressure" parameter="BubblePressure_pellet"/>
                     <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
                     <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
+                    <material_property name="NotebookLocalSolveMode" parameter="NotebookLocalSolveMode"/>
                     <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
                     <material_property name="SwellingSlope" parameter="NotebookSwellingSlope_pellet"/>
                     <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient_pellet"/>
@@ -156,6 +158,7 @@
         <parameter><name>ResidualGasSaturation</name><type>Constant</type><value>0.0</value></parameter>
         <parameter><name>VanGenuchtenExponent_m</name><type>Constant</type><value>0.5</value></parameter>
         <parameter><name>NotebookSaturationMode</name><type>Constant</type><value>0</value></parameter>
+        <parameter><name>NotebookLocalSolveMode</name><type>Constant</type><value>0</value></parameter>
         <parameter><name>MicroPotentialConvention</name><type>Constant</type><value>0</value></parameter>
         <parameter><name>ReferenceLiquidDensityMacro</name><type>Constant</type><value>1000.0</value></parameter>
         <parameter><name>ReferenceDensitySolid</name><type>Constant</type><value>2650.0</value></parameter>

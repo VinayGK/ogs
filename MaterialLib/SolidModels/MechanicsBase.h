@@ -94,6 +94,8 @@ struct MechanicsBase
         KelvinVector dStress_dLiquidPressure;
         SaturationStrainJacobian dSaturation_dStrain;
         double dSaturation_dLiquidPressure;
+        KelvinVector swelling_stress = KelvinVector::Zero();
+        double liquid_mass_exchange_source = 0.0;
         std::unique_ptr<MaterialStateVariables> state;
     };
 

@@ -29,6 +29,8 @@ TEST(RichardsMechanics, makePressureCoupledSolidData)
         KelvinVector::Constant(2.5),
         SaturationStrainJacobian::Constant(1.5),
         4.0,
+        KelvinVector::Constant(-3.0),
+        0.0,
         std::make_unique<typename MechanicsBase::MaterialStateVariables>()};
 
     auto const mapped =
@@ -42,4 +44,6 @@ TEST(RichardsMechanics, makePressureCoupledSolidData)
         mapped.dS_L_dStrain.isApprox(SaturationStrainJacobian::Constant(1.5)));
     EXPECT_TRUE(mapped.dSigma_dLiquidPressure.isApprox(
         KelvinVector::Constant(2.5)));
+    EXPECT_TRUE(mapped.swelling_stress.isApprox(KelvinVector::Constant(-3.0)));
+    EXPECT_DOUBLE_EQ(mapped.liquid_mass_exchange_source, 0.0);
 }

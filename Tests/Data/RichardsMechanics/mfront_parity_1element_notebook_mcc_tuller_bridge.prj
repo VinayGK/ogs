@@ -30,7 +30,7 @@
                     <material_property name="BubblePressure" parameter="BubblePressure"/>
                     <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
                     <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
-                    <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
+                    <material_property name="NotebookLocalSolveMode" parameter="NotebookLocalSolveMode"/>
                     <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
                     <material_property name="SwellingSlope" parameter="NotebookSwellingSlope"/>
                     <material_property name="MassExchangeCoefficient" parameter="NotebookMassExchangeCoefficient"/>
@@ -287,7 +287,7 @@
             <value>1.0</value>
         </parameter>
         <parameter>
-            <name>MicroPotentialConvention</name>
+            <name>NotebookLocalSolveMode</name>
             <type>Constant</type>
             <value>0.0</value>
         </parameter>

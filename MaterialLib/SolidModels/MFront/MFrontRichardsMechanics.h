@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <algorithm>
+
 #include "MFrontGeneric.h"
 #include "Variable.h"
 
@@ -78,6 +80,10 @@ public:
 
         auto& [forces_data, state, tangent_operator_data] = *res;
         auto const view = this->createThermodynamicForcesView();
+        auto const swelling_stress =
+            getInternalVectorByName(*state, "sigma_S");
+        auto const liquid_mass_exchange_source =
+            -getInternalScalarByName(*state, "rho_l_hat");
 
         PressureCoupledResponse response{
             view.block(stress, forces_data),
@@ -87,6 +93,8 @@ public:
             blocks_view_.block(saturation, strain, tangent_operator_data),
             blocks_view_.block(saturation, liquid_pressure,
                                tangent_operator_data),
+            swelling_stress,
+            liquid_mass_exchange_source,
             std::move(state)};
         return response;
     }
@@ -153,6 +161,57 @@ public:
     }
 
 private:
+    KelvinVector getInternalVectorByName(
+        typename MechanicsBase<DisplacementDim>::MaterialStateVariables const&
+            material_state_variables,
+        std::string const& name) const
+    {
+        auto const internal_variables = Base::getInternalVariables();
+        auto const it =
+            std::find_if(internal_variables.begin(), internal_variables.end(),
+                         [&name](auto const& internal_variable)
+                         { return internal_variable.name == name; });
+
+        KelvinVector values = KelvinVector::Zero();
+        if (it == internal_variables.end() ||
+            it->num_components != values.rows())
+        {
+            return values;
+        }
+
+        std::vector<double> cache;
+        auto const& raw_values = it->getter(material_state_variables, cache);
+        for (Eigen::Index i = 0;
+             i < values.rows() &&
+             i < static_cast<Eigen::Index>(raw_values.size());
+             ++i)
+        {
+            values[i] = raw_values[static_cast<std::size_t>(i)];
+        }
+        return values;
+    }
+
+    double getInternalScalarByName(
+        typename MechanicsBase<DisplacementDim>::MaterialStateVariables const&
+            material_state_variables,
+        std::string const& name) const
+    {
+        auto const internal_variables = Base::getInternalVariables();
+        auto const it =
+            std::find_if(internal_variables.begin(), internal_variables.end(),
+                         [&name](auto const& internal_variable)
+                         { return internal_variable.name == name; });
+
+        if (it == internal_variables.end() || it->num_components != 1)
+        {
+            return 0.0;
+        }
+
+        std::vector<double> cache;
+        auto const& values = it->getter(material_state_variables, cache);
+        return values.empty() ? 0.0 : values[0];
+    }
+
     OGSMFrontTangentOperatorBlocksView<
         DisplacementDim,
         ForcesGradsCombinations<boost::mp11::mp_list<Strain, LiquidPressure>,

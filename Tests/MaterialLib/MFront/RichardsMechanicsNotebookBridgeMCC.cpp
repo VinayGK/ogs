@@ -43,6 +43,7 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
                             double const rho_lR0 = 1300.0,
                             double const epsilon_sw0 = 0.0,
                             double const notebook_saturation_mode = 0.0,
+                            double const notebook_local_solve_mode = 0.0,
                             double const micro_potential_convention = 0.0,
                             double const hamaker_constant = -6e-20,
                             double const macro_viscosity = 1000.0)
@@ -68,6 +69,7 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
     add_param("BubblePressure", 1e4);
     add_param("VanGenuchtenExponent_m", 0.4);
     add_param("NotebookSaturationMode", notebook_saturation_mode);
+    add_param("NotebookLocalSolveMode", notebook_local_solve_mode);
     add_param("MicroPotentialConvention", micro_potential_convention);
 
     // Neutral first-step notebook coupling: state is updated and visible, but
@@ -96,6 +98,7 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
 
 std::vector<std::unique_ptr<ParameterLib::ParameterBase>>
 createNotebookSupportParameters(double const notebook_saturation_mode = 0.0,
+                                double const notebook_local_solve_mode = 0.0,
                                 double const micro_potential_convention = 0.0,
                                 double const hamaker_constant = -6e-20)
 {
@@ -122,6 +125,7 @@ createNotebookSupportParameters(double const notebook_saturation_mode = 0.0,
     add_param("BubblePressure", 1e4);
     add_param("VanGenuchtenExponent_m", 0.4);
     add_param("NotebookSaturationMode", notebook_saturation_mode);
+    add_param("NotebookLocalSolveMode", notebook_local_solve_mode);
     add_param("MicroPotentialConvention", micro_potential_convention);
 
     add_param("SwellingSlope", 0.1);
@@ -208,6 +212,7 @@ std::unique_ptr<MB> createNotebookMCCModel(
             <material_property name="BubblePressure" parameter="BubblePressure"/>
             <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
             <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
+            <material_property name="NotebookLocalSolveMode" parameter="NotebookLocalSolveMode"/>
             <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
             <material_property name="SwellingSlope" parameter="SwellingSlope"/>
             <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
@@ -752,7 +757,7 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
      NativeAlignedStageOneStressGapIsMicroSupportStress)
 {
     auto parameters = createNotebookMCCParameters(
-        0.1, 1e-13, 0.1, 2095.3222465784393, 0.0, 0.0, 1.0, 6e-20, 1e-3);
+        0.1, 1e-13, 0.1, 2095.3222465784393, 0.0, 0.0, 0.0, 1.0, 6e-20, 1e-3);
     auto reference = createReferenceMCCModel(parameters);
     auto notebook_mcc = createNotebookMCCModel(parameters);
 
@@ -803,12 +808,66 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 }
 
 TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+     PressureCoupledResponseExposesMacroExchangeSource)
+{
+    auto parameters = createNotebookMCCParameters(
+        0.1, 1e-13, 0.01, 2276.031917690513, 0.0, 0.0, 1.0, 1.0, 5.1e-21, 1e-3);
+    auto reference = createReferenceMCCModel(parameters);
+    auto notebook_mcc = createNotebookMCCModel(parameters);
+
+    auto reference_state = reference->createMaterialStateVariables();
+    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    initializeState(*reference, *reference_state);
+    initializeState(*notebook_mcc, *notebook_state);
+
+    ParameterLib::SpatialPosition x{};
+
+    MPL::VariableArray previous;
+    previous.mechanical_strain.emplace<KV>(KV::Zero());
+    previous.stress.emplace<KV>(KV::Zero());
+    previous.liquid_phase_pressure = 2e3;
+    previous.temperature = 293.15;
+
+    MPL::VariableArray current = previous;
+
+    constexpr double t = 1e5;
+    constexpr double dt = 1e5;
+
+    auto reference_response = reference->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *reference_state);
+    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *notebook_state);
+
+    ASSERT_TRUE(reference_response);
+    ASSERT_TRUE(notebook_response);
+    ASSERT_TRUE(notebook_response->state);
+
+    auto const rho_l_hat =
+        getInternalScalar(*notebook_mcc, *notebook_response->state,
+                          "rho_l_hat");
+    auto const sigma_S_values =
+        getInternalVector(*notebook_mcc, *notebook_response->state, "sigma_S");
+    KV sigma_S = KV::Zero();
+    for (Eigen::Index i = 0; i < KV::RowsAtCompileTime; ++i)
+    {
+        sigma_S[i] = sigma_S_values[static_cast<std::size_t>(i)];
+    }
+
+    EXPECT_NEAR(reference_response->liquid_mass_exchange_source, 0.0, 1e-18);
+    EXPECT_GT(rho_l_hat, 0.0);
+    EXPECT_NEAR(notebook_response->liquid_mass_exchange_source, -rho_l_hat,
+                std::max(1e-18, 1e-12 * std::abs(rho_l_hat)));
+    EXPECT_TRUE(
+        (notebook_response->swelling_stress - sigma_S).isZero(1e-12));
+}
+
+TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
      NegativeAttractiveConventionMatchesLegacyNegativeHamakerPath)
 {
     auto legacy_parameters = createNotebookMCCParameters(
-        8.0, 1e-13, 0.1, 1300.0, 0.0, 0.0, 0.0, -6e-20);
+        8.0, 1e-13, 0.1, 1300.0, 0.0, 0.0, 0.0, 0.0, -6e-20);
     auto native_aligned_parameters = createNotebookMCCParameters(
-        8.0, 1e-13, 0.1, 1300.0, 0.0, 0.0, 1.0, 6e-20);
+        8.0, 1e-13, 0.1, 1300.0, 0.0, 0.0, 0.0, 1.0, 6e-20);
 
     auto legacy_model = createNotebookMCCModel(legacy_parameters);
     auto native_aligned_model =
