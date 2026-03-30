@@ -1262,6 +1262,109 @@ these two cases. The limiting factor is benchmark realism of the OGS surrogate.
 - `1b`: after the density correction, check why the present constitutive branch
   still gives zero stress on a `500 day` run.
 
+## BEACON report comparison on the shared unstructured batch
+
+The one-element comparison above is still useful as a smoke-level baseline, but
+it is not enough for any profile comparison. The new batch below repeats
+`1a01` and `1b` on shared unstructured meshes with `162` triangular elements
+and `100` points. The meshes are generated reproducibly by
+`Tests/Data/RichardsMechanics/generate_beacon_unstructured_meshes.py`, and the
+report-facing metrics are extracted by
+`Tests/Data/RichardsMechanics/analyze_beacon_unstructured_batch.py`.
+
+### Batch files
+
+| Item | `1a01` | `1b` |
+| --- | --- | --- |
+| Unstructured mesh | `Tests/Data/RichardsMechanics/beacon_1a01_domain_unstructured_162e.vtu` | `Tests/Data/RichardsMechanics/beacon_1b_domain_unstructured_162e.vtu` |
+| Native project | `Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow_unstructured_batch.prj` | `Tests/Data/RichardsMechanics/beacon_1b_vk_unstructured_batch.prj` |
+| Bridge project | `Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_unstructured_batch.prj` | `Tests/Data/RichardsMechanics/beacon_1b_vk_notebook_mcc_unstructured_batch.prj` |
+| Final time used here | `1e5 s` | `4.32e7 s = 500 days` |
+| Compared report quantity | stage-1 swelling pressure and density | long-time swelling pressure and density |
+
+### How the batch was compared
+
+- Axial swelling pressure from OGS:
+  `p_sw^ax = |mean_top(sigma_yy)|`
+- Radial swelling pressure from OGS:
+  `p_sw^rad = |mean_outer(sigma_xx)|`
+- Micro support stress diagnostic:
+  `|mean(swelling_stress_yy)|` on the top boundary and
+  `|mean(swelling_stress_xx)|` on the outer boundary
+- Dry-density profile:
+  average of `dry_density_solid` in `4` equal-height bins for `1a01` and `10`
+  equal-height bins for `1b`
+
+### Unstructured batch comparison table
+
+| Case | Quantity | BEACON report target | Native unstructured | MFront unstructured | Native vs MFront | Match status | Main reason |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `1a01` | Stage-1 axial swelling pressure | `604 kPa` | `2.846 kPa` | `2.847 kPa` | `0.00034 kPa` | strong mismatch to report, native vs MFront close | The dense mesh does not change the constitutive amplitude: both runs are still about two orders of magnitude below the report target. |
+| `1a01` | Stage-1 radial swelling pressure | `994 kPa` | `3.553 kPa` | `3.554 kPa` | `0.00032 kPa` | strong mismatch to report, native vs MFront close | Same as above; the bridge reproduces the native stage-1 stress level but that level is still far below the report. |
+| `1a01` | Top micro support stress `|swelling_stress_yy|` | not reported separately | `3.563 kPa` | `3.564 kPa` | `0.00033 kPa` | native vs MFront close | The micro-driven swelling branch is active here, but it still generates only a few kilopascals on the current calibration. |
+| `1a01` | Mean dry density at stage 1 | `1655 kg/m^3` | `1668.011 kg/m^3` | `1668.011 kg/m^3` | `1.07e-05 kg/m^3` | close to report, native vs MFront exact for practical purposes | The dense mesh preserves the already-close stage-1 density level. |
+| `1b` | Swelling pressure after `500` days, axial | nonzero and stabilized | `1.288 kPa` | `6.201 kPa` | `4.914 kPa` | both nonzero, native vs MFront mismatch, report still unresolved | The dense mesh removes the earlier zero-stress result, but the bridge is now visibly stiffer than the native run on `sigma_yy`. |
+| `1b` | Swelling pressure after `500` days, radial | nonzero and stabilized | `3.001 kPa` | `2.835 kPa` | `0.166 kPa` | qualitative agreement only | Both runs are nonzero, but the report does not provide a machine-readable plateau value for a strict quantitative check. |
+| `1b` | Top micro support stress `|swelling_stress_yy|` | not reported separately | `0 kPa` | `0 kPa` | `0 kPa` | constitutive mismatch to intended mechanism | The stress that appears on `1b` is not coming from the exported micro swelling support field; both runs still show zero `swelling_stress`. |
+| `1b` | Mean dry density after volume adjustment | `1520 kg/m^3` | `1389.944 kg/m^3` | `1389.860 kg/m^3` | `0.084 kg/m^3` | strong mismatch to report, native vs MFront close | The current mixture surrogate is still anchored near the old `phi0 = 0.5` density level, far below the report target. |
+
+### Dry-density profile tables
+
+`1a01` report vs unstructured OGS profile (`4` equal-height bins):
+
+| Height from bottom | BEACON report after full test | Native unstructured | MFront unstructured | Note |
+| --- | --- | --- | --- | --- |
+| `2.5 mm` | `1466 kg/m^3` | `1668.020 kg/m^3` | `1668.020 kg/m^3` | OGS is much denser; current run is only stage 1, not the full two-stage test. |
+| `7.5 mm` | `1454 kg/m^3` | `1668.017 kg/m^3` | `1668.017 kg/m^3` | Same reason as above. |
+| `12.5 mm` | `1427 kg/m^3` | `1668.009 kg/m^3` | `1668.009 kg/m^3` | Same reason as above. |
+| `17.5 mm` | `1353 kg/m^3` | `1667.997 kg/m^3` | `1667.997 kg/m^3` | Same reason as above. |
+
+`1b` unstructured OGS dry-density profile (`10` equal-height bins). The
+extracted D5.1.1 text does not provide a tabulated profile, so only the report
+average can be checked directly:
+
+| Metric | BEACON report | Native unstructured | MFront unstructured | Note |
+| --- | --- | --- | --- | --- |
+| Average dry density | `1520 kg/m^3` | `1389.944 kg/m^3` | `1389.860 kg/m^3` | Both OGS runs are about `130 kg/m^3` below the report average. |
+| Bottom-bin dry density | not tabulated | `1389.896 kg/m^3` | `1389.698 kg/m^3` | Native and bridge are close, but no report-side profile is available. |
+| Top-bin dry density | not tabulated | `1389.994 kg/m^3` | `1389.988 kg/m^3` | The dense OGS profile stays almost flat over height. |
+| Profile range over height | not tabulated | `1389.896` to `1389.994 kg/m^3` | `1389.698` to `1389.988 kg/m^3` | The bridge shows a slightly wider gradient, but the overall level is still far below the report average. |
+
+### What the unstructured batch changes
+
+- `1a01`: the dense unstructured mesh confirms that native and MFront remain
+  close on the current stage-1 constitutive branch. The mismatch to the BEACON
+  report is therefore not a mesh-resolution problem and not a native-vs-bridge
+  problem. It is still a constitutive-calibration problem.
+- `1a01`: the dense profile is now available, but it should not be over-read.
+  The report profile is post-mortem after the full two-stage test, while the
+  current OGS run is only the stage-1 inflow branch.
+- `1b`: the dense mesh changes the qualitative picture. The old zero-stress
+  result is gone. Both native and MFront now build nonzero total stress, but
+  the bridge is noticeably stiffer than the native run in `sigma` even though
+  `pressure` and `saturation` still match essentially exactly.
+- `1b`: the dense batch also shows that the present `1b` stress is still not
+  micro-swelling driven on the exported support-stress branch, because
+  `swelling_stress` remains exactly zero in both runs.
+
+### Suggested next steps from the unstructured batch
+
+- `1a01`: keep the dense batch as the report-facing spatial benchmark, and tune
+  the notebook micro branch so that the stage-1 micro support stress reaches
+  the `604/994 kPa` report scale without handing the job over to a dominant
+  macro swelling carrier.
+- `1a01`: only compare against the post-mortem density profile after adding the
+  second benchmark stage to the dense mesh case.
+- `1b`: reset the initial density to the reported `1520 kg/m^3` level before
+  reading too much into the long-time stress gap.
+- `1b`: once the density is corrected, inspect why the bridge dense run stays
+  exact in `pressure` and `saturation` but drifts in `sigma` by
+  `max |Δsigma| = 11.17 kPa`. That is now the main dense native-vs-MFront
+  mismatch on `1b`.
+- `1b`: activate a genuinely micro-driven swelling contribution for the pellet
+  mixture branch, because the current dense result still exports
+  `swelling_stress = 0` in both native and bridge runs.
+
 ## Generated parity and benchmark files
 
 These are the generated project and compare files that define the current
