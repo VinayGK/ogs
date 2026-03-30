@@ -15,11 +15,12 @@
                     <increment_tolerance>1e-20</increment_tolerance>
                 </nonlinear_solver>
             </micro_porosity>
-            <!-- Exploratory inflow probe:
-                 keep the macro branch on the saturated helper side (mu_LR = 0)
-                 by using positive liquid pressure, and make the attractive vdW
-                 microscale term larger by lowering the initial micro water
-                 content and using literature-scale clay values. -->
+            <!-- Literature-backed stage-1 suction split:
+                 total suction = 100 MPa is represented as 1 MPa macro
+                 capillary suction plus 99 MPa microscale vdW suction.
+                 The macro part enters through pressure_ic, while the micro
+                 part is encoded through the initial micro water content under
+                 the literature-backed Hamaker and specific-surface values. -->
             <vk_potential_exchange>
                 <enabled>true</enabled>
                 <mode>full_potential</mode>
@@ -28,7 +29,7 @@
                 <specific_surface>523</specific_surface>
                 <micro_solid_density_reference>2650</micro_solid_density_reference>
                 <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
-                <initial_micro_water_content>0.01</initial_micro_water_content>
+                <initial_micro_water_content>0.00153385355</initial_micro_water_content>
                 <local_nonlinear_solve_mode>scalar_notebook_storage</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
@@ -138,7 +139,7 @@
         <parameter><name>phi0</name><type>Constant</type><value>0.4</value></parameter>
         <parameter><name>phi_tr0</name><type>Constant</type><value>0.3</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
-        <parameter><name>pressure_ic</name><type>Constant</type><values>2e3</values></parameter>
+        <parameter><name>pressure_ic</name><type>Constant</type><values>-1e6</values></parameter>
         <parameter><name>dirichlet0</name><type>Constant</type><value>0</value></parameter>
         <parameter><name>top_pressure</name><type>Constant</type><value>2e3</value></parameter>
     </parameters>

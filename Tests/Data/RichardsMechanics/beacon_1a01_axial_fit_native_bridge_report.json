@@ -1,0 +1,93 @@
+{
+  "artifacts": {
+    "bridge_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_unstructured_batch.prj",
+    "bridge_vtu": "/private/tmp/beacon_probe/axial_fit_1a01/1a01/bridge/beacon_1a01_vk_notebook_mcc_inflow_unstructured_batch_t_100000.000000.vtu",
+    "native_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow_unstructured_batch.prj",
+    "native_vtu": "/private/tmp/beacon_probe/axial_fit_1a01/1a01/native/beacon_1a01_vk_inflow_unstructured_batch_t_100000.000000.vtu"
+  },
+  "bridge": {
+    "axial_swelling_pressure_kpa": 603.6770403555414,
+    "dry_density_mean_kg_m3": 1667.9991971436366,
+    "dry_density_profile_kg_m3": [
+      {
+        "center_mm": 2.4999999441206455,
+        "count": 30,
+        "mean_kg_m3": 1668.0216933121987
+      },
+      {
+        "center_mm": 7.499999832361937,
+        "count": 20,
+        "mean_kg_m3": 1668.0112656941496
+      },
+      {
+        "center_mm": 12.499999720603228,
+        "count": 24,
+        "mean_kg_m3": 1667.9930855162202
+      },
+      {
+        "center_mm": 17.49999960884452,
+        "count": 26,
+        "mean_kg_m3": 1667.9695980279025
+      }
+    ],
+    "radial_swelling_pressure_kpa": 603.1119780253586,
+    "side_swelling_stress_kpa": 603.1325514821193,
+    "top_swelling_stress_kpa": 607.43395516703
+  },
+  "case": "1a01",
+  "executables": {
+    "bridge_ogs": "/Users/vinaykumar/git/build/release-mfront-tpm/bin/ogs",
+    "native_ogs": "/Users/vinaykumar/git/build/release-native-beacon/bin/ogs"
+  },
+  "mesh": {
+    "n_cells": 162,
+    "n_points": 100
+  },
+  "native": {
+    "axial_swelling_pressure_kpa": 18.82567139023727,
+    "dry_density_mean_kg_m3": 1667.99730131982,
+    "dry_density_profile_kg_m3": [
+      {
+        "center_mm": 2.4999999441206455,
+        "count": 30,
+        "mean_kg_m3": 1668.0052464380253
+      },
+      {
+        "center_mm": 7.499999832361937,
+        "count": 20,
+        "mean_kg_m3": 1668.0034747933882
+      },
+      {
+        "center_mm": 12.499999720603228,
+        "count": 24,
+        "mean_kg_m3": 1668.000150337015
+      },
+      {
+        "center_mm": 17.49999960884452,
+        "count": 26,
+        "mean_kg_m3": 1667.9807551878885
+      }
+    ],
+    "radial_swelling_pressure_kpa": 19.46676389634277,
+    "side_swelling_stress_kpa": 19.47728874712114,
+    "top_swelling_stress_kpa": 20.316411211729843
+  },
+  "native_vs_bridge_max_abs_diff": {
+    "dry_density_solid": 0.017909231821249705,
+    "pressure": 125858.63724190708,
+    "saturation": 0.008211593848047927,
+    "sigma": 586563.5031569699,
+    "swelling_stress": 587117.7394787471
+  },
+  "report_targets": {
+    "axial_swelling_pressure_kpa": 604.0,
+    "post_mortem_density_profile": [
+      1466.0,
+      1454.0,
+      1427.0,
+      1353.0
+    ],
+    "radial_swelling_pressure_kpa": 994.0,
+    "stage1_dry_density": 1655.0
+  }
+}

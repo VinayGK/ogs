@@ -25,7 +25,7 @@ REPORT_TARGETS = {
 }
 
 
-def load_point_data(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+def load_point_data(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray], int]:
     reader = vtk.vtkXMLUnstructuredGridReader()
     reader.SetFileName(str(path))
     reader.Update()
@@ -36,7 +36,7 @@ def load_point_data(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
         grid.GetPointData().GetArrayName(i): vtk_to_numpy(grid.GetPointData().GetArray(i))
         for i in range(grid.GetPointData().GetNumberOfArrays())
     }
-    return points, point_data
+    return points, point_data, int(grid.GetNumberOfCells())
 
 
 def boundary_mean(points: np.ndarray, values: np.ndarray, axis: int, atol: float = 1e-8) -> np.ndarray:
@@ -74,11 +74,13 @@ def max_abs_diff(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def summarise(case: str, native_path: Path, bridge_path: Path) -> dict:
-    native_points, native = load_point_data(native_path)
-    bridge_points, bridge = load_point_data(bridge_path)
+    native_points, native, native_n_cells = load_point_data(native_path)
+    bridge_points, bridge, bridge_n_cells = load_point_data(bridge_path)
 
     if not np.allclose(native_points, bridge_points):
         raise RuntimeError("Native and bridge outputs are not on the same point set.")
+    if native_n_cells != bridge_n_cells:
+        raise RuntimeError("Native and bridge outputs are not on the same cell set.")
 
     bins = 4 if case == "1a01" else 10
     native_sigma_top = boundary_mean(native_points, native["sigma"], axis=1)
@@ -99,7 +101,7 @@ def summarise(case: str, native_path: Path, bridge_path: Path) -> dict:
         "report_targets": REPORT_TARGETS[case],
         "mesh": {
             "n_points": int(native_points.shape[0]),
-            "n_cells": int(vtk.vtkXMLUnstructuredGridReader().GetOutput().GetNumberOfCells()),
+            "n_cells": native_n_cells,
         },
         "native": {
             "axial_swelling_pressure_kpa": abs(float(native_sigma_top[1])) / 1000.0,
@@ -120,14 +122,6 @@ def summarise(case: str, native_path: Path, bridge_path: Path) -> dict:
         "native_vs_bridge_max_abs_diff": field_diffs,
     }
 
-
-def cell_count(path: Path) -> int:
-    reader = vtk.vtkXMLUnstructuredGridReader()
-    reader.SetFileName(str(path))
-    reader.Update()
-    return int(reader.GetOutput().GetNumberOfCells())
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--case", choices=["1a01", "1b"], required=True)
@@ -137,7 +131,6 @@ def main() -> None:
     args = parser.parse_args()
 
     result = summarise(args.case, args.native, args.bridge)
-    result["mesh"]["n_cells"] = cell_count(args.native)
 
     text = json.dumps(result, indent=2, sort_keys=True)
     if args.json_out:
