@@ -1,0 +1,38 @@
+{
+  "mfront": {
+    "axial_swelling_pressure_mpa": 0.7859139611933248,
+    "mean_dry_density_solid": 1502.8376146942085,
+    "mean_porosity": 0.45941092996611177,
+    "mean_saturation": 0.9999999999999997,
+    "mean_swelling_stress": -439358.9290193177,
+    "mean_transport_porosity": 0.14911092996611197,
+    "path": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/bgr_wp3_p2_1_abprime_mfront_t_200000.000000.vtu",
+    "radial_stress_mpa": 0.7858119053590902
+  },
+  "native": {
+    "axial_swelling_pressure_mpa": 1.0103784801106894,
+    "mean_dry_density_solid": 1502.8393244518954,
+    "mean_porosity": 0.45941031494536116,
+    "mean_saturation": 0.9999999999999997,
+    "mean_swelling_stress": -607637.5610665366,
+    "mean_transport_porosity": 0.14797127160151743,
+    "path": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/bgr_wp3_p2_1_abprime_native_t_200000.000000.vtu",
+    "radial_stress_mpa": 1.0101834147550586
+  },
+  "targets": {
+    "bgr_boundary_value_swelling_pressure_mpa": 2.71,
+    "experiment_swelling_pressure_mpa_range": [
+      3.12,
+      3.55
+    ],
+    "initial_total_suction_mpa_range": [
+      90.0,
+      110.0
+    ],
+    "initial_void_ratio_range": [
+      0.83,
+      0.85
+    ],
+    "water_pressure_boundary_kpa": 20.0
+  }
+}
