@@ -1365,6 +1365,93 @@ average can be checked directly:
   mixture branch, because the current dense result still exports
   `swelling_stress = 0` in both native and bridge runs.
 
+## BEACON D3.3 Annex A BGR first attempt
+
+The next report-facing step after the `1a01` and `1b` comparisons was the BGR
+appendix in BEACON D3.3. The current branch now contains a first reduced replay
+of the EPFL/BGR confined-swelling path `P2-1`, stage `A-B'`.
+
+### Scope of the committed replay
+
+- source document:
+  BEACON H2020 deliverable D3.3, Annex A, BGR appendix
+- target path:
+  `P2-1 / A-B'`
+- current mesh reduction:
+  smallest nontrivial axisymmetric confined column that still runs both the
+  native and bridge decks
+- native replay deck:
+  `Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/bgr_wp3_p2_1_abprime_native.prj`
+- bridge replay deck:
+  `Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/bgr_wp3_p2_1_abprime_mfront.prj`
+- mesh generator:
+  `Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/generate_bgr_epfl_mesh.py`
+- analyzer:
+  `Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/analyze_bgr_wp3_abprime.py`
+- committed report:
+  `Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/bgr_wp3_p2_1_abprime_report.json`
+
+### Reduced replay targets used here
+
+- BGR boundary-value swelling pressure:
+  `2.71 MPa`
+- reported experimental swelling-pressure range:
+  `3.12` to `3.55 MPa`
+- initial total suction range:
+  `90` to `110 MPa`
+- initial void-ratio range:
+  `0.83` to `0.85`
+- water-pressure boundary:
+  `20 kPa`
+
+### Reduced replay comparison at `t = 2e5 s`
+
+| Quantity | Native replay | MFront replay | BGR target or range | Interpretation |
+| --- | --- | --- | --- | --- |
+| Axial swelling pressure | `1.0103784801106894 MPa` | `0.7859139611933248 MPa` | `2.71 MPa` boundary value | Both runs underpredict the BGR appendix target; bridge is softer than native. |
+| Radial stress | `1.0101834147550586 MPa` | `0.7858119053590902 MPa` | same confined-swelling level expected | Same picture as axial: native and bridge stay below the report-facing scale. |
+| Mean dry density | `1502.8393244518954 kg/m^3` | `1502.8376146942085 kg/m^3` | not the primary appendix target | Native and bridge density levels are essentially identical on the reduced path. |
+| Mean saturation | `1.0` | `1.0` | full hydration expected on this reduced end state | The mismatch is not because one run stayed unsaturated. |
+| Native vs MFront axial gap | `0.22446451891736463 MPa` | same | `0 MPa` for exact parity | There is still a real constitutive gap between native and bridge on this replay. |
+
+### Interpretation
+
+The current first attempt closes one uncertainty and opens another:
+
+- it proves that the D3.3 appendix path can be reduced to a reproducible native
+  and bridge pair in the current repositories
+- it does not yet prove that the current constitutive branch matches the BGR
+  appendix target
+- native and bridge are both too soft relative to the BGR boundary value and
+  the reported experimental range
+- the bridge is also still softer than the native replay on the same reduced
+  path
+
+### Committed plotting boundary
+
+The branch now also contains the durable plotting helpers used to render the
+report-style figures that were added to the transition note:
+
+- `Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/plot_bgr_wp3_epfl_report_figures.py`
+- `Tests/Data/RichardsMechanics/plot_beacon_report_figures.py`
+
+Those scripts are committed because they define reproducible extraction and
+plotting of the report-facing metrics. The generated output directories are not
+part of the committed boundary:
+
+- do commit plotting code and note-facing figure assets
+- do not commit ad hoc VTU/PVD/CSV/PNG output trees unless they are explicitly
+  promoted to tracked benchmark artifacts
+
+So the next D3.3 work should not be framed as “just add another report run”.
+The committed replay is already a report run. The real remaining tasks are:
+
+- improve native-vs-MFront agreement on the reduced `P2-1 / A-B'` path
+- decide whether the reduced path should be calibrated directly to the
+  `2.71 MPa` BGR boundary value or first tightened against the native replay
+- only after that, consider enlarging the mesh or adding more of the appendix
+  setup details
+
 ## Generated parity and benchmark files
 
 These are the generated project and compare files that define the current
