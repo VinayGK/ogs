@@ -641,22 +641,11 @@ def main() -> None:
 
     x = np.array([r["dry_density_kg_m3"] for r in rows])
     y_target = np.array([r["target_villar_MPa"] for r in rows])
-    y_baseline = np.array([r["native_baseline_MPa"] for r in rows])
     y_calibrated = np.array([r["native_calibrated_MPa"] for r in rows])
     y_mult = np.array([r["vdw_multiplier"] for r in rows])
 
     plt.figure(figsize=(8.2, 5.2))
     plt.plot(x, y_target, "k-", linewidth=2.0, label="Villar Eq. (7) target")
-    plt.plot(
-        x,
-        y_baseline,
-        color="#1f77b4",
-        marker="o",
-        linestyle=":",
-        linewidth=1.7,
-        markersize=4.0,
-        label="Native notebook baseline (mult=1)",
-    )
     plt.plot(
         x,
         y_calibrated,

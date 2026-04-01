@@ -536,12 +536,12 @@ def main() -> None:
     plt.plot(
         x,
         y_native,
-        color="#1f77b4",
-        marker="o",
-        linestyle="--",
-        linewidth=1.7,
-        markersize=4.0,
-        label="Native notebook branch (baseline)",
+        color="#d62728",
+        marker="s",
+        linestyle=":",
+        linewidth=1.6,
+        markersize=3.8,
+        label="Native notebook branch",
     )
 
     mfront_curve = load_mfront_calibrated_curve(args.mfront_calibration_csv)
@@ -550,12 +550,12 @@ def main() -> None:
         plt.plot(
             x_m,
             y_m,
-            color="#d62728",
-            marker="s",
-            linestyle=":",
-            linewidth=1.6,
-            markersize=3.8,
-            label="MFront calibrated (existing run)",
+            color="black",
+            marker="o",
+            linestyle="-",
+            linewidth=1.4,
+            markersize=3.4,
+            label="Villar fit reference",
         )
 
     plt.xlabel("Dry density (kg/m$^3$)")

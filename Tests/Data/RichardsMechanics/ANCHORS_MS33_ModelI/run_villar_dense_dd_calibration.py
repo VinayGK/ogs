@@ -826,7 +826,6 @@ def main() -> None:
     x = np.array([r["dry_density_kg_m3"] for r in rows])
     y_target = np.array([r["target_villar_MPa"] for r in rows])
     y_mfront = np.array([r["mfront_calibrated_MPa"] for r in rows])
-    y_native = np.array([r["native_MPa"] for r in rows])
     y_mult = np.array([r["vdw_multiplier"] for r in rows])
 
     plt.figure(figsize=(8.0, 5.2))
@@ -840,16 +839,6 @@ def main() -> None:
         linewidth=1.7,
         markersize=4.5,
         label="MFront calibrated (effective vdW)",
-    )
-    plt.plot(
-        x,
-        y_native,
-        color="#1f77b4",
-        marker="o",
-        linestyle=":",
-        linewidth=1.7,
-        markersize=4.5,
-        label="Native baseline",
     )
     plt.xlabel("Dry density (kg/m$^3$)")
     plt.ylabel("Swelling pressure at full saturation (MPa)")
