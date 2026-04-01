@@ -1,8 +1,9 @@
 {
   "num_points": 17,
-  "mean_abs_native_minus_mfront_MPa": 0.13171749137662928,
-  "max_abs_native_minus_mfront_MPa": 0.5943152181722802,
-  "mean_mfront_over_native_multiplier_ratio": 0.9713354307538,
-  "min_mfront_over_native_multiplier_ratio": 0.8835121402540823,
-  "max_mfront_over_native_multiplier_ratio": 1.054042124947761
+  "mean_abs_native_minus_mfront_MPa": 0.007218482519366905,
+  "max_abs_native_minus_mfront_MPa": 0.025957751610722113,
+  "mean_mfront_over_native_multiplier_ratio": 0.9983961478620972,
+  "min_mfront_over_native_multiplier_ratio": 0.9926222525351455,
+  "max_mfront_over_native_multiplier_ratio": 1.0056516035233014,
+  "calibration_rel_tol": 0.002
 }
