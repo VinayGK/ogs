@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Build the EPFL benchmark mesh and geometry files from the BEACON source mesh.
+
+This utility rescales the reference BEACON mesh to the EPFL dimensions and
+writes the matching GML and small structured VTU column used by the benchmark.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +24,7 @@ TARGET_HEIGHT = 0.0125
 
 
 def scale_mesh() -> None:
+    """Rescale the source mesh coordinates to the EPFL benchmark footprint."""
     tree = ET.parse(SOURCE_MESH)
     root = tree.getroot()
     data_array = root.find(".//Points/DataArray")
@@ -38,6 +44,7 @@ def scale_mesh() -> None:
 
 
 def write_gml() -> None:
+    """Emit the geometry file describing the scaled EPFL rectangular domain."""
     text = f"""<?xml version="1.0" encoding="ISO-8859-1"?>
 <?xml-stylesheet type="text/xsl" href="OpenGeoSysGLI.xsl"?>
 <OpenGeoSysGLI xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ogs="http://www.opengeosys.org">
@@ -60,6 +67,7 @@ def write_gml() -> None:
 
 
 def write_structured_column_mesh() -> None:
+    """Write the tiny structured reference mesh used by the EPFL report plots."""
     ny = 2
     points = []
     for j in range(ny + 1):
@@ -106,6 +114,7 @@ def write_structured_column_mesh() -> None:
 
 
 def main() -> None:
+    """Generate the EPFL mesh artifacts in one pass."""
     scale_mesh()
     write_structured_column_mesh()
     write_gml()

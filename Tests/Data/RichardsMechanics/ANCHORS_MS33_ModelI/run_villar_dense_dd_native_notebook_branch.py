@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Run the native notebook-style dense dry-density sweep.
+
+The script builds per-density projects, runs OGS, and records the calibrated
+native-branch response along with a comparison curve.
+"""
 
 from __future__ import annotations
 
@@ -95,6 +100,7 @@ class Case:
 
 
 def git_short_hash(repo: Path) -> str:
+    """Return a short Git hash for provenance tracking."""
     try:
         return (
             subprocess.check_output(
@@ -107,6 +113,7 @@ def git_short_hash(repo: Path) -> str:
 
 
 def read_grid(path: Path) -> vtk.vtkUnstructuredGrid:
+    """Read a VTU snapshot into a VTK unstructured grid."""
     reader = vtk.vtkXMLUnstructuredGridReader()
     reader.SetFileName(str(path))
     reader.Update()
@@ -114,6 +121,7 @@ def read_grid(path: Path) -> vtk.vtkUnstructuredGrid:
 
 
 def get_array(grid: vtk.vtkUnstructuredGrid, name: str):
+    """Fetch a field from point or cell data."""
     arr = grid.GetPointData().GetArray(name)
     if arr is None:
         arr = grid.GetCellData().GetArray(name)
@@ -123,6 +131,7 @@ def get_array(grid: vtk.vtkUnstructuredGrid, name: str):
 
 
 def mean_total_stress_mpa(vtu_path: Path) -> float:
+    """Compute the mean isotropic stress in MPa from the final VTU."""
     grid = read_grid(vtu_path)
     sigma = get_array(grid, "sigma")
     p_mean = float((-sigma[:, 0] - sigma[:, 1] - sigma[:, 2]).mean() / 3.0)
@@ -130,6 +139,7 @@ def mean_total_stress_mpa(vtu_path: Path) -> float:
 
 
 def extract_last_vtu(prefix: str) -> Path:
+    """Select the final VTU produced by a case run."""
     candidates = sorted(ROOT.glob(f"{prefix}_ts_*_t_*.vtu"))
     if not candidates:
         raise FileNotFoundError(f"No VTU outputs found for prefix {prefix}")
@@ -145,6 +155,7 @@ def extract_last_vtu(prefix: str) -> Path:
 
 
 def cleanup_runtime(prefix: str, project_path: Path) -> None:
+    """Remove transient outputs from a calibration trial."""
     for pattern in (f"{prefix}.pvd", f"{prefix}_ts_*_t_*.vtu"):
         for p in ROOT.glob(pattern):
             p.unlink(missing_ok=True)
@@ -152,6 +163,7 @@ def cleanup_runtime(prefix: str, project_path: Path) -> None:
 
 
 def n_l0_from_micro_suction(phi0: float, hamaker_eff: float) -> float:
+    """Derive the initial micro-scale water content from the suction split."""
     # Target micro suction potential: mu = p / rho.
     mu_abs = MICRO_SUCTION_MPA * 1e6 / RHO_LR_REF
     n_s = 1.0 - phi0
@@ -165,6 +177,7 @@ def n_l0_from_micro_suction(phi0: float, hamaker_eff: float) -> float:
 
 
 def write_native_notebook_project(case: Case, project_path: Path) -> dict:
+    """Create a temporary native notebook project for one density case."""
     prefix = project_path.stem
     hamaker_eff = HAMAKER_LITERATURE
     n_l0 = n_l0_from_micro_suction(case.phi0, hamaker_eff)
@@ -405,6 +418,7 @@ def write_native_notebook_project(case: Case, project_path: Path) -> dict:
 
 
 def run_ogs(ogs_bin: Path, project_path: Path) -> None:
+    """Execute OGS for a single temporary project."""
     subprocess.run(
         [str(ogs_bin), str(project_path)],
         cwd=ROOT,
@@ -444,6 +458,7 @@ def load_mfront_calibrated_curve(path: Path) -> tuple[np.ndarray, np.ndarray] | 
 
 
 def main() -> None:
+    """Run the dense sweep and write the CSV, JSON, and comparison plots."""
     parser = argparse.ArgumentParser(
         description=(
             "Villar-style dry-density sweep for the native notebook branch "

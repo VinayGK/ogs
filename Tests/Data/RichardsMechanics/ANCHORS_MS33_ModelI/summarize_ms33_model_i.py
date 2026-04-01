@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Reduce MS33 Model-I benchmark snapshots into compact history tables.
+
+The script scans the case VTUs, extracts mean state variables, and writes a
+CSV history plus a JSON summary for later comparison and plotting.
+"""
 
 from __future__ import annotations
 
@@ -35,6 +40,7 @@ CASES = {
 
 
 def read_grid(path: Path) -> vtk.vtkUnstructuredGrid:
+    """Read a VTU snapshot into a VTK unstructured grid."""
     reader = vtk.vtkXMLUnstructuredGridReader()
     reader.SetFileName(str(path))
     reader.Update()
@@ -42,6 +48,7 @@ def read_grid(path: Path) -> vtk.vtkUnstructuredGrid:
 
 
 def get_array(grid: vtk.vtkUnstructuredGrid, name: str):
+    """Fetch a field from point or cell data, preferring point data."""
     arr = grid.GetPointData().GetArray(name)
     if arr is None:
         arr = grid.GetCellData().GetArray(name)
@@ -51,10 +58,12 @@ def get_array(grid: vtk.vtkUnstructuredGrid, name: str):
 
 
 def clean_scalar(value: float, tol: float = 1e-12) -> float:
+    """Clamp near-zero floating-point noise to exactly zero."""
     return 0.0 if abs(value) < tol else value
 
 
 def reduce_snapshot(path: Path):
+    """Compute the aggregate diagnostics recorded for one snapshot."""
     grid = read_grid(path)
     pressure = get_array(grid, "pressure")
     saturation = get_array(grid, "saturation")
@@ -82,6 +91,7 @@ def reduce_snapshot(path: Path):
 
 
 def main() -> None:
+    """Collect all snapshots, write the summary JSON, and emit the CSV."""
     history_rows = []
     summary = {"rho_solid_kg_m3": RHO_SOLID, "cases": {}}
 

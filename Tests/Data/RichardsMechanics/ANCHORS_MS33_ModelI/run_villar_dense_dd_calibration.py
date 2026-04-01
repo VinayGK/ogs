@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Calibrate the MFront dense dry-density sweep against the Villar curve.
+
+The workflow runs one OGS case per dry density, solves for an effective vdW
+multiplier, and writes the calibration table, JSON summary, and plots.
+"""
 
 from __future__ import annotations
 
@@ -105,6 +110,7 @@ class Case:
 
 
 def read_grid(path: Path) -> vtk.vtkUnstructuredGrid:
+    """Read a VTU snapshot into a VTK unstructured grid."""
     reader = vtk.vtkXMLUnstructuredGridReader()
     reader.SetFileName(str(path))
     reader.Update()
@@ -121,6 +127,7 @@ def get_array(grid: vtk.vtkUnstructuredGrid, name: str):
 
 
 def mean_total_stress_mpa(vtu_path: Path) -> float:
+    """Compute the mean isotropic stress in MPa from the final VTU."""
     grid = read_grid(vtu_path)
     sigma = get_array(grid, "sigma")
     p_mean = float((-sigma[:, 0] - sigma[:, 1] - sigma[:, 2]).mean() / 3.0)
@@ -144,6 +151,7 @@ def extract_last_vtu(prefix: str) -> Path:
 
 
 def cleanup_runtime(prefix: str) -> None:
+    """Remove transient outputs from a calibration trial."""
     for pattern in (f"{prefix}.pvd", f"{prefix}_ts_*_t_*.vtu"):
         for p in ROOT.glob(pattern):
             p.unlink(missing_ok=True)
@@ -165,6 +173,7 @@ def n_l0_from_micro_suction(phi0: float, hamaker_eff: float) -> float:
 def write_mfront_project(
     case: Case, multiplier: float, n_l0_fixed: float, project_path: Path
 ) -> dict:
+    """Create a temporary MFront project for one multiplier trial."""
     hamaker_eff = HAMAKER_LITERATURE * multiplier
     prefix = project_path.stem
 
@@ -430,6 +439,7 @@ def write_mfront_project(
 
 
 def write_native_project(case: Case, project_path: Path) -> None:
+    """Create the equivalent native project for comparison runs."""
     prefix = project_path.stem
     xml = f"""<?xml version='1.0' encoding='ISO-8859-1'?>
 <OpenGeoSysProject>
@@ -620,6 +630,7 @@ def write_native_project(case: Case, project_path: Path) -> None:
 
 
 def run_ogs(ogs_bin: Path, project_path: Path) -> None:
+    """Execute OGS for a single temporary project."""
     subprocess.run(
         [str(ogs_bin), str(project_path)],
         cwd=ROOT,
@@ -630,6 +641,7 @@ def run_ogs(ogs_bin: Path, project_path: Path) -> None:
 
 
 def git_short_hash(repo: Path) -> str:
+    """Return a short Git hash for provenance tracking."""
     try:
         out = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"], cwd=repo, text=True
@@ -642,6 +654,7 @@ def git_short_hash(repo: Path) -> str:
 def run_mfront_case(
     ogs_bin: Path, case: Case, multiplier: float, n_l0_fixed: float, idx: int
 ) -> dict:
+    """Run one MFront calibration trial and return the extracted metric."""
     case_tag = f"dd{int(case.dry_density)}_mfront_{idx:02d}"
     project_path = ROOT / f"{case_tag}.prj"
     meta = write_mfront_project(case, multiplier, n_l0_fixed, project_path)
@@ -663,6 +676,7 @@ def run_mfront_case(
 
 
 def run_native_case(ogs_bin: Path, case: Case) -> float:
+    """Run the native reference project and return the final swelling pressure."""
     case_tag = f"dd{int(case.dry_density)}_native"
     project_path = ROOT / f"{case_tag}.prj"
     write_native_project(case, project_path)
@@ -685,6 +699,7 @@ def calibrate_multiplier_for_case(
     rel_tol: float = 0.02,
     max_iter: int = 12,
 ) -> dict:
+    """Solve for the multiplier that matches the Villar target."""
     n_l0_fixed = n_l0_from_micro_suction(case.phi0, HAMAKER_LITERATURE)
 
     # 1) Baseline at multiplier=1.
@@ -734,6 +749,7 @@ def calibrate_multiplier_for_case(
 
 
 def main() -> None:
+    """Run the full dense calibration sweep and write all summaries."""
     parser = argparse.ArgumentParser(
         description=(
             "Dense dry-density calibration of effective micro vdW multiplier "

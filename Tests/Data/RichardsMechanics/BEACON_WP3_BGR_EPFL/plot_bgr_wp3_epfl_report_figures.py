@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Run, extract, and plot the BGR EPFL AB' benchmark comparison figures.
+
+The script executes both project variants, converts VTU outputs into CSV
+summaries, and regenerates the report-style figures and panel layouts.
+"""
 
 from __future__ import annotations
 
@@ -44,6 +49,7 @@ class Series:
 
 
 def make_output_times(t_end_s: float, num_times: int) -> list[float]:
+    """Generate a log-spaced output schedule with an explicit initial sample."""
     raw = np.geomspace(60.0, t_end_s, num=num_times)
     times = np.unique(np.round(raw, 6))
     times = np.concatenate(([0.0], times))
@@ -52,6 +58,7 @@ def make_output_times(t_end_s: float, num_times: int) -> list[float]:
 
 
 def write_project_copy(source: Path, target: Path, prefix: str, output_times: list[float]) -> None:
+    """Clone a project file while injecting a new output prefix and cadence."""
     tree = ET.parse(source)
     root = tree.getroot()
 
@@ -73,6 +80,7 @@ def write_project_copy(source: Path, target: Path, prefix: str, output_times: li
 
 
 def run_ogs(ogs: Path, project: Path, workdir: Path) -> None:
+    """Run OGS for a project in the benchmark working directory."""
     subprocess.run(
         [str(ogs), str(project)],
         cwd=workdir,
@@ -83,6 +91,7 @@ def run_ogs(ogs: Path, project: Path, workdir: Path) -> None:
 
 
 def load_vtu(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    """Load coordinates and point data from a VTU output file."""
     reader = vtk.vtkXMLUnstructuredGridReader()
     reader.SetFileName(str(path))
     reader.Update()
@@ -96,12 +105,14 @@ def load_vtu(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
 
 
 def boundary_mean(points: np.ndarray, values: np.ndarray, axis: int, side: str) -> np.ndarray:
+    """Compute the mean value on the max boundary of the selected axis."""
     target = points[:, axis].max() if side == "max" else points[:, axis].min()
     mask = np.isclose(points[:, axis], target, atol=1e-10)
     return np.asarray(values[mask]).mean(axis=0)
 
 
 def time_from_filename(path: Path) -> float:
+    """Extract the physical time stamp from a benchmark VTU filename."""
     stem = path.stem
     marker = "_t_"
     if marker not in stem:
@@ -110,6 +121,7 @@ def time_from_filename(path: Path) -> float:
 
 
 def collect_series(run_dir: Path, prefix: str, label: str) -> Series:
+    """Collect boundary-stress and saturation series from a full run directory."""
     paths = sorted(run_dir.glob(f"{prefix}_t_*.vtu"), key=time_from_filename)
     if not paths:
         raise RuntimeError(f"No VTU outputs found for {prefix} in {run_dir}")
@@ -146,6 +158,7 @@ def collect_series(run_dir: Path, prefix: str, label: str) -> Series:
 
 
 def write_series_csv(path: Path, series: list[Series]) -> None:
+    """Write the extracted benchmark series in a plot-friendly CSV format."""
     with path.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
@@ -173,6 +186,7 @@ def write_series_csv(path: Path, series: list[Series]) -> None:
 
 
 def read_series_csv(path: Path) -> list[Series]:
+    """Reload previously written series data to support plot-only reruns."""
     buckets: dict[str, dict[str, list[float]]] = {}
     with path.open(newline="") as f:
         reader = csv.DictReader(f)
@@ -211,6 +225,7 @@ def read_series_csv(path: Path) -> list[Series]:
 
 
 def plot_swelling_pressure(series: list[Series], path: Path) -> None:
+    """Plot the swelling-pressure time history for the report figure."""
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
 
     ax.axhspan(

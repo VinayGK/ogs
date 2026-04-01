@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Summarize BEACON unstructured-batch native vs bridge results.
+
+The script reads native and bridge VTU outputs, extracts boundary stresses and
+density profiles, and writes a JSON payload for the report note.
+"""
 
 from __future__ import annotations
 
@@ -26,6 +31,7 @@ REPORT_TARGETS = {
 
 
 def load_point_data(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray], int]:
+    """Load point coordinates, point data arrays, and cell count from a VTU."""
     reader = vtk.vtkXMLUnstructuredGridReader()
     reader.SetFileName(str(path))
     reader.Update()
@@ -40,12 +46,14 @@ def load_point_data(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray], int]
 
 
 def boundary_mean(points: np.ndarray, values: np.ndarray, axis: int, atol: float = 1e-8) -> np.ndarray:
+    """Average a field over the max boundary of the selected axis."""
     target = points[:, axis].max()
     mask = np.isclose(points[:, axis], target, atol=atol)
     return np.asarray(values[mask]).mean(axis=0)
 
 
 def density_profile(points: np.ndarray, density: np.ndarray, n_bins: int) -> list[dict[str, float]]:
+    """Bin a scalar field along the vertical coordinate for post-mortem plots."""
     y = points[:, 1]
     ymin = float(y.min())
     ymax = float(y.max())
@@ -70,10 +78,12 @@ def density_profile(points: np.ndarray, density: np.ndarray, n_bins: int) -> lis
 
 
 def max_abs_diff(a: np.ndarray, b: np.ndarray) -> float:
+    """Return the maximum absolute difference between two arrays."""
     return float(np.abs(np.asarray(a) - np.asarray(b)).max())
 
 
 def summarise(case: str, native_path: Path, bridge_path: Path) -> dict:
+    """Build the comparison payload for a BEACON case."""
     native_points, native, native_n_cells = load_point_data(native_path)
     bridge_points, bridge, bridge_n_cells = load_point_data(bridge_path)
 
@@ -123,6 +133,7 @@ def summarise(case: str, native_path: Path, bridge_path: Path) -> dict:
     }
 
 def main() -> None:
+    """Parse CLI arguments and write the comparison summary as JSON."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--case", choices=["1a01", "1b"], required=True)
     parser.add_argument("--native", type=Path, required=True)

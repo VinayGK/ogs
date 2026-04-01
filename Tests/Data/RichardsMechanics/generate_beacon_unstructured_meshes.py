@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Generate the small unstructured BEACON meshes used by the report runs.
+
+The script rescales the source GML footprint into the 1a01 and 1b benchmark
+domains and writes both the VTU meshes and their matching geometry files.
+"""
 
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -11,6 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 
 def _read_rectangle(gml_path: Path) -> tuple[float, float]:
+    """Extract rectangle width and height from a simple GML geometry."""
     root = ET.parse(gml_path).getroot()
     xs = [float(point.attrib["x"]) for point in root.findall(".//point")]
     ys = [float(point.attrib["y"]) for point in root.findall(".//point")]
@@ -18,6 +24,7 @@ def _read_rectangle(gml_path: Path) -> tuple[float, float]:
 
 
 def _build_mesh(width: float, height: float, *, nx: int, ny: int, seed: int) -> vtk.vtkUnstructuredGrid:
+    """Create a lightly perturbed triangulation of a rectangular domain."""
     rng = np.random.default_rng(seed)
     points = vtk.vtkPoints()
 
@@ -46,6 +53,7 @@ def _build_mesh(width: float, height: float, *, nx: int, ny: int, seed: int) -> 
 
 
 def _write_mesh(mesh: vtk.vtkUnstructuredGrid, path: Path) -> None:
+    """Persist a VTU mesh in ASCII form for reproducible diffs."""
     writer = vtk.vtkXMLUnstructuredGridWriter()
     writer.SetFileName(str(path))
     writer.SetInputData(mesh)
@@ -55,6 +63,7 @@ def _write_mesh(mesh: vtk.vtkUnstructuredGrid, path: Path) -> None:
 
 
 def main() -> None:
+    """Generate all benchmark meshes and report their sizes."""
     cases = [
         ("beacon_1a01.gml", "beacon_1a01_domain_unstructured_162e.vtu", 10, 10, 101),
         ("beacon_1b.gml", "beacon_1b_domain_unstructured_162e.vtu", 10, 10, 202),

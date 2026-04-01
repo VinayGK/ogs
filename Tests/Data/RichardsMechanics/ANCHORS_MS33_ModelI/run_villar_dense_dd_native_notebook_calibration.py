@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Calibrate the native notebook dense dry-density sweep against Villar data.
+
+This workflow mirrors the MFront calibration logic so the two implementations
+can be compared with the same dry-density sampling and output schema.
+"""
 
 from __future__ import annotations
 
@@ -95,6 +100,7 @@ class Case:
 
 
 def git_short_hash(repo: Path) -> str:
+    """Return a short Git hash for provenance tracking."""
     try:
         return (
             subprocess.check_output(
@@ -107,6 +113,7 @@ def git_short_hash(repo: Path) -> str:
 
 
 def read_grid(path: Path) -> vtk.vtkUnstructuredGrid:
+    """Read a VTU snapshot into a VTK unstructured grid."""
     reader = vtk.vtkXMLUnstructuredGridReader()
     reader.SetFileName(str(path))
     reader.Update()
@@ -114,6 +121,7 @@ def read_grid(path: Path) -> vtk.vtkUnstructuredGrid:
 
 
 def get_array(grid: vtk.vtkUnstructuredGrid, name: str):
+    """Fetch a field from point or cell data."""
     arr = grid.GetPointData().GetArray(name)
     if arr is None:
         arr = grid.GetCellData().GetArray(name)
@@ -123,6 +131,7 @@ def get_array(grid: vtk.vtkUnstructuredGrid, name: str):
 
 
 def mean_total_stress_mpa(vtu_path: Path) -> float:
+    """Compute the mean isotropic stress in MPa from the final VTU."""
     grid = read_grid(vtu_path)
     sigma = get_array(grid, "sigma")
     p_mean = float((-sigma[:, 0] - sigma[:, 1] - sigma[:, 2]).mean() / 3.0)
@@ -130,6 +139,7 @@ def mean_total_stress_mpa(vtu_path: Path) -> float:
 
 
 def extract_last_vtu(prefix: str) -> Path:
+    """Select the final VTU produced by a case run."""
     candidates = sorted(ROOT.glob(f"{prefix}_ts_*_t_*.vtu"))
     if not candidates:
         raise FileNotFoundError(f"No VTU outputs found for prefix {prefix}")
@@ -145,6 +155,7 @@ def extract_last_vtu(prefix: str) -> Path:
 
 
 def cleanup_runtime(prefix: str, project_path: Path) -> None:
+    """Remove transient outputs from a calibration trial."""
     for pattern in (f"{prefix}.pvd", f"{prefix}_ts_*_t_*.vtu"):
         for p in ROOT.glob(pattern):
             p.unlink(missing_ok=True)
@@ -152,6 +163,7 @@ def cleanup_runtime(prefix: str, project_path: Path) -> None:
 
 
 def n_l0_from_micro_suction(phi0: float, hamaker_eff: float) -> float:
+    """Derive the initial micro-scale water content from the suction split."""
     # Target micro suction potential: mu = p / rho.
     mu_abs = MICRO_SUCTION_MPA * 1e6 / RHO_LR_REF
     n_s = 1.0 - phi0
@@ -167,6 +179,7 @@ def n_l0_from_micro_suction(phi0: float, hamaker_eff: float) -> float:
 def write_native_notebook_project(
     case: Case, project_path: Path, vdw_multiplier: float, n_l0_fixed: float
 ) -> dict:
+    """Create a temporary native notebook project for one multiplier trial."""
     prefix = project_path.stem
     hamaker_eff = HAMAKER_LITERATURE * vdw_multiplier
     n_l0 = n_l0_fixed
@@ -407,6 +420,7 @@ def write_native_notebook_project(
 
 
 def run_ogs(ogs_bin: Path, project_path: Path) -> None:
+    """Execute OGS for a single temporary project."""
     subprocess.run(
         [str(ogs_bin), str(project_path)],
         cwd=ROOT,
@@ -439,6 +453,7 @@ def calibrate_multiplier_for_case(
     rel_tol: float = 0.02,
     max_iter: int = 18,
 ) -> dict:
+    """Solve for the multiplier that matches the Villar target."""
     target_scale = max(target_mpa, 1e-12)
     max_multiplier = 1e18
 
@@ -531,6 +546,7 @@ def load_mfront_calibrated_curve(path: Path) -> tuple[np.ndarray, np.ndarray] | 
 
 
 def main() -> None:
+    """Run the dense sweep and write the CSV, JSON, and comparison plots."""
     parser = argparse.ArgumentParser(
         description=(
             "Dense dry-density calibration of effective micro vdW multiplier "

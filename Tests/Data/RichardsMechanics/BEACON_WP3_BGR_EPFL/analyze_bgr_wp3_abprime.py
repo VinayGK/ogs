@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Summarize the BEACON WP3 BGR EPFL AB' benchmark outputs.
+
+The script reads native and MFront VTU files, extracts the key stress and
+saturation observables, and emits a compact JSON payload for the report.
+"""
 
 from __future__ import annotations
 
@@ -21,6 +26,7 @@ TARGETS = {
 
 
 def load(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    """Load point coordinates and point data arrays from a VTU file."""
     reader = vtk.vtkXMLUnstructuredGridReader()
     reader.SetFileName(str(path))
     reader.Update()
@@ -34,12 +40,14 @@ def load(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
 
 
 def boundary_mean(points: np.ndarray, values: np.ndarray, axis: int, side: str) -> np.ndarray:
+    """Average a field on the extremal boundary in the selected direction."""
     target = points[:, axis].max() if side == "max" else points[:, axis].min()
     mask = np.isclose(points[:, axis], target, atol=1e-10)
     return np.asarray(values[mask]).mean(axis=0)
 
 
 def summarise_single(path: Path) -> dict:
+    """Build a compact metrics summary for one AB' output file."""
     points, data = load(path)
     sigma_top = boundary_mean(points, data["sigma"], axis=1, side="max")
     sigma_side = boundary_mean(points, data["sigma"], axis=0, side="max")
@@ -56,6 +64,7 @@ def summarise_single(path: Path) -> dict:
 
 
 def main() -> None:
+    """Parse inputs and write the comparison JSON to stdout or disk."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--native", type=Path, required=True)
     parser.add_argument("--mfront", type=Path, required=True)

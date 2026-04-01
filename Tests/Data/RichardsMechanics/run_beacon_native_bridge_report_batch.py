@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Run the BEACON report benchmarks for native and bridge implementations.
+
+The script executes one paired case, captures the final VTU files, and
+delegates comparison metrics to `analyze_beacon_unstructured_batch`.
+"""
 
 from __future__ import annotations
 
@@ -29,6 +34,7 @@ CASE_CONFIGS = {
 
 
 def run_ogs(executable: Path, project: Path, output_dir: Path, source_dir: Path) -> None:
+    """Execute OGS with a project file and capture a useful failure report."""
     output_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         [str(executable), "-o", str(output_dir), str(project)],
@@ -46,6 +52,7 @@ def run_ogs(executable: Path, project: Path, output_dir: Path, source_dir: Path)
 
 
 def expected_output_file(output_dir: Path, prefix: str, final_time: str) -> Path:
+    """Resolve the VTU file that should exist at the end of a case run."""
     path = output_dir / f"{prefix}_t_{final_time}.vtu"
     if not path.exists():
         raise FileNotFoundError(f"Expected output file not found: {path}")
@@ -53,6 +60,7 @@ def expected_output_file(output_dir: Path, prefix: str, final_time: str) -> Path
 
 
 def main() -> None:
+    """Run one BEACON case and emit the summary JSON."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--case", choices=sorted(CASE_CONFIGS), required=True)
     parser.add_argument("--native-ogs", type=Path, required=True)

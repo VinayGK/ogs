@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Plot the MS33 dry-density sweep against the CIEMAT/Villar reference fit.
+
+The script reads the reduced Model-I history, overlays the Villar Eq. (7)
+curve, and writes both a CSV export and the comparison plot.
+"""
 
 from __future__ import annotations
 
@@ -25,15 +30,12 @@ OUT_PNG = ROOT / "ms33_vs_ciemat_swelling_pressure_vs_dry_density.png"
 
 
 def ciemat_villar_eq7_ps_mpa(qd_g_cm3: np.ndarray) -> np.ndarray:
-    """
-    Lloret et al. (2007) Eq. (7), as extracted from the local PDF text:
-      Ps = exp(6.77 * qd - 9.07)
-    with qd in g/cm^3 and Ps in MPa.
-    """
+    """Compute the Villar Eq. (7) reference curve in MPa."""
     return np.exp(6.77 * qd_g_cm3 - 9.07)
 
 
 def load_ms33_points() -> list[tuple[float, float]]:
+    """Load dry-density and final-stress pairs from the reduced Model-I summary."""
     payload = json.loads(SUMMARY_JSON.read_text())
     rows = []
     for case_data in payload["cases"].values():
@@ -46,6 +48,7 @@ def load_ms33_points() -> list[tuple[float, float]]:
 
 
 def write_overlay_csv(ms33_points: list[tuple[float, float]]) -> None:
+    """Export the reference curve and simulation points as a flat CSV table."""
     qd_ref = np.array([1.40, 1.60, 1.80], dtype=float)
     ps_ref = ciemat_villar_eq7_ps_mpa(qd_ref)
 
@@ -100,6 +103,7 @@ def write_overlay_csv(ms33_points: list[tuple[float, float]]) -> None:
 
 
 def plot_overlay(ms33_points: list[tuple[float, float]]) -> None:
+    """Render the dry-density comparison plot used in the note."""
     qd_curve = np.linspace(1.35, 1.85, 101)
     ps_curve = ciemat_villar_eq7_ps_mpa(qd_curve)
     qd_ref = np.array([1.40, 1.60, 1.80], dtype=float)
@@ -166,6 +170,7 @@ def plot_overlay(ms33_points: list[tuple[float, float]]) -> None:
 
 
 def main() -> None:
+    """Load reduced results, refresh the overlay CSV, and write the figure."""
     if not SUMMARY_JSON.exists():
         raise FileNotFoundError(
             f"Missing {SUMMARY_JSON.name}. Run summarize_ms33_model_i.py first."
