@@ -25,11 +25,14 @@ Tracked artefacts include:
   `villar_dense_dd_native_notebook_branch_summary.json`,
   `villar_dense_dd_native_notebook_branch_vs_villar.png`),
 - the dense dry-density native-notebook-branch effective-vdW calibration
-  attempt (`run_villar_dense_dd_native_notebook_calibration.py`,
+  run (`run_villar_dense_dd_native_notebook_calibration.py`,
   `villar_dense_dd_native_notebook_calibration.csv`,
   `villar_dense_dd_native_notebook_calibration_summary.json`,
   `villar_dense_dd_native_notebook_calibration_comparison.png`,
-  `villar_dense_dd_native_notebook_vdw_multiplier.png`).
+  `villar_dense_dd_native_notebook_vdw_multiplier.png`),
+- direct calibrated native-vs-MFront parity summary
+  (`villar_dense_dd_native_vs_mfront_calibrated_comparison.csv`,
+  `villar_dense_dd_native_vs_mfront_calibrated_comparison_summary.json`).
 
 Runtime-only outputs (`*.vtu`, `*.pvd`) are intentionally not versioned.
 
@@ -50,12 +53,15 @@ HOME=/tmp MPLCONFIGDIR=/tmp/mplcache XDG_CACHE_HOME=/tmp \
 python3 run_villar_dense_dd_native_notebook_branch.py --dd-step 25
 ```
 
-Native notebook branch dense calibration attempt command
+Native notebook branch dense calibration command
 (pointwise effective-vdW multiplier per dry density):
 
 ```bash
 HOME=/tmp MPLCONFIGDIR=/tmp/mplcache XDG_CACHE_HOME=/tmp \
-python3 run_villar_dense_dd_native_notebook_calibration.py --dd-step 25 --rel-tol 0.02
+python3 run_villar_dense_dd_native_notebook_calibration.py \
+  --native-ogs /Users/vinaykumar/git/build/release-native-beacon/bin/ogs \
+  --native-source /Users/vinaykumar/Documents/GitHub/ogs \
+  --dd-step 25 --rel-tol 0.02
 ```
 
 Key result from the native notebook branch baseline run (`d46e11ac00`):
@@ -65,22 +71,19 @@ Key result from the native notebook branch baseline run (`d46e11ac00`):
 - mean mismatch over the 17 dry-density points is about `-7.99` MPa
   (native below target).
 
-Key result from the native notebook branch calibration attempt:
-- baseline mean relative error vs Villar: `98.74%`.
-- calibrated mean relative error vs Villar: `62.02%`.
-- calibrated max relative error vs Villar: `94.59%`.
-- despite large fitted multipliers, final pressure plateaus near
-  `1.2` to `1.8` MPa on this setup.
+Key result from the updated native notebook branch calibration run:
+- baseline mean relative error vs Villar: `98.69%`.
+- calibrated mean relative error vs Villar: `1.26%`.
+- calibrated max relative error vs Villar: `1.83%`.
+- calibrated pressure follows Villar closely over `1400` to `1800` kg/m³.
 
 Native vs MFront comparison notes (same notebook-derived equations target):
-- both paths implement the same reduced notebook mass-exchange core
-  (`n_l` update from `mu_LR - mu_lR` and swelling from `Delta phi_m`),
-  but they currently differ in practical constraints used during this
-  calibration workflow.
-- native notebook storage enforces `n_l <= phi` via porosity split update,
-  while the current MFront scalar notebook-storage path does not apply an
-  equivalent hard upper clamp in the Newton iterate path.
-- calibration scripts also differ in initialization policy:
-  MFront dense calibration keeps `n_l0` fixed per dry density from the
-  literature Hamaker baseline, while the native calibration script recomputes
-  `n_l0` from the effective Hamaker value per multiplier trial.
+- native dense run now uses `scalar_notebook_mass_storage` with
+  `potential_role_mapping=notebook_roles`, EOS-driven `rho_lR` carry-over,
+  and robust multiplier bracketing in log-space.
+- calibrated native and calibrated MFront curves are now close on the dense
+  grid (mean absolute pressure difference about `0.135 MPa`, max about
+  `0.467 MPa`).
+- strict parameter-level parity is still open: fitted `vdw_multiplier`
+  remains branch-dependent (MFront/native ratio roughly
+  `3.1e5` to `8.2e5`).

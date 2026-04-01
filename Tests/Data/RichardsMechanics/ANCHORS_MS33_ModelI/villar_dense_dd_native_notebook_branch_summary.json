@@ -1,7 +1,8 @@
 {
-  "ogs_repo_hash": "f0a453fb89",
+  "ogs_repo_hash": "a6431b12c6",
   "native_notebook_source_hash": "d46e11ac00",
-  "native_ogs_version": "\nogs  version: 6.5.7-168-gd46e11ac\n\nCMake arguments:  -DOGS_BUILD_TESTING=\"OFF\" -DOGS_USE_MFRONT=\"OFF\"\n\n",
+  "native_notebook_source_path": "/Users/vinaykumar/Documents/GitHub/ogs",
+  "native_ogs_version": "\nogs  version: 6.5.7-168-gd46e11ac.dirty\n\nCMake arguments:  -DOGS_BUILD_TESTING=\"OFF\" -DOGS_USE_MFRONT=\"OFF\"\n\n",
   "total_initial_suction_MPa": 100.0,
   "macro_initial_suction_MPa": 1.0,
   "micro_initial_suction_MPa": 99.0,
@@ -18,11 +19,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0009758328233090512,
+      "n_l0": 0.001023703867471382,
       "micro_solid_volume_fraction_reference": 0.5035971223021583,
       "target_villar_MPa": 1.5038071611701085,
-      "native_notebook_branch_MPa": 0.04997174955926999,
-      "native_minus_target_MPa": -1.4538354116108385
+      "native_notebook_branch_MPa": 0.05202948126516802,
+      "native_minus_target_MPa": -1.4517776799049404
     },
     {
       "dry_density_kg_m3": 1425.0,
@@ -34,11 +35,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0009932584094395698,
+      "n_l0": 0.001041984293676228,
       "micro_solid_volume_fraction_reference": 0.512589928057554,
       "target_villar_MPa": 1.78113357233691,
-      "native_notebook_branch_MPa": 0.05072259852339005,
-      "native_minus_target_MPa": -1.7304109738135198
+      "native_notebook_branch_MPa": 0.05281120854032262,
+      "native_minus_target_MPa": -1.7283223637965874
     },
     {
       "dry_density_kg_m3": 1450.0,
@@ -50,11 +51,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0010106839955700887,
+      "n_l0": 0.0010602647198810742,
       "micro_solid_volume_fraction_reference": 0.5215827338129496,
       "target_villar_MPa": 2.1096034680651288,
-      "native_notebook_branch_MPa": 0.051471362986414436,
-      "native_minus_target_MPa": -2.0581321050787142
+      "native_notebook_branch_MPa": 0.053590764415021336,
+      "native_minus_target_MPa": -2.0560127036501075
     },
     {
       "dry_density_kg_m3": 1475.0,
@@ -66,11 +67,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0010281095817006075,
+      "n_l0": 0.0010785451460859203,
       "micro_solid_volume_fraction_reference": 0.5305755395683454,
       "target_villar_MPa": 2.4986485357374417,
-      "native_notebook_branch_MPa": 0.05221808413035618,
-      "native_minus_target_MPa": -2.4464304516070854
+      "native_notebook_branch_MPa": 0.054368191784850896,
+      "native_minus_target_MPa": -2.444280343952591
     },
     {
       "dry_density_kg_m3": 1500.0,
@@ -82,11 +83,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.001045535167831126,
+      "n_l0": 0.0010968255722907663,
       "micro_solid_volume_fraction_reference": 0.539568345323741,
       "target_villar_MPa": 2.959439818739489,
-      "native_notebook_branch_MPa": 0.052962801639048374,
-      "native_minus_target_MPa": -2.9064770171004404
+      "native_notebook_branch_MPa": 0.05514353198496419,
+      "native_minus_target_MPa": -2.9042962867545246
     },
     {
       "dry_density_kg_m3": 1525.0,
@@ -98,11 +99,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.001062960753961645,
+      "n_l0": 0.0011151059984956127,
       "micro_solid_volume_fraction_reference": 0.5485611510791367,
       "target_villar_MPa": 3.505208481894766,
-      "native_notebook_branch_MPa": 0.053705553776713495,
-      "native_minus_target_MPa": -3.4515029281180523
+      "native_notebook_branch_MPa": 0.05591682487191039,
+      "native_minus_target_MPa": -3.449291657022856
     },
     {
       "dry_density_kg_m3": 1550.0,
@@ -114,11 +115,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0010803863400921637,
+      "n_l0": 0.0011333864247004585,
       "micro_solid_volume_fraction_reference": 0.5575539568345323,
       "target_villar_MPa": 4.151625731244024,
-      "native_notebook_branch_MPa": 0.05444637746119104,
-      "native_minus_target_MPa": -4.097179353782833
+      "native_notebook_branch_MPa": 0.0566881088999022,
+      "native_minus_target_MPa": -4.094937622344122
     },
     {
       "dry_density_kg_m3": 1575.0,
@@ -130,11 +131,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0010978119262226827,
+      "n_l0": 0.001151666850905305,
       "micro_solid_volume_fraction_reference": 0.5665467625899281,
       "target_villar_MPa": 4.917252797188951,
-      "native_notebook_branch_MPa": 0.055185308332268174,
-      "native_minus_target_MPa": -4.862067488856683
+      "native_notebook_branch_MPa": 0.057457421191983486,
+      "native_minus_target_MPa": -4.859795375996967
     },
     {
       "dry_density_kg_m3": 1600.0,
@@ -146,11 +147,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0011152375123532014,
+      "n_l0": 0.0011699472771101508,
       "micro_solid_volume_fraction_reference": 0.5755395683453237,
       "target_villar_MPa": 5.824073901819978,
-      "native_notebook_branch_MPa": 0.05592238081551221,
-      "native_minus_target_MPa": -5.768151521004466
+      "native_notebook_branch_MPa": 0.0582247976065116,
+      "native_minus_target_MPa": -5.7658491042134665
     },
     {
       "dry_density_kg_m3": 1625.0,
@@ -162,11 +163,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0011326630984837202,
+      "n_l0": 0.001188227703314997,
       "micro_solid_volume_fraction_reference": 0.5845323741007195,
       "target_villar_MPa": 6.898127514056516,
-      "native_notebook_branch_MPa": 0.05665762818196785,
-      "native_minus_target_MPa": -6.841469885874548
+      "native_notebook_branch_MPa": 0.058990272799333617,
+      "native_minus_target_MPa": -6.839137241257182
     },
     {
       "dry_density_kg_m3": 1650.0,
@@ -178,11 +179,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0011500886846142388,
+      "n_l0": 0.0012065081295198432,
       "micro_solid_volume_fraction_reference": 0.5935251798561151,
       "target_villar_MPa": 8.170254018465311,
-      "native_notebook_branch_MPa": 0.05739108260404628,
-      "native_minus_target_MPa": -8.112862935861264
+      "native_notebook_branch_MPa": 0.059753880281995145,
+      "native_minus_target_MPa": -8.110500138183315
     },
     {
       "dry_density_kg_m3": 1675.0,
@@ -194,11 +195,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0011675142707447577,
+      "n_l0": 0.001224788555724689,
       "micro_solid_volume_fraction_reference": 0.6025179856115108,
       "target_villar_MPa": 9.676981266325395,
-      "native_notebook_branch_MPa": 0.058122775207902246,
-      "native_minus_target_MPa": -9.618858491117493
+      "native_notebook_branch_MPa": 0.060515652476293036,
+      "native_minus_target_MPa": -9.616465613849103
     },
     {
       "dry_density_kg_m3": 1700.0,
@@ -210,11 +211,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0011849398568752761,
+      "n_l0": 0.001243068981929535,
       "micro_solid_volume_fraction_reference": 0.6115107913669064,
       "target_villar_MPa": 11.461573436660695,
-      "native_notebook_branch_MPa": 0.05885273612256957,
-      "native_minus_target_MPa": -11.402720700538126
+      "native_notebook_branch_MPa": 0.0612756207654512,
+      "native_minus_target_MPa": -11.400297815895243
     },
     {
       "dry_density_kg_m3": 1725.0,
@@ -226,11 +227,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0012023654430057952,
+      "n_l0": 0.0012613494081343815,
       "micro_solid_volume_fraction_reference": 0.6205035971223022,
       "target_villar_MPa": 13.575273324245082,
-      "native_notebook_branch_MPa": 0.059580994526101286,
-      "native_minus_target_MPa": -13.51569232971898
+      "native_notebook_branch_MPa": 0.062033815542176504,
+      "native_minus_target_MPa": -13.513239508702904
     },
     {
       "dry_density_kg_m3": 1750.0,
@@ -242,11 +243,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0012197910291363138,
+      "n_l0": 0.0012796298343392273,
       "micro_solid_volume_fraction_reference": 0.6294964028776978,
       "target_villar_MPa": 16.078773725647544,
-      "native_notebook_branch_MPa": 0.060307578688935666,
-      "native_minus_target_MPa": -16.01846614695861
+      "native_notebook_branch_MPa": 0.06279026625382632,
+      "native_minus_target_MPa": -16.015983459393716
     },
     {
       "dry_density_kg_m3": 1775.0,
@@ -258,11 +259,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0012372166152668329,
+      "n_l0": 0.0012979102605440737,
       "micro_solid_volume_fraction_reference": 0.6384892086330936,
       "target_villar_MPa": 19.043960172709813,
-      "native_notebook_branch_MPa": 0.061032516014694276,
-      "native_minus_target_MPa": -18.982927656695118
+      "native_notebook_branch_MPa": 0.06354500144490069,
+      "native_minus_target_MPa": -18.980415171264912
     },
     {
       "dry_density_kg_m3": 1800.0,
@@ -274,11 +275,11 @@
       "hamaker_literature_J": 5.1e-21,
       "hamaker_effective_J": 5.1e-21,
       "specific_surface_mass_m2_g": 523.0,
-      "n_l0": 0.0012546422013973515,
+      "n_l0": 0.0013161906867489197,
       "micro_solid_volume_fraction_reference": 0.6474820143884892,
       "target_villar_MPa": 22.555975054319816,
-      "native_notebook_branch_MPa": 0.06175583307859709,
-      "native_minus_target_MPa": -22.49421922124122
+      "native_notebook_branch_MPa": 0.06429804879705307,
+      "native_minus_target_MPa": -22.491677005522764
     }
   ]
 }

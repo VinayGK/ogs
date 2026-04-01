@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent
 RICHARDS_DATA_ROOT = ROOT.parent
 
 RHO_SOLID = 2780.0  # kg/m^3
-RHO_SOLID_REFERENCE = 2650.0  # kg/m^3 (for micro reference term)
+RHO_SOLID_REFERENCE = 2780.0  # kg/m^3 (aligned with MFront bridge run)
 RHO_LR_REF = 1000.0  # kg/m^3
 
 MS33_K0_REF = 5.6e-21
@@ -46,6 +46,15 @@ MASS_EXCHANGE_COEFFICIENT = 1e-13
 MICRO_SWELLING_SLOPE = 0.1
 PRESSURE_IC_PA = -MACRO_SUCTION_MPA * 1e6
 TIME_END_S = 120 * 86400
+PRESSURE_TOLERANCE_PA = 1e-12
+
+AREA_FACTOR_TULLER = 1.0
+PORE_AREA_SHAPE_FACTOR_TULLER = 0.8584073464102069
+CHARACTERISTIC_PORE_SIZE = 1e-5
+SURFACE_TENSION = 0.0715
+MICRO_LIQUID_DENSITY_REFERENCE = 1e-6
+MICRO_LIQUID_DENSITY_A = 1e-16
+MICRO_LIQUID_DENSITY_B = 1.0
 
 NATIVE_NOTEBOOK_SOURCE = Path("/Users/vinaykumar/git/ogs-native-dsm-transition")
 DEFAULT_NATIVE_OGS = Path("/Users/vinaykumar/git/build/release-native-beacon/bin/ogs")
@@ -187,13 +196,17 @@ def write_native_notebook_project(case: Case, project_path: Path) -> dict:
             <vk_potential_exchange>
                 <enabled>true</enabled>
                 <mode>full_potential</mode>
-                <pressure_tolerance>0.0</pressure_tolerance>
+                <pressure_tolerance>{PRESSURE_TOLERANCE_PA:.16g}</pressure_tolerance>
                 <hamaker_constant>{hamaker_eff:.16g}</hamaker_constant>
                 <specific_surface>{SPECIFIC_SURFACE_MASS:.16g}</specific_surface>
                 <micro_solid_density_reference>{RHO_SOLID_REFERENCE:.16g}</micro_solid_density_reference>
                 <micro_solid_volume_fraction_reference>{n_s:.16g}</micro_solid_volume_fraction_reference>
+                <micro_liquid_density_reference>{MICRO_LIQUID_DENSITY_REFERENCE:.16g}</micro_liquid_density_reference>
+                <micro_liquid_density_a>{MICRO_LIQUID_DENSITY_A:.16g}</micro_liquid_density_a>
+                <micro_liquid_density_b>{MICRO_LIQUID_DENSITY_B:.16g}</micro_liquid_density_b>
                 <initial_micro_water_content>{n_l0:.16g}</initial_micro_water_content>
-                <local_nonlinear_solve_mode>scalar_notebook_storage</local_nonlinear_solve_mode>
+                <local_nonlinear_solve_mode>scalar_notebook_mass_storage</local_nonlinear_solve_mode>
+                <potential_role_mapping>notebook_roles</potential_role_mapping>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>{MICRO_SWELLING_SLOPE:.16g}</micro_water_content_swelling_slope>
@@ -280,19 +293,13 @@ def write_native_notebook_project(case: Case, project_path: Path) -> dict:
                 </property>
                 <property>
                     <name>saturation</name>
-                    <type>SaturationVanGenuchten</type>
+                    <type>SaturationTuller</type>
+                    <area_factor_tuller>{AREA_FACTOR_TULLER:.16g}</area_factor_tuller>
+                    <pore_area_shapefactor_tuller>{PORE_AREA_SHAPE_FACTOR_TULLER:.16g}</pore_area_shapefactor_tuller>
+                    <characteristic_pore_size>{CHARACTERISTIC_PORE_SIZE:.16g}</characteristic_pore_size>
+                    <surface_tension>{SURFACE_TENSION:.16g}</surface_tension>
                     <residual_liquid_saturation>0</residual_liquid_saturation>
                     <residual_gas_saturation>0</residual_gas_saturation>
-                    <exponent>0.5</exponent>
-                    <p_b>1e6</p_b>
-                </property>
-                <property>
-                    <name>saturation_micro</name>
-                    <type>SaturationVanGenuchten</type>
-                    <residual_liquid_saturation>0</residual_liquid_saturation>
-                    <residual_gas_saturation>0</residual_gas_saturation>
-                    <exponent>0.5</exponent>
-                    <p_b>1e7</p_b>
                 </property>
                 <property>
                     <name>bishops_effective_stress</name>
@@ -444,6 +451,12 @@ def main() -> None:
         )
     )
     parser.add_argument("--native-ogs", type=Path, default=DEFAULT_NATIVE_OGS)
+    parser.add_argument(
+        "--native-source",
+        type=Path,
+        default=NATIVE_NOTEBOOK_SOURCE,
+        help="Native OGS source tree for commit-hash provenance in summary JSON.",
+    )
     parser.add_argument("--dd-min", type=float, default=1400.0)
     parser.add_argument("--dd-max", type=float, default=1800.0)
     parser.add_argument("--dd-step", type=float, default=25.0)
@@ -499,7 +512,8 @@ def main() -> None:
 
     summary = {
         "ogs_repo_hash": git_short_hash(RICHARDS_DATA_ROOT.parents[2]),
-        "native_notebook_source_hash": git_short_hash(NATIVE_NOTEBOOK_SOURCE),
+        "native_notebook_source_hash": git_short_hash(args.native_source),
+        "native_notebook_source_path": str(args.native_source),
         "native_ogs_version": subprocess.check_output(
             [str(args.native_ogs), "--version"], text=True
         ),
