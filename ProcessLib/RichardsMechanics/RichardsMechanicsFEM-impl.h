@@ -692,9 +692,7 @@ solveVKNotebookMassStoragePredictorState(
                local_context.volumetric_strain_prev) /
                   dt_safe
             : 0.0;
-    double const n_l_ceiling = std::isfinite(local_context.phi)
-                                   ? std::max(n_l_floor, local_context.phi)
-                                   : std::numeric_limits<double>::infinity();
+    double const n_l_ceiling = std::numeric_limits<double>::infinity();
 
     auto evaluate = [&](double const n_l)
     {
@@ -837,9 +835,7 @@ solveVKNotebookMassStorageCoupledState(
                local_context.volumetric_strain_prev) /
                   dt_safe
             : 0.0;
-    double const n_l_ceiling = std::isfinite(local_context.phi)
-                                    ? std::max(n_l_floor, local_context.phi)
-                                    : std::numeric_limits<double>::infinity();
+    double const n_l_ceiling = std::numeric_limits<double>::infinity();
 
     auto evaluate = [&](double const n_l, double const rho_lR)
     {
@@ -1570,6 +1566,8 @@ inline void updateVKMicroscaleHydraulicState(
         macro_potential, local_context, vkp);
 
     *n_l = n_l_update.n_l;
+    // Keep notebook-mode rho_lR evolution consistent with the notebook bridge:
+    // rho_lR is updated from the active reduced micro EOS.
     *rho_lR = computeVKActiveMicroLiquidDensity(n_l_update.n_l, rho_LR,
                                                 local_context, vkp)
                   .rho_lR;
@@ -1597,8 +1595,13 @@ inline void updateVKPorositySplitState(
         return;
     }
 
-    if (vk_potential_exchange_parameters->local_nonlinear_solve_mode ==
-        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage)
+    auto const mode =
+        vk_potential_exchange_parameters->local_nonlinear_solve_mode;
+    bool const notebook_aligned =
+        vk_potential_exchange_parameters->potential_role_mapping ==
+        VKPotentialExchangeRoleMapping::NotebookRoles;
+    if (mode == VKLocalNonlinearSolveMode::ScalarNotebookMassStorage &&
+        !notebook_aligned)
     {
         return;
     }
@@ -1610,8 +1613,22 @@ inline void updateVKPorositySplitState(
     auto const phi_M_prev = std::get<PrevState<
         ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(SD_prev)
                                 ->phi;
-    auto const phi_m_prev = **std::get<PrevState<VKMicroPorosity>>(SD_prev);
     auto const n_l = std::max(1e-16, *std::get<VKMicroWaterContent>(SD));
+
+    if (notebook_aligned &&
+        (mode == VKLocalNonlinearSolveMode::ScalarNotebookStorage ||
+         mode == VKLocalNonlinearSolveMode::ScalarNotebookMassStorage))
+    {
+        // Keep notebook support split aligned with the bridge law:
+        // phi_m := n_l and phi_M := phi - n_l (bounded from below).
+        *micro_porosity = n_l;
+        transport_porosity = std::max(1e-16, phi - n_l);
+        variables.transport_porosity = transport_porosity;
+        variables_prev.transport_porosity = phi_M_prev;
+        return;
+    }
+
+    auto const phi_m_prev = **std::get<PrevState<VKMicroPorosity>>(SD_prev);
 
     auto const transport_porosity_update =
         computeVKTransportPorosityUpdate(
@@ -1635,6 +1652,18 @@ inline void updateVKTotalPorosityState(
 {
     if (!isVKPotentialExchangeEnabled(vk_potential_exchange_parameters))
     {
+        return;
+    }
+
+    if ((vk_potential_exchange_parameters->local_nonlinear_solve_mode ==
+             VKLocalNonlinearSolveMode::ScalarNotebookStorage ||
+         vk_potential_exchange_parameters->local_nonlinear_solve_mode ==
+             VKLocalNonlinearSolveMode::ScalarNotebookMassStorage) &&
+        vk_potential_exchange_parameters->potential_role_mapping ==
+            VKPotentialExchangeRoleMapping::NotebookRoles)
+    {
+        // In scalar notebook-storage mode, micro porosity is support-state only.
+        // Keep the process porosity state on the medium-law carrier.
         return;
     }
 
