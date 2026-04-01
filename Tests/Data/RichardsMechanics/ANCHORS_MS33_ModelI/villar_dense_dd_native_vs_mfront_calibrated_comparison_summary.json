@@ -1,12 +1,8 @@
 {
-  "mfront_csv": "villar_dense_dd_calibration.csv",
-  "native_csv": "villar_dense_dd_native_notebook_calibration.csv",
   "num_points": 17,
-  "mean_abs_diff_MPa": 0.13496541203676465,
-  "max_abs_diff_MPa": 0.4668967346823756,
-  "mean_rel_diff_percent": 1.5149933807807425,
-  "max_rel_diff_percent": 2.7892292009886623,
-  "mean_multiplier_ratio": 596858.9725146488,
-  "min_multiplier_ratio": 314136.0376592811,
-  "max_multiplier_ratio": 816897.9553586221
+  "mean_abs_native_minus_mfront_MPa": 0.13171749137662928,
+  "max_abs_native_minus_mfront_MPa": 0.5943152181722802,
+  "mean_mfront_over_native_multiplier_ratio": 0.9713354307538,
+  "min_mfront_over_native_multiplier_ratio": 0.8835121402540823,
+  "max_mfront_over_native_multiplier_ratio": 1.054042124947761
 }

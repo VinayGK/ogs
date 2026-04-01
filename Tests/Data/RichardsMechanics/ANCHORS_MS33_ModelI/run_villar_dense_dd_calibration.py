@@ -40,6 +40,12 @@ MICRO_SUCTION_MPA = TOTAL_SUCTION_MPA - MACRO_SUCTION_MPA
 
 NOTEBOOK_SWELLING_SLOPE = 0.1
 MASS_EXCHANGE_COEFFICIENT = 1e-13
+LIQUID_VISCOSITY = 1e-3
+NOTEBOOK_SATURATION_MODE = 1
+# 0 => coupled notebook mass-storage branch in RichardsMechanicsNotebookBridge_MCC
+# (aligns with native scalar_notebook_mass_storage solve intent).
+NOTEBOOK_LOCAL_SOLVE_MODE = 0
+MICRO_POTENTIAL_CONVENTION = 1
 
 PORE_AREA_SHAPE_FACTOR_TULLER = 0.8584073464102069
 AREA_FACTOR_TULLER = 1.0
@@ -351,12 +357,12 @@ def write_mfront_project(
         <parameter><name>ResidualGasSaturation</name><type>Constant</type><value>0.0</value></parameter>
         <parameter><name>BubblePressure</name><type>Constant</type><value>{MS33_PB:.16g}</value></parameter>
         <parameter><name>VanGenuchtenExponent_m</name><type>Constant</type><value>{MS33_M:.16g}</value></parameter>
-        <parameter><name>NotebookSaturationMode</name><type>Constant</type><value>1</value></parameter>
-        <parameter><name>NotebookLocalSolveMode</name><type>Constant</type><value>1</value></parameter>
-        <parameter><name>MicroPotentialConvention</name><type>Constant</type><value>1</value></parameter>
+        <parameter><name>NotebookSaturationMode</name><type>Constant</type><value>{NOTEBOOK_SATURATION_MODE}</value></parameter>
+        <parameter><name>NotebookLocalSolveMode</name><type>Constant</type><value>{NOTEBOOK_LOCAL_SOLVE_MODE}</value></parameter>
+        <parameter><name>MicroPotentialConvention</name><type>Constant</type><value>{MICRO_POTENTIAL_CONVENTION}</value></parameter>
         <parameter><name>NotebookSwellingSlope</name><type>Constant</type><value>{NOTEBOOK_SWELLING_SLOPE:.16g}</value></parameter>
         <parameter><name>MassExchangeCoefficient</name><type>Constant</type><value>{MASS_EXCHANGE_COEFFICIENT:.16g}</value></parameter>
-        <parameter><name>MacroViscosity</name><type>Constant</type><value>1000.0</value></parameter>
+        <parameter><name>MacroViscosity</name><type>Constant</type><value>{LIQUID_VISCOSITY:.16g}</value></parameter>
         <parameter><name>ReferenceLiquidDensityMacro</name><type>Constant</type><value>{RHO_LR_REF:.16g}</value></parameter>
         <parameter><name>ReferenceLiquidDensityMicro</name><type>Constant</type><value>{RHO_L0:.16g}</value></parameter>
         <parameter><name>ReferenceDensitySolid</name><type>Constant</type><value>{RHO_SOLID_MFRONT:.16g}</value></parameter>

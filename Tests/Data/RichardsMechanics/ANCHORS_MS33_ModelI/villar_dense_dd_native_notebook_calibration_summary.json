@@ -1,7 +1,7 @@
 {
-  "ogs_repo_hash": "a6431b12c6",
+  "ogs_repo_hash": "fdea3674d0",
   "native_notebook_source_hash": "d46e11ac00",
-  "native_notebook_source_path": "/Users/vinaykumar/Documents/GitHub/ogs",
+  "native_notebook_source_path": "/Users/vinaykumar/git/ogs-native-dsm-transition",
   "native_ogs_version": "\nogs  version: 6.5.7-168-gd46e11ac.dirty\n\nCMake arguments:  -DOGS_BUILD_TESTING=\"OFF\" -DOGS_USE_MFRONT=\"OFF\"\n\n",
   "total_initial_suction_MPa": 100.0,
   "macro_initial_suction_MPa": 1.0,
