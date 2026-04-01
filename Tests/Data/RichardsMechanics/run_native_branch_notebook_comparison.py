@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""Compare native notebook branch and MFront bridge outputs on BEACON cases.
+
+The script executes paired projects, extracts final-state stress/density
+metrics from VTK outputs, computes field-wise maximum absolute differences, and
+writes CSV/JSON/PNG artifacts for parity tracking.
+"""
 
 from __future__ import annotations
 
@@ -60,6 +66,7 @@ CASE_CONFIGS: dict[str, CaseConfig] = {
 
 
 def run_ogs(executable: Path, project: Path, output_dir: Path) -> None:
+    """Run OGS for one project and capture logs for reproducible failure diagnosis."""
     output_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         [str(executable), "-o", str(output_dir), str(project)],
@@ -132,6 +139,7 @@ def component_or_scalar(arr: np.ndarray, preferred_index: int) -> float:
 
 
 def evaluate_metrics(points: np.ndarray, arrays: dict[str, np.ndarray]) -> dict[str, float]:
+    """Extract comparable boundary stress and scalar-field means from final VTU data."""
     sigma = arrays.get("sigma")
     swelling = arrays.get("swelling_stress")
     dry_density = arrays.get("dry_density_solid")
@@ -186,6 +194,7 @@ def compare_fields(
     mfront_points: np.ndarray,
     mfront_data: dict[str, np.ndarray],
 ) -> dict[str, float]:
+    """Return max-abs field differences on shared point ordering."""
     if not np.allclose(native_points, mfront_points):
         raise RuntimeError("Point coordinates differ between native and MFront outputs.")
 

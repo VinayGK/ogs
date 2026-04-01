@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""Generate BEACON-style comparison figures for native and MFront runs.
+
+This helper script re-runs selected BEACON cases (1a01, 1b, 1c), extracts
+stress and density profile indicators from VTK outputs, and writes report-like
+plots plus CSV/JSON summary artifacts under ``Tests/Data/RichardsMechanics``.
+"""
 
 from __future__ import annotations
 
@@ -106,6 +112,7 @@ class ZoneStressSeries:
 
 
 def write_project_copy(source: Path, target: Path, prefix: str, output_times_s: list[float]) -> None:
+    """Write a temporary project with absolute mesh/geometry and custom output prefix/times."""
     target.parent.mkdir(parents=True, exist_ok=True)
     tree = ET.parse(source)
     root = tree.getroot()
@@ -136,6 +143,7 @@ def write_project_copy(source: Path, target: Path, prefix: str, output_times_s: 
 
 
 def run_ogs(ogs: Path, project: Path, output_dir: Path) -> None:
+    """Execute one OGS project and raise with captured logs on failure."""
     output_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         [str(ogs), "-o", str(output_dir), str(project)],
@@ -208,6 +216,7 @@ def binned_profile(
 
 
 def collect_boundary_series(run_dir: Path, prefix: str, label: str) -> BoundarySeries:
+    """Read all VTU files for one prefix and return top/outer boundary stress time series."""
     paths = sorted(run_dir.glob(f"{prefix}_t_*.vtu"), key=time_from_filename)
     if not paths:
         raise RuntimeError(f"No VTU outputs found for {prefix} in {run_dir}")
