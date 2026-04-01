@@ -1,0 +1,15 @@
+[
+  {
+    "case": "1c",
+    "panel": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1c_report_style_panel.png",
+    "series_csv": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1c_zone_series.csv",
+    "profile_csv": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1c_profile.csv",
+    "bridge_final": {
+      "time_s": 1000.0,
+      "block_axial_kpa": 0.0,
+      "block_radial_kpa": 0.0,
+      "pellet_axial_kpa": 0.0,
+      "pellet_radial_kpa": 0.0
+    }
+  }
+]
