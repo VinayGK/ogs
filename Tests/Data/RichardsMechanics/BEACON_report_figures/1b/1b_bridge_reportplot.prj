@@ -66,7 +66,7 @@
             </phases>
             <properties>
                 <property><name>transport_porosity</name><type>TransportPorosityFromMassBalance</type><initial_porosity>phi_tr0</initial_porosity><minimal_porosity>0</minimal_porosity><maximal_porosity>1</maximal_porosity></property>
-                <property><name>biot_coefficient</name><type>Constant</type><value>0.6</value></property>
+                <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
                 <property><name>permeability</name><type>Constant</type><value>5e-16</value></property>
                 <property><name>porosity</name><type>PorosityFromMassBalance</type><initial_porosity>phi0</initial_porosity><minimal_porosity>0</minimal_porosity><maximal_porosity>1</maximal_porosity></property>
                 <property><name>reference_temperature</name><type>Constant</type><value>293.15</value></property>

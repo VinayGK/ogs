@@ -1,0 +1,3 @@
+# Keep local benchmark outputs outside Git tracking.
+*
+!.gitignore

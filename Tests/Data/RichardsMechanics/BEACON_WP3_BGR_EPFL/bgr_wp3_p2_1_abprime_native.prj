@@ -99,7 +99,7 @@
                 <property>
                     <name>biot_coefficient</name>
                     <type>Constant</type>
-                    <value>0.6</value>
+                    <value>1.0</value>
                 </property>
                 <property>
                     <name>permeability</name>

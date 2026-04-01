@@ -41,3 +41,11 @@ nohup.out
 /wheelhouse
 .ipynb_checkpoints
 /Applications/Python/_version.py
+
+# Local benchmark runtime outputs (kept on disk, not committed)
+beacon_*_reportplot.pvd
+beacon_*_reportplot_t_*.vtu
+bgr_wp3_p2_1_abprime_mfront.pvd
+bgr_wp3_p2_1_abprime_mfront_t_*.vtu
+Tests/Data/RichardsMechanics/_outputs/**
+!Tests/Data/RichardsMechanics/_outputs/.gitignore

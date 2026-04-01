@@ -29,6 +29,7 @@ ANCHORS_DIR = ROOT / "ANCHORS_MS33_ModelI"
 MFRONT_CALIBRATION_CSV = ANCHORS_DIR / "villar_dense_dd_calibration.csv"
 NATIVE_CALIBRATION_CSV = ANCHORS_DIR / "villar_dense_dd_native_notebook_calibration.csv"
 HAMAKER_REFERENCE_J = 5.1e-21
+OUTPUT_ROOT = ROOT / "_outputs" / "calibrated_native_mfront_comparison"
 
 
 @dataclass(frozen=True)
@@ -73,17 +74,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out-csv",
         type=Path,
-        default=ROOT / "calibrated_benchmark_runs_summary.csv",
+        default=OUTPUT_ROOT / "calibrated_benchmark_runs_summary.csv",
     )
     parser.add_argument(
         "--out-json",
         type=Path,
-        default=ROOT / "calibrated_benchmark_runs_summary.json",
+        default=OUTPUT_ROOT / "calibrated_benchmark_runs_summary.json",
     )
     parser.add_argument(
         "--out-deltas-csv",
         type=Path,
-        default=ROOT / "calibrated_benchmark_pairwise_deltas.csv",
+        default=OUTPUT_ROOT / "calibrated_benchmark_pairwise_deltas.csv",
     )
     parser.add_argument(
         "--skip-beacon-runs",
@@ -152,6 +153,22 @@ def set_output_prefix(root: ET.Element, prefix: str) -> None:
     node.text = prefix
 
 
+def set_biot_coefficient(root: ET.Element, value: float) -> None:
+    """Force all medium biot_coefficient properties to a consistent scalar."""
+    found = False
+    for prop in root.findall(".//property"):
+        name = (prop.findtext("name") or "").strip()
+        if name != "biot_coefficient":
+            continue
+        val = prop.find("value")
+        if val is None:
+            val = ET.SubElement(prop, "value")
+        val.text = f"{value:.16g}"
+        found = True
+    if not found:
+        raise RuntimeError("Could not find any biot_coefficient property in project.")
+
+
 def set_native_hamaker(root: ET.Element, hamaker_j: float) -> None:
     """Inject the calibrated Hamaker constant into a native project copy."""
     node = root.find("./processes/process/vk_potential_exchange/hamaker_constant")
@@ -179,6 +196,7 @@ def write_project_copy(
     root = ET.parse(source).getroot()
     absolutize_mesh_and_geometry(root, source.parent)
     set_output_prefix(root, prefix)
+    set_biot_coefficient(root, 1.0)
     if implementation == "native":
         set_native_hamaker(root, hamaker_j)
     elif implementation == "mfront":
@@ -205,6 +223,28 @@ def run_ogs(ogs_bin: Path, project: Path, output_dir: Path) -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
+
+
+def summarize_error(exc: Exception) -> str:
+    """Extract a compact, informative error line from a raised exception."""
+    text = str(exc)
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    # Prefer explicit OGS physics-failure lines.
+    for ln in reversed(lines):
+        low = ln.lower()
+        if "biot-coefficient" in low or ("porosity" in low and low.startswith("error:")):
+            return ln[:500]
+    # Then prefer explicit OGS error lines.
+    for ln in reversed(lines):
+        low = ln.lower()
+        if low.startswith("error:") or "terminated with error" in low:
+            return ln[:500]
+    # Fall back to any line mentioning stderr/stdout details.
+    for ln in reversed(lines):
+        if "stderr" in ln.lower() or "stdout" in ln.lower():
+            continue
+        return ln[:500]
+    return text.strip()[:500]
 
 
 def parse_output_time(path: Path) -> float:
@@ -430,7 +470,7 @@ def run_beacon_rows(
                 native_metrics = evaluate_beacon_metrics(latest_vtu(native_out, native_prefix))
             except Exception as exc:
                 native_status = "failed"
-                native_error = str(exc).strip().splitlines()[-1][:500]
+                native_error = summarize_error(exc)
                 native_metrics = nan_beacon_metrics()
 
             try:
@@ -438,7 +478,7 @@ def run_beacon_rows(
                 mfront_metrics = evaluate_beacon_metrics(latest_vtu(mfront_out, mfront_prefix))
             except Exception as exc:
                 mfront_status = "failed"
-                mfront_error = str(exc).strip().splitlines()[-1][:500]
+                mfront_error = summarize_error(exc)
                 mfront_metrics = nan_beacon_metrics()
 
             rows.append(
@@ -617,6 +657,10 @@ def main() -> None:
             (
                 "For ANCHORS, swelling pressure values are taken from calibrated DD runs; "
                 "for BEACON, values come from fresh reruns with calibrated Hamaker values."
+            ),
+            (
+                "Biot coefficient is enforced as 1.0 in generated BEACON run copies "
+                "for both native and MFront implementations."
             ),
         ],
         "rows": rows,
