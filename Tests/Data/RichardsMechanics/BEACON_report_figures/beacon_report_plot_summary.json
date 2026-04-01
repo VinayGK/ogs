@@ -1,5 +1,41 @@
 [
   {
+    "case": "1a01",
+    "panel": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1a01_report_style_panel.png",
+    "series_csv": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1a01_series.csv",
+    "profile_csv": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1a01_profile.csv",
+    "native_final": {
+      "time_s": 100000.0,
+      "axial_kpa": 18.83937353936591,
+      "radial_kpa": 19.481017100881736,
+      "dry_density_mean_kg_m3": 1667.9974047236685
+    },
+    "bridge_final": {
+      "time_s": 100000.0,
+      "axial_kpa": 603.9440998638736,
+      "radial_kpa": 603.3785565626009,
+      "dry_density_mean_kg_m3": 1667.9989096611862
+    }
+  },
+  {
+    "case": "1b",
+    "panel": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1b_report_style_panel.png",
+    "series_csv": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1b_series.csv",
+    "profile_csv": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1b_profile.csv",
+    "native_final": {
+      "time_s": 43200000.0,
+      "axial_kpa": 1.287590201677671,
+      "radial_kpa": 3.000953407896319,
+      "dry_density_mean_kg_m3": 1389.9446001342553
+    },
+    "bridge_final": {
+      "time_s": 43200000.0,
+      "axial_kpa": 6.20117529547284,
+      "radial_kpa": 2.834772983749193,
+      "dry_density_mean_kg_m3": 1389.861763736746
+    }
+  },
+  {
     "case": "1c",
     "panel": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1c_report_style_panel.png",
     "series_csv": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1c_zone_series.csv",

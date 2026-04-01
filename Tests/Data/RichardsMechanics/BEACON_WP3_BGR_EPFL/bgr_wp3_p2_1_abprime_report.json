@@ -6,7 +6,7 @@
     "mean_saturation": 0.9999999999999997,
     "mean_swelling_stress": -439358.9290193177,
     "mean_transport_porosity": 0.14911092996611197,
-    "path": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/bgr_wp3_p2_1_abprime_mfront_t_200000.000000.vtu",
+    "path": "transient-run:mfront:bgr_wp3_p2_1_abprime_mfront_t_200000.000000.vtu",
     "radial_stress_mpa": 0.7858119053590902
   },
   "native": {
@@ -16,7 +16,7 @@
     "mean_saturation": 0.9999999999999997,
     "mean_swelling_stress": -607637.5610665366,
     "mean_transport_porosity": 0.14797127160151743,
-    "path": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_WP3_BGR_EPFL/bgr_wp3_p2_1_abprime_native_t_200000.000000.vtu",
+    "path": "transient-run:native:bgr_wp3_p2_1_abprime_native_t_200000.000000.vtu",
     "radial_stress_mpa": 1.0101834147550586
   },
   "targets": {
