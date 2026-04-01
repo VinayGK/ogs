@@ -1,0 +1,151 @@
+{
+  "cases": {
+    "1a01_inflow": {
+      "max_abs_diff": {
+        "pressure": 126661.88123622442,
+        "saturation": 0.006610123751136454,
+        "sigma": 603608.2298717289,
+        "swelling_stress": 603608.2298717286
+      },
+      "mfront_metrics": {
+        "axial_sigma_kpa": 607.1716398706767,
+        "axial_swelling_stress_kpa": 607.1716398706765,
+        "dry_density_mean_kg_m3": NaN,
+        "n_l_mean": 0.2189504070316514,
+        "phi_M_mean": 0.18104959296834855,
+        "phi_m_mean": 0.2189504070316514,
+        "pressure_mean": -62416.20099654723,
+        "radial_sigma_kpa": 603.9348707823654,
+        "radial_swelling_stress_kpa": 603.9348707823655,
+        "saturation_mean": 0.9973789159451503
+      },
+      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_bridge.prj",
+      "mfront_vtu": "/tmp/ogs_native_branch_validation/1a01_inflow/mfront/beacon_1a01_vk_notebook_mcc_inflow_bridge_t_100000.000000.vtu",
+      "native_metrics": {
+        "axial_sigma_kpa": 3.5634099989482175,
+        "axial_swelling_stress_kpa": 3.563409998948218,
+        "dry_density_mean_kg_m3": NaN,
+        "micro_pressure_mean": 108338.81371973315,
+        "micro_saturation_mean": 1.128220031830204,
+        "pressure_mean": 914.7396215649775,
+        "radial_sigma_kpa": 3.561667550839007,
+        "radial_swelling_stress_kpa": 3.561667550839007,
+        "saturation_mean": 0.9999999999999998,
+        "vk_micro_exchange_source_mean": 1.0833881371973315e-05,
+        "vk_micro_porosity_mean": 0.01128220031830204,
+        "vk_micro_water_content_mean": 0.01128220031830204
+      },
+      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow.prj",
+      "native_vtu": "/tmp/ogs_native_branch_validation/1a01_inflow/native/beacon_1a01_vk_inflow_t_100000.000000.vtu"
+    },
+    "1a01_smoke": {
+      "max_abs_diff": {
+        "pressure": 461.3327170734992,
+        "saturation": 0.0001838300558427708,
+        "sigma": 0.0,
+        "swelling_stress": 0.0
+      },
+      "mfront_metrics": {
+        "axial_sigma_kpa": 0.0,
+        "axial_swelling_stress_kpa": 0.0,
+        "dry_density_mean_kg_m3": NaN,
+        "n_l_mean": 0.1,
+        "phi_M_mean": 0.30000000000000004,
+        "phi_m_mean": 0.1,
+        "pressure_mean": -481308.4780032531,
+        "radial_sigma_kpa": 0.0,
+        "radial_swelling_stress_kpa": 0.0,
+        "saturation_mean": 0.8880898150420123
+      },
+      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_bridge.prj",
+      "mfront_vtu": "/tmp/ogs_native_branch_validation/1a01_smoke/mfront/beacon_1a01_vk_notebook_mcc_bridge_t_1000.000000.vtu",
+      "native_metrics": {
+        "axial_sigma_kpa": 0.0,
+        "axial_swelling_stress_kpa": 0.0,
+        "dry_density_mean_kg_m3": NaN,
+        "micro_pressure_mean": -2.1356420177407673e-16,
+        "micro_saturation_mean": 0.9995104392036152,
+        "pressure_mean": -481077.8116447164,
+        "radial_sigma_kpa": 0.0,
+        "radial_swelling_stress_kpa": 0.0,
+        "saturation_mean": 0.8881688709167219
+      },
+      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1a01_vk_smoke.prj",
+      "native_vtu": "/tmp/ogs_native_branch_validation/1a01_smoke/native/beacon_1a01_vk_smoke_t_1000.000000.vtu"
+    },
+    "1b_smoke": {
+      "max_abs_diff": {
+        "pressure": 0.0,
+        "saturation": 0.0,
+        "sigma": 0.0,
+        "swelling_stress": 0.0
+      },
+      "mfront_metrics": {
+        "axial_sigma_kpa": 0.0,
+        "axial_swelling_stress_kpa": 0.0,
+        "dry_density_mean_kg_m3": NaN,
+        "n_l_mean": 0.1,
+        "phi_M_mean": 0.4,
+        "phi_m_mean": 0.1,
+        "pressure_mean": 5000.0,
+        "radial_sigma_kpa": 0.0,
+        "radial_swelling_stress_kpa": 0.0,
+        "saturation_mean": 0.9999999999999998
+      },
+      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1b_vk_notebook_mcc_bridge.prj",
+      "mfront_vtu": "/tmp/ogs_native_branch_validation/1b_smoke/mfront/beacon_1b_vk_notebook_mcc_bridge_t_1000.000000.vtu",
+      "native_metrics": {
+        "axial_sigma_kpa": 0.0,
+        "axial_swelling_stress_kpa": 0.0,
+        "dry_density_mean_kg_m3": NaN,
+        "micro_pressure_mean": -2.1325059416422887e-16,
+        "micro_saturation_mean": 0.9999999999999998,
+        "pressure_mean": 5000.0,
+        "radial_sigma_kpa": 0.0,
+        "radial_swelling_stress_kpa": 0.0,
+        "saturation_mean": 0.9999999999999998
+      },
+      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1b_vk_smoke.prj",
+      "native_vtu": "/tmp/ogs_native_branch_validation/1b_smoke/native/beacon_1b_vk_smoke_t_1000.000000.vtu"
+    },
+    "1c_smoke": {
+      "max_abs_diff": {
+        "pressure": 71.1516465570021,
+        "saturation": 2.858906912917014e-05,
+        "sigma": 0.0,
+        "swelling_stress": 0.0
+      },
+      "mfront_metrics": {
+        "axial_sigma_kpa": 0.0,
+        "axial_swelling_stress_kpa": 0.0,
+        "dry_density_mean_kg_m3": NaN,
+        "n_l_mean": 0.10999999999061016,
+        "phi_M_mean": 0.40250000000938985,
+        "phi_m_mean": 0.10999999999061016,
+        "pressure_mean": -71936.63612587041,
+        "radial_sigma_kpa": 0.0,
+        "radial_swelling_stress_kpa": 0.0,
+        "saturation_mean": 0.9906766368620289
+      },
+      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1c_vk_notebook_mcc_bridge.prj",
+      "mfront_vtu": "/tmp/ogs_native_branch_validation/1c_smoke/mfront/beacon_1c_vk_notebook_mcc_bridge_t_1000.000000.vtu",
+      "native_metrics": {
+        "axial_sigma_kpa": 0.0,
+        "axial_swelling_stress_kpa": 0.0,
+        "dry_density_mean_kg_m3": NaN,
+        "micro_pressure_mean": -1.9099694660422202e-16,
+        "micro_saturation_mean": 0.9998356583308817,
+        "pressure_mean": -71912.91891035142,
+        "radial_sigma_kpa": 0.0,
+        "radial_swelling_stress_kpa": 0.0,
+        "saturation_mean": 0.9906823645769531
+      },
+      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1c_vk_smoke.prj",
+      "native_vtu": "/tmp/ogs_native_branch_validation/1c_smoke/native/beacon_1c_vk_smoke_t_1000.000000.vtu"
+    }
+  },
+  "mfront_ogs": "/Users/vinaykumar/git/build/release-mfront-tpm/bin/ogs",
+  "mfront_source_dir": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled",
+  "native_ogs": "/Users/vinaykumar/git/build/release-native-beacon/bin/ogs",
+  "native_source_dir": "/Users/vinaykumar/git/ogs-native-dsm-transition"
+}

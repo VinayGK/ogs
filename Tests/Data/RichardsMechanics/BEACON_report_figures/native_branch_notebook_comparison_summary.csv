@@ -1,0 +1,5 @@
+case,native_axial_sigma_kpa,mfront_axial_sigma_kpa,native_radial_sigma_kpa,mfront_radial_sigma_kpa,native_dry_density_mean_kg_m3,mfront_dry_density_mean_kg_m3,native_pressure_mean,mfront_pressure_mean,max_abs_diff_pressure,max_abs_diff_sigma,max_abs_diff_swelling_stress
+1a01_smoke,0.0,0.0,0.0,0.0,nan,nan,-481077.8116447164,-481308.4780032531,461.3327170734992,0.0,0.0
+1b_smoke,0.0,0.0,0.0,0.0,nan,nan,5000.0,5000.0,0.0,0.0,0.0
+1c_smoke,0.0,0.0,0.0,0.0,nan,nan,-71912.91891035142,-71936.63612587041,71.1516465570021,0.0,0.0
+1a01_inflow,3.5634099989482175,607.1716398706767,3.561667550839007,603.9348707823654,nan,nan,914.7396215649775,-62416.20099654723,126661.88123622442,603608.2298717289,603608.2298717286
