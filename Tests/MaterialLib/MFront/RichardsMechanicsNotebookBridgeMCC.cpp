@@ -754,6 +754,75 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 }
 
 TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+     MicroOnlySwellingKeepsMacroExchangeOffAndPreservesCarrierSaturation)
+{
+    auto parameters = createNotebookMCCParameters(2.0, 0.0, 0.1, 1300.0, 0.0);
+    auto reference = createReferenceMCCModel(parameters);
+    auto notebook_mcc = createNotebookMCCModel(parameters);
+
+    auto reference_state = reference->createMaterialStateVariables();
+    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    initializeState(*reference, *reference_state);
+    initializeState(*notebook_mcc, *notebook_state);
+
+    ParameterLib::SpatialPosition x{};
+
+    MPL::VariableArray previous;
+    previous.mechanical_strain.emplace<KV>(KV::Zero());
+    previous.stress.emplace<KV>(notebookMCCIsotropicStress(-5e3));
+    previous.liquid_phase_pressure = -5e3;
+    previous.temperature = 293.15;
+
+    constexpr double t = 1.0;
+    constexpr double dt = 1.0;
+    constexpr double eps_v = -2e-5;
+    constexpr double liquid_pressure = -4e4;
+
+    MPL::VariableArray current = previous;
+    current.mechanical_strain.emplace<KV>(
+        notebookMCCIsotropicStrainFromVolumetric(eps_v));
+    current.liquid_phase_pressure = liquid_pressure;
+
+    auto reference_response = reference->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *reference_state);
+    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *notebook_state);
+
+    ASSERT_TRUE(reference_response);
+    ASSERT_TRUE(notebook_response);
+    ASSERT_TRUE(notebook_response->state);
+
+    auto const epsilon_sw =
+        getInternalScalar(*notebook_mcc, *notebook_response->state,
+                          "epsilon_sw");
+    EXPECT_GT(std::abs(epsilon_sw), 1e-12);
+
+    EXPECT_NEAR(reference_response->liquid_mass_exchange_source, 0.0, 1e-18);
+    EXPECT_NEAR(notebook_response->liquid_mass_exchange_source, 0.0, 1e-18);
+
+    EXPECT_NEAR(reference_response->saturation, notebook_response->saturation,
+                1e-15);
+    EXPECT_TRUE((reference_response->dSaturation_dStrain -
+                 notebook_response->dSaturation_dStrain)
+                    .isZero(1e-12));
+    EXPECT_NEAR(reference_response->dSaturation_dLiquidPressure,
+                notebook_response->dSaturation_dLiquidPressure, 1e-15);
+
+    auto const sigma_S_values =
+        getInternalVector(*notebook_mcc, *notebook_response->state, "sigma_S");
+    ASSERT_EQ(sigma_S_values.size(), static_cast<std::size_t>(KV::RowsAtCompileTime));
+    KV sigma_S = KV::Zero();
+    for (Eigen::Index i = 0; i < KV::RowsAtCompileTime; ++i)
+    {
+        sigma_S[i] = sigma_S_values[static_cast<std::size_t>(i)];
+    }
+
+    auto const added_swelling_stress =
+        notebook_response->stress - reference_response->stress;
+    EXPECT_TRUE((added_swelling_stress - sigma_S).isZero(5e-8));
+}
+
+TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
      NativeAlignedStageOneStressGapIsMicroSupportStress)
 {
     auto parameters = createNotebookMCCParameters(

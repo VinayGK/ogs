@@ -229,13 +229,26 @@ add_test(
     NAME unit-RichardsMechanicsDSM-bridge-mcc
     COMMAND
         $<TARGET_FILE:testrunner>
-        --gtest_filter=MaterialLib_RMBridgeMFront_NotebookMCC.SwellingFeedbackChangesStressButKeepsCarrierSaturation:MaterialLib_RMBridgeMFront_NotebookMCC.NativeAlignedStageOneStressGapIsMicroSupportStress:MaterialLib_RMBridgeMFront_NotebookMCC.PressureCoupledResponseExposesMacroExchangeSource
+        --gtest_filter=MaterialLib_RMBridgeMFront_NotebookMCC.SwellingFeedbackChangesStressButKeepsCarrierSaturation:MaterialLib_RMBridgeMFront_NotebookMCC.MicroOnlySwellingKeepsMacroExchangeOffAndPreservesCarrierSaturation:MaterialLib_RMBridgeMFront_NotebookMCC.NativeAlignedStageOneStressGapIsMicroSupportStress:MaterialLib_RMBridgeMFront_NotebookMCC.PressureCoupledResponseExposesMacroExchangeSource
 )
 set_tests_properties(
     unit-RichardsMechanicsDSM-bridge-mcc
     PROPERTIES
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
         LABELS "unit;dsm;richardsmechanics;mfront;bridge;mcc"
+)
+
+add_test(
+    NAME unit-RichardsMechanicsDSM-native-vs-mfront-mcc
+    COMMAND
+        $<TARGET_FILE:testrunner>
+        --gtest_filter=MaterialLib_RMBridgeMFront_MCC.PressureCoupledConstEMatchesNativeMechanicalPath:MaterialLib_RMBridgeMFront_MCC.PressureCoupledConstEFactoryCreationWorks:MaterialLib_RMBridgeMFront_MCC.PressureCoupledConstEMatchesNativeAcrossDryDensitySweep:MaterialLib_RMBridgeMFront_MCC.PressureCoupledConstETangentConsistentNearPlasticOnset:MaterialLib_RMBridgeMFront_MCC.PressureCoupledConstERestartStateTransferMatchesContinuousPath
+)
+set_tests_properties(
+    unit-RichardsMechanicsDSM-native-vs-mfront-mcc
+    PROPERTIES
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+        LABELS "unit;dsm;richardsmechanics;native;mfront;bridge;mcc;comparison"
 )
 # cmake-format: on
 

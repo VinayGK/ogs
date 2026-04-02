@@ -473,10 +473,8 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     auto state = model->createMaterialStateVariables();
     ASSERT_TRUE(state != nullptr);
     initializeState(*model, *state);
-    EXPECT_NEAR(getInternalVariable(*model, *state, "n_l"),
-                0.012069019712402708, 1e-15);
-    EXPECT_NEAR(getInternalVariable(*model, *state, "rho_lR"),
-                2267.4495975433856, 1e-12);
+    EXPECT_NEAR(getInternalVariable(*model, *state, "n_l"), 0.1, 1e-15);
+    EXPECT_NEAR(getInternalVariable(*model, *state, "rho_lR"), 1300.0, 1e-12);
 
     MPL::VariableArray variable_array_prev;
     variable_array_prev.stress.template emplace<KV>(KV::Zero());
