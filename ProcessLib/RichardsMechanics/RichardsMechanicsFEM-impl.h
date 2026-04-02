@@ -1134,8 +1134,12 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
                local_context.volumetric_strain_prev) /
                   dt_safe
             : 0.0;
+    bool const notebook_aligned =
+        vkp.potential_role_mapping ==
+        VKPotentialExchangeRoleMapping::NotebookRoles;
     double const n_l_ceiling =
-        use_notebook_storage && std::isfinite(local_context.phi)
+        (use_notebook_storage && std::isfinite(local_context.phi) &&
+         !notebook_aligned)
             ? std::max(n_l_floor, local_context.phi)
             : std::numeric_limits<double>::infinity();
 
@@ -1620,9 +1624,11 @@ inline void updateVKPorositySplitState(
          mode == VKLocalNonlinearSolveMode::ScalarNotebookMassStorage))
     {
         // Keep notebook support split aligned with the bridge law:
-        // phi_m := n_l and phi_M := phi - n_l (bounded from below).
+        // phi_m := n_l while transport_porosity remains the process state.
+        // The notebook support split (phi_m, phi_M) can step outside the
+        // algebraic porosity bounds and should not collapse transport porosity.
         *micro_porosity = n_l;
-        transport_porosity = std::max(1e-16, phi - n_l);
+        transport_porosity = phi_M_prev;
         variables.transport_porosity = transport_porosity;
         variables_prev.transport_porosity = phi_M_prev;
         return;
