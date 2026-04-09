@@ -2355,10 +2355,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 this->prev_states_[ip])
                 ->eps_m;
 
+        bool const swelling_stress_active =
+            solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
+            isVKPotentialExchangeEnabled(this->getVKPotentialExchangeParameters());
         eps_m_prev.noalias() =
-            solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate)
-                ? eps + C_el.inverse() * sigma_sw
-                : eps;
+            swelling_stress_active ? eps + C_el.inverse() * sigma_sw : eps;
     }
 }
 
@@ -2681,10 +2682,13 @@ void RichardsMechanicsLocalAssembler<
                                        MechanicalStrainData<DisplacementDim>>(
                               this->current_states_[ip])
                               .eps_m;
-            eps_m.noalias() =
-                solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate)
-                    ? eps.eps + C_el.inverse() * sigma_sw
-                    : eps.eps;
+            bool const swelling_stress_active =
+                solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
+                isVKPotentialExchangeEnabled(
+                    this->getVKPotentialExchangeParameters());
+            eps_m.noalias() = swelling_stress_active
+                                  ? eps.eps + C_el.inverse() * sigma_sw
+                                  : eps.eps;
             variables.mechanical_strain.emplace<
                 MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
                 eps_m);
@@ -3143,10 +3147,12 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             std::get<ProcessLib::ConstitutiveRelations::MechanicalStrainData<
                 DisplacementDim>>(SD)
                 .eps_m;
+        bool const swelling_stress_active =
+            solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
+            isVKPotentialExchangeEnabled(vk_potential_exchange_parameters);
         eps_m.noalias() =
-            solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate)
-                ? eps.eps + C_el.inverse() * sigma_sw
-                : eps.eps;
+            swelling_stress_active ? eps.eps + C_el.inverse() * sigma_sw
+                                   : eps.eps;
         variables.mechanical_strain
             .emplace<MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
                 eps_m);
@@ -4055,10 +4061,13 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 std::get<ProcessLib::ConstitutiveRelations::
                              MechanicalStrainData<DisplacementDim>>(SD)
                     .eps_m;
-            eps_m.noalias() =
-                solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate)
-                    ? eps + C_el.inverse() * sigma_sw
-                    : eps;
+            bool const swelling_stress_active =
+                solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
+                isVKPotentialExchangeEnabled(
+                    this->getVKPotentialExchangeParameters());
+            eps_m.noalias() = swelling_stress_active
+                                  ? eps + C_el.inverse() * sigma_sw
+                                  : eps;
             variables.mechanical_strain.emplace<
                 MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
                 eps_m);
