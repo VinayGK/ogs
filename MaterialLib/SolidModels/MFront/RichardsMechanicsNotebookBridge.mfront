@@ -123,8 +123,11 @@ rho_l_hat_value.setEntryName("rho_l_hat");
     return 1.0;
   };
 
-  const auto mu_macro_from_pressure = [&](const auto p_arg) {
-    return p_arg > -pressure_tolerance ? 0.0 : p_arg / rho_LR_ref;
+  const auto mu_macro_from_pressure = [&](const auto p_arg,
+                                          const auto rho_macro_arg) {
+    const auto rho_macro_safe =
+        std::max(rho_macro_arg, rho_LR_ref + minimum_density_gap);
+    return p_arg > -pressure_tolerance ? 0.0 : p_arg / rho_macro_safe;
   };
 
   const auto omega_from_state = [&](const auto n_l_arg, const auto rho_lR_arg) {
@@ -150,7 +153,8 @@ rho_l_hat_value.setEntryName("rho_l_hat");
                                     double& rho_lR_out,
                                     double& mu_lR_out,
                                     double& rho_l_hat_out) {
-    const auto mu_LR_arg = mu_macro_from_pressure(p_arg);
+    const auto rho_macro_step =
+        std::max(rho_lR_prev_arg, rho_LR_ref + minimum_density_gap);
     auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
     auto rho_lR_trial = std::max(rho_lR_prev_arg, rho_LR_ref + minimum_density_gap);
     auto converged = false;
@@ -158,9 +162,10 @@ rho_l_hat_value.setEntryName("rho_l_hat");
     const auto evaluate = [&](const auto n_l_arg,
                               const auto rho_lR_arg,
                               double& residual_1,
-                              double& residual_2,
-                              double& mu_lR_arg,
-                              double& rho_l_hat_arg) {
+      double& residual_2,
+      double& mu_lR_arg,
+      double& rho_l_hat_arg) {
+      const auto mu_LR_arg = mu_macro_from_pressure(p_arg, rho_macro_step);
       mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
       rho_l_hat_arg = mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
       residual_1 = n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
@@ -201,6 +206,7 @@ rho_l_hat_value.setEntryName("rho_l_hat");
                                       double& rho_l_hat_arg) {
       const auto rho_converged =
           solve_rho_for_n_l(n_l_arg, rho_initial_guess, rho_lR_arg);
+      const auto mu_LR_arg = mu_macro_from_pressure(p_arg, rho_macro_step);
       mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
       rho_l_hat_arg = mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
       residual_1 =
@@ -458,7 +464,8 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   double rho_lR_trial = rho_lR_prev;
   double mu_lR_trial = mu_micro_from_state(n_l_prev, rho_lR_prev);
   double rho_l_hat_trial =
-      mass_exchange_coefficient * (mu_macro_from_pressure(p) - mu_lR_trial);
+      mass_exchange_coefficient *
+      (mu_macro_from_pressure(p, rho_lR_prev) - mu_lR_trial);
   if (!zero_dt)
   {
     solve_microstate(p, delta_epsilon_v, n_l_prev, rho_lR_prev, n_l_trial,
@@ -574,6 +581,7 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   phi_M = phi0 - n_l;
   mu_lR_value = (hamaker_constant * rho_lR * rho_lR * rho_lR / (6.0 * pi)) *
                 std::pow(specific_surface / omega, 3.0);
-  const auto mu_LR = p_LR > -pressure_tolerance ? 0.0 : p_LR / rho_LR_ref;
+  const auto rho_macro = std::max(rho_lR, rho_LR_ref + 1e-12);
+  const auto mu_LR = p_LR > -pressure_tolerance ? 0.0 : p_LR / rho_macro;
   rho_l_hat_value = mass_exchange_coefficient * (mu_LR - mu_lR_value);
 }

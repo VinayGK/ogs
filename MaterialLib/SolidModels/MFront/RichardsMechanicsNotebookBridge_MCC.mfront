@@ -294,8 +294,6 @@ phi0.setEntryName("InitialPorosity");
     const auto p = pᴸᴿ + Δpᴸᴿ;
     const auto delta_epsilon_v = trace(Δεᵗᵒ);
     const auto zero_dt = std::abs(dt) < 1e-15;
-    const auto alpha_M_effective =
-        mass_exchange_coefficient * rho_LR_ref / macro_viscosity;
     const auto n_s = 1.0 - phi0;
     const auto n_l_prev = std::max(n_l, minimum_n_l);
     const auto rho_lR_prev =
@@ -303,8 +301,19 @@ phi0.setEntryName("InitialPorosity");
     const auto phi_m_prev = n_l_prev;
     const auto previous_mass = n_l_prev * rho_lR_prev;
 
-    const auto mu_macro_from_pressure = [&](const auto p_arg) {
-        return p_arg > -pressure_tolerance ? 0.0 : p_arg / rho_LR_ref;
+    const auto macro_density_from_state = [&](const auto rho_macro_arg) {
+        return std::max(rho_macro_arg, rho_LR_ref + minimum_density_gap);
+    };
+
+    const auto alpha_M_effective_from_density = [&](const auto rho_macro_arg) {
+        const auto rho_macro_safe = macro_density_from_state(rho_macro_arg);
+        return mass_exchange_coefficient * rho_macro_safe / macro_viscosity;
+    };
+
+    const auto mu_macro_from_pressure = [&](const auto p_arg,
+                                            const auto rho_macro_arg) {
+        const auto rho_macro_safe = macro_density_from_state(rho_macro_arg);
+        return p_arg > -pressure_tolerance ? 0.0 : p_arg / rho_macro_safe;
     };
 
     const auto omega_from_state = [&](const auto n_l_arg,
@@ -338,17 +347,22 @@ phi0.setEntryName("InitialPorosity");
                                       double& rho_lR_out,
                                       double& mu_lR_out,
                                       double& rho_l_hat_out) {
-        const auto mu_LR_arg = mu_macro_from_pressure(p_arg);
+        const auto rho_macro_step =
+            macro_density_from_state(rho_lR_prev_arg);
 
         if (use_scalar_notebook_storage)
         {
             auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
-            const auto rho_scalar = rho_LR_ref;
+            const auto rho_scalar = rho_macro_step;
 
             const auto evaluate_scalar = [&](const auto n_l_arg,
                                              double& residual_arg,
                                              double& mu_lR_arg,
                                              double& rho_l_hat_arg) {
+                const auto mu_LR_arg =
+                    mu_macro_from_pressure(p_arg, rho_scalar);
+                const auto alpha_M_effective =
+                    alpha_M_effective_from_density(rho_scalar);
                 mu_lR_arg = mu_micro_from_state(n_l_arg, rho_scalar);
                 rho_l_hat_arg = alpha_M_effective * (mu_LR_arg - mu_lR_arg);
                 residual_arg = n_l_arg - n_l_prev_arg -
@@ -570,6 +584,10 @@ phi0.setEntryName("InitialPorosity");
                                   double& residual_2,
                                   double& mu_lR_arg,
                                   double& rho_l_hat_arg) {
+            const auto mu_LR_arg =
+                mu_macro_from_pressure(p_arg, rho_macro_step);
+            const auto alpha_M_effective =
+                alpha_M_effective_from_density(rho_macro_step);
             mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
             rho_l_hat_arg =
                 alpha_M_effective * (mu_LR_arg - mu_lR_arg);
@@ -615,6 +633,10 @@ phi0.setEntryName("InitialPorosity");
                                           double& rho_l_hat_arg) {
             const auto rho_converged = solve_rho_for_n_l(
                 n_l_arg, rho_initial_guess, rho_lR_arg);
+            const auto mu_LR_arg =
+                mu_macro_from_pressure(p_arg, rho_macro_step);
+            const auto alpha_M_effective =
+                alpha_M_effective_from_density(rho_macro_step);
             mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
             rho_l_hat_arg =
                 alpha_M_effective * (mu_LR_arg - mu_lR_arg);
@@ -912,8 +934,8 @@ phi0.setEntryName("InitialPorosity");
     rho_lR_trial_value = rho_lR_prev;
     mu_lR_trial_value = mu_micro_from_state(n_l_prev, rho_lR_prev);
     rho_l_hat_trial_value =
-        alpha_M_effective *
-        (mu_macro_from_pressure(p) - mu_lR_trial_value);
+        alpha_M_effective_from_density(rho_lR_prev) *
+        (mu_macro_from_pressure(p, rho_lR_prev) - mu_lR_trial_value);
     dn_l_dtrace_eps_trial = 0.0;
     dn_l_dp_trial = 0.0;
 
@@ -1056,7 +1078,7 @@ phi0.setEntryName("InitialPorosity");
     phi_value = phi_m + phi_M;
     n_S_value = 1.0 - phi_value;
     n_L_value = phi_M * notebook_support_saturation_trial_value;
-    rho_LR_value = rho_LR_ref;
+    rho_LR_value = rho_lR;
     omega_l_value = n_l * rho_lR / (n_S_value * rho_SR);
     mu_lR_value = mu_lR_trial_value;
     rho_l_hat_value = rho_l_hat_trial_value;

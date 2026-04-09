@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--native-ogs",
         type=Path,
-        default=Path("/Users/vinaykumar/git/build/release-native-beacon/bin/ogs"),
+        default=Path("/Users/vinaykumar/git/build/release-native-transition-mfront/bin/ogs"),
     )
     parser.add_argument(
         "--mfront-ogs",
@@ -169,6 +169,30 @@ def set_biot_coefficient(root: ET.Element, value: float) -> None:
         raise RuntimeError("Could not find any biot_coefficient property in project.")
 
 
+def set_nonlinear_max_iter(root: ET.Element, value: int) -> None:
+    """Set Newton max_iter in copied benchmark projects."""
+    nodes = root.findall("./nonlinear_solvers/nonlinear_solver/max_iter")
+    if not nodes:
+        raise RuntimeError("Could not find nonlinear solver max_iter in project.")
+    for node in nodes:
+        node.text = str(value)
+
+
+def relax_first_component_abstol(root: ET.Element, value: float) -> None:
+    """Relax first PerComponentDeltaX absolute tolerance in copied decks."""
+    nodes = root.findall(".//convergence_criterion/abstols")
+    if not nodes:
+        raise RuntimeError("Could not find convergence_criterion/abstols in project.")
+    for node in nodes:
+        if node.text is None:
+            continue
+        parts = node.text.strip().split()
+        if not parts:
+            continue
+        parts[0] = f"{value:.16g}"
+        node.text = " ".join(parts)
+
+
 def set_native_hamaker(root: ET.Element, hamaker_j: float) -> None:
     """Inject the calibrated Hamaker constant into a native project copy."""
     node = root.find("./processes/process/vk_potential_exchange/hamaker_constant")
@@ -197,6 +221,10 @@ def write_project_copy(
     absolutize_mesh_and_geometry(root, source.parent)
     set_output_prefix(root, prefix)
     set_biot_coefficient(root, 1.0)
+    # Current-density constitutive updates in the dense benchmark shell can
+    # require more global Newton iterations on early inflow steps.
+    set_nonlinear_max_iter(root, 60)
+    relax_first_component_abstol(root, 5e-7)
     if implementation == "native":
         set_native_hamaker(root, hamaker_j)
     elif implementation == "mfront":
