@@ -224,7 +224,7 @@ void validateMicroPorosityAndVKConfiguration(
             "a <micro_porosity> process block.");
     }
 
-    for (auto const& [material_id, exchange_parameters] :
+    for (auto const& [material_id, potential_exchange_params] :
          potential_exchange_parameters_by_material)
     {
         if (media.find(material_id) == media.end())

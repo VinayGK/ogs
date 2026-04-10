@@ -158,34 +158,34 @@ double referenceMicroSolidVolumeFraction(
     double const n_l, double const phi, double const phi_M_prev,
     double const phi_m_prev, double const volumetric_strain,
     double const volumetric_strain_prev,
-    VKPotentialExchangeParameters const& exchange_parameters)
+    VKPotentialExchangeParameters const& potential_exchange_params)
 {
-    if (exchange_parameters.micro_solid_volume_fraction_mode ==
+    if (potential_exchange_params.micro_solid_volume_fraction_mode ==
         VKMicroSolidVolumeFractionMode::Reference)
     {
-        return std::max(1e-16, exchange_parameters.micro_solid_volume_fraction_reference);
+        return std::max(1e-16, potential_exchange_params.micro_solid_volume_fraction_reference);
     }
 
     auto const split = computeVKTransportPorosityUpdate(
         phi, phi_M_prev, phi_m_prev, n_l, volumetric_strain,
-        volumetric_strain_prev, exchange_parameters.macro_porosity_update_mode);
+        volumetric_strain_prev, potential_exchange_params.macro_porosity_update_mode);
     return std::max(1e-16, 1.0 - split.phi_M - split.phi_m);
 }
 
 VKReducedMicroLiquidDensityData solveReferenceReducedMicroLiquidDensity(
     double const n_l, double const rho_LR, double const nS,
-    VKPotentialExchangeParameters const& exchange_parameters)
+    VKPotentialExchangeParameters const& potential_exchange_params)
 {
     auto const solve_rho = [&](double const n_eval)
     {
         double const n_l_safe = std::max(1e-16, n_eval);
         double const nS_safe = std::max(1e-16, nS);
         double const rho_SR =
-            std::max(1e-16, exchange_parameters.micro_solid_density_reference);
+            std::max(1e-16, potential_exchange_params.micro_solid_density_reference);
         double const rho_l0 =
-            std::max(1e-16, exchange_parameters.micro_liquid_density_reference);
-        double const a_rho = std::max(1e-16, exchange_parameters.micro_liquid_density_a);
-        double const b_rho = std::max(1e-16, exchange_parameters.micro_liquid_density_b);
+            std::max(1e-16, potential_exchange_params.micro_liquid_density_reference);
+        double const a_rho = std::max(1e-16, potential_exchange_params.micro_liquid_density_a);
+        double const b_rho = std::max(1e-16, potential_exchange_params.micro_liquid_density_b);
         double const denominator = nS_safe * rho_SR;
 
         auto const rhs = [&](double const rho_lR)
@@ -268,13 +268,13 @@ VKReducedMicroLiquidDensityData solveReferenceReducedMicroLiquidDensity(
 ReferenceVKSinglePointData solveReferenceVKSinglePoint(
     double const p_L, double const n_l_prev, double const dt,
     double const rho_LR, double const alpha_bar, double const mu,
-    double const phi, VKPotentialExchangeParameters const& exchange_parameters,
+    double const phi, VKPotentialExchangeParameters const& potential_exchange_params,
     double const volumetric_strain = 0.0,
     double const volumetric_strain_prev = 0.0)
 {
     constexpr double n_l_floor = 1e-16;
     double const phi_ceiling =
-        exchange_parameters.local_nonlinear_solve_mode !=
+        potential_exchange_params.local_nonlinear_solve_mode !=
                 VKLocalNonlinearSolveMode::ScalarExchange &&
             std::isfinite(phi)
             ? std::max(n_l_floor, phi)
@@ -282,17 +282,17 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
     double const volumetric_strain_rate =
         dt > 0.0 ? (volumetric_strain - volumetric_strain_prev) / dt : 0.0;
     bool const use_mass_storage =
-        exchange_parameters.local_nonlinear_solve_mode ==
+        potential_exchange_params.local_nonlinear_solve_mode ==
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
-    double const nS_prev = exchange_parameters.micro_solid_volume_fraction_mode ==
+    double const nS_prev = potential_exchange_params.micro_solid_volume_fraction_mode ==
                                    VKMicroSolidVolumeFractionMode::Reference
-                               ? exchange_parameters.micro_solid_volume_fraction_reference
+                               ? potential_exchange_params.micro_solid_volume_fraction_reference
                                : std::max(1e-16, 1.0 - 0.0 - n_l_prev);
     auto const prev_micro_liquid_density =
         use_mass_storage
             ? std::optional<VKReducedMicroLiquidDensityData>{
                   solveReferenceReducedMicroLiquidDensity(
-                      n_l_prev, rho_LR, nS_prev, exchange_parameters)}
+                      n_l_prev, rho_LR, nS_prev, potential_exchange_params)}
             : std::nullopt;
     double const rho_l_prev =
         prev_micro_liquid_density
@@ -300,25 +300,25 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
             : 0.0;
 
     auto const macro_potential =
-        computeYoungLaplaceMacroPotential(p_L, rho_LR, exchange_parameters.pressure_tolerance);
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
     double const alpha_M_effective = alpha_bar * rho_LR / mu;
 
     auto const eval_exchange = [&](double const n_l)
     {
         double const active_nS = referenceMicroSolidVolumeFraction(
             n_l, phi, 0.0, n_l_prev, volumetric_strain, volumetric_strain_prev,
-            exchange_parameters);
+            potential_exchange_params);
         double const rho_lR_for_potential =
             use_mass_storage
                 ? solveReferenceReducedMicroLiquidDensity(
-                      n_l, rho_LR, active_nS, exchange_parameters)
+                      n_l, rho_LR, active_nS, potential_exchange_params)
                       .rho_lR
                 : rho_LR;
         auto const micro_potential = computeVanDerWaalsMicroPotential(
             n_l, rho_lR_for_potential, active_nS,
-            exchange_parameters.micro_solid_density_reference, exchange_parameters.hamaker_constant,
-            exchange_parameters.specific_surface,
-            microPotentialSignFactor(exchange_parameters.micro_potential_convention));
+            potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
+            potential_exchange_params.specific_surface,
+            microPotentialSignFactor(potential_exchange_params.micro_potential_convention));
         auto const exchange = computePotentialDrivenMassExchange(
             alpha_M_effective, macro_potential.mu_LR, micro_potential.mu_lR);
         return std::pair{micro_potential, exchange};
@@ -332,10 +332,10 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
         {
             double const active_nS = referenceMicroSolidVolumeFraction(
                 n_l, phi, 0.0, n_l_prev, volumetric_strain,
-                volumetric_strain_prev, exchange_parameters);
+                volumetric_strain_prev, potential_exchange_params);
             auto const micro_liquid_density =
                 solveReferenceReducedMicroLiquidDensity(
-                    n_l, rho_LR, active_nS, exchange_parameters);
+                    n_l, rho_LR, active_nS, potential_exchange_params);
             double residual = n_l * micro_liquid_density.rho_lR - rho_l_prev -
                               dt * exchange.rho_l_hat;
             residual -= dt * n_l * micro_liquid_density.rho_lR *
@@ -344,7 +344,7 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
         }
 
         double residual = n_l - n_l_prev - dt * exchange.rho_l_hat / rho_LR;
-        if (exchange_parameters.local_nonlinear_solve_mode !=
+        if (potential_exchange_params.local_nonlinear_solve_mode !=
             VKLocalNonlinearSolveMode::ScalarExchange)
         {
             residual -= dt * n_l * volumetric_strain_rate;
@@ -422,8 +422,8 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
 
     auto const [micro_potential, exchange] = eval_exchange(n_l);
     double const n_l_ref = std::max(
-        1e-16, exchange_parameters.initial_micro_water_content.value_or(
-                   exchange_parameters.micro_solid_volume_fraction_reference));
+        1e-16, potential_exchange_params.initial_micro_water_content.value_or(
+                   potential_exchange_params.micro_solid_volume_fraction_reference));
     double const phi_safe = std::max(0.0, phi);
     double const phi_m = std::clamp(n_l, 0.0, phi_safe);
 
@@ -441,16 +441,16 @@ ReferenceVKSinglePointData solveReferenceVKSinglePoint(
 double referenceDnLDpL(double const p_L, double const n_l_prev, double const dt,
                        double const rho_LR, double const alpha_bar,
                        double const mu, double const phi,
-                       VKPotentialExchangeParameters const& exchange_parameters,
+                       VKPotentialExchangeParameters const& potential_exchange_params,
                        double const volumetric_strain = 0.0,
                        double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
     auto const plus = solveReferenceVKSinglePoint(
-        p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters,
+        p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     auto const minus = solveReferenceVKSinglePoint(
-        p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters,
+        p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     return (plus.n_l - minus.n_l) / (2.0 * h);
 }
@@ -459,16 +459,16 @@ double referenceDrhoLHatDpL(double const p_L, double const n_l_prev,
                             double const dt, double const rho_LR,
                             double const alpha_bar, double const mu,
                             double const phi,
-                            VKPotentialExchangeParameters const& exchange_parameters,
+                            VKPotentialExchangeParameters const& potential_exchange_params,
                             double const volumetric_strain = 0.0,
                             double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
     auto const plus = solveReferenceVKSinglePoint(
-        p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters,
+        p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     auto const minus = solveReferenceVKSinglePoint(
-        p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters,
+        p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     return ((-plus.exchange.rho_l_hat) - (-minus.exchange.rho_l_hat)) /
            (2.0 * h);
@@ -508,7 +508,7 @@ double linearizedDensityAtPressure(double const p_L_eval, double const p_L_ref,
 
 double referenceCoupledRhoLHat(
     RepresentativeCoupledExchangeState const& state, double const p_L_eval,
-    VKPotentialExchangeParameters const& exchange_parameters)
+    VKPotentialExchangeParameters const& potential_exchange_params)
 {
     double const rho_LR_eval = linearizedDensityAtPressure(
         p_L_eval, state.p_L, state.rho_LR, state.drho_LR_dpL);
@@ -523,22 +523,24 @@ double referenceCoupledRhoLHat(
         return exchange.rho_L_hat;
     }
 
-    auto exchange_parameters_eval = exchange_parameters;
-    exchange_parameters_eval.pressure_tolerance = state.pressure_tolerance;
+    auto potential_exchange_params_eval = potential_exchange_params;
+    potential_exchange_params_eval.pressure_tolerance =
+        state.pressure_tolerance;
     auto const reference = solveReferenceVKSinglePoint(
         p_L_eval, state.n_l_prev, state.dt, rho_LR_eval, state.alpha_bar,
-        state.mu, state.phi, exchange_parameters_eval, state.volumetric_strain,
+        state.mu, state.phi, potential_exchange_params_eval,
+        state.volumetric_strain,
         state.volumetric_strain_prev);
     return reference.exchange.rho_L_hat;
 }
 
 double referenceCoupledDrhoLHatDpL(
     RepresentativeCoupledExchangeState const& state,
-    VKPotentialExchangeParameters const& exchange_parameters)
+    VKPotentialExchangeParameters const& potential_exchange_params)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(state.p_L));
-    double const plus = referenceCoupledRhoLHat(state, state.p_L + h, exchange_parameters);
-    double const minus = referenceCoupledRhoLHat(state, state.p_L - h, exchange_parameters);
+    double const plus = referenceCoupledRhoLHat(state, state.p_L + h, potential_exchange_params);
+    double const minus = referenceCoupledRhoLHat(state, state.p_L - h, potential_exchange_params);
     return (plus - minus) / (2.0 * h);
 }
 
@@ -551,7 +553,7 @@ struct ProductionCoupledExchangeData
 
 ProductionCoupledExchangeData productionCoupledExchangeData(
     RepresentativeCoupledExchangeState const& state,
-    VKPotentialExchangeParameters const& exchange_parameters)
+    VKPotentialExchangeParameters const& potential_exchange_params)
 {
     double const beta_LR = state.drho_LR_dpL / state.rho_LR;
 
@@ -561,7 +563,7 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
             state.alpha_bar, state.mu, state.p_L, state.p_L_m, state.rho_LR,
             beta_LR, state.pressure_tolerance, false, false, 0.0, 0.0,
             false, 0.0, VKPotentialExchangeRoleMapping::CurrentOgs, false,
-            exchange_parameters.fd_jacobian_perturbation);
+            potential_exchange_params.fd_jacobian_perturbation);
         return {
             .rho_L_hat = data.exchange.rho_L_hat,
             .drho_L_hat_dpL = data.drho_L_hat_dpL_direct,
@@ -577,7 +579,7 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
         {.phi = state.phi,
          .volumetric_strain = state.volumetric_strain,
          .volumetric_strain_prev = state.volumetric_strain_prev},
-        exchange_parameters);
+        potential_exchange_params);
     double const dn_l_dpL = computeVKImplicitNlDpL(
         state.n_l_prev, state.p_L, state.dt, state.rho_LR,
         state.drho_LR_dpL, state.alpha_bar, state.mu,
@@ -585,7 +587,7 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
         {.phi = state.phi,
          .volumetric_strain = state.volumetric_strain,
          .volumetric_strain_prev = state.volumetric_strain_prev},
-        exchange_parameters);
+        potential_exchange_params);
     double const dmu_lR_vdw_dpL =
         n_l_update.micro_potential.dmu_lR_dnl * dn_l_dpL +
         n_l_update.micro_potential.dmu_lR_drho_lR * state.drho_LR_dpL;
@@ -595,8 +597,8 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
         beta_LR, state.pressure_tolerance, true, true,
         n_l_update.micro_potential.mu_lR,
         n_l_update.micro_potential.dmu_lR_drho_lR, true, dmu_lR_vdw_dpL,
-        exchange_parameters.potential_role_mapping,
-        false, exchange_parameters.fd_jacobian_perturbation);
+        potential_exchange_params.potential_role_mapping,
+        false, potential_exchange_params.fd_jacobian_perturbation);
 
     return {
         .rho_L_hat = data.exchange.rho_L_hat,
@@ -608,15 +610,15 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
 
 TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.pressure_tolerance = 0.0;
-    exchange_parameters.hamaker_constant = 1e-30;
-    exchange_parameters.specific_surface = 1.0;
-    exchange_parameters.micro_solid_density_reference = 2650.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.6;
-    exchange_parameters.initial_micro_water_content = 0.1;
-    exchange_parameters.local_jacobian_perturbation = 1e-8;
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.pressure_tolerance = 0.0;
+    potential_exchange_params.hamaker_constant = 1e-30;
+    potential_exchange_params.specific_surface = 1.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.initial_micro_water_content = 0.1;
+    potential_exchange_params.local_jacobian_perturbation = 1e-8;
 
     double const p_L = -1.0e7;
     double const n_l_prev = 0.1;
@@ -629,15 +631,15 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
     double const phi_prev = 0.4;
 
     auto const macro_potential =
-        computeYoungLaplaceMacroPotential(p_L, rho_LR, exchange_parameters.pressure_tolerance);
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
     auto const ogs_update = solveVKImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
-        exchange_parameters);
+        potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
     auto const reference = solveReferenceVKSinglePoint(
-        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters);
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
 
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
                 comparisonTolerance(ogs_update.n_l, reference.n_l));
@@ -655,7 +657,7 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
                                     1e-10, 1e-18));
 
     auto const compatibility_output =
-        computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, exchange_parameters);
+        computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
     EXPECT_NEAR(compatibility_output.p_L_m, reference.p_L_m,
                 comparisonTolerance(compatibility_output.p_L_m,
                                     reference.p_L_m, 1e-10, 1e-12));
@@ -685,9 +687,9 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
         n_l_prev, p_L, dt, rho_LR, drho_LR_dpL, alpha_bar, mu, macro_potential,
         ogs_update.micro_potential, ogs_update.exchange,
         {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
-        exchange_parameters);
+        potential_exchange_params);
     double const reference_dn_l_dpL = referenceDnLDpL(
-        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters);
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
 
     EXPECT_NEAR(analytic_dn_l_dpL, reference_dn_l_dpL,
                 comparisonTolerance(analytic_dn_l_dpL, reference_dn_l_dpL,
@@ -695,15 +697,15 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
 
     auto const fd_diagnostic = computeVKLocalJacobianDiagnosticData(
         n_l_prev, p_L, dt, rho_LR, drho_LR_dpL, alpha_bar, mu,
-        exchange_parameters.pressure_tolerance,
+        potential_exchange_params.pressure_tolerance,
         {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
-        exchange_parameters);
+        potential_exchange_params);
     EXPECT_NEAR(fd_diagnostic.fd_dn_l_dpL, reference_dn_l_dpL,
                 comparisonTolerance(fd_diagnostic.fd_dn_l_dpL,
                                     reference_dn_l_dpL, 5e-5, 1e-18));
 
     double const reference_drho_L_hat_dpL = referenceDrhoLHatDpL(
-        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters);
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
     EXPECT_NEAR(fd_diagnostic.fd_drho_L_hat_dpL, reference_drho_L_hat_dpL,
                 comparisonTolerance(fd_diagnostic.fd_drho_L_hat_dpL,
                                     reference_drho_L_hat_dpL,
@@ -712,15 +714,15 @@ TEST(RichardsMechanics, VKSingleIntegrationPointReferencePath)
 
 TEST(RichardsMechanics, VKBranchSensitivityNearMacroPotentialTransition)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.pressure_tolerance = 100.0;
-    exchange_parameters.hamaker_constant = 1e-30;
-    exchange_parameters.specific_surface = 1.0;
-    exchange_parameters.micro_solid_density_reference = 2650.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.6;
-    exchange_parameters.initial_micro_water_content = 0.1;
-    exchange_parameters.local_jacobian_perturbation = 1e-8;
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.pressure_tolerance = 100.0;
+    potential_exchange_params.hamaker_constant = 1e-30;
+    potential_exchange_params.specific_surface = 1.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.initial_micro_water_content = 0.1;
+    potential_exchange_params.local_jacobian_perturbation = 1e-8;
 
     double const n_l_prev = 0.1;
     double const dt = 100.0;
@@ -761,7 +763,7 @@ TEST(RichardsMechanics, VKBranchSensitivityNearMacroPotentialTransition)
     {
         double const p_L = pressures[i];
         auto const macro_potential = computeYoungLaplaceMacroPotential(
-            p_L, rho_LR, exchange_parameters.pressure_tolerance);
+            p_L, rho_LR, potential_exchange_params.pressure_tolerance);
 
         EXPECT_EQ(macro_potential.saturated_branch, saturated_expectation[i]);
         if (saturated_expectation[i])
@@ -778,14 +780,14 @@ TEST(RichardsMechanics, VKBranchSensitivityNearMacroPotentialTransition)
         auto const ogs_update = solveVKImplicitMicroWaterContent(
             n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
             {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
-            exchange_parameters);
+            potential_exchange_params);
         ASSERT_TRUE(ogs_update.converged);
 
         auto const reference = solveReferenceVKSinglePoint(
-            p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters);
+            p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
         auto const compatibility_output =
             computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR,
-                                                       exchange_parameters);
+                                                       potential_exchange_params);
 
         EXPECT_NEAR(ogs_update.n_l, reference.n_l,
                     comparisonTolerance(ogs_update.n_l, reference.n_l));
@@ -853,17 +855,17 @@ TEST(RichardsMechanics, VKBranchSensitivityNearMacroPotentialTransition)
 
 TEST(RichardsMechanics, VKNegativeAttractiveMicroPotentialAdmitsWetting)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.pressure_tolerance = 1.0;
-    exchange_parameters.hamaker_constant = 6.0e-20;
-    exchange_parameters.specific_surface = 1000.0;
-    exchange_parameters.micro_solid_density_reference = 2650.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.6;
-    exchange_parameters.micro_potential_convention =
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.pressure_tolerance = 1.0;
+    potential_exchange_params.hamaker_constant = 6.0e-20;
+    potential_exchange_params.specific_surface = 1000.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.micro_potential_convention =
         VKMicroPotentialConvention::NegativeAttractive;
-    exchange_parameters.initial_micro_water_content = 0.03;
-    exchange_parameters.local_jacobian_perturbation = 1e-8;
+    potential_exchange_params.initial_micro_water_content = 0.03;
+    potential_exchange_params.local_jacobian_perturbation = 1e-8;
 
     double const p_L = 0.0;
     double const n_l_prev = 0.03;
@@ -874,20 +876,20 @@ TEST(RichardsMechanics, VKNegativeAttractiveMicroPotentialAdmitsWetting)
     double const phi = 0.4;
 
     auto const macro_potential =
-        computeYoungLaplaceMacroPotential(p_L, rho_LR, exchange_parameters.pressure_tolerance);
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
     ASSERT_TRUE(macro_potential.saturated_branch);
     ASSERT_DOUBLE_EQ(macro_potential.mu_LR, 0.0);
 
     auto const ogs_update = solveVKImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
-        exchange_parameters);
+        potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
     auto const reference = solveReferenceVKSinglePoint(
-        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters);
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
     auto const compatibility_output =
-        computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, exchange_parameters);
+        computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
 
     EXPECT_LT(ogs_update.micro_potential.mu_lR, 0.0);
     EXPECT_GT(ogs_update.exchange.rho_l_hat, 0.0);
@@ -911,55 +913,55 @@ TEST(RichardsMechanics, VKNegativeAttractiveMicroPotentialAdmitsWetting)
 
 TEST(RichardsMechanics, VKVdWRelaxationStressIncrement)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.micro_potential_convention =
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.micro_potential_convention =
         VKMicroPotentialConvention::NegativeAttractive;
-    exchange_parameters.vdw_relaxation_stress_gain = 10.0;
+    potential_exchange_params.vdw_relaxation_stress_gain = 10.0;
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
 
     auto const compressive_increment =
-        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, exchange_parameters);
+        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, potential_exchange_params);
     EXPECT_NEAR((compressive_increment + 20.0 * identity2).norm(), 0.0, 1e-14);
 
     auto const no_relaxation_increment =
-        computeVdWRelaxationStressIncrement<2>(3.0, 5.0, exchange_parameters);
+        computeVdWRelaxationStressIncrement<2>(3.0, 5.0, potential_exchange_params);
     EXPECT_NEAR(no_relaxation_increment.norm(), 0.0, 1e-14);
 
-    exchange_parameters.vdw_relaxation_stress_gain = 0.0;
+    potential_exchange_params.vdw_relaxation_stress_gain = 0.0;
     auto const zero_gain_increment =
-        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, exchange_parameters);
+        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, potential_exchange_params);
     EXPECT_NEAR(zero_gain_increment.norm(), 0.0, 1e-14);
 
-    exchange_parameters.vdw_relaxation_stress_gain = 10.0;
-    exchange_parameters.micro_potential_convention = VKMicroPotentialConvention::PositiveReduced;
+    potential_exchange_params.vdw_relaxation_stress_gain = 10.0;
+    potential_exchange_params.micro_potential_convention = VKMicroPotentialConvention::PositiveReduced;
     auto const unsupported_convention_increment =
-        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, exchange_parameters);
+        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, potential_exchange_params);
     EXPECT_NEAR(unsupported_convention_increment.norm(), 0.0, 1e-14);
 }
 
 TEST(RichardsMechanics, VKMicroWaterContentStressIncrement)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.micro_water_content_stress_gain = 10.0;
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.micro_water_content_stress_gain = 10.0;
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
 
     auto const compressive_increment =
-        computeMicroWaterContentStressIncrement<2>(0.2, 0.3, exchange_parameters);
+        computeMicroWaterContentStressIncrement<2>(0.2, 0.3, potential_exchange_params);
     EXPECT_NEAR((compressive_increment + 1.0 * identity2).norm(), 0.0, 1e-14);
 
     auto const no_growth_increment =
-        computeMicroWaterContentStressIncrement<2>(0.3, 0.2, exchange_parameters);
+        computeMicroWaterContentStressIncrement<2>(0.3, 0.2, potential_exchange_params);
     EXPECT_NEAR(no_growth_increment.norm(), 0.0, 1e-14);
 
-    exchange_parameters.micro_water_content_stress_gain = 0.0;
+    potential_exchange_params.micro_water_content_stress_gain = 0.0;
     auto const zero_gain_increment =
-        computeMicroWaterContentStressIncrement<2>(0.2, 0.3, exchange_parameters);
+        computeMicroWaterContentStressIncrement<2>(0.2, 0.3, potential_exchange_params);
     EXPECT_NEAR(zero_gain_increment.norm(), 0.0, 1e-14);
 }
 
@@ -967,9 +969,9 @@ TEST(RichardsMechanics, VKNotebookMicroPorositySwellingStressIncrement)
 {
     using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
 
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.micro_water_content_swelling_slope = 0.1;
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
@@ -977,20 +979,20 @@ TEST(RichardsMechanics, VKNotebookMicroPorositySwellingStressIncrement)
 
     auto const loading_increment =
         computeNotebookMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, C_el, exchange_parameters);
+            0.2, 0.3, C_el, potential_exchange_params);
     auto const expected_loading = -(0.1 * (0.3 - 0.2) / 3.0) * identity2;
     EXPECT_NEAR((loading_increment - expected_loading).norm(), 0.0, 1e-14);
 
     auto const unloading_increment =
         computeNotebookMicroPorositySwellingStressIncrement<2>(
-            0.3, 0.2, C_el, exchange_parameters);
+            0.3, 0.2, C_el, potential_exchange_params);
     auto const expected_unloading = -(0.1 * (0.2 - 0.3) / 3.0) * identity2;
     EXPECT_NEAR((unloading_increment - expected_unloading).norm(), 0.0, 1e-14);
 
-    exchange_parameters.micro_water_content_swelling_slope = 0.0;
+    potential_exchange_params.micro_water_content_swelling_slope = 0.0;
     auto const disabled_increment =
         computeNotebookMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, C_el, exchange_parameters);
+            0.2, 0.3, C_el, potential_exchange_params);
     EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
 }
 
@@ -999,14 +1001,14 @@ TEST(RichardsMechanics, VKNotebookAlignedSwellingIgnoresExploratoryGains)
     using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
     using KV = MathLib::KelvinVector::KelvinVectorType<2>;
 
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.potential_role_mapping = VKPotentialExchangeRoleMapping::NotebookRoles;
-    exchange_parameters.local_nonlinear_solve_mode =
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.potential_role_mapping = VKPotentialExchangeRoleMapping::NotebookRoles;
+    potential_exchange_params.local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
-    exchange_parameters.micro_water_content_swelling_slope = 0.1;
-    exchange_parameters.vdw_relaxation_stress_gain = 100.0;
-    exchange_parameters.micro_water_content_stress_gain = 100.0;
+    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
+    potential_exchange_params.vdw_relaxation_stress_gain = 100.0;
+    potential_exchange_params.micro_water_content_stress_gain = 100.0;
 
     KM C_el = KM::Identity();
     double const phi_m_prev = 0.2;
@@ -1018,10 +1020,10 @@ TEST(RichardsMechanics, VKNotebookAlignedSwellingIgnoresExploratoryGains)
 
     KV const expected =
         computeNotebookMicroPorositySwellingStressIncrement<2>(
-            phi_m_prev, phi_m, C_el, exchange_parameters);
+            phi_m_prev, phi_m, C_el, potential_exchange_params);
     KV const actual =
         computeVKSwellingStressIncrement<2>(
-            phi_m_prev, phi_m, n_l_prev, n_l, p_L_m_prev, p_L_m, C_el, exchange_parameters);
+            phi_m_prev, phi_m, n_l_prev, n_l, p_L_m_prev, p_L_m, C_el, potential_exchange_params);
 
     EXPECT_NEAR((actual - expected).norm(), 0.0, 1e-14);
 }
@@ -1075,15 +1077,15 @@ TEST(RichardsMechanics, VKNotebookAdditiveMacroPorosityRateUpdate)
 
 TEST(RichardsMechanics, VKCurrentPorositySplitMicroSolidFractionMode)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.hamaker_constant = 6.0e-20;
-    exchange_parameters.specific_surface = 4000.0;
-    exchange_parameters.micro_solid_density_reference = 2650.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.6;
-    exchange_parameters.micro_solid_volume_fraction_mode =
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.hamaker_constant = 6.0e-20;
+    potential_exchange_params.specific_surface = 4000.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.micro_solid_volume_fraction_mode =
         VKMicroSolidVolumeFractionMode::CurrentPorositySplit;
-    exchange_parameters.macro_porosity_update_mode = VKMacroPorosityUpdateMode::AlgebraicSplit;
-    exchange_parameters.initial_micro_water_content = 0.1;
+    potential_exchange_params.macro_porosity_update_mode = VKMacroPorosityUpdateMode::AlgebraicSplit;
+    potential_exchange_params.initial_micro_water_content = 0.1;
 
     double const n_l = 0.1;
     double const rho_LR = 1000.0;
@@ -1095,16 +1097,16 @@ TEST(RichardsMechanics, VKCurrentPorositySplitMicroSolidFractionMode)
         .volumetric_strain_prev = 0.0};
 
     auto const active_nS =
-        computeVKActiveMicroSolidVolumeFraction(n_l, local_context, exchange_parameters);
+        computeVKActiveMicroSolidVolumeFraction(n_l, local_context, potential_exchange_params);
     EXPECT_NEAR(active_nS, 0.75, 1e-12);
 
     auto const active_output = computeVKCompatibilityMicroHydraulicOutput(
-        n_l, rho_LR, local_context, exchange_parameters);
+        n_l, rho_LR, local_context, potential_exchange_params);
     auto const reference_output =
-        computeVKCompatibilityMicroHydraulicOutput(n_l, rho_LR, exchange_parameters);
+        computeVKCompatibilityMicroHydraulicOutput(n_l, rho_LR, potential_exchange_params);
 
     double const expected_ratio =
-        std::pow(active_nS / exchange_parameters.micro_solid_volume_fraction_reference, 3.0);
+        std::pow(active_nS / potential_exchange_params.micro_solid_volume_fraction_reference, 3.0);
     EXPECT_NEAR(active_output.micro_potential.mu_lR /
                     reference_output.micro_potential.mu_lR,
                 expected_ratio, 1e-12);
@@ -1112,13 +1114,13 @@ TEST(RichardsMechanics, VKCurrentPorositySplitMicroSolidFractionMode)
 
 TEST(RichardsMechanics, VKReducedMicroLiquidDensityEOSReferencePath)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.micro_solid_density_reference = 2650.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.8;
-    exchange_parameters.micro_liquid_density_reference = 1300.0;
-    exchange_parameters.micro_liquid_density_a = 1.3;
-    exchange_parameters.micro_liquid_density_b = 1.0;
-    exchange_parameters.local_nonlinear_solve_mode =
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.8;
+    potential_exchange_params.micro_liquid_density_reference = 1300.0;
+    potential_exchange_params.micro_liquid_density_a = 1.3;
+    potential_exchange_params.micro_liquid_density_b = 1.0;
+    potential_exchange_params.local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
 
     double const n_l = 0.1;
@@ -1126,9 +1128,9 @@ TEST(RichardsMechanics, VKReducedMicroLiquidDensityEOSReferencePath)
     double const nS = 0.8;
 
     auto const production =
-        computeVKReducedMicroLiquidDensity(n_l, rho_LR, nS, exchange_parameters);
+        computeVKReducedMicroLiquidDensity(n_l, rho_LR, nS, potential_exchange_params);
     auto const reference =
-        solveReferenceReducedMicroLiquidDensity(n_l, rho_LR, nS, exchange_parameters);
+        solveReferenceReducedMicroLiquidDensity(n_l, rho_LR, nS, potential_exchange_params);
 
     EXPECT_NEAR(production.rho_lR, reference.rho_lR,
                 comparisonTolerance(production.rho_lR, reference.rho_lR,
@@ -1143,18 +1145,18 @@ TEST(RichardsMechanics, VKReducedMicroLiquidDensityEOSReferencePath)
 
 TEST(RichardsMechanics, VKScalarNotebookStorageLocalSolveReferencePath)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.pressure_tolerance = 0.0;
-    exchange_parameters.hamaker_constant = 6.0e-20;
-    exchange_parameters.specific_surface = 1000.0;
-    exchange_parameters.micro_solid_density_reference = 2650.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.6;
-    exchange_parameters.micro_potential_convention =
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.pressure_tolerance = 0.0;
+    potential_exchange_params.hamaker_constant = 6.0e-20;
+    potential_exchange_params.specific_surface = 1000.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.micro_potential_convention =
         VKMicroPotentialConvention::NegativeAttractive;
-    exchange_parameters.local_nonlinear_solve_mode =
+    potential_exchange_params.local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarNotebookStorage;
-    exchange_parameters.initial_micro_water_content = 0.03;
+    potential_exchange_params.initial_micro_water_content = 0.03;
 
     double const p_L = 0.0;
     double const n_l_prev = 0.03;
@@ -1167,31 +1169,31 @@ TEST(RichardsMechanics, VKScalarNotebookStorageLocalSolveReferencePath)
     double const volumetric_strain = 1.0e-3;
 
     auto const macro_potential =
-        computeYoungLaplaceMacroPotential(p_L, rho_LR, exchange_parameters.pressure_tolerance);
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
     auto const ogs_update = solveVKImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi,
          .volumetric_strain = volumetric_strain,
          .volumetric_strain_prev = volumetric_strain_prev},
-        exchange_parameters);
+        potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
     auto const reference = solveReferenceVKSinglePoint(
-        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters,
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
                 comparisonTolerance(ogs_update.n_l, reference.n_l));
     EXPECT_LE(ogs_update.n_l, phi + comparisonTolerance(ogs_update.n_l, phi));
 
-    auto exchange_parameters_scalar = exchange_parameters;
-    exchange_parameters_scalar.local_nonlinear_solve_mode =
+    auto potential_exchange_params_scalar = potential_exchange_params;
+    potential_exchange_params_scalar.local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarExchange;
     auto const scalar_update = solveVKImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi,
          .volumetric_strain = volumetric_strain,
          .volumetric_strain_prev = volumetric_strain_prev},
-        exchange_parameters_scalar);
+        potential_exchange_params_scalar);
     ASSERT_TRUE(scalar_update.converged);
     EXPECT_GT(scalar_update.n_l, phi);
     EXPECT_LE(ogs_update.n_l,
@@ -1201,23 +1203,23 @@ TEST(RichardsMechanics, VKScalarNotebookStorageLocalSolveReferencePath)
 
 TEST(RichardsMechanics, VKScalarNotebookMassStorageLocalSolveReferencePath)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.pressure_tolerance = 0.0;
-    exchange_parameters.hamaker_constant = 6.0e-20;
-    exchange_parameters.specific_surface = 1000.0;
-    exchange_parameters.micro_solid_density_reference = 2650.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.6;
-    exchange_parameters.micro_liquid_density_reference = 1300.0;
-    exchange_parameters.micro_liquid_density_a = 1.3;
-    exchange_parameters.micro_liquid_density_b = 1.0;
-    exchange_parameters.micro_potential_convention =
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.pressure_tolerance = 0.0;
+    potential_exchange_params.hamaker_constant = 6.0e-20;
+    potential_exchange_params.specific_surface = 1000.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.micro_liquid_density_reference = 1300.0;
+    potential_exchange_params.micro_liquid_density_a = 1.3;
+    potential_exchange_params.micro_liquid_density_b = 1.0;
+    potential_exchange_params.micro_potential_convention =
         VKMicroPotentialConvention::NegativeAttractive;
-    exchange_parameters.potential_role_mapping =
+    potential_exchange_params.potential_role_mapping =
         VKPotentialExchangeRoleMapping::NotebookRoles;
-    exchange_parameters.local_nonlinear_solve_mode =
+    potential_exchange_params.local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
-    exchange_parameters.initial_micro_water_content = 0.03;
+    potential_exchange_params.initial_micro_water_content = 0.03;
 
     double const p_L = 0.0;
     double const n_l_prev = 0.03;
@@ -1230,17 +1232,17 @@ TEST(RichardsMechanics, VKScalarNotebookMassStorageLocalSolveReferencePath)
     double const volumetric_strain = 1.0e-3;
 
     auto const macro_potential =
-        computeYoungLaplaceMacroPotential(p_L, rho_LR, exchange_parameters.pressure_tolerance);
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
     auto const ogs_update = solveVKImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi,
          .volumetric_strain = volumetric_strain,
          .volumetric_strain_prev = volumetric_strain_prev},
-        exchange_parameters);
+        potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
     auto const reference = solveReferenceVKSinglePoint(
-        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters,
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
                 comparisonTolerance(ogs_update.n_l, reference.n_l,
@@ -1252,9 +1254,9 @@ TEST(RichardsMechanics, VKScalarNotebookMassStorageLocalSolveReferencePath)
         {.phi = phi,
          .volumetric_strain = volumetric_strain,
          .volumetric_strain_prev = volumetric_strain_prev},
-        exchange_parameters);
+        potential_exchange_params);
     double const reference_dn_l_dpL = referenceDnLDpL(
-        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, exchange_parameters,
+        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     EXPECT_NEAR(analytic_dn_l_dpL, reference_dn_l_dpL,
                 comparisonTolerance(analytic_dn_l_dpL, reference_dn_l_dpL,
@@ -1263,25 +1265,25 @@ TEST(RichardsMechanics, VKScalarNotebookMassStorageLocalSolveReferencePath)
 
 TEST(RichardsMechanics, VKNotebookMassStorageCoupledSolveResiduals)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.pressure_tolerance = 0.0;
-    exchange_parameters.hamaker_constant = 6.0e-20;
-    exchange_parameters.specific_surface = 1000.0;
-    exchange_parameters.micro_solid_density_reference = 2650.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.6;
-    exchange_parameters.micro_liquid_density_reference = 1300.0;
-    exchange_parameters.micro_liquid_density_a = 1.3;
-    exchange_parameters.micro_liquid_density_b = 1.0;
-    exchange_parameters.micro_potential_convention =
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.pressure_tolerance = 0.0;
+    potential_exchange_params.hamaker_constant = 6.0e-20;
+    potential_exchange_params.specific_surface = 1000.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.micro_liquid_density_reference = 1300.0;
+    potential_exchange_params.micro_liquid_density_a = 1.3;
+    potential_exchange_params.micro_liquid_density_b = 1.0;
+    potential_exchange_params.micro_potential_convention =
         VKMicroPotentialConvention::NegativeAttractive;
-    exchange_parameters.local_nonlinear_solve_mode =
+    potential_exchange_params.local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
-    exchange_parameters.macro_porosity_update_mode =
+    potential_exchange_params.macro_porosity_update_mode =
         VKMacroPorosityUpdateMode::NotebookAdditiveRate;
-    exchange_parameters.micro_solid_volume_fraction_mode =
+    potential_exchange_params.micro_solid_volume_fraction_mode =
         VKMicroSolidVolumeFractionMode::CurrentPorositySplit;
-    exchange_parameters.initial_micro_water_content = 0.05;
+    potential_exchange_params.initial_micro_water_content = 0.05;
 
     double const p_L = 0.0;
     double const n_l_prev = 0.05;
@@ -1304,15 +1306,15 @@ TEST(RichardsMechanics, VKNotebookMassStorageCoupledSolveResiduals)
     };
 
     auto const macro_potential =
-        computeYoungLaplaceMacroPotential(p_L, rho_LR, exchange_parameters.pressure_tolerance);
+        computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
     auto const prev_micro_liquid_density =
         computeVKPreviousMicroLiquidDensity(n_l_prev, rho_LR, local_context,
-                                            exchange_parameters);
+                                            potential_exchange_params);
     double const rho_l_prev = n_l_prev * prev_micro_liquid_density.rho_lR;
 
     auto const coupled_update = solveVKNotebookMassStorageCoupledState(
         n_l_prev, rho_l_prev, prev_micro_liquid_density.rho_lR, dt, rho_LR,
-        alpha_bar, mu, macro_potential, local_context, exchange_parameters);
+        alpha_bar, mu, macro_potential, local_context, potential_exchange_params);
     ASSERT_TRUE(coupled_update.converged);
     EXPECT_GT(coupled_update.n_l, 0.0);
     EXPECT_LE(coupled_update.n_l, phi + comparisonTolerance(coupled_update.n_l,
@@ -1320,11 +1322,11 @@ TEST(RichardsMechanics, VKNotebookMassStorageCoupledSolveResiduals)
     EXPECT_GT(coupled_update.rho_lR, 0.0);
 
     double const active_nS = computeVKActiveMicroSolidVolumeFraction(
-        coupled_update.n_l, local_context, exchange_parameters);
+        coupled_update.n_l, local_context, potential_exchange_params);
     auto const micro_potential = computeVanDerWaalsMicroPotential(
         coupled_update.n_l, coupled_update.rho_lR, active_nS,
-        exchange_parameters.micro_solid_density_reference, exchange_parameters.hamaker_constant,
-        exchange_parameters.specific_surface, vkMicroPotentialSignFactor(exchange_parameters));
+        potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
+        potential_exchange_params.specific_surface, vkMicroPotentialSignFactor(potential_exchange_params));
     auto const exchange = computePotentialDrivenMassExchange(
         alpha_bar * rho_LR / mu, macro_potential.mu_LR,
         micro_potential.mu_lR);
@@ -1336,7 +1338,7 @@ TEST(RichardsMechanics, VKNotebookMassStorageCoupledSolveResiduals)
         rho_l - rho_l_prev - dt * exchange.rho_l_hat -
         dt * rho_l * volumetric_strain_rate;
     auto const density = computeVKReducedMicroLiquidDensity(
-        coupled_update.n_l, rho_LR, active_nS, exchange_parameters);
+        coupled_update.n_l, rho_LR, active_nS, potential_exchange_params);
     double const density_residual = coupled_update.rho_lR - density.rho_lR;
 
     double const residual_norm =
@@ -1353,26 +1355,26 @@ TEST(RichardsMechanics, VKNotebookOverlapTransferBaselineHistory)
         "/RichardsMechanics/NotebookOverlapTransferBaseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
 
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
     // Match the shared notebook/MFront nonnegative branch: p_L = 0 belongs to
     // the saturated Young-Laplace side.
-    exchange_parameters.pressure_tolerance = 1e-12;
-    exchange_parameters.hamaker_constant = 6.0e-20;
-    exchange_parameters.specific_surface = 100.0;
-    exchange_parameters.micro_solid_density_reference = 2470.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.8;
-    exchange_parameters.micro_liquid_density_reference = 1300.0;
-    exchange_parameters.micro_liquid_density_a = 1.3;
-    exchange_parameters.micro_liquid_density_b = 1.0;
-    exchange_parameters.micro_potential_convention =
+    potential_exchange_params.pressure_tolerance = 1e-12;
+    potential_exchange_params.hamaker_constant = 6.0e-20;
+    potential_exchange_params.specific_surface = 100.0;
+    potential_exchange_params.micro_solid_density_reference = 2470.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.8;
+    potential_exchange_params.micro_liquid_density_reference = 1300.0;
+    potential_exchange_params.micro_liquid_density_a = 1.3;
+    potential_exchange_params.micro_liquid_density_b = 1.0;
+    potential_exchange_params.micro_potential_convention =
         VKMicroPotentialConvention::NegativeAttractive;
-    exchange_parameters.potential_role_mapping = VKPotentialExchangeRoleMapping::NotebookRoles;
-    exchange_parameters.local_nonlinear_solve_mode =
+    potential_exchange_params.potential_role_mapping = VKPotentialExchangeRoleMapping::NotebookRoles;
+    potential_exchange_params.local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
-    exchange_parameters.macro_porosity_update_mode = VKMacroPorosityUpdateMode::AlgebraicSplit;
-    exchange_parameters.initial_micro_water_content = 0.1;
-    exchange_parameters.micro_water_content_swelling_slope = 0.1;
+    potential_exchange_params.macro_porosity_update_mode = VKMacroPorosityUpdateMode::AlgebraicSplit;
+    potential_exchange_params.initial_micro_water_content = 0.1;
+    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
 
     double const dt = 1.0;
     double const rho_LR = 1000.0;
@@ -1383,7 +1385,7 @@ TEST(RichardsMechanics, VKNotebookOverlapTransferBaselineHistory)
     double const nu = 0.25;
 
     double n_l_prev = 0.1;
-    double rho_lR_prev = exchange_parameters.micro_liquid_density_reference;
+    double rho_lR_prev = potential_exchange_params.micro_liquid_density_reference;
     double epsilon_sw = 0.0;
 
     for (auto const& row : baseline_rows)
@@ -1397,17 +1399,17 @@ TEST(RichardsMechanics, VKNotebookOverlapTransferBaselineHistory)
         };
 
         auto const macro_potential = computeYoungLaplaceMacroPotential(
-            row.pressure, rho_LR, exchange_parameters.pressure_tolerance);
+            row.pressure, rho_LR, potential_exchange_params.pressure_tolerance);
         double const rho_l_prev = n_l_prev * rho_lR_prev;
         auto const coupled_update = solveVKNotebookMassStorageCoupledState(
             n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
-            macro_potential, local_context, exchange_parameters);
+            macro_potential, local_context, potential_exchange_params);
         ASSERT_TRUE(coupled_update.converged);
 
         auto const transport = computeVKTransportPorosityUpdate(
             phi, phi - n_l_prev, n_l_prev, coupled_update.n_l, 0.0, 0.0,
-            exchange_parameters.macro_porosity_update_mode);
-        double const delta_epsilon_sw = exchange_parameters.micro_water_content_swelling_slope *
+            potential_exchange_params.macro_porosity_update_mode);
+        double const delta_epsilon_sw = potential_exchange_params.micro_water_content_swelling_slope *
                                         (transport.phi_m - transport.phi_m_prev);
         epsilon_sw += delta_epsilon_sw;
         double const sigma_xx =
@@ -1456,24 +1458,24 @@ TEST(RichardsMechanics, VKNotebookStrainCoupledOverlapBaselineHistory)
     ASSERT_EQ(overlap_rows.size(), 5);
     ASSERT_EQ(strain_rows.size(), 5);
 
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.pressure_tolerance = 1e-12;
-    exchange_parameters.hamaker_constant = 6.0e-20;
-    exchange_parameters.specific_surface = 100.0;
-    exchange_parameters.micro_solid_density_reference = 2470.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.8;
-    exchange_parameters.micro_liquid_density_reference = 1300.0;
-    exchange_parameters.micro_liquid_density_a = 1.3;
-    exchange_parameters.micro_liquid_density_b = 1.0;
-    exchange_parameters.micro_potential_convention =
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.pressure_tolerance = 1e-12;
+    potential_exchange_params.hamaker_constant = 6.0e-20;
+    potential_exchange_params.specific_surface = 100.0;
+    potential_exchange_params.micro_solid_density_reference = 2470.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.8;
+    potential_exchange_params.micro_liquid_density_reference = 1300.0;
+    potential_exchange_params.micro_liquid_density_a = 1.3;
+    potential_exchange_params.micro_liquid_density_b = 1.0;
+    potential_exchange_params.micro_potential_convention =
         VKMicroPotentialConvention::NegativeAttractive;
-    exchange_parameters.potential_role_mapping = VKPotentialExchangeRoleMapping::NotebookRoles;
-    exchange_parameters.local_nonlinear_solve_mode =
+    potential_exchange_params.potential_role_mapping = VKPotentialExchangeRoleMapping::NotebookRoles;
+    potential_exchange_params.local_nonlinear_solve_mode =
         VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
-    exchange_parameters.macro_porosity_update_mode = VKMacroPorosityUpdateMode::AlgebraicSplit;
-    exchange_parameters.initial_micro_water_content = 0.1;
-    exchange_parameters.micro_water_content_swelling_slope = 0.1;
+    potential_exchange_params.macro_porosity_update_mode = VKMacroPorosityUpdateMode::AlgebraicSplit;
+    potential_exchange_params.initial_micro_water_content = 0.1;
+    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
 
     double const dt = 1.0;
     double const rho_LR = 1000.0;
@@ -1502,19 +1504,19 @@ TEST(RichardsMechanics, VKNotebookStrainCoupledOverlapBaselineHistory)
         };
 
         auto const macro_potential = computeYoungLaplaceMacroPotential(
-            row.pressure, rho_LR, exchange_parameters.pressure_tolerance);
+            row.pressure, rho_LR, potential_exchange_params.pressure_tolerance);
         double const rho_l_prev = n_l_prev * rho_lR_prev;
         auto const coupled_update = solveVKNotebookMassStorageCoupledState(
             n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
-            macro_potential, local_context, exchange_parameters);
+            macro_potential, local_context, potential_exchange_params);
         ASSERT_TRUE(coupled_update.converged);
 
         auto const transport = computeVKTransportPorosityUpdate(
             phi, phi - n_l_prev, n_l_prev, coupled_update.n_l,
             row.epsilon_v_total, volumetric_strain_prev,
-            exchange_parameters.macro_porosity_update_mode);
+            potential_exchange_params.macro_porosity_update_mode);
 
-        double const delta_epsilon_sw = exchange_parameters.micro_water_content_swelling_slope *
+        double const delta_epsilon_sw = potential_exchange_params.micro_water_content_swelling_slope *
                                         (transport.phi_m - transport.phi_m_prev);
         epsilon_sw += delta_epsilon_sw;
         double const bulk_modulus = E / (3.0 * (1.0 - 2.0 * nu));
@@ -1564,15 +1566,15 @@ TEST(RichardsMechanics, VKNotebookStrainCoupledOverlapBaselineHistory)
 
 TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)
 {
-    VKPotentialExchangeParameters exchange_parameters;
-    exchange_parameters.enabled = true;
-    exchange_parameters.pressure_tolerance = 0.0;
-    exchange_parameters.hamaker_constant = 1e-30;
-    exchange_parameters.specific_surface = 1.0;
-    exchange_parameters.micro_solid_density_reference = 2650.0;
-    exchange_parameters.micro_solid_volume_fraction_reference = 0.6;
-    exchange_parameters.initial_micro_water_content = 0.1;
-    exchange_parameters.fd_jacobian_perturbation = 1e-8;
+    VKPotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.pressure_tolerance = 0.0;
+    potential_exchange_params.hamaker_constant = 1e-30;
+    potential_exchange_params.specific_surface = 1.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.initial_micro_water_content = 0.1;
+    potential_exchange_params.fd_jacobian_perturbation = 1e-8;
 
     std::array<RepresentativeCoupledExchangeState, 3> const states = {{
         {
@@ -1622,10 +1624,10 @@ TEST(RichardsMechanics, VKCoupledExchangeTangentRepresentativeStates)
     for (auto const& state : states)
     {
         auto const reference_rho_L_hat =
-            referenceCoupledRhoLHat(state, state.p_L, exchange_parameters);
+            referenceCoupledRhoLHat(state, state.p_L, potential_exchange_params);
         auto const reference_drho_L_hat_dpL =
-            referenceCoupledDrhoLHatDpL(state, exchange_parameters);
-        auto const production = productionCoupledExchangeData(state, exchange_parameters);
+            referenceCoupledDrhoLHatDpL(state, potential_exchange_params);
+        auto const production = productionCoupledExchangeData(state, potential_exchange_params);
 
         ASSERT_TRUE(production.converged) << state.name;
         EXPECT_NEAR(production.rho_L_hat, reference_rho_L_hat,
