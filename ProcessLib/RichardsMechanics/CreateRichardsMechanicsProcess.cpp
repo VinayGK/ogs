@@ -25,26 +25,26 @@ namespace RichardsMechanics
 {
 namespace
 {
-char const* toString(VKPotentialExchangeMode const mode)
+char const* toString(PotentialExchangeMode const mode)
 {
     switch (mode)
     {
-        case VKPotentialExchangeMode::FullPotential:
+        case PotentialExchangeMode::FullPotential:
             return "full_potential";
     }
     return "unknown";
 }
 
-VKMicroPotentialConvention parseVKMicroPotentialConvention(
+MicroPotentialConvention parseVKMicroPotentialConvention(
     std::string const& convention)
 {
     if (convention == "positive_reduced")
     {
-        return VKMicroPotentialConvention::PositiveReduced;
+        return MicroPotentialConvention::PositiveReduced;
     }
     if (convention == "negative_attractive")
     {
-        return VKMicroPotentialConvention::NegativeAttractive;
+        return MicroPotentialConvention::NegativeAttractive;
     }
 
     OGS_FATAL(
@@ -54,20 +54,20 @@ VKMicroPotentialConvention parseVKMicroPotentialConvention(
         convention);
 }
 
-VKLocalNonlinearSolveMode parseVKLocalNonlinearSolveMode(
+LocalNonlinearSolveMode parseVKLocalNonlinearSolveMode(
     std::string const& mode)
 {
     if (mode == "scalar_exchange")
     {
-        return VKLocalNonlinearSolveMode::ScalarExchange;
+        return LocalNonlinearSolveMode::ScalarExchange;
     }
     if (mode == "scalar_notebook_storage")
     {
-        return VKLocalNonlinearSolveMode::ScalarNotebookStorage;
+        return LocalNonlinearSolveMode::ScalarNotebookStorage;
     }
     if (mode == "scalar_notebook_mass_storage")
     {
-        return VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        return LocalNonlinearSolveMode::ScalarNotebookMassStorage;
     }
 
     OGS_FATAL(
@@ -78,16 +78,16 @@ VKLocalNonlinearSolveMode parseVKLocalNonlinearSolveMode(
         mode);
 }
 
-VKMacroPorosityUpdateMode parseVKMacroPorosityUpdateMode(
+MacroPorosityUpdateMode parseVKMacroPorosityUpdateMode(
     std::string const& mode)
 {
     if (mode == "algebraic_split")
     {
-        return VKMacroPorosityUpdateMode::AlgebraicSplit;
+        return MacroPorosityUpdateMode::AlgebraicSplit;
     }
     if (mode == "notebook_additive_rate")
     {
-        return VKMacroPorosityUpdateMode::NotebookAdditiveRate;
+        return MacroPorosityUpdateMode::NotebookAdditiveRate;
     }
 
     OGS_FATAL(
@@ -97,16 +97,16 @@ VKMacroPorosityUpdateMode parseVKMacroPorosityUpdateMode(
         mode);
 }
 
-VKMicroSolidVolumeFractionMode parseVKMicroSolidVolumeFractionMode(
+MicroSolidVolumeFractionMode parseVKMicroSolidVolumeFractionMode(
     std::string const& mode)
 {
     if (mode == "reference")
     {
-        return VKMicroSolidVolumeFractionMode::Reference;
+        return MicroSolidVolumeFractionMode::Reference;
     }
     if (mode == "current_porosity_split")
     {
-        return VKMicroSolidVolumeFractionMode::CurrentPorositySplit;
+        return MicroSolidVolumeFractionMode::CurrentPorositySplit;
     }
 
     OGS_FATAL(
@@ -116,16 +116,16 @@ VKMicroSolidVolumeFractionMode parseVKMicroSolidVolumeFractionMode(
         mode);
 }
 
-VKPotentialExchangeRoleMapping parseVKPotentialExchangeRoleMapping(
+PotentialExchangeRoleMapping parseVKPotentialExchangeRoleMapping(
     std::string const& mapping)
 {
     if (mapping == "current_ogs")
     {
-        return VKPotentialExchangeRoleMapping::CurrentOgs;
+        return PotentialExchangeRoleMapping::CurrentOgs;
     }
     if (mapping == "notebook_roles")
     {
-        return VKPotentialExchangeRoleMapping::NotebookRoles;
+        return PotentialExchangeRoleMapping::NotebookRoles;
     }
 
     OGS_FATAL(
@@ -135,11 +135,11 @@ VKPotentialExchangeRoleMapping parseVKPotentialExchangeRoleMapping(
         mapping);
 }
 
-VKPotentialExchangeMode parseVKPotentialExchangeMode(std::string const& mode)
+PotentialExchangeMode parseVKPotentialExchangeMode(std::string const& mode)
 {
     if (mode == "full_potential")
     {
-        return VKPotentialExchangeMode::FullPotential;
+        return PotentialExchangeMode::FullPotential;
     }
 
     OGS_FATAL(
@@ -177,9 +177,9 @@ void checkMPLProperties(
 void validateMicroPorosityAndVKConfiguration(
     std::map<int, std::shared_ptr<MaterialPropertyLib::Medium>> const& media,
     std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
-    std::optional<VKPotentialExchangeParameters> const&
+    std::optional<PotentialExchangeParameters> const&
         potential_exchange_parameters,
-    std::map<int, VKPotentialExchangeParameters> const&
+    std::map<int, PotentialExchangeParameters> const&
         potential_exchange_parameters_by_material)
 {
     namespace MPL = MaterialPropertyLib;
@@ -238,9 +238,9 @@ void validateMicroPorosityAndVKConfiguration(
     }
 }
 
-VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
+PotentialExchangeParameters parseVKPotentialExchangeParameters(
     BaseLib::ConfigTree const& config,
-    std::optional<VKPotentialExchangeParameters> const& defaults,
+    std::optional<PotentialExchangeParameters> const& defaults,
     std::string const& context)
 {
     auto const enabled =
@@ -344,7 +344,7 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
     double micro_liquid_density_b = 0.0;
     bool const uses_micro_liquid_density_eos =
         local_nonlinear_solve_mode ==
-        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
 
     if (enabled)
     {
@@ -520,7 +520,7 @@ VKPotentialExchangeParameters parseVKPotentialExchangeParameters(
             context, micro_water_content_swelling_slope);
     }
 
-    return VKPotentialExchangeParameters{
+    return PotentialExchangeParameters{
         enabled,
         mode,
         pressure_tolerance,
@@ -679,8 +679,8 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
                 "mass_exchange_coefficient")};
     }
 
-    std::optional<VKPotentialExchangeParameters> potential_exchange_parameters;
-    std::map<int, VKPotentialExchangeParameters>
+    std::optional<PotentialExchangeParameters> potential_exchange_parameters;
+    std::map<int, PotentialExchangeParameters>
         potential_exchange_parameters_by_material;
     if (auto const potential_exchange_config =
             //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__potential_exchange}

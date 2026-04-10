@@ -19,7 +19,7 @@ double centralDiff(auto&& f, double const x, double const h)
 }
 }  // namespace
 
-TEST(RichardsMechanics, VKYoungLaplaceMacroPotential)
+TEST(RichardsMechanics, PotentialExchangeYoungLaplaceMacroPotential)
 {
     double const rho = 1000.0;
     double const ptol = 1.0;
@@ -66,7 +66,7 @@ TEST(RichardsMechanics, VKYoungLaplaceMacroPotential)
     }
 }
 
-TEST(RichardsMechanics, VKVanDerWaalsMicroPotential)
+TEST(RichardsMechanics, PotentialExchangeVanDerWaalsMicroPotential)
 {
     double const n_l = 0.03;
     double const rho_lR = 1000.0;
@@ -106,7 +106,7 @@ TEST(RichardsMechanics, VKVanDerWaalsMicroPotential)
     EXPECT_NEAR(mu.dmu_lR_drho_SR, centralDiff(f_rhoSR, rho_SR, 1e-4), 1e-6);
 }
 
-TEST(RichardsMechanics, VKVanDerWaalsMicroPotentialNegativeAttractiveConvention)
+TEST(RichardsMechanics, PotentialExchangeVanDerWaalsMicroPotentialNegativeAttractiveConvention)
 {
     double const n_l = 0.03;
     double const rho_lR = 1000.0;
@@ -149,13 +149,13 @@ TEST(RichardsMechanics, VKVanDerWaalsMicroPotentialNegativeAttractiveConvention)
     EXPECT_NEAR(mu.dmu_lR_drho_SR, centralDiff(f_rhoSR, rho_SR, 1e-4), 1e-6);
 }
 
-TEST(RichardsMechanics, VKMicroExchangeSourceIoName)
+TEST(RichardsMechanics, PotentialExchangeSourceIoName)
 {
-    EXPECT_EQ(ioName(static_cast<VKMicroExchangeSourceTag*>(nullptr)),
+    EXPECT_EQ(ioName(static_cast<MicroExchangeSourceTag*>(nullptr)),
               "micro_exchange_source");
 }
 
-TEST(RichardsMechanics, VKPotentialDrivenMassExchange)
+TEST(RichardsMechanics, PotentialDrivenMassExchangeDataAndDerivatives)
 {
     double const alpha_M = 2.5e-10;
     double const mu_LR = -8.0;
@@ -169,15 +169,15 @@ TEST(RichardsMechanics, VKPotentialDrivenMassExchange)
     EXPECT_DOUBLE_EQ(ex.drho_l_hat_dalpha_M, mu_LR - mu_lR);
 }
 
-TEST(RichardsMechanics, VKNotebookRoleMappingToString)
+TEST(RichardsMechanics, PotentialExchangeRoleMappingToString)
 {
-    EXPECT_STREQ(toString(VKPotentialExchangeRoleMapping::CurrentOgs),
+    EXPECT_STREQ(toString(PotentialExchangeRoleMapping::CurrentOgs),
                  "current_ogs");
-    EXPECT_STREQ(toString(VKPotentialExchangeRoleMapping::NotebookRoles),
+    EXPECT_STREQ(toString(PotentialExchangeRoleMapping::NotebookRoles),
                  "notebook_roles");
 }
 
-TEST(RichardsMechanics, VKNotebookRoleMappingDirectExchangeAlgebra)
+TEST(RichardsMechanics, PotentialExchangeRoleMappingDirectExchangeAlgebra)
 {
     double const alpha_bar = 2.5e-10;
     double const mu_LR = 0.0;

@@ -23,11 +23,11 @@ struct LocalAssemblerInterface : public ProcessLib::LocalAssemblerInterface,
                                  public NumLib::ExtrapolatableElement
 {
 private:
-    static VKPotentialExchangeParameters const*
+    static PotentialExchangeParameters const*
     selectVKPotentialExchangeParameters(
-        std::optional<VKPotentialExchangeParameters> const&
+        std::optional<PotentialExchangeParameters> const&
             potential_exchange_parameters,
-        std::map<int, VKPotentialExchangeParameters> const&
+        std::map<int, PotentialExchangeParameters> const&
             potential_exchange_parameters_by_material,
         MeshLib::PropertyVector<int> const* const material_ids,
         std::size_t const element_id)
@@ -164,7 +164,7 @@ public:
                    : (*process_data_.material_ids)[element_.getID()];
     }
 
-    VKPotentialExchangeParameters const* getVKPotentialExchangeParameters() const
+    PotentialExchangeParameters const* getVKPotentialExchangeParameters() const
     {
         return potential_exchange_parameters_;
     }
@@ -208,7 +208,7 @@ protected:
     NumLib::GenericIntegrationMethod const& integration_method_;
     MeshLib::Element const& element_;
     bool const is_axially_symmetric_;
-    VKPotentialExchangeParameters const* const potential_exchange_parameters_ =
+    PotentialExchangeParameters const* const potential_exchange_parameters_ =
         nullptr;
 
     MaterialLib::Solids::MechanicsBase<DisplacementDim> const& solid_material_;

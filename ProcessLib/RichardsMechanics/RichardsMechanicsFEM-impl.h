@@ -29,16 +29,16 @@ namespace ProcessLib
 namespace RichardsMechanics
 {
 inline bool isVKPotentialExchangeEnabled(
-    VKPotentialExchangeParameters const* const potential_exchange_parameters)
+    PotentialExchangeParameters const* const potential_exchange_parameters)
 {
     return potential_exchange_parameters &&
            potential_exchange_parameters->enabled &&
            potential_exchange_parameters->mode ==
-               VKPotentialExchangeMode::FullPotential;
+               PotentialExchangeMode::FullPotential;
 }
 
 inline bool isVKPotentialExchangeEnabled(
-    std::optional<VKPotentialExchangeParameters> const&
+    std::optional<PotentialExchangeParameters> const&
         potential_exchange_parameters)
 {
     return isVKPotentialExchangeEnabled(
@@ -47,7 +47,7 @@ inline bool isVKPotentialExchangeEnabled(
 }
 
 inline double getVKPotentialPressureTolerance(
-    VKPotentialExchangeParameters const* const potential_exchange_parameters)
+    PotentialExchangeParameters const* const potential_exchange_parameters)
 {
     if (!isVKPotentialExchangeEnabled(potential_exchange_parameters))
     {
@@ -58,7 +58,7 @@ inline double getVKPotentialPressureTolerance(
 }
 
 inline double getVKPotentialPressureTolerance(
-    std::optional<VKPotentialExchangeParameters> const&
+    std::optional<PotentialExchangeParameters> const&
         potential_exchange_parameters)
 {
     return getVKPotentialPressureTolerance(
@@ -66,7 +66,7 @@ inline double getVKPotentialPressureTolerance(
                                          : nullptr);
 }
 
-struct VKPotentialExchangeUpdateData
+struct PotentialExchangeUpdateData
 {
     YoungLaplaceMacroPotentialData macro_potential;
     PotentialDrivenMassExchangeData exchange;
@@ -85,7 +85,7 @@ struct VKPotentialExchangeUpdateData
     double drho_L_hat_dpL_direct = 0.0;
 };
 
-inline VKPotentialExchangeUpdateData computeVKPotentialExchangeUpdate(
+inline PotentialExchangeUpdateData computeVKPotentialExchangeUpdate(
     double const alpha_bar, double const mu, double const p_L_ip,
     double const p_L_m, double const rho_LR, double const beta_LR,
     double const pressure_tolerance = 0.0,
@@ -95,8 +95,8 @@ inline VKPotentialExchangeUpdateData computeVKPotentialExchangeUpdate(
     double const dmu_lR_vdw_drho_lR = 0.0,
     bool const use_custom_dmu_lR_vdw_dpL = false,
     double const dmu_lR_vdw_dpL = 0.0,
-    VKPotentialExchangeRoleMapping const role_mapping =
-        VKPotentialExchangeRoleMapping::CurrentOgs,
+    PotentialExchangeRoleMapping const role_mapping =
+        PotentialExchangeRoleMapping::CurrentOgs,
     bool const use_fd_jacobian_for_direct_macro_derivative = false,
     double const fd_jacobian_perturbation = 1e-8)
 {
@@ -107,7 +107,7 @@ inline VKPotentialExchangeUpdateData computeVKPotentialExchangeUpdate(
             mu);
     }
 
-    VKPotentialExchangeUpdateData out;
+    PotentialExchangeUpdateData out;
 
     // Transitional coefficient mapping: recover the dimensional scaling of the
     // legacy pressure-difference exchange when potentials are represented as
@@ -122,7 +122,7 @@ inline VKPotentialExchangeUpdateData computeVKPotentialExchangeUpdate(
     out.use_vdw_micro_potential_for_active_exchange =
         use_vdw_micro_potential_for_active_exchange;
     bool const use_notebook_role_mapping =
-        role_mapping == VKPotentialExchangeRoleMapping::NotebookRoles;
+        role_mapping == PotentialExchangeRoleMapping::NotebookRoles;
     out.use_notebook_role_mapping = use_notebook_role_mapping;
     out.use_fd_jacobian_for_direct_macro_derivative =
         use_fd_jacobian_for_direct_macro_derivative;
@@ -261,7 +261,7 @@ inline VKPotentialExchangeUpdateData computeVKPotentialExchangeUpdate(
     return out;
 }
 
-struct VKImplicitMicroWaterContentUpdateData
+struct ImplicitMicroWaterContentUpdateData
 {
     double n_l = 0.0;
     VanDerWaalsMicroPotentialData micro_potential;
@@ -269,7 +269,7 @@ struct VKImplicitMicroWaterContentUpdateData
     bool converged = true;
 };
 
-struct VKCompatibilityMicroHydraulicOutputData
+struct CompatibilityMicroHydraulicOutputData
 {
     double p_L_m = 0.0;
     double S_L_m = 0.0;
@@ -278,15 +278,15 @@ struct VKCompatibilityMicroHydraulicOutputData
 };
 
 inline double vkMicroPotentialSignFactor(
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     return microPotentialSignFactor(potential_exchange_params.micro_potential_convention);
 }
 
-inline VKCompatibilityMicroHydraulicOutputData
+inline CompatibilityMicroHydraulicOutputData
 computeVKCompatibilityMicroHydraulicOutput(
     double const n_l, double const rho_LR,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     double const n_l_safe = std::max(1e-16, n_l);
     double const n_l_ref = std::max(
@@ -306,7 +306,7 @@ computeVKCompatibilityMicroHydraulicOutput(
     };
 }
 
-struct VKTransportPorosityUpdateData
+struct TransportPorosityUpdateData
 {
     double phi_M = 0.0;
     double phi_M_prev = 0.0;
@@ -314,7 +314,7 @@ struct VKTransportPorosityUpdateData
     double phi_m_prev = 0.0;
 };
 
-struct VKLocalSolveContext
+struct PotentialExchangeLocalSolveContext
 {
     double phi = std::numeric_limits<double>::infinity();
     double phi_M_prev = 0.0;
@@ -323,18 +323,18 @@ struct VKLocalSolveContext
     double volumetric_strain_prev = 0.0;
 };
 
-inline VKTransportPorosityUpdateData computeVKTransportPorosityUpdate(
+inline TransportPorosityUpdateData computeVKTransportPorosityUpdate(
     double const phi, double const phi_M_prev, double const phi_m_prev,
     double const n_l, double const volumetric_strain,
     double const volumetric_strain_prev,
-    VKMacroPorosityUpdateMode const macro_porosity_update_mode)
+    MacroPorosityUpdateMode const macro_porosity_update_mode)
 {
     double const phi_safe = std::max(0.0, phi);
     double const phi_M_prev_safe = std::max(0.0, phi_M_prev);
     double const phi_m_prev_safe = std::max(0.0, phi_m_prev);
 
     if (macro_porosity_update_mode ==
-        VKMacroPorosityUpdateMode::AlgebraicSplit)
+        MacroPorosityUpdateMode::AlgebraicSplit)
     {
         double const phi_m = std::clamp(n_l, 0.0, phi_safe);
         return {
@@ -381,11 +381,11 @@ inline VKTransportPorosityUpdateData computeVKTransportPorosityUpdate(
 }
 
 inline double computeVKActiveMicroSolidVolumeFraction(
-    double const n_l, VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    double const n_l, PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     if (potential_exchange_params.micro_solid_volume_fraction_mode ==
-        VKMicroSolidVolumeFractionMode::Reference)
+        MicroSolidVolumeFractionMode::Reference)
     {
         return std::max(1e-16, potential_exchange_params.micro_solid_volume_fraction_reference);
     }
@@ -399,11 +399,11 @@ inline double computeVKActiveMicroSolidVolumeFraction(
 }
 
 inline double computeVKPreviousMicroSolidVolumeFraction(
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     if (potential_exchange_params.micro_solid_volume_fraction_mode ==
-        VKMicroSolidVolumeFractionMode::Reference)
+        MicroSolidVolumeFractionMode::Reference)
     {
         return std::max(1e-16, potential_exchange_params.micro_solid_volume_fraction_reference);
     }
@@ -412,7 +412,7 @@ inline double computeVKPreviousMicroSolidVolumeFraction(
                                local_context.phi_m_prev);
 }
 
-struct VKReducedMicroLiquidDensityData
+struct ReducedMicroLiquidDensityData
 {
     double rho_lR = 0.0;
     double omega_l = 0.0;
@@ -420,9 +420,9 @@ struct VKReducedMicroLiquidDensityData
     double drho_l_dn_l = 0.0;
 };
 
-inline VKReducedMicroLiquidDensityData computeVKReducedMicroLiquidDensity(
+inline ReducedMicroLiquidDensityData computeVKReducedMicroLiquidDensity(
     double const n_l, double const rho_LR, double const nS,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     double const n_l_safe = std::max(1e-16, n_l);
     double const nS_safe = std::max(1e-16, nS);
@@ -515,20 +515,20 @@ inline VKReducedMicroLiquidDensityData computeVKReducedMicroLiquidDensity(
     };
 }
 
-inline VKReducedMicroLiquidDensityData computeVKActiveMicroLiquidDensity(
+inline ReducedMicroLiquidDensityData computeVKActiveMicroLiquidDensity(
     double const n_l, double const rho_LR,
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     double const active_nS =
         computeVKActiveMicroSolidVolumeFraction(n_l, local_context, potential_exchange_params);
     return computeVKReducedMicroLiquidDensity(n_l, rho_LR, active_nS, potential_exchange_params);
 }
 
-inline VKReducedMicroLiquidDensityData computeVKPreviousMicroLiquidDensity(
+inline ReducedMicroLiquidDensityData computeVKPreviousMicroLiquidDensity(
     double const n_l_prev, double const rho_LR,
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     double const previous_nS =
         computeVKPreviousMicroSolidVolumeFraction(local_context, potential_exchange_params);
@@ -536,7 +536,7 @@ inline VKReducedMicroLiquidDensityData computeVKPreviousMicroLiquidDensity(
                                               potential_exchange_params);
 }
 
-struct VKNotebookMassStorageCoupledSolveData
+struct NotebookMassStorageCoupledSolveData
 {
     double n_l = 0.0;
     double rho_lR = 0.0;
@@ -549,13 +549,13 @@ struct VKNotebookMassStorageCoupledSolveData
     bool converged = true;
 };
 
-inline VKNotebookMassStorageCoupledSolveData
+inline NotebookMassStorageCoupledSolveData
 solveVKNotebookMassStoragePredictorState(
     double const n_l_prev, double const rho_l_prev, double const rho_lR_prev,
     double const dt, double const rho_LR, double const alpha_bar,
     double const mu, YoungLaplaceMacroPotentialData const& macro_potential,
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     constexpr double n_l_floor = 1e-16;
     constexpr double rho_floor = 1e-16;
@@ -591,7 +591,7 @@ solveVKNotebookMassStoragePredictorState(
                           micro_liquid_density};
     };
 
-    VKNotebookMassStorageCoupledSolveData out;
+    NotebookMassStorageCoupledSolveData out;
     if (dt_safe <= 0.0)
     {
         out.n_l = std::clamp(n_l_prev, n_l_floor, n_l_ceiling);
@@ -692,13 +692,13 @@ solveVKNotebookMassStoragePredictorState(
     return out;
 }
 
-inline VKNotebookMassStorageCoupledSolveData
+inline NotebookMassStorageCoupledSolveData
 solveVKNotebookMassStorageCoupledState(
     double const n_l_prev, double const rho_l_prev, double const rho_lR_prev,
     double const dt, double const rho_LR, double const alpha_bar,
     double const mu, YoungLaplaceMacroPotentialData const& macro_potential,
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     constexpr double n_l_floor = 1e-16;
     constexpr double rho_floor = 1e-16;
@@ -743,7 +743,7 @@ solveVKNotebookMassStorageCoupledState(
         return predictor;
     }
 
-    VKNotebookMassStorageCoupledSolveData out = predictor;
+    NotebookMassStorageCoupledSolveData out = predictor;
     if (dt_safe <= 0.0)
     {
         return out;
@@ -898,9 +898,9 @@ inline void applyVKNotebookMassStorageLocalState(
     StatefulData<DisplacementDim>& state_current,
     StatefulDataPrev<DisplacementDim> const& state_previous,
     MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
-    double const rho_LR, VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params,
-    VKNotebookMassStorageCoupledSolveData const& coupled_update)
+    double const rho_LR, PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params,
+    NotebookMassStorageCoupledSolveData const& coupled_update)
 {
     auto const transport_porosity_update = computeVKTransportPorosityUpdate(
         local_context.phi, local_context.phi_M_prev, local_context.phi_m_prev,
@@ -912,13 +912,13 @@ inline void applyVKNotebookMassStorageLocalState(
         computeVKCompatibilityMicroHydraulicOutput(
             coupled_update.n_l, rho_LR, potential_exchange_params);
 
-    auto& n_l = std::get<VKMicroWaterContent>(state_current);
+    auto& n_l = std::get<MicroWaterContent>(state_current);
     *n_l = coupled_update.n_l;
 
-    auto& rho_lR = std::get<VKMicroLiquidDensity>(state_current);
+    auto& rho_lR = std::get<MicroLiquidDensity>(state_current);
     *rho_lR = coupled_update.rho_lR;
 
-    auto& micro_porosity = std::get<VKMicroPorosity>(state_current);
+    auto& micro_porosity = std::get<MicroPorosity>(state_current);
     *micro_porosity = transport_porosity_update.phi_m;
 
     auto& transport_porosity =
@@ -938,24 +938,24 @@ inline void applyVKNotebookMassStorageLocalState(
 
     auto& p_L_m = std::get<MicroPressure>(state_current);
     auto& S_L_m = std::get<MicroSaturation>(state_current);
-    auto& rho_l_hat = std::get<VKMicroExchangeSource>(state_current);
+    auto& rho_l_hat = std::get<MicroExchangeSource>(state_current);
     *p_L_m = compatibility_output.p_L_m;
     *S_L_m = compatibility_output.S_L_m;
-    rho_l_hat = VKMicroExchangeSource{coupled_update.exchange.rho_l_hat};
+    rho_l_hat = MicroExchangeSource{coupled_update.exchange.rho_l_hat};
 
     (void)state_previous;
 }
 
 inline VanDerWaalsMicroPotentialData computeVKActiveMicroPotential(
     double const n_l, double const rho_lR,
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     double const active_nS =
         computeVKActiveMicroSolidVolumeFraction(n_l, local_context, potential_exchange_params);
     double const rho_lR_effective =
         potential_exchange_params.local_nonlinear_solve_mode ==
-                VKLocalNonlinearSolveMode::ScalarNotebookMassStorage
+                LocalNonlinearSolveMode::ScalarNotebookMassStorage
             ? computeVKReducedMicroLiquidDensity(n_l, rho_lR, active_nS, potential_exchange_params)
                   .rho_lR
             : rho_lR;
@@ -965,11 +965,11 @@ inline VanDerWaalsMicroPotentialData computeVKActiveMicroPotential(
         vkMicroPotentialSignFactor(potential_exchange_params));
 }
 
-inline VKCompatibilityMicroHydraulicOutputData
+inline CompatibilityMicroHydraulicOutputData
 computeVKCompatibilityMicroHydraulicOutput(
     double const n_l, double const rho_LR,
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     double const n_l_safe = std::max(1e-16, n_l);
     double const n_l_ref = std::max(
@@ -987,22 +987,22 @@ computeVKCompatibilityMicroHydraulicOutput(
     };
 }
 
-inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
+inline ImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
     double const n_l_prev, double const dt, double const rho_LR,
     double const alpha_bar, double const mu,
     YoungLaplaceMacroPotentialData const& macro_potential,
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     constexpr double n_l_floor = 1e-16;
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
     double const alpha_M_effective = alpha_bar * rho_LR / mu;
     bool const use_notebook_storage =
         potential_exchange_params.local_nonlinear_solve_mode !=
-        VKLocalNonlinearSolveMode::ScalarExchange;
+        LocalNonlinearSolveMode::ScalarExchange;
     bool const use_mass_storage =
         potential_exchange_params.local_nonlinear_solve_mode ==
-        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
     double const volumetric_strain_rate =
         dt_safe > 0.0
             ? (local_context.volumetric_strain -
@@ -1011,7 +1011,7 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
             : 0.0;
     bool const notebook_aligned =
         potential_exchange_params.potential_role_mapping ==
-        VKPotentialExchangeRoleMapping::NotebookRoles;
+        PotentialExchangeRoleMapping::NotebookRoles;
     double const n_l_ceiling =
         (use_notebook_storage && std::isfinite(local_context.phi) &&
          !notebook_aligned)
@@ -1028,7 +1028,7 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
             alpha_M_effective, mu_LR_active, mu_lR_active);
         auto const micro_liquid_density =
             use_mass_storage
-                ? std::optional<VKReducedMicroLiquidDensityData>{
+                ? std::optional<ReducedMicroLiquidDensityData>{
                       computeVKActiveMicroLiquidDensity(
                           n_l, rho_LR, local_context, potential_exchange_params)}
                 : std::nullopt;
@@ -1037,7 +1037,7 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
 
     auto const prev_micro_liquid_density =
         use_mass_storage
-            ? std::optional<VKReducedMicroLiquidDensityData>{
+            ? std::optional<ReducedMicroLiquidDensityData>{
                   computeVKPreviousMicroLiquidDensity(n_l_prev, rho_LR,
                                                       local_context, potential_exchange_params)}
             : std::nullopt;
@@ -1046,7 +1046,7 @@ inline VKImplicitMicroWaterContentUpdateData solveVKImplicitMicroWaterContent(
             ? n_l_prev * prev_micro_liquid_density->rho_lR
             : 0.0;
 
-    VKImplicitMicroWaterContentUpdateData out;
+    ImplicitMicroWaterContentUpdateData out;
     if (dt_safe <= 0.0)
     {
         out.n_l = std::clamp(n_l_prev, n_l_floor, n_l_ceiling);
@@ -1211,8 +1211,8 @@ inline double computeVKImplicitNlDpL(
     YoungLaplaceMacroPotentialData const& macro_potential,
     VanDerWaalsMicroPotentialData const& micro_potential,
     PotentialDrivenMassExchangeData const& exchange,
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
     if (dt_safe <= 0.0)
@@ -1221,7 +1221,7 @@ inline double computeVKImplicitNlDpL(
     }
 
     if (potential_exchange_params.local_nonlinear_solve_mode ==
-        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage)
+        LocalNonlinearSolveMode::ScalarNotebookMassStorage)
     {
         constexpr double rho_floor = 1e-16;
         double const perturbation =
@@ -1269,7 +1269,7 @@ inline double computeVKImplicitNlDpL(
 
     double dr_dn_l = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
     if (potential_exchange_params.local_nonlinear_solve_mode ==
-        VKLocalNonlinearSolveMode::ScalarNotebookStorage)
+        LocalNonlinearSolveMode::ScalarNotebookStorage)
     {
         double const volumetric_strain_rate =
             (local_context.volumetric_strain -
@@ -1288,19 +1288,19 @@ inline double computeVKImplicitNlDpL(
     return -dr_dp_l / dr_dn_l;
 }
 
-struct VKLocalJacobianDiagnosticData
+struct LocalJacobianDiagnosticData
 {
     double fd_dn_l_dpL = 0.0;
     double fd_drho_L_hat_dpL = 0.0;
     double perturbation = 0.0;
 };
 
-inline VKLocalJacobianDiagnosticData computeVKLocalJacobianDiagnosticData(
+inline LocalJacobianDiagnosticData computeVKLocalJacobianDiagnosticData(
     double const n_l_prev, double const p_L_ip, double const dt,
     double const rho_LR, double const drho_LR_dpL, double const alpha_bar,
     double const mu, double const pressure_tolerance,
-    VKLocalSolveContext const& local_context,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     constexpr double rho_floor = 1e-16;
     double const perturbation =
@@ -1353,8 +1353,8 @@ inline VKLocalJacobianDiagnosticData computeVKLocalJacobianDiagnosticData(
 inline void maybeLogVKLocalJacobianDiagnostic(
     double const p_L_ip, double const n_l_prev, double const n_l,
     double const analytic_dn_l_dpL, double const analytic_drho_L_hat_dpL,
-    VKLocalJacobianDiagnosticData const& fd_data,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    LocalJacobianDiagnosticData const& fd_data,
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     static std::once_flag once;
     std::call_once(once, [=]()
@@ -1401,14 +1401,14 @@ inline void updateVKMicroscaleHydraulicState(
     StatefulDataPrev<DisplacementDim> const& state_previous, double const p_cap_ip,
     double const rho_LR, double const mu, double const dt,
     MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
-    VKLocalSolveContext const& local_context,
+    PotentialExchangeLocalSolveContext const& local_context,
     std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
-    VKPotentialExchangeParameters const* const potential_exchange_parameters)
+    PotentialExchangeParameters const* const potential_exchange_parameters)
 {
-    auto& n_l = std::get<VKMicroWaterContent>(state_current);
-    auto const n_l_prev = std::get<PrevState<VKMicroWaterContent>>(state_previous);
-    auto& rho_lR = std::get<VKMicroLiquidDensity>(state_current);
-    auto const rho_lR_prev = std::get<PrevState<VKMicroLiquidDensity>>(state_previous);
+    auto& n_l = std::get<MicroWaterContent>(state_current);
+    auto const n_l_prev = std::get<PrevState<MicroWaterContent>>(state_previous);
+    auto& rho_lR = std::get<MicroLiquidDensity>(state_current);
+    auto const rho_lR_prev = std::get<PrevState<MicroLiquidDensity>>(state_previous);
 
     double const n_l_prev_value = std::max(1e-16, **n_l_prev);
     *n_l = n_l_prev_value;
@@ -1421,7 +1421,7 @@ inline void updateVKMicroscaleHydraulicState(
 
     auto const& potential_exchange_params = *potential_exchange_parameters;
     if (potential_exchange_params.local_nonlinear_solve_mode ==
-        VKLocalNonlinearSolveMode::ScalarNotebookMassStorage)
+        LocalNonlinearSolveMode::ScalarNotebookMassStorage)
     {
         auto const macro_potential = computeYoungLaplaceMacroPotential(
             -p_cap_ip, rho_LR, potential_exchange_params.pressure_tolerance);
@@ -1453,13 +1453,13 @@ inline void updateVKMicroscaleHydraulicState(
 
     auto& p_L_m = std::get<MicroPressure>(state_current);
     auto& S_L_m = std::get<MicroSaturation>(state_current);
-    auto& rho_l_hat = std::get<VKMicroExchangeSource>(state_current);
+    auto& rho_l_hat = std::get<MicroExchangeSource>(state_current);
     auto const compatibility_output =
         computeVKCompatibilityMicroHydraulicOutput(
             n_l_update.n_l, rho_LR, local_context, potential_exchange_params);
     *p_L_m = compatibility_output.p_L_m;
     *S_L_m = compatibility_output.S_L_m;
-    rho_l_hat = VKMicroExchangeSource{n_l_update.exchange.rho_l_hat};
+    rho_l_hat = MicroExchangeSource{n_l_update.exchange.rho_l_hat};
 }
 
 template <int DisplacementDim>
@@ -1467,7 +1467,7 @@ inline void updateVKPorositySplitState(
     StatefulData<DisplacementDim>& state_current,
     StatefulDataPrev<DisplacementDim> const& state_previous, double const phi,
     MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
-    VKPotentialExchangeParameters const* const potential_exchange_parameters)
+    PotentialExchangeParameters const* const potential_exchange_parameters)
 {
     if (!isVKPotentialExchangeEnabled(potential_exchange_parameters))
     {
@@ -1478,25 +1478,25 @@ inline void updateVKPorositySplitState(
         potential_exchange_parameters->local_nonlinear_solve_mode;
     bool const notebook_aligned =
         potential_exchange_parameters->potential_role_mapping ==
-        VKPotentialExchangeRoleMapping::NotebookRoles;
-    if (mode == VKLocalNonlinearSolveMode::ScalarNotebookMassStorage &&
+        PotentialExchangeRoleMapping::NotebookRoles;
+    if (mode == LocalNonlinearSolveMode::ScalarNotebookMassStorage &&
         !notebook_aligned)
     {
         return;
     }
 
-    auto& micro_porosity = std::get<VKMicroPorosity>(state_current);
+    auto& micro_porosity = std::get<MicroPorosity>(state_current);
     auto& transport_porosity =
         std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(state_current)
             .phi;
     auto const phi_M_prev = std::get<PrevState<
         ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(state_previous)
                                 ->phi;
-    auto const n_l = std::max(1e-16, *std::get<VKMicroWaterContent>(state_current));
+    auto const n_l = std::max(1e-16, *std::get<MicroWaterContent>(state_current));
 
     if (notebook_aligned &&
-        (mode == VKLocalNonlinearSolveMode::ScalarNotebookStorage ||
-         mode == VKLocalNonlinearSolveMode::ScalarNotebookMassStorage))
+        (mode == LocalNonlinearSolveMode::ScalarNotebookStorage ||
+         mode == LocalNonlinearSolveMode::ScalarNotebookMassStorage))
     {
         // Keep notebook support split aligned with the bridge law:
         // phi_m := n_l while transport_porosity remains the process state.
@@ -1509,7 +1509,7 @@ inline void updateVKPorositySplitState(
         return;
     }
 
-    auto const phi_m_prev = **std::get<PrevState<VKMicroPorosity>>(state_previous);
+    auto const phi_m_prev = **std::get<PrevState<MicroPorosity>>(state_previous);
 
     auto const transport_porosity_update =
         computeVKTransportPorosityUpdate(
@@ -1529,7 +1529,7 @@ inline void updateVKTotalPorosityState(
     StatefulDataPrev<DisplacementDim> const& state_previous,
     double& phi, MPL::VariableArray& variables,
     MPL::VariableArray& variables_prev,
-    VKPotentialExchangeParameters const* const potential_exchange_parameters)
+    PotentialExchangeParameters const* const potential_exchange_parameters)
 {
     if (!isVKPotentialExchangeEnabled(potential_exchange_parameters))
     {
@@ -1537,19 +1537,19 @@ inline void updateVKTotalPorosityState(
     }
 
     if ((potential_exchange_parameters->local_nonlinear_solve_mode ==
-             VKLocalNonlinearSolveMode::ScalarNotebookStorage ||
+             LocalNonlinearSolveMode::ScalarNotebookStorage ||
          potential_exchange_parameters->local_nonlinear_solve_mode ==
-             VKLocalNonlinearSolveMode::ScalarNotebookMassStorage) &&
+             LocalNonlinearSolveMode::ScalarNotebookMassStorage) &&
         potential_exchange_parameters->potential_role_mapping ==
-            VKPotentialExchangeRoleMapping::NotebookRoles)
+            PotentialExchangeRoleMapping::NotebookRoles)
     {
         // In scalar notebook-storage mode, micro porosity is support-state only.
         // Keep the process porosity state on the medium-law carrier.
         return;
     }
 
-    auto const phi_m = *std::get<VKMicroPorosity>(state_current);
-    auto const phi_m_prev = **std::get<PrevState<VKMicroPorosity>>(state_previous);
+    auto const phi_m = *std::get<MicroPorosity>(state_current);
+    auto const phi_m_prev = **std::get<PrevState<MicroPorosity>>(state_previous);
     auto const phi_M =
         std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(state_current)
             .phi;
@@ -1571,13 +1571,13 @@ template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeVdWRelaxationStressIncrement(
     double const p_L_m_prev, double const p_L_m,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
 
     KV delta_sigma_vdw = KV::Zero();
     if (potential_exchange_params.micro_potential_convention !=
-            VKMicroPotentialConvention::NegativeAttractive ||
+            MicroPotentialConvention::NegativeAttractive ||
         !(potential_exchange_params.vdw_relaxation_stress_gain > 0.0))
     {
         return delta_sigma_vdw;
@@ -1601,7 +1601,7 @@ template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeMicroWaterContentStressIncrement(
     double const n_l_prev, double const n_l,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
 
@@ -1630,7 +1630,7 @@ inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeNotebookMicroPorositySwellingStressIncrement(
     double const phi_m_prev, double const phi_m,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
 
@@ -1663,13 +1663,13 @@ computeVKSwellingStressIncrement(
     double const phi_m_prev, double const phi_m, double const n_l_prev,
     double const n_l, double const p_L_m_prev, double const p_L_m,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
-    VKPotentialExchangeParameters const& potential_exchange_params)
+    PotentialExchangeParameters const& potential_exchange_params)
 {
     using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
 
     bool const notebook_aligned =
         potential_exchange_params.potential_role_mapping ==
-        VKPotentialExchangeRoleMapping::NotebookRoles;
+        PotentialExchangeRoleMapping::NotebookRoles;
 
     KV delta_sigma_sw = KV::Zero();
     if (potential_exchange_params.micro_water_content_swelling_slope > 0.0)
@@ -1710,7 +1710,7 @@ inline void updateVKSwellingState(
     MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
     ParameterLib::SpatialPosition const& x_position, double const t,
     double const dt,
-    VKPotentialExchangeParameters const* const potential_exchange_parameters)
+    PotentialExchangeParameters const* const potential_exchange_parameters)
 {
     if (!isVKPotentialExchangeEnabled(potential_exchange_parameters))
     {
@@ -1725,10 +1725,10 @@ inline void updateVKSwellingState(
 
     auto const p_L_m_prev = **std::get<PrevState<MicroPressure>>(state_previous);
     auto const p_L_m = *std::get<MicroPressure>(state_current);
-    auto const n_l_prev = **std::get<PrevState<VKMicroWaterContent>>(state_previous);
-    auto const n_l = *std::get<VKMicroWaterContent>(state_current);
-    auto const phi_m_prev = **std::get<PrevState<VKMicroPorosity>>(state_previous);
-    auto const phi_m = *std::get<VKMicroPorosity>(state_current);
+    auto const n_l_prev = **std::get<PrevState<MicroWaterContent>>(state_previous);
+    auto const n_l = *std::get<MicroWaterContent>(state_current);
+    auto const phi_m_prev = **std::get<PrevState<MicroPorosity>>(state_previous);
+    auto const phi_m = *std::get<MicroPorosity>(state_current);
 
     auto& sigma_sw =
         std::get<ProcessLib::ThermoRichardsMechanics::
@@ -1764,7 +1764,7 @@ void updateSwellingStressAndVolumetricStrain(
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     double const rho_LR, double const mu,
     std::optional<MicroPorosityParameters> micro_porosity_parameters,
-    VKPotentialExchangeParameters const* const potential_exchange_parameters,
+    PotentialExchangeParameters const* const potential_exchange_parameters,
     double const alpha, double const phi, double const p_cap_ip,
     MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
     ParameterLib::SpatialPosition const& x_position, double const t,
@@ -2080,16 +2080,16 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         }
 
         {
-            auto& n_l = std::get<VKMicroWaterContent>(this->current_states_[ip]);
+            auto& n_l = std::get<MicroWaterContent>(this->current_states_[ip]);
             auto& n_l_prev =
-        std::get<PrevState<VKMicroWaterContent>>(this->prev_states_[ip]);
+        std::get<PrevState<MicroWaterContent>>(this->prev_states_[ip]);
     auto& rho_lR =
-        std::get<VKMicroLiquidDensity>(this->current_states_[ip]);
+        std::get<MicroLiquidDensity>(this->current_states_[ip]);
     auto& rho_lR_prev =
-        std::get<PrevState<VKMicroLiquidDensity>>(this->prev_states_[ip]);
-    auto& phi_m = std::get<VKMicroPorosity>(this->current_states_[ip]);
+        std::get<PrevState<MicroLiquidDensity>>(this->prev_states_[ip]);
+    auto& phi_m = std::get<MicroPorosity>(this->current_states_[ip]);
     auto& phi_m_prev =
-        std::get<PrevState<VKMicroPorosity>>(this->prev_states_[ip]);
+        std::get<PrevState<MicroPorosity>>(this->prev_states_[ip]);
 
     // Default fallback keeps state positive for vdW algebra.
     double n_l_initial = 1e-6;
@@ -2661,16 +2661,16 @@ void RichardsMechanicsLocalAssembler<
             {
                 auto const n_l =
                     std::max(1e-16,
-                             *std::get<VKMicroWaterContent>(
+                             *std::get<MicroWaterContent>(
                                  this->current_states_[ip]));
                 auto const transport_porosity_prev =
                     std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
                                            TransportPorosityData>>(
                         this->prev_states_[ip])
                         ->phi;
-                auto const n_l_prev = **std::get<PrevState<VKMicroWaterContent>>(
+                auto const n_l_prev = **std::get<PrevState<MicroWaterContent>>(
                     this->prev_states_[ip]);
-                VKLocalSolveContext const local_solve_context{
+                PotentialExchangeLocalSolveContext const local_solve_context{
                     .phi = phi,
                     .phi_M_prev = transport_porosity_prev,
                     .phi_m_prev = n_l_prev,
@@ -2687,7 +2687,7 @@ void RichardsMechanicsLocalAssembler<
             auto const role_mapping =
                 potential_exchange_params_ptr
                     ? potential_exchange_params_ptr->potential_role_mapping
-                    : VKPotentialExchangeRoleMapping::CurrentOgs;
+                    : PotentialExchangeRoleMapping::CurrentOgs;
             auto const potential_exchange_result = computeVKPotentialExchangeUpdate(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
                 pressure_tolerance, potential_exchange_enabled,
@@ -2742,7 +2742,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         StatefulData<DisplacementDim>& state_current,
         StatefulDataPrev<DisplacementDim> const& state_previous,
         std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
-        VKPotentialExchangeParameters const* const
+        PotentialExchangeParameters const* const
             potential_exchange_parameters,
         MaterialLib::Solids::MechanicsBase<DisplacementDim> const&
             solid_material,
@@ -2920,7 +2920,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(state_previous)
                                                     ->phi;
     auto const n_l_prev_value =
-        **std::get<PrevState<VKMicroWaterContent>>(state_previous);
+        **std::get<PrevState<MicroWaterContent>>(state_previous);
 
     updateVKMicroscaleHydraulicState<DisplacementDim>(
         state_current, state_previous, p_cap_ip, rho_LR, mu, dt, variables, variables_prev,
@@ -3436,16 +3436,16 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             {
                 auto const n_l =
                     std::max(1e-16,
-                             *std::get<VKMicroWaterContent>(
+                             *std::get<MicroWaterContent>(
                                  this->current_states_[ip]));
                 auto const transport_porosity_prev =
                     std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
                                            TransportPorosityData>>(
                         this->prev_states_[ip])
                         ->phi;
-                auto const n_l_prev = **std::get<PrevState<VKMicroWaterContent>>(
+                auto const n_l_prev = **std::get<PrevState<MicroWaterContent>>(
                     this->prev_states_[ip]);
-                VKLocalSolveContext const local_solve_context{
+                PotentialExchangeLocalSolveContext const local_solve_context{
                     .phi = phi,
                     .phi_M_prev = transport_porosity_prev,
                     .phi_m_prev = n_l_prev,
@@ -3487,7 +3487,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
                     auto const n_l_prev =
                         std::max(1e-16,
-                                 **std::get<PrevState<VKMicroWaterContent>>(
+                                 **std::get<PrevState<MicroWaterContent>>(
                                      this->prev_states_[ip]));
                     if (potential_exchange_params_ptr->check_local_jacobian)
                     {
@@ -3516,7 +3516,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             auto const role_mapping =
                 potential_exchange_params_ptr
                     ? potential_exchange_params_ptr->potential_role_mapping
-                    : VKPotentialExchangeRoleMapping::CurrentOgs;
+                    : PotentialExchangeRoleMapping::CurrentOgs;
             auto const potential_exchange_result = computeVKPotentialExchangeUpdate(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
                 pressure_tolerance, potential_exchange_enabled,
@@ -3829,7 +3829,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             this->prev_states_[ip])
                                                         ->phi;
         auto const n_l_prev_value =
-            **std::get<PrevState<VKMicroWaterContent>>(
+            **std::get<PrevState<MicroWaterContent>>(
                 this->prev_states_[ip]);
 
         updateVKMicroscaleHydraulicState<DisplacementDim>(

@@ -9,18 +9,18 @@
 
 namespace ProcessLib::RichardsMechanics
 {
-using VKMicroWaterContent =
-    BaseLib::StrongType<double, struct VKMicroWaterContentTag>;
+using MicroWaterContent =
+    BaseLib::StrongType<double, struct MicroWaterContentTag>;
 
-constexpr std::string_view ioName(struct VKMicroWaterContentTag*)
+constexpr std::string_view ioName(struct MicroWaterContentTag*)
 {
     return "micro_water_content";
 }
 
-using VKMicroExchangeSource =
-    BaseLib::StrongType<double, struct VKMicroExchangeSourceTag>;
+using MicroExchangeSource =
+    BaseLib::StrongType<double, struct MicroExchangeSourceTag>;
 
-constexpr std::string_view ioName(struct VKMicroExchangeSourceTag*)
+constexpr std::string_view ioName(struct MicroExchangeSourceTag*)
 {
     return "micro_exchange_source";
 }

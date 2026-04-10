@@ -9,10 +9,10 @@
 
 namespace ProcessLib::RichardsMechanics
 {
-using VKMicroLiquidDensity =
-    BaseLib::StrongType<double, struct VKMicroLiquidDensityTag>;
+using MicroLiquidDensity =
+    BaseLib::StrongType<double, struct MicroLiquidDensityTag>;
 
-constexpr std::string_view ioName(struct VKMicroLiquidDensityTag*)
+constexpr std::string_view ioName(struct MicroLiquidDensityTag*)
 {
     return "micro_liquid_density";
 }

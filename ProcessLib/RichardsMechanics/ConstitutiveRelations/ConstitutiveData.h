@@ -40,8 +40,8 @@ using StatefulData = std::tuple<
     ProcessLib::ThermoRichardsMechanics::SaturationData,
     ProcessLib::ThermoRichardsMechanics::PorosityData,
     ProcessLib::ThermoRichardsMechanics::TransportPorosityData, MicroPressure,
-    MicroSaturation, VKMicroWaterContent, VKMicroLiquidDensity, VKMicroPorosity,
-    VKMicroExchangeSource>;
+    MicroSaturation, MicroWaterContent, MicroLiquidDensity, MicroPorosity,
+    MicroExchangeSource>;
 
 template <int DisplacementDim>
 using StatefulDataPrev = ProcessLib::ConstitutiveRelations::PrevStateOf<

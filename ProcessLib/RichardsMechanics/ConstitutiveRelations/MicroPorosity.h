@@ -9,9 +9,9 @@
 
 namespace ProcessLib::RichardsMechanics
 {
-using VKMicroPorosity = BaseLib::StrongType<double, struct VKMicroPorosityTag>;
+using MicroPorosity = BaseLib::StrongType<double, struct MicroPorosityTag>;
 
-constexpr std::string_view ioName(struct VKMicroPorosityTag*)
+constexpr std::string_view ioName(struct MicroPorosityTag*)
 {
     return "micro_porosity";
 }

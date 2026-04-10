@@ -7,118 +7,118 @@
 
 namespace ProcessLib::RichardsMechanics
 {
-enum class VKPotentialExchangeMode
+enum class PotentialExchangeMode
 {
     FullPotential
 };
 
-enum class VKMicroPotentialConvention
+enum class MicroPotentialConvention
 {
     PositiveReduced,
     NegativeAttractive
 };
 
-enum class VKLocalNonlinearSolveMode
+enum class LocalNonlinearSolveMode
 {
     ScalarExchange,
     ScalarNotebookStorage,
     ScalarNotebookMassStorage
 };
 
-enum class VKMacroPorosityUpdateMode
+enum class MacroPorosityUpdateMode
 {
     AlgebraicSplit,
     NotebookAdditiveRate
 };
 
-enum class VKMicroSolidVolumeFractionMode
+enum class MicroSolidVolumeFractionMode
 {
     Reference,
     CurrentPorositySplit
 };
 
-enum class VKPotentialExchangeRoleMapping
+enum class PotentialExchangeRoleMapping
 {
     CurrentOgs,
     NotebookRoles
 };
 
 inline constexpr char const* toString(
-    VKMicroPotentialConvention const convention)
+    MicroPotentialConvention const convention)
 {
     switch (convention)
     {
-        case VKMicroPotentialConvention::PositiveReduced:
+        case MicroPotentialConvention::PositiveReduced:
             return "positive_reduced";
-        case VKMicroPotentialConvention::NegativeAttractive:
+        case MicroPotentialConvention::NegativeAttractive:
             return "negative_attractive";
     }
     return "unknown";
 }
 
 inline constexpr double microPotentialSignFactor(
-    VKMicroPotentialConvention const convention)
+    MicroPotentialConvention const convention)
 {
-    return convention == VKMicroPotentialConvention::NegativeAttractive ? -1.0
+    return convention == MicroPotentialConvention::NegativeAttractive ? -1.0
                                                                        : 1.0;
 }
 
-inline constexpr char const* toString(VKLocalNonlinearSolveMode const mode)
+inline constexpr char const* toString(LocalNonlinearSolveMode const mode)
 {
     switch (mode)
     {
-        case VKLocalNonlinearSolveMode::ScalarExchange:
+        case LocalNonlinearSolveMode::ScalarExchange:
             return "scalar_exchange";
-        case VKLocalNonlinearSolveMode::ScalarNotebookStorage:
+        case LocalNonlinearSolveMode::ScalarNotebookStorage:
             return "scalar_notebook_storage";
-        case VKLocalNonlinearSolveMode::ScalarNotebookMassStorage:
+        case LocalNonlinearSolveMode::ScalarNotebookMassStorage:
             return "scalar_notebook_mass_storage";
     }
     return "unknown";
 }
 
-inline constexpr char const* toString(VKMacroPorosityUpdateMode const mode)
+inline constexpr char const* toString(MacroPorosityUpdateMode const mode)
 {
     switch (mode)
     {
-        case VKMacroPorosityUpdateMode::AlgebraicSplit:
+        case MacroPorosityUpdateMode::AlgebraicSplit:
             return "algebraic_split";
-        case VKMacroPorosityUpdateMode::NotebookAdditiveRate:
+        case MacroPorosityUpdateMode::NotebookAdditiveRate:
             return "notebook_additive_rate";
     }
     return "unknown";
 }
 
 inline constexpr char const* toString(
-    VKMicroSolidVolumeFractionMode const mode)
+    MicroSolidVolumeFractionMode const mode)
 {
     switch (mode)
     {
-        case VKMicroSolidVolumeFractionMode::Reference:
+        case MicroSolidVolumeFractionMode::Reference:
             return "reference";
-        case VKMicroSolidVolumeFractionMode::CurrentPorositySplit:
+        case MicroSolidVolumeFractionMode::CurrentPorositySplit:
             return "current_porosity_split";
     }
     return "unknown";
 }
 
 inline constexpr char const* toString(
-    VKPotentialExchangeRoleMapping const mapping)
+    PotentialExchangeRoleMapping const mapping)
 {
     switch (mapping)
     {
-        case VKPotentialExchangeRoleMapping::CurrentOgs:
+        case PotentialExchangeRoleMapping::CurrentOgs:
             return "current_ogs";
-        case VKPotentialExchangeRoleMapping::NotebookRoles:
+        case PotentialExchangeRoleMapping::NotebookRoles:
             return "notebook_roles";
     }
     return "unknown";
 }
 
-struct VKPotentialExchangeParameters
+struct PotentialExchangeParameters
 {
     bool enabled = false;
-    VKPotentialExchangeMode mode = VKPotentialExchangeMode::FullPotential;
+    PotentialExchangeMode mode = PotentialExchangeMode::FullPotential;
 
     // Young-Laplace macro potential branch tolerance.
     double pressure_tolerance = 0.0;
@@ -131,16 +131,16 @@ struct VKPotentialExchangeParameters
     double micro_liquid_density_reference = 0.0;         // rho_l0
     double micro_liquid_density_a = 0.0;                 // a_rho
     double micro_liquid_density_b = 0.0;                 // b_rho
-    VKMicroPotentialConvention micro_potential_convention =
-        VKMicroPotentialConvention::PositiveReduced;
-    VKLocalNonlinearSolveMode local_nonlinear_solve_mode =
-        VKLocalNonlinearSolveMode::ScalarExchange;
-    VKMacroPorosityUpdateMode macro_porosity_update_mode =
-        VKMacroPorosityUpdateMode::AlgebraicSplit;
-    VKMicroSolidVolumeFractionMode micro_solid_volume_fraction_mode =
-        VKMicroSolidVolumeFractionMode::Reference;
-    VKPotentialExchangeRoleMapping potential_role_mapping =
-        VKPotentialExchangeRoleMapping::CurrentOgs;
+    MicroPotentialConvention micro_potential_convention =
+        MicroPotentialConvention::PositiveReduced;
+    LocalNonlinearSolveMode local_nonlinear_solve_mode =
+        LocalNonlinearSolveMode::ScalarExchange;
+    MacroPorosityUpdateMode macro_porosity_update_mode =
+        MacroPorosityUpdateMode::AlgebraicSplit;
+    MicroSolidVolumeFractionMode micro_solid_volume_fraction_mode =
+        MicroSolidVolumeFractionMode::Reference;
+    PotentialExchangeRoleMapping potential_role_mapping =
+        PotentialExchangeRoleMapping::CurrentOgs;
 
     // Optional GP-local n_l initialization (future full 2C path).
     std::optional<double> initial_micro_water_content;

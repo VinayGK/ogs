@@ -45,8 +45,8 @@ struct RichardsMechanicsProcessData
     Eigen::Matrix<double, DisplacementDim, 1> const specific_body_force;
 
     std::optional<MicroPorosityParameters> micro_porosity_parameters;
-    std::optional<VKPotentialExchangeParameters> potential_exchange_parameters;
-    std::map<int, VKPotentialExchangeParameters>
+    std::optional<PotentialExchangeParameters> potential_exchange_parameters;
+    std::map<int, PotentialExchangeParameters>
         potential_exchange_parameters_by_material;
 
     bool const apply_mass_lumping;
