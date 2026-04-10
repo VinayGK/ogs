@@ -35,7 +35,7 @@ char const* toString(PotentialExchangeMode const mode)
     return "unknown";
 }
 
-MicroPotentialConvention parseVKMicroPotentialConvention(
+MicroPotentialConvention parseMicroPotentialConvention(
     std::string const& convention)
 {
     if (convention == "positive_reduced")
@@ -54,7 +54,7 @@ MicroPotentialConvention parseVKMicroPotentialConvention(
         convention);
 }
 
-LocalNonlinearSolveMode parseVKLocalNonlinearSolveMode(
+LocalNonlinearSolveMode parseLocalNonlinearSolveMode(
     std::string const& mode)
 {
     if (mode == "scalar_exchange")
@@ -78,7 +78,7 @@ LocalNonlinearSolveMode parseVKLocalNonlinearSolveMode(
         mode);
 }
 
-MacroPorosityUpdateMode parseVKMacroPorosityUpdateMode(
+MacroPorosityUpdateMode parseMacroPorosityUpdateMode(
     std::string const& mode)
 {
     if (mode == "algebraic_split")
@@ -97,7 +97,7 @@ MacroPorosityUpdateMode parseVKMacroPorosityUpdateMode(
         mode);
 }
 
-MicroSolidVolumeFractionMode parseVKMicroSolidVolumeFractionMode(
+MicroSolidVolumeFractionMode parseMicroSolidVolumeFractionMode(
     std::string const& mode)
 {
     if (mode == "reference")
@@ -116,7 +116,7 @@ MicroSolidVolumeFractionMode parseVKMicroSolidVolumeFractionMode(
         mode);
 }
 
-PotentialExchangeRoleMapping parseVKPotentialExchangeRoleMapping(
+PotentialExchangeRoleMapping parsePotentialExchangeRoleMapping(
     std::string const& mapping)
 {
     if (mapping == "current_ogs")
@@ -135,7 +135,7 @@ PotentialExchangeRoleMapping parseVKPotentialExchangeRoleMapping(
         mapping);
 }
 
-PotentialExchangeMode parseVKPotentialExchangeMode(std::string const& mode)
+PotentialExchangeMode parsePotentialExchangeMode(std::string const& mode)
 {
     if (mode == "full_potential")
     {
@@ -174,7 +174,7 @@ void checkMPLProperties(
     }
 }
 
-void validateMicroPorosityAndVKConfiguration(
+void validateMicroPorosityAndPotentialExchangeConfiguration(
     std::map<int, std::shared_ptr<MaterialPropertyLib::Medium>> const& media,
     std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
     std::optional<PotentialExchangeParameters> const&
@@ -238,7 +238,7 @@ void validateMicroPorosityAndVKConfiguration(
     }
 }
 
-PotentialExchangeParameters parseVKPotentialExchangeParameters(
+PotentialExchangeParameters parsePotentialExchangeParameters(
     BaseLib::ConfigTree const& config,
     std::optional<PotentialExchangeParameters> const& defaults,
     std::string const& context)
@@ -247,7 +247,7 @@ PotentialExchangeParameters parseVKPotentialExchangeParameters(
         config.getConfigParameter<bool>("enabled",
                                         defaults ? defaults->enabled : false);
 
-    auto const mode = parseVKPotentialExchangeMode(
+    auto const mode = parsePotentialExchangeMode(
         config.getConfigParameter<std::string>(
             "mode", defaults ? toString(defaults->mode) : "full_potential"));
 
@@ -261,30 +261,30 @@ PotentialExchangeParameters parseVKPotentialExchangeParameters(
             context, pressure_tolerance);
     }
 
-    auto const micro_potential_convention = parseVKMicroPotentialConvention(
+    auto const micro_potential_convention = parseMicroPotentialConvention(
         config.getConfigParameter<std::string>(
             "micro_potential_convention",
             defaults ? toString(defaults->micro_potential_convention)
                      : "positive_reduced"));
-    auto const local_nonlinear_solve_mode = parseVKLocalNonlinearSolveMode(
+    auto const local_nonlinear_solve_mode = parseLocalNonlinearSolveMode(
         config.getConfigParameter<std::string>(
             "local_nonlinear_solve_mode",
             defaults ? toString(defaults->local_nonlinear_solve_mode)
                      : "scalar_exchange"));
-    auto const macro_porosity_update_mode = parseVKMacroPorosityUpdateMode(
+    auto const macro_porosity_update_mode = parseMacroPorosityUpdateMode(
         config.getConfigParameter<std::string>(
             "macro_porosity_update_mode",
             defaults ? toString(defaults->macro_porosity_update_mode)
                      : "algebraic_split"));
     auto const micro_solid_volume_fraction_mode =
-        parseVKMicroSolidVolumeFractionMode(
+        parseMicroSolidVolumeFractionMode(
             config.getConfigParameter<std::string>(
                 "micro_solid_volume_fraction_mode",
                 defaults
                     ? toString(defaults->micro_solid_volume_fraction_mode)
                     : "reference"));
     auto const potential_role_mapping =
-        parseVKPotentialExchangeRoleMapping(
+        parsePotentialExchangeRoleMapping(
             config.getConfigParameter<std::string>(
                 "potential_role_mapping",
                 defaults ? toString(defaults->potential_role_mapping)
@@ -686,7 +686,7 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
             //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__potential_exchange}
             config.getConfigSubtreeOptional("potential_exchange"))
     {
-        potential_exchange_parameters = parseVKPotentialExchangeParameters(
+        potential_exchange_parameters = parsePotentialExchangeParameters(
             *potential_exchange_config, std::nullopt,
             "potential_exchange");
 
@@ -696,7 +696,7 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
             int const material_id = medium_config.getConfigAttribute<int>("id");
             if (!potential_exchange_parameters_by_material
                      .emplace(material_id,
-                              parseVKPotentialExchangeParameters(
+                              parsePotentialExchangeParameters(
                                   medium_config,
                                   potential_exchange_parameters,
                                   fmt::format(
@@ -711,7 +711,7 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         }
     }
 
-    validateMicroPorosityAndVKConfiguration(
+    validateMicroPorosityAndPotentialExchangeConfiguration(
         media, micro_porosity_parameters, potential_exchange_parameters,
         potential_exchange_parameters_by_material);
 

@@ -24,7 +24,7 @@ struct LocalAssemblerInterface : public ProcessLib::LocalAssemblerInterface,
 {
 private:
     static PotentialExchangeParameters const*
-    selectVKPotentialExchangeParameters(
+    selectPotentialExchangeParameters(
         std::optional<PotentialExchangeParameters> const&
             potential_exchange_parameters,
         std::map<int, PotentialExchangeParameters> const&
@@ -58,7 +58,7 @@ public:
           element_(e),
           is_axially_symmetric_(is_axially_symmetric),
           potential_exchange_parameters_(
-              selectVKPotentialExchangeParameters(
+              selectPotentialExchangeParameters(
                   process_data_.potential_exchange_parameters,
                   process_data_.potential_exchange_parameters_by_material,
                   process_data_.material_ids, e.getID())),
@@ -164,7 +164,7 @@ public:
                    : (*process_data_.material_ids)[element_.getID()];
     }
 
-    PotentialExchangeParameters const* getVKPotentialExchangeParameters() const
+    PotentialExchangeParameters const* getPotentialExchangeParameters() const
     {
         return potential_exchange_parameters_;
     }

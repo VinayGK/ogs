@@ -20,7 +20,7 @@ using namespace ProcessLib::RichardsMechanics;
 
 namespace
 {
-struct ReferenceVKSinglePointData
+struct ReferenceNotebookSinglePointData
 {
     double n_l = 0.0;
     VanDerWaalsMicroPotentialData micro_potential;
@@ -166,7 +166,7 @@ double referenceMicroSolidVolumeFraction(
         return std::max(1e-16, potential_exchange_params.micro_solid_volume_fraction_reference);
     }
 
-    auto const split = computeVKTransportPorosityUpdate(
+    auto const split = computeTransportPorosityUpdate(
         phi, phi_M_prev, phi_m_prev, n_l, volumetric_strain,
         volumetric_strain_prev, potential_exchange_params.macro_porosity_update_mode);
     return std::max(1e-16, 1.0 - split.phi_M - split.phi_m);
@@ -265,7 +265,7 @@ ReducedMicroLiquidDensityData solveReferenceReducedMicroLiquidDensity(
             .drho_l_dn_l = rho_lR + n_l_safe * drho_lR_dnl};
 }
 
-ReferenceVKSinglePointData solveReferenceVKSinglePoint(
+ReferenceNotebookSinglePointData solveReferenceNotebookSinglePoint(
     double const p_L, double const n_l_prev, double const dt,
     double const rho_LR, double const alpha_bar, double const mu,
     double const phi, PotentialExchangeParameters const& potential_exchange_params,
@@ -446,10 +446,10 @@ double referenceDnLDpL(double const p_L, double const n_l_prev, double const dt,
                        double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
-    auto const plus = solveReferenceVKSinglePoint(
+    auto const plus = solveReferenceNotebookSinglePoint(
         p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
-    auto const minus = solveReferenceVKSinglePoint(
+    auto const minus = solveReferenceNotebookSinglePoint(
         p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     return (plus.n_l - minus.n_l) / (2.0 * h);
@@ -464,10 +464,10 @@ double referenceDrhoLHatDpL(double const p_L, double const n_l_prev,
                             double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
-    auto const plus = solveReferenceVKSinglePoint(
+    auto const plus = solveReferenceNotebookSinglePoint(
         p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
-    auto const minus = solveReferenceVKSinglePoint(
+    auto const minus = solveReferenceNotebookSinglePoint(
         p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     return ((-plus.exchange.rho_l_hat) - (-minus.exchange.rho_l_hat)) /
@@ -526,7 +526,7 @@ double referenceCoupledRhoLHat(
     auto potential_exchange_params_eval = potential_exchange_params;
     potential_exchange_params_eval.pressure_tolerance =
         state.pressure_tolerance;
-    auto const reference = solveReferenceVKSinglePoint(
+    auto const reference = solveReferenceNotebookSinglePoint(
         p_L_eval, state.n_l_prev, state.dt, rho_LR_eval, state.alpha_bar,
         state.mu, state.phi, potential_exchange_params_eval,
         state.volumetric_strain,
@@ -559,7 +559,7 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
 
     if (state.mode == CoupledExchangeReferenceMode::pressure_proxy)
     {
-        auto const data = computeVKPotentialExchangeUpdate(
+        auto const data = computePotentialExchangeUpdate(
             state.alpha_bar, state.mu, state.p_L, state.p_L_m, state.rho_LR,
             beta_LR, state.pressure_tolerance, false, false, 0.0, 0.0,
             false, 0.0, PotentialExchangeRoleMapping::CurrentOgs, false,
@@ -573,14 +573,14 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
 
     auto const macro_potential = computeYoungLaplaceMacroPotential(
         state.p_L, state.rho_LR, state.pressure_tolerance);
-    auto const n_l_update = solveVKImplicitMicroWaterContent(
+    auto const n_l_update = solveImplicitMicroWaterContent(
         state.n_l_prev, state.dt, state.rho_LR, state.alpha_bar, state.mu,
         macro_potential,
         {.phi = state.phi,
          .volumetric_strain = state.volumetric_strain,
          .volumetric_strain_prev = state.volumetric_strain_prev},
         potential_exchange_params);
-    double const dn_l_dpL = computeVKImplicitNlDpL(
+    double const dn_l_dpL = computeImplicitNlDpL(
         state.n_l_prev, state.p_L, state.dt, state.rho_LR,
         state.drho_LR_dpL, state.alpha_bar, state.mu,
         macro_potential, n_l_update.micro_potential, n_l_update.exchange,
@@ -592,7 +592,7 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
         n_l_update.micro_potential.dmu_lR_dnl * dn_l_dpL +
         n_l_update.micro_potential.dmu_lR_drho_lR * state.drho_LR_dpL;
 
-    auto const data = computeVKPotentialExchangeUpdate(
+    auto const data = computePotentialExchangeUpdate(
         state.alpha_bar, state.mu, state.p_L, state.p_L_m, state.rho_LR,
         beta_LR, state.pressure_tolerance, true, true,
         n_l_update.micro_potential.mu_lR,
@@ -632,13 +632,13 @@ TEST(RichardsMechanics, NotebookSingleIntegrationPointReferencePath)
 
     auto const macro_potential =
         computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
-    auto const ogs_update = solveVKImplicitMicroWaterContent(
+    auto const ogs_update = solveImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveReferenceVKSinglePoint(
+    auto const reference = solveReferenceNotebookSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
 
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
@@ -657,7 +657,7 @@ TEST(RichardsMechanics, NotebookSingleIntegrationPointReferencePath)
                                     1e-10, 1e-18));
 
     auto const compatibility_output =
-        computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
+        computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
     EXPECT_NEAR(compatibility_output.p_L_m, reference.p_L_m,
                 comparisonTolerance(compatibility_output.p_L_m,
                                     reference.p_L_m, 1e-10, 1e-12));
@@ -666,7 +666,7 @@ TEST(RichardsMechanics, NotebookSingleIntegrationPointReferencePath)
                                     reference.S_L_m));
 
     auto const transport_porosity_update =
-        computeVKTransportPorosityUpdate(
+        computeTransportPorosityUpdate(
             phi, phi_prev - n_l_prev, n_l_prev, ogs_update.n_l,
             /*volumetric_strain=*/0.0, /*volumetric_strain_prev=*/0.0,
             MacroPorosityUpdateMode::AlgebraicSplit);
@@ -683,7 +683,7 @@ TEST(RichardsMechanics, NotebookSingleIntegrationPointReferencePath)
                 comparisonTolerance(transport_porosity_update.phi_m_prev,
                                     n_l_prev));
 
-    double const analytic_dn_l_dpL = computeVKImplicitNlDpL(
+    double const analytic_dn_l_dpL = computeImplicitNlDpL(
         n_l_prev, p_L, dt, rho_LR, drho_LR_dpL, alpha_bar, mu, macro_potential,
         ogs_update.micro_potential, ogs_update.exchange,
         {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
@@ -695,7 +695,7 @@ TEST(RichardsMechanics, NotebookSingleIntegrationPointReferencePath)
                 comparisonTolerance(analytic_dn_l_dpL, reference_dn_l_dpL,
                                     5e-5, 1e-18));
 
-    auto const fd_diagnostic = computeVKLocalJacobianDiagnosticData(
+    auto const fd_diagnostic = computeLocalJacobianDiagnosticData(
         n_l_prev, p_L, dt, rho_LR, drho_LR_dpL, alpha_bar, mu,
         potential_exchange_params.pressure_tolerance,
         {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
@@ -777,16 +777,16 @@ TEST(RichardsMechanics, NotebookBranchSensitivityNearMacroPotentialTransition)
             EXPECT_DOUBLE_EQ(macro_potential.mu_LR, p_L / rho_LR);
         }
 
-        auto const ogs_update = solveVKImplicitMicroWaterContent(
+        auto const ogs_update = solveImplicitMicroWaterContent(
             n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
             {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
             potential_exchange_params);
         ASSERT_TRUE(ogs_update.converged);
 
-        auto const reference = solveReferenceVKSinglePoint(
+        auto const reference = solveReferenceNotebookSinglePoint(
             p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
         auto const compatibility_output =
-            computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR,
+            computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR,
                                                        potential_exchange_params);
 
         EXPECT_NEAR(ogs_update.n_l, reference.n_l,
@@ -880,16 +880,16 @@ TEST(RichardsMechanics, NotebookNegativeAttractiveMicroPotentialAdmitsWetting)
     ASSERT_TRUE(macro_potential.saturated_branch);
     ASSERT_DOUBLE_EQ(macro_potential.mu_LR, 0.0);
 
-    auto const ogs_update = solveVKImplicitMicroWaterContent(
+    auto const ogs_update = solveImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveReferenceVKSinglePoint(
+    auto const reference = solveReferenceNotebookSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
     auto const compatibility_output =
-        computeVKCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
+        computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
 
     EXPECT_LT(ogs_update.micro_potential.mu_lR, 0.0);
     EXPECT_GT(ogs_update.exchange.rho_l_hat, 0.0);
@@ -1022,7 +1022,7 @@ TEST(RichardsMechanics, NotebookAlignedSwellingIgnoresExploratoryGains)
         computeNotebookMicroPorositySwellingStressIncrement<2>(
             phi_m_prev, phi_m, C_el, potential_exchange_params);
     KV const actual =
-        computeVKSwellingStressIncrement<2>(
+        computeSwellingStressIncrement<2>(
             phi_m_prev, phi_m, n_l_prev, n_l, p_L_m_prev, p_L_m, C_el, potential_exchange_params);
 
     EXPECT_NEAR((actual - expected).norm(), 0.0, 1e-14);
@@ -1030,7 +1030,7 @@ TEST(RichardsMechanics, NotebookAlignedSwellingIgnoresExploratoryGains)
 
 TEST(RichardsMechanics, NotebookTransportPorositySplitRecomposesTotalPorosity)
 {
-    auto const split = computeVKTransportPorosityUpdate(
+    auto const split = computeTransportPorosityUpdate(
         0.4, 0.27, 0.08, 0.1, 0.0, 0.0,
         MacroPorosityUpdateMode::AlgebraicSplit);
 
@@ -1041,7 +1041,7 @@ TEST(RichardsMechanics, NotebookTransportPorositySplitRecomposesTotalPorosity)
     EXPECT_NEAR(split.phi_M + split.phi_m, 0.4, 1e-14);
     EXPECT_NEAR(split.phi_M_prev + split.phi_m_prev, 0.35, 1e-14);
 
-    auto const clamped = computeVKTransportPorosityUpdate(
+    auto const clamped = computeTransportPorosityUpdate(
         0.25, 0.0, 0.2, 0.4, 0.0, 0.0,
         MacroPorosityUpdateMode::AlgebraicSplit);
     EXPECT_NEAR(clamped.phi_m, 0.25, 1e-14);
@@ -1057,7 +1057,7 @@ TEST(RichardsMechanics, NotebookAdditiveMacroPorosityRateUpdate)
     double const volumetric_strain_prev = 0.0;
     double const volumetric_strain = 1.0e-3;
 
-    auto const split = computeVKTransportPorosityUpdate(
+    auto const split = computeTransportPorosityUpdate(
         0.4, phi_M_prev, phi_m_prev, phi_m, volumetric_strain,
         volumetric_strain_prev,
         MacroPorosityUpdateMode::NotebookAdditiveRate);
@@ -1097,13 +1097,13 @@ TEST(RichardsMechanics, NotebookCurrentPorositySplitMicroSolidFractionMode)
         .volumetric_strain_prev = 0.0};
 
     auto const active_nS =
-        computeVKActiveMicroSolidVolumeFraction(n_l, local_context, potential_exchange_params);
+        computeActiveMicroSolidVolumeFraction(n_l, local_context, potential_exchange_params);
     EXPECT_NEAR(active_nS, 0.75, 1e-12);
 
-    auto const active_output = computeVKCompatibilityMicroHydraulicOutput(
+    auto const active_output = computeCompatibilityMicroHydraulicOutput(
         n_l, rho_LR, local_context, potential_exchange_params);
     auto const reference_output =
-        computeVKCompatibilityMicroHydraulicOutput(n_l, rho_LR, potential_exchange_params);
+        computeCompatibilityMicroHydraulicOutput(n_l, rho_LR, potential_exchange_params);
 
     double const expected_ratio =
         std::pow(active_nS / potential_exchange_params.micro_solid_volume_fraction_reference, 3.0);
@@ -1128,7 +1128,7 @@ TEST(RichardsMechanics, NotebookReducedMicroLiquidDensityEOSReferencePath)
     double const nS = 0.8;
 
     auto const production =
-        computeVKReducedMicroLiquidDensity(n_l, rho_LR, nS, potential_exchange_params);
+        computeReducedMicroLiquidDensity(n_l, rho_LR, nS, potential_exchange_params);
     auto const reference =
         solveReferenceReducedMicroLiquidDensity(n_l, rho_LR, nS, potential_exchange_params);
 
@@ -1170,7 +1170,7 @@ TEST(RichardsMechanics, NotebookScalarStorageLocalSolveReferencePath)
 
     auto const macro_potential =
         computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
-    auto const ogs_update = solveVKImplicitMicroWaterContent(
+    auto const ogs_update = solveImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi,
          .volumetric_strain = volumetric_strain,
@@ -1178,7 +1178,7 @@ TEST(RichardsMechanics, NotebookScalarStorageLocalSolveReferencePath)
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveReferenceVKSinglePoint(
+    auto const reference = solveReferenceNotebookSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
@@ -1188,7 +1188,7 @@ TEST(RichardsMechanics, NotebookScalarStorageLocalSolveReferencePath)
     auto potential_exchange_params_scalar = potential_exchange_params;
     potential_exchange_params_scalar.local_nonlinear_solve_mode =
         LocalNonlinearSolveMode::ScalarExchange;
-    auto const scalar_update = solveVKImplicitMicroWaterContent(
+    auto const scalar_update = solveImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi,
          .volumetric_strain = volumetric_strain,
@@ -1233,7 +1233,7 @@ TEST(RichardsMechanics, NotebookScalarMassStorageLocalSolveReferencePath)
 
     auto const macro_potential =
         computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
-    auto const ogs_update = solveVKImplicitMicroWaterContent(
+    auto const ogs_update = solveImplicitMicroWaterContent(
         n_l_prev, dt, rho_LR, alpha_bar, mu, macro_potential,
         {.phi = phi,
          .volumetric_strain = volumetric_strain,
@@ -1241,14 +1241,14 @@ TEST(RichardsMechanics, NotebookScalarMassStorageLocalSolveReferencePath)
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveReferenceVKSinglePoint(
+    auto const reference = solveReferenceNotebookSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
                 comparisonTolerance(ogs_update.n_l, reference.n_l,
                                     1e-8, 1e-14));
 
-    double const analytic_dn_l_dpL = computeVKImplicitNlDpL(
+    double const analytic_dn_l_dpL = computeImplicitNlDpL(
         n_l_prev, p_L, dt, rho_LR, 0.0, alpha_bar, mu, macro_potential,
         ogs_update.micro_potential, ogs_update.exchange,
         {.phi = phi,
@@ -1308,11 +1308,11 @@ TEST(RichardsMechanics, NotebookMassStorageCoupledSolveResiduals)
     auto const macro_potential =
         computeYoungLaplaceMacroPotential(p_L, rho_LR, potential_exchange_params.pressure_tolerance);
     auto const prev_micro_liquid_density =
-        computeVKPreviousMicroLiquidDensity(n_l_prev, rho_LR, local_context,
+        computePreviousMicroLiquidDensity(n_l_prev, rho_LR, local_context,
                                             potential_exchange_params);
     double const rho_l_prev = n_l_prev * prev_micro_liquid_density.rho_lR;
 
-    auto const coupled_update = solveVKNotebookMassStorageCoupledState(
+    auto const coupled_update = solveNotebookMassStorageCoupledState(
         n_l_prev, rho_l_prev, prev_micro_liquid_density.rho_lR, dt, rho_LR,
         alpha_bar, mu, macro_potential, local_context, potential_exchange_params);
     ASSERT_TRUE(coupled_update.converged);
@@ -1321,7 +1321,7 @@ TEST(RichardsMechanics, NotebookMassStorageCoupledSolveResiduals)
                                                             phi, 1e-10, 1e-12));
     EXPECT_GT(coupled_update.rho_lR, 0.0);
 
-    double const active_nS = computeVKActiveMicroSolidVolumeFraction(
+    double const active_nS = computeActiveMicroSolidVolumeFraction(
         coupled_update.n_l, local_context, potential_exchange_params);
     auto const micro_potential = computeVanDerWaalsMicroPotential(
         coupled_update.n_l, coupled_update.rho_lR, active_nS,
@@ -1337,7 +1337,7 @@ TEST(RichardsMechanics, NotebookMassStorageCoupledSolveResiduals)
     double const mass_residual =
         rho_l - rho_l_prev - dt * exchange.rho_l_hat -
         dt * rho_l * volumetric_strain_rate;
-    auto const density = computeVKReducedMicroLiquidDensity(
+    auto const density = computeReducedMicroLiquidDensity(
         coupled_update.n_l, rho_LR, active_nS, potential_exchange_params);
     double const density_residual = coupled_update.rho_lR - density.rho_lR;
 
@@ -1401,12 +1401,12 @@ TEST(RichardsMechanics, NotebookOverlapTransferBaselineHistory)
         auto const macro_potential = computeYoungLaplaceMacroPotential(
             row.pressure, rho_LR, potential_exchange_params.pressure_tolerance);
         double const rho_l_prev = n_l_prev * rho_lR_prev;
-        auto const coupled_update = solveVKNotebookMassStorageCoupledState(
+        auto const coupled_update = solveNotebookMassStorageCoupledState(
             n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
             macro_potential, local_context, potential_exchange_params);
         ASSERT_TRUE(coupled_update.converged);
 
-        auto const transport = computeVKTransportPorosityUpdate(
+        auto const transport = computeTransportPorosityUpdate(
             phi, phi - n_l_prev, n_l_prev, coupled_update.n_l, 0.0, 0.0,
             potential_exchange_params.macro_porosity_update_mode);
         double const delta_epsilon_sw = potential_exchange_params.micro_water_content_swelling_slope *
@@ -1506,12 +1506,12 @@ TEST(RichardsMechanics, NotebookStrainCoupledOverlapBaselineHistory)
         auto const macro_potential = computeYoungLaplaceMacroPotential(
             row.pressure, rho_LR, potential_exchange_params.pressure_tolerance);
         double const rho_l_prev = n_l_prev * rho_lR_prev;
-        auto const coupled_update = solveVKNotebookMassStorageCoupledState(
+        auto const coupled_update = solveNotebookMassStorageCoupledState(
             n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
             macro_potential, local_context, potential_exchange_params);
         ASSERT_TRUE(coupled_update.converged);
 
-        auto const transport = computeVKTransportPorosityUpdate(
+        auto const transport = computeTransportPorosityUpdate(
             phi, phi - n_l_prev, n_l_prev, coupled_update.n_l,
             row.epsilon_v_total, volumetric_strain_prev,
             potential_exchange_params.macro_porosity_update_mode);
@@ -1592,7 +1592,7 @@ TEST(RichardsMechanics, PotentialExchangeTangentRepresentativeStates)
             .phi = 0.4,
         },
         {
-            .name = "vk_full_potential_unsaturated",
+            .name = "full_potential_unsaturated",
             .mode = CoupledExchangeReferenceMode::full_potential_vdw,
             .p_L = -1.0e7,
             .p_L_m = 0.0,
@@ -1606,7 +1606,7 @@ TEST(RichardsMechanics, PotentialExchangeTangentRepresentativeStates)
             .phi = 0.4,
         },
         {
-            .name = "vk_full_potential_saturated_helper_branch",
+            .name = "full_potential_saturated_helper_branch",
             .mode = CoupledExchangeReferenceMode::full_potential_vdw,
             .p_L = -50.0,
             .p_L_m = 0.0,
