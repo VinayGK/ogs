@@ -25,7 +25,7 @@
                 <enabled>true</enabled>
                 <mode>full_potential</mode>
                 <pressure_tolerance>1e-12</pressure_tolerance>
-                <hamaker_constant>5.1e-21</hamaker_constant>
+                <hamaker_constant>1.9606596248030517e-15</hamaker_constant>
                 <specific_surface>523</specific_surface>
                 <micro_solid_density_reference>2650</micro_solid_density_reference>
                 <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
