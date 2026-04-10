@@ -5,9 +5,9 @@
 
 #include <cmath>
 
-#include "ProcessLib/RichardsMechanics/VKPotentialExchangeParameters.h"
-#include "ProcessLib/RichardsMechanics/ConstitutiveRelations/VKMicroWaterContent.h"
-#include "ProcessLib/RichardsMechanics/ConstitutiveRelations/VKExchangePotentials.h"
+#include "ProcessLib/RichardsMechanics/PotentialExchangeParameters.h"
+#include "ProcessLib/RichardsMechanics/ConstitutiveRelations/MicroWaterContent.h"
+#include "ProcessLib/RichardsMechanics/ConstitutiveRelations/PotentialExchange.h"
 
 using namespace ProcessLib::RichardsMechanics;
 

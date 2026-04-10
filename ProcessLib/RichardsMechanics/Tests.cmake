@@ -153,7 +153,7 @@ add_test(
         -DBINARY_DIR=${Data_BINARY_DIR}/RichardsMechanics
         -DSOURCE_CSV=${Data_SOURCE_DIR}/RichardsMechanics/beacon_1a01_vk_notebook_roles_history.csv
         -DOUTPUT_CSV=${Data_BINARY_DIR}/RichardsMechanics/beacon_1a01_vk_notebook_roles_history.csv
-        -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/VKHistoryExtraction.cmake
+        -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/HistoryExtraction.cmake
     WORKING_DIRECTORY ${Data_BINARY_DIR}/RichardsMechanics
 )
 set_tests_properties(
@@ -167,7 +167,7 @@ add_test(
     NAME ogs-RichardsMechanics_beacon_1a01_vk_notebook_roles_history_trend
     COMMAND
         ${Python_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/scripts/vk_history_trend_check.py
+        ${PROJECT_SOURCE_DIR}/scripts/history_trend_check.py
         --reference ${Data_SOURCE_DIR}/RichardsMechanics/beacon_1a01_vk_notebook_roles_history.csv
         --actual ${Data_BINARY_DIR}/RichardsMechanics/beacon_1a01_vk_notebook_roles_history.csv
     WORKING_DIRECTORY ${Data_BINARY_DIR}/RichardsMechanics

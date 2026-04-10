@@ -11,7 +11,7 @@
 #include "MaterialLib/MPL/MaterialSpatialDistributionMap.h"
 #include "ParameterLib/Parameter.h"
 #include "ProcessLib/Common/HydroMechanics/InitialStress.h"
-#include "VKPotentialExchangeParameters.h"
+#include "PotentialExchangeParameters.h"
 
 namespace MaterialLib
 {

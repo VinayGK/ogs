@@ -12,7 +12,7 @@
 #include "BaseLib/Logging.h"
 #include "ComputeMicroPorosity.h"
 #include "ConstitutiveRelations/ConstitutiveModels.h"
-#include "ConstitutiveRelations/VKExchangePotentials.h"
+#include "ConstitutiveRelations/PotentialExchange.h"
 #include "IntegrationPointData.h"
 #include "MaterialLib/MPL/Medium.h"
 #include "MaterialLib/MPL/Utils/FormEigenTensor.h"

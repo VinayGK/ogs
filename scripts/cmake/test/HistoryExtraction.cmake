@@ -19,7 +19,7 @@ file(MAKE_DIRECTORY "${BINARY_DIR}")
 execute_process(
     COMMAND
         "${PYTHON_EXECUTABLE}"
-        "${PROJECT_SOURCE_DIR}/scripts/vk_extract_observables.py"
+        "${PROJECT_SOURCE_DIR}/scripts/extract_observables.py"
         --glob "${BINARY_DIR}/beacon_1a01_vk_notebook_roles_t_*.vtu"
         --output "${OUTPUT_CSV}"
         --arrays
