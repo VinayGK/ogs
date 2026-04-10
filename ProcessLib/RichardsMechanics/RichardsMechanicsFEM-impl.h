@@ -28,71 +28,6 @@ namespace ProcessLib
 {
 namespace RichardsMechanics
 {
-// Phase 1 (reversible, audit-only): adapt OGS RM hydraulic variables to the
-// current VK notebook notation under the Richards convention.
-template <int DisplacementDim>
-struct VKPhase1HydraulicAdapterState
-{
-    double p_L_ip = 0.0;
-    double p_L_prev_ip = 0.0;
-    double p_cap_ip = 0.0;
-    double pLR = 0.0;
-    double pLR_prev = 0.0;
-    double pLR_dot = 0.0;
-    Eigen::Vector<double, DisplacementDim> grad_pL =
-        Eigen::Vector<double, DisplacementDim>::Zero();
-    Eigen::Vector<double, DisplacementDim> grad_pLR =
-        Eigen::Vector<double, DisplacementDim>::Zero();
-};
-
-template <int DisplacementDim, typename DShapePressureMatrix,
-          typename PressureVector>
-VKPhase1HydraulicAdapterState<DisplacementDim> makeVKPhase1HydraulicAdapterState(
-    double const p_cap_ip, double const p_cap_prev_ip,
-    DShapePressureMatrix const& dNdx_p, PressureVector const& p_L,
-    double const dt)
-{
-    VKPhase1HydraulicAdapterState<DisplacementDim> state;
-
-    // OGS RichardsMechanics currently interpolates p_cap = -p_L in the local
-    // assembler. Phase 1 keeps the same variables and introduces only a naming
-    // adapter for the notebook integration work.
-    state.p_cap_ip = p_cap_ip;
-    state.p_L_ip = -p_cap_ip;
-    state.p_L_prev_ip = -p_cap_prev_ip;
-
-    // Richards-adhering Phase 1 mapping used in the transition note:
-    // pLR := pL, dpLR/dt := dpL/dt, grad(pLR) := grad(pL).
-    state.pLR = state.p_L_ip;
-    state.pLR_prev = state.p_L_prev_ip;
-    state.pLR_dot =
-        dt > 0.0 ? (state.pLR - state.pLR_prev) / dt : 0.0;
-
-    state.grad_pL.noalias() = dNdx_p * p_L;
-    state.grad_pLR = state.grad_pL;
-
-    return state;
-}
-
-template <int DisplacementDim>
-void maybeLogVKPhase1HydraulicAdapter(
-    VKPhase1HydraulicAdapterState<DisplacementDim> const& state)
-{
-    static std::once_flag once;
-    std::call_once(once, [&state]()
-    {
-        bool const richards_pc_identity_valid = state.p_L_ip <= 0.0;
-        INFO(
-            "[RM Phase1 adapter] Richards->VK mapping (audit-only): pL_ip={} "
-            "Pa, pL_prev_ip={} Pa, pc_ip={} Pa, pLR={} Pa, pLR_prev={} Pa, "
-            "pLR_dot={} Pa/s, |grad pL|={}, |grad pLR|={}, pc=-pL valid={} "
-            "(valid on unsaturated branch pL<=0).",
-            state.p_L_ip, state.p_L_prev_ip, state.p_cap_ip, state.pLR,
-            state.pLR_prev, state.pLR_dot, state.grad_pL.norm(),
-            state.grad_pLR.norm(), richards_pc_identity_valid);
-    });
-}
-
 inline bool isVKPotentialExchangeEnabled(
     VKPotentialExchangeParameters const* const potential_exchange_parameters)
 {
@@ -129,24 +64,6 @@ inline double getVKPotentialPressureTolerance(
     return getVKPotentialPressureTolerance(
         potential_exchange_parameters ? &*potential_exchange_parameters
                                          : nullptr);
-}
-
-inline void maybeLogVKPhase2BMacroPotential(double const p_L_ip,
-                                            double const rho_LR,
-                                            double const pressure_tolerance)
-{
-    static std::once_flag once;
-    std::call_once(once, [=]()
-    {
-        auto const mu_data = computeYoungLaplaceMacroPotential(
-            p_L_ip, rho_LR, pressure_tolerance);
-        INFO(
-            "[RM Phase2B macro-potential] audit-only helper: pLR={} Pa "
-            "(Phase1 mapping pLR:=pL), rho_LR={} kg/m^3, ptol={} Pa, "
-            "mu_LR={} J/kg, dmu/dpLR={} (J/kg)/Pa, saturated_branch={}.",
-            p_L_ip, rho_LR, pressure_tolerance, mu_data.mu_LR,
-            mu_data.dmu_LR_dpLR, mu_data.saturated_branch);
-    });
 }
 
 struct VKPhase2CPlaceholderExchangeData
@@ -342,48 +259,6 @@ inline VKPhase2CPlaceholderExchangeData computeVKPhase2CPlaceholderExchange(
 
     out.drho_L_hat_dpL_direct = -drho_l_hat_dpL_direct;
     return out;
-}
-
-inline void maybeLogVKPhase2CExchangeSource(
-    double const p_L_ip, double const p_L_m, double const rho_LR,
-    double const alpha_bar, double const mu,
-    VKPhase2CPlaceholderExchangeData const& data)
-{
-    static std::once_flag once;
-    std::call_once(once, [=]()
-    {
-        auto const* const mode_name = data.use_macro_potential_for_active_exchange
-                                          ? "opt-in-macro-helper"
-                                          : "legacy-placeholder";
-        auto const* const micro_mode_name =
-            data.use_vdw_micro_potential_for_active_exchange
-                ? "vdw-from-n_l"
-                : "placeholder-pm_over_rho";
-        auto const* const role_mode_name =
-            data.use_notebook_role_mapping
-                ? "notebook_roles"
-                : (data.use_macro_potential_for_active_exchange
-                ? "current_ogs_roles"
-                : "legacy_placeholder");
-        auto const* const jac_mode_name =
-            data.use_fd_jacobian_for_direct_macro_derivative
-                ? "finite-difference"
-                : "analytic-chain-rule";
-        INFO(
-            "[RM Phase2C exchange] active path (mode='{}', role_mapping='{}', micro='{}'): pL_ip={} Pa, "
-            "pL_m={} Pa, rho_LR={} kg/m^3, alpha_bar={}, mu={} Pa*s, "
-            "alpha_M_eff={}, mu_LR(active)={} J/kg, "
-            "mu_LR(helper audit)={} J/kg, mu_lR(active)={} J/kg, "
-            "rho_L_hat={} kg/(m^3 s), drho_L_hat/dpL (direct)={} "
-            "(kg/(m^3 s))/Pa, jacobian_mode='{}', fd_perturbation={}, saturated_branch={}, "
-            "note='vdW helper may be active for opt-in mode; n_l update uses a local implicit solve with explicit fallback'.",
-            mode_name, role_mode_name, micro_mode_name, p_L_ip, p_L_m, rho_LR,
-            alpha_bar, mu, data.alpha_M_effective, data.mu_LR_active,
-            data.macro_potential.mu_LR, data.mu_lR_placeholder,
-            data.exchange.rho_L_hat, data.drho_L_hat_dpL_direct, jac_mode_name,
-            data.fd_jacobian_perturbation,
-            data.macro_potential.saturated_branch);
-    });
 }
 
 struct VKImplicitMicroWaterContentUpdateData
@@ -2464,11 +2339,6 @@ void RichardsMechanicsLocalAssembler<
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
 
-        [[maybe_unused]] auto const vk_phase1_hydraulic_adapter =
-            makeVKPhase1HydraulicAdapterState<DisplacementDim>(
-                p_cap_ip, p_cap_prev_ip, dNdx_p, p_L, dt);
-        maybeLogVKPhase1HydraulicAdapter(vk_phase1_hydraulic_adapter);
-
         auto const temperature =
             medium->property(MPL::PropertyType::reference_temperature)
                 .template value<double>(variables, x_position, t, dt);
@@ -2498,11 +2368,6 @@ void RichardsMechanicsLocalAssembler<
             liquid_phase.property(MPL::PropertyType::density)
                 .template value<double>(variables, x_position, t, dt);
         variables.density = rho_LR;
-        maybeLogVKPhase2BMacroPotential(
-            -p_cap_ip, rho_LR,
-            getVKPotentialPressureTolerance(
-                this->getVKPotentialExchangeParameters()));
-
         auto const& b = this->process_data_.specific_body_force;
 
         S_L = medium->property(MPL::PropertyType::saturation)
@@ -2822,9 +2687,6 @@ void RichardsMechanicsLocalAssembler<
                 role_mapping,
                 /*use_fd_jacobian_for_direct_macro_derivative=*/false,
                 /*fd_jacobian_perturbation=*/1e-8);
-            maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
-                                            mu, vk_exchange);
-
             rhs.template segment<pressure_size>(pressure_index).noalias() +=
                 N_p.transpose() * vk_exchange.exchange.rho_L_hat * w;
         }
@@ -3308,11 +3170,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
 
-        [[maybe_unused]] auto const vk_phase1_hydraulic_adapter =
-            makeVKPhase1HydraulicAdapterState<DisplacementDim>(
-                p_cap_ip, p_cap_prev_ip, dNdx_p, p_L, dt);
-        maybeLogVKPhase1HydraulicAdapter(vk_phase1_hydraulic_adapter);
-
         auto const temperature =
             medium->property(MPL::PropertyType::reference_temperature)
                 .template value<double>(variables, x_position, t, dt);
@@ -3384,10 +3241,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         double const phi =
             std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(CD).phi;
         double const rho_LR = *std::get<LiquidDensity>(CD);
-        maybeLogVKPhase2BMacroPotential(
-            -p_cap_ip, rho_LR,
-            getVKPotentialPressureTolerance(
-                this->getVKPotentialExchangeParameters()));
         local_Jac
             .template block<displacement_size, pressure_size>(
                 displacement_index, pressure_index)
@@ -3652,9 +3505,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 dmu_lR_vdw_dpL, role_mapping,
                 use_fd_jacobian_for_direct_macro_derivative,
                 fd_jacobian_perturbation);
-            maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
-                                            mu, vk_exchange);
-
             // Phase 2C: activate potential-driven exchange source in the macro
             // balance.
             local_rhs.template segment<pressure_size>(pressure_index)

@@ -6,8 +6,6 @@
 #include <algorithm>
 #include <cassert>
 
-#include "BaseLib/DemangleTypeInfo.h"
-#include "InfoLib/GitInfo.h"
 #include "MaterialLib/MPL/CreateMaterialSpatialDistributionMap.h"
 #include "MaterialLib/MPL/MaterialSpatialDistributionMap.h"
 #include "MaterialLib/MPL/Medium.h"
@@ -27,25 +25,6 @@ namespace RichardsMechanics
 {
 namespace
 {
-char const* toString(MaterialLib::Solids::ConstitutiveModel const model)
-{
-    using MaterialLib::Solids::ConstitutiveModel;
-    switch (model)
-    {
-        case ConstitutiveModel::Ehlers:
-            return "Ehlers";
-        case ConstitutiveModel::LinearElasticIsotropic:
-            return "LinearElasticIsotropic";
-        case ConstitutiveModel::Lubby2:
-            return "Lubby2";
-        case ConstitutiveModel::CreepBGRa:
-            return "CreepBGRa";
-        case ConstitutiveModel::Invalid:
-            return "Invalid";
-    }
-    return "Unknown";
-}
-
 char const* toString(VKPotentialExchangeMode const mode)
 {
     switch (mode)
@@ -169,129 +148,6 @@ VKPotentialExchangeMode parseVKPotentialExchangeMode(std::string const& mode)
         mode);
 }
 
-template <int DisplacementDim>
-void logPhase0TransitionAudit(
-    std::string const& process_name,
-    bool const use_monolithic_scheme,
-    ProcessVariable const& pressure_process_variable,
-    ProcessVariable const& displacement_process_variable,
-    std::map<int, std::shared_ptr<MaterialPropertyLib::Medium>> const& media,
-    std::map<int,
-             std::shared_ptr<MaterialLib::Solids::MechanicsBase<DisplacementDim>>> const&
-        solid_constitutive_relations,
-    std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
-    std::optional<VKPotentialExchangeParameters> const&
-        potential_exchange_parameters,
-    std::map<int, VKPotentialExchangeParameters> const&
-        potential_exchange_parameters_by_material)
-{
-    namespace MPL = MaterialPropertyLib;
-
-    INFO(
-        "[RM Phase0 audit] process='{}', OGS='{}', scheme='{}', pressure PV='{}' (1 comp), displacement PV='{}' ({} comp).",
-        process_name, GitInfoLib::GitInfo::ogs_version,
-        use_monolithic_scheme ? "monolithic" : "staggered",
-        pressure_process_variable.getName(), displacement_process_variable.getName(),
-        displacement_process_variable.getNumberOfGlobalComponents());
-
-    INFO(
-        "[RM Phase0 audit] Hydraulic convention in DS-RM local assembler: capillary pressure is derived from the FE pressure variable as p_c = -p_L (e.g. interpolate(-p_L, ...)); the process config has no explicit gas-pressure parameter.");
-
-    INFO(
-        "[RM Phase0 audit] Current DS-RM implementation also sets MPL variable gas_phase_pressure = 1.0e5 Pa in RichardsMechanicsFEM-impl.h (hardcoded, with TODO comment).");
-
-    if (micro_porosity_parameters)
-    {
-        INFO(
-            "[RM Phase0 audit] Micro-porosity constitutive hook: ENABLED (mass_exchange_coefficient = {}).",
-            micro_porosity_parameters->mass_exchange_coefficient);
-    }
-    else
-    {
-        INFO("[RM Phase0 audit] Micro-porosity constitutive hook: DISABLED.");
-    }
-
-    if (potential_exchange_parameters)
-    {
-        auto const& vkp = *potential_exchange_parameters;
-        INFO(
-            "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, rho_l0={}, a_rho={}, b_rho={}, micro_potential_convention='{}', local_nonlinear_solve_mode='{}', macro_porosity_update_mode='{}', micro_solid_volume_fraction_mode='{}', potential_role_mapping='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={}, vdw_relaxation_stress_gain={}, micro_water_content_stress_gain={}, micro_water_content_swelling_slope={} ).",
-            vkp.enabled ? "true" : "false", toString(vkp.mode),
-            vkp.pressure_tolerance, vkp.hamaker_constant, vkp.specific_surface,
-            vkp.micro_solid_density_reference,
-            vkp.micro_solid_volume_fraction_reference,
-            vkp.micro_liquid_density_reference, vkp.micro_liquid_density_a,
-            vkp.micro_liquid_density_b,
-            toString(vkp.micro_potential_convention),
-            toString(vkp.local_nonlinear_solve_mode),
-            toString(vkp.macro_porosity_update_mode),
-            toString(vkp.micro_solid_volume_fraction_mode),
-            toString(vkp.potential_role_mapping),
-            vkp.initial_micro_water_content
-                ? std::to_string(*vkp.initial_micro_water_content)
-                : std::string{"<unset>"},
-            vkp.use_fd_jacobian_for_exchange ? "true" : "false",
-            vkp.fd_jacobian_perturbation,
-            vkp.check_local_jacobian ? "true" : "false",
-            vkp.local_jacobian_perturbation,
-            vkp.local_jacobian_relative_tolerance,
-            vkp.vdw_relaxation_stress_gain,
-            vkp.micro_water_content_stress_gain,
-            vkp.micro_water_content_swelling_slope);
-    }
-    else
-    {
-        INFO("[RM Phase0 audit] VK potential-exchange config block: ABSENT.");
-    }
-
-    if (!potential_exchange_parameters_by_material.empty())
-    {
-        INFO(
-            "[RM Phase0 audit] VK potential-exchange medium-specific overrides: {} material ids configured.",
-            potential_exchange_parameters_by_material.size());
-    }
-    else
-    {
-        INFO(
-            "[RM Phase0 audit] VK potential-exchange medium-specific overrides: none.");
-    }
-
-    INFO(
-        "[RM Phase0 audit] Output/postprocessing note: the RM primary process variable named '{}' is the FE pressure variable (liquid-pressure convention in the current DS-RM code path); capillary pressure is an internal derived quantity.",
-        pressure_process_variable.getName());
-
-    for (auto const& [material_id, medium] : media)
-    {
-        auto const& solid_phase = medium->phase("Solid");
-        bool const has_swelling =
-            solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate);
-        bool const has_saturation_micro =
-            medium->hasProperty(MPL::PropertyType::saturation_micro);
-
-        auto const cr_it = solid_constitutive_relations.find(material_id);
-        char const* solid_model_name = "Missing";
-        std::string solid_model_type = "Missing";
-        if (cr_it != solid_constitutive_relations.end() && cr_it->second)
-        {
-            solid_model_name = toString(cr_it->second->getConstitutiveModel());
-            solid_model_type = BaseLib::demangle(typeid(*cr_it->second).name());
-        }
-
-        INFO(
-            "[RM Phase0 audit] material_id={} solid_model_enum={} solid_model_type='{}' swelling_stress_rate={} saturation_micro={} bishops_effective_stress={} saturation={} porosity={} relative_permeability={}.",
-            material_id, solid_model_name, solid_model_type,
-            has_swelling ? "yes" : "no",
-            has_saturation_micro ? "yes" : "no",
-            medium->hasProperty(MPL::PropertyType::bishops_effective_stress)
-                ? "yes"
-                : "no",
-            medium->hasProperty(MPL::PropertyType::saturation) ? "yes" : "no",
-            medium->hasProperty(MPL::PropertyType::porosity) ? "yes" : "no",
-            medium->hasProperty(MPL::PropertyType::relative_permeability)
-                ? "yes"
-                : "no");
-    }
-}
 }  // namespace
 
 void checkMPLProperties(
@@ -874,12 +730,6 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
 
     bool const use_numerical_jacobian =
         jacobian_assembler->isPerturbationEnabled();
-
-    logPhase0TransitionAudit<DisplacementDim>(
-        name, use_monolithic_scheme, *variable_p, *variable_u, media,
-        solid_constitutive_relations, micro_porosity_parameters,
-        potential_exchange_parameters,
-        potential_exchange_parameters_by_material);
 
     RichardsMechanicsProcessData<DisplacementDim> process_data{
         materialIDs(mesh),
