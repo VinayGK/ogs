@@ -14,6 +14,6 @@ using VKMicroLiquidDensity =
 
 constexpr std::string_view ioName(struct VKMicroLiquidDensityTag*)
 {
-    return "vk_micro_liquid_density";
+    return "micro_liquid_density";
 }
 }  // namespace ProcessLib::RichardsMechanics

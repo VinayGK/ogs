@@ -64,9 +64,9 @@ def compare_trends(reference: list[dict[str, str]], actual: list[dict[str, str]]
         ("pressure_mean", "inc"),
         ("micro_pressure_mean", "dec"),
         ("micro_saturation_mean", "inc"),
-        ("vk_micro_water_content_mean", "inc"),
-        ("vk_micro_porosity_mean", "inc"),
-        ("vk_micro_exchange_source_mean", "dec"),
+        ("micro_water_content_mean", "inc"),
+        ("micro_porosity_mean", "inc"),
+        ("micro_exchange_source_mean", "dec"),
         ("swelling_stress_c0_mean", "dec"),
         ("sigma_c0_mean", "dec"),
     ]
@@ -91,17 +91,17 @@ def compare_trends(reference: list[dict[str, str]], actual: list[dict[str, str]]
                 f"Trend mismatch for '{column}': reference {ref_trend}, actual {act_trend}."
             )
 
-    actual_n_l = as_float_rows(actual, "vk_micro_water_content_mean")
-    actual_phi_m = as_float_rows(actual, "vk_micro_porosity_mean")
-    actual_exchange = as_float_rows(actual, "vk_micro_exchange_source_mean")
+    actual_n_l = as_float_rows(actual, "micro_water_content_mean")
+    actual_phi_m = as_float_rows(actual, "micro_porosity_mean")
+    actual_exchange = as_float_rows(actual, "micro_exchange_source_mean")
     actual_sigma = as_float_rows(actual, "sigma_c0_mean")
 
     if not is_monotone_non_decreasing(actual_n_l, tol=1e-15):
-        raise SystemExit("Actual vk_micro_water_content_mean is not monotone non-decreasing.")
+        raise SystemExit("Actual micro_water_content_mean is not monotone non-decreasing.")
     if not is_monotone_non_decreasing(actual_phi_m, tol=1e-15):
-        raise SystemExit("Actual vk_micro_porosity_mean is not monotone non-decreasing.")
+        raise SystemExit("Actual micro_porosity_mean is not monotone non-decreasing.")
     if any(value <= 0.0 for value in actual_exchange):
-        raise SystemExit("Actual vk_micro_exchange_source_mean is not strictly positive.")
+        raise SystemExit("Actual micro_exchange_source_mean is not strictly positive.")
     if not (abs(actual_sigma[-1]) > abs(actual_sigma[0])):
         raise SystemExit("Actual sigma_c0_mean magnitude did not grow.")
 

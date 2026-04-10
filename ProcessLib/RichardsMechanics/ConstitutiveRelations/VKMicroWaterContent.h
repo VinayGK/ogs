@@ -14,7 +14,7 @@ using VKMicroWaterContent =
 
 constexpr std::string_view ioName(struct VKMicroWaterContentTag*)
 {
-    return "vk_micro_water_content";
+    return "micro_water_content";
 }
 
 using VKMicroExchangeSource =
@@ -22,6 +22,6 @@ using VKMicroExchangeSource =
 
 constexpr std::string_view ioName(struct VKMicroExchangeSourceTag*)
 {
-    return "vk_micro_exchange_source";
+    return "micro_exchange_source";
 }
 }  // namespace ProcessLib::RichardsMechanics

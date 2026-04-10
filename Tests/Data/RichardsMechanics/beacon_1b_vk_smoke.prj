@@ -11,7 +11,7 @@
                 <mass_exchange_coefficient>1e-13</mass_exchange_coefficient>
                 <nonlinear_solver><maximum_iterations>100</maximum_iterations><residuum_tolerance>1e-8</residuum_tolerance><increment_tolerance>1e-20</increment_tolerance></nonlinear_solver>
             </micro_porosity>
-            <vk_potential_exchange>
+            <potential_exchange>
                 <enabled>true</enabled>
                 <mode>full_potential</mode>
                 <pressure_tolerance>0.0</pressure_tolerance>
@@ -21,7 +21,7 @@
                 <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
                 <initial_micro_water_content>0.1</initial_micro_water_content>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
-            </vk_potential_exchange>
+            </potential_exchange>
             <constitutive_relation><type>LinearElasticIsotropic</type><youngs_modulus>E</youngs_modulus><poissons_ratio>nu</poissons_ratio></constitutive_relation>
             <process_variables><pressure>pressure</pressure><displacement>displacement</displacement></process_variables>
             <secondary_variables>

@@ -20,7 +20,7 @@
                  by using positive liquid pressure, and make the attractive vdW
                  microscale term larger by lowering the initial micro water
                  content and using literature-scale clay values. -->
-            <vk_potential_exchange>
+            <potential_exchange>
                 <enabled>true</enabled>
                 <mode>full_potential</mode>
                 <pressure_tolerance>0.0</pressure_tolerance>
@@ -33,7 +33,7 @@
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
-            </vk_potential_exchange>
+            </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
                 <youngs_modulus>E</youngs_modulus>
@@ -54,9 +54,9 @@
                 <secondary_variable name="dry_density_solid"/>
                 <secondary_variable name="micro_saturation"/>
                 <secondary_variable name="micro_pressure"/>
-                <secondary_variable name="vk_micro_water_content"/>
-                <secondary_variable name="vk_micro_porosity"/>
-                <secondary_variable name="vk_micro_exchange_source"/>
+                <secondary_variable name="micro_water_content"/>
+                <secondary_variable name="micro_porosity"/>
+                <secondary_variable name="micro_exchange_source"/>
             </secondary_variables>
             <specific_body_force>0 0</specific_body_force>
             <initial_stress>sigma0</initial_stress>
@@ -128,7 +128,7 @@
             <prefix>beacon_1a01_vk_inflow</prefix>
             <suffix>_t_{:time}</suffix>
             <fixed_output_times>1e3 1e4 5e4 1e5</fixed_output_times>
-            <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>vk_micro_water_content</variable><variable>vk_micro_porosity</variable><variable>vk_micro_exchange_source</variable><variable>swelling_stress</variable><variable>sigma</variable></variables>
+            <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>micro_water_content</variable><variable>micro_porosity</variable><variable>micro_exchange_source</variable><variable>swelling_stress</variable><variable>sigma</variable></variables>
         </output>
     </time_loop>
     <parameters>

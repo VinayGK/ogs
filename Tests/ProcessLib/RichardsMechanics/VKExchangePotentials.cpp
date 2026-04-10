@@ -152,7 +152,7 @@ TEST(RichardsMechanics, VKVanDerWaalsMicroPotentialNegativeAttractiveConvention)
 TEST(RichardsMechanics, VKMicroExchangeSourceIoName)
 {
     EXPECT_EQ(ioName(static_cast<VKMicroExchangeSourceTag*>(nullptr)),
-              "vk_micro_exchange_source");
+              "micro_exchange_source");
 }
 
 TEST(RichardsMechanics, VKPotentialDrivenMassExchange)

@@ -13,6 +13,6 @@ using VKMicroPorosity = BaseLib::StrongType<double, struct VKMicroPorosityTag>;
 
 constexpr std::string_view ioName(struct VKMicroPorosityTag*)
 {
-    return "vk_micro_porosity";
+    return "micro_porosity";
 }
 }  // namespace ProcessLib::RichardsMechanics

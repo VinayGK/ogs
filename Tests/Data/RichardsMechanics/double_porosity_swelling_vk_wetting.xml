@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <OpenGeoSysProjectDiff base_file="double_porosity_swelling.prj">
     <add sel="/*/processes/process[1]">
-        <vk_potential_exchange>
+        <potential_exchange>
             <enabled>true</enabled>
             <mode>full_potential</mode>
             <pressure_tolerance>0.0</pressure_tolerance>
@@ -13,7 +13,7 @@
             <check_local_jacobian>true</check_local_jacobian>
             <local_jacobian_perturbation>1e-8</local_jacobian_perturbation>
             <local_jacobian_relative_tolerance>1e-3</local_jacobian_relative_tolerance>
-        </vk_potential_exchange>
+        </potential_exchange>
     </add>
     <replace msel="/*/processes/process[1]/micro_porosity/mass_exchange_coefficient/text()">
         1e-13

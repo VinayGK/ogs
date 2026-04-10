@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <OpenGeoSysProjectDiff base_file="double_porosity_swelling.prj">
     <add sel="/*/processes/process[1]">
-        <vk_potential_exchange>
+        <potential_exchange>
             <enabled>true</enabled>
             <mode>full_potential</mode>
             <pressure_tolerance>0.0</pressure_tolerance>
@@ -11,7 +11,7 @@
             <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
             <initial_micro_water_content>0.1</initial_micro_water_content>
             <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
-        </vk_potential_exchange>
+        </potential_exchange>
     </add>
 
     <!-- Keep the macro field as simple as possible: the initial pressure and the

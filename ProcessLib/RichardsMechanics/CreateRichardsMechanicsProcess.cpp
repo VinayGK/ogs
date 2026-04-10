@@ -69,7 +69,7 @@ VKMicroPotentialConvention parseVKMicroPotentialConvention(
     }
 
     OGS_FATAL(
-        "RichardsMechanics: unsupported vk_potential_exchange "
+        "RichardsMechanics: unsupported potential_exchange "
         "micro_potential_convention '{}'. Currently supported: "
         "'positive_reduced', 'negative_attractive'.",
         convention);
@@ -92,7 +92,7 @@ VKLocalNonlinearSolveMode parseVKLocalNonlinearSolveMode(
     }
 
     OGS_FATAL(
-        "RichardsMechanics: unsupported vk_potential_exchange "
+        "RichardsMechanics: unsupported potential_exchange "
         "local_nonlinear_solve_mode '{}'. Currently supported: "
         "'scalar_exchange', 'scalar_notebook_storage', "
         "'scalar_notebook_mass_storage'.",
@@ -112,7 +112,7 @@ VKMacroPorosityUpdateMode parseVKMacroPorosityUpdateMode(
     }
 
     OGS_FATAL(
-        "RichardsMechanics: unsupported vk_potential_exchange "
+        "RichardsMechanics: unsupported potential_exchange "
         "macro_porosity_update_mode '{}'. Currently supported: "
         "'algebraic_split', 'notebook_additive_rate'.",
         mode);
@@ -131,7 +131,7 @@ VKMicroSolidVolumeFractionMode parseVKMicroSolidVolumeFractionMode(
     }
 
     OGS_FATAL(
-        "RichardsMechanics: unsupported vk_potential_exchange "
+        "RichardsMechanics: unsupported potential_exchange "
         "micro_solid_volume_fraction_mode '{}'. Currently supported: "
         "'reference', 'current_porosity_split'.",
         mode);
@@ -150,7 +150,7 @@ VKPotentialExchangeRoleMapping parseVKPotentialExchangeRoleMapping(
     }
 
     OGS_FATAL(
-        "RichardsMechanics: unsupported vk_potential_exchange "
+        "RichardsMechanics: unsupported potential_exchange "
         "potential_role_mapping '{}'. Currently supported: 'current_ogs', "
         "'notebook_roles'.",
         mapping);
@@ -164,7 +164,7 @@ VKPotentialExchangeMode parseVKPotentialExchangeMode(std::string const& mode)
     }
 
     OGS_FATAL(
-        "RichardsMechanics: unsupported vk_potential_exchange mode '{}'. "
+        "RichardsMechanics: unsupported potential_exchange mode '{}'. "
         "Currently supported: 'full_potential'.",
         mode);
 }
@@ -181,9 +181,9 @@ void logPhase0TransitionAudit(
         solid_constitutive_relations,
     std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
     std::optional<VKPotentialExchangeParameters> const&
-        vk_potential_exchange_parameters,
+        potential_exchange_parameters,
     std::map<int, VKPotentialExchangeParameters> const&
-        vk_potential_exchange_parameters_by_material)
+        potential_exchange_parameters_by_material)
 {
     namespace MPL = MaterialPropertyLib;
 
@@ -211,9 +211,9 @@ void logPhase0TransitionAudit(
         INFO("[RM Phase0 audit] Micro-porosity constitutive hook: DISABLED.");
     }
 
-    if (vk_potential_exchange_parameters)
+    if (potential_exchange_parameters)
     {
-        auto const& vkp = *vk_potential_exchange_parameters;
+        auto const& vkp = *potential_exchange_parameters;
         INFO(
             "[RM Phase0 audit] VK potential-exchange config block: PRESENT (enabled={}, mode='{}', pressure_tolerance={} Pa, hamaker_constant={}, specific_surface={}, rho_SR_ref={}, n_S_ref={}, rho_l0={}, a_rho={}, b_rho={}, micro_potential_convention='{}', local_nonlinear_solve_mode='{}', macro_porosity_update_mode='{}', micro_solid_volume_fraction_mode='{}', potential_role_mapping='{}', initial_n_l={}, fd_jacobian_for_exchange={}, fd_jacobian_perturbation={}, check_local_jacobian={}, local_jacobian_perturbation={}, local_jacobian_relative_tolerance={}, vdw_relaxation_stress_gain={}, micro_water_content_stress_gain={}, micro_water_content_swelling_slope={} ).",
             vkp.enabled ? "true" : "false", toString(vkp.mode),
@@ -244,11 +244,11 @@ void logPhase0TransitionAudit(
         INFO("[RM Phase0 audit] VK potential-exchange config block: ABSENT.");
     }
 
-    if (!vk_potential_exchange_parameters_by_material.empty())
+    if (!potential_exchange_parameters_by_material.empty())
     {
         INFO(
             "[RM Phase0 audit] VK potential-exchange medium-specific overrides: {} material ids configured.",
-            vk_potential_exchange_parameters_by_material.size());
+            potential_exchange_parameters_by_material.size());
     }
     else
     {
@@ -322,19 +322,19 @@ void validateMicroPorosityAndVKConfiguration(
     std::map<int, std::shared_ptr<MaterialPropertyLib::Medium>> const& media,
     std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
     std::optional<VKPotentialExchangeParameters> const&
-        vk_potential_exchange_parameters,
+        potential_exchange_parameters,
     std::map<int, VKPotentialExchangeParameters> const&
-        vk_potential_exchange_parameters_by_material)
+        potential_exchange_parameters_by_material)
 {
     namespace MPL = MaterialPropertyLib;
 
     bool const micro_porosity_enabled = micro_porosity_parameters.has_value();
     bool any_saturation_micro = false;
     bool const any_vk_enabled =
-        (vk_potential_exchange_parameters &&
-         vk_potential_exchange_parameters->enabled) ||
-        std::any_of(vk_potential_exchange_parameters_by_material.begin(),
-                    vk_potential_exchange_parameters_by_material.end(),
+        (potential_exchange_parameters &&
+         potential_exchange_parameters->enabled) ||
+        std::any_of(potential_exchange_parameters_by_material.begin(),
+                    potential_exchange_parameters_by_material.end(),
                     [](auto const& item) { return item.second.enabled; });
 
     for (auto const& [material_id, medium] : media)
@@ -364,17 +364,17 @@ void validateMicroPorosityAndVKConfiguration(
     if (any_vk_enabled && !micro_porosity_enabled)
     {
         OGS_FATAL(
-            "RichardsMechanics: vk_potential_exchange.enabled=true requires "
+            "RichardsMechanics: potential_exchange.enabled=true requires "
             "a <micro_porosity> process block.");
     }
 
     for (auto const& [material_id, vkp] :
-         vk_potential_exchange_parameters_by_material)
+         potential_exchange_parameters_by_material)
     {
         if (media.find(material_id) == media.end())
         {
             OGS_FATAL(
-                "RichardsMechanics: vk_potential_exchange medium override "
+                "RichardsMechanics: potential_exchange medium override "
                 "references unknown material id {}.",
                 material_id);
         }
@@ -823,41 +823,41 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
                 "mass_exchange_coefficient")};
     }
 
-    std::optional<VKPotentialExchangeParameters> vk_potential_exchange_parameters;
+    std::optional<VKPotentialExchangeParameters> potential_exchange_parameters;
     std::map<int, VKPotentialExchangeParameters>
-        vk_potential_exchange_parameters_by_material;
-    if (auto const vk_potential_exchange_config =
-            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__vk_potential_exchange}
-            config.getConfigSubtreeOptional("vk_potential_exchange"))
+        potential_exchange_parameters_by_material;
+    if (auto const potential_exchange_config =
+            //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__potential_exchange}
+            config.getConfigSubtreeOptional("potential_exchange"))
     {
-        vk_potential_exchange_parameters = parseVKPotentialExchangeParameters(
-            *vk_potential_exchange_config, std::nullopt,
-            "vk_potential_exchange");
+        potential_exchange_parameters = parseVKPotentialExchangeParameters(
+            *potential_exchange_config, std::nullopt,
+            "potential_exchange");
 
         for (auto medium_config :
-             vk_potential_exchange_config->getConfigSubtreeList("medium"))
+             potential_exchange_config->getConfigSubtreeList("medium"))
         {
             int const material_id = medium_config.getConfigAttribute<int>("id");
-            if (!vk_potential_exchange_parameters_by_material
+            if (!potential_exchange_parameters_by_material
                      .emplace(material_id,
                               parseVKPotentialExchangeParameters(
                                   medium_config,
-                                  vk_potential_exchange_parameters,
+                                  potential_exchange_parameters,
                                   fmt::format(
-                                      "vk_potential_exchange medium id {}",
+                                      "potential_exchange medium id {}",
                                       material_id)))
                      .second)
             {
                 OGS_FATAL(
-                    "RichardsMechanics: duplicate vk_potential_exchange medium override for material id {}.",
+                    "RichardsMechanics: duplicate potential_exchange medium override for material id {}.",
                     material_id);
             }
         }
     }
 
     validateMicroPorosityAndVKConfiguration(
-        media, micro_porosity_parameters, vk_potential_exchange_parameters,
-        vk_potential_exchange_parameters_by_material);
+        media, micro_porosity_parameters, potential_exchange_parameters,
+        potential_exchange_parameters_by_material);
 
     auto const mass_lumping =
         //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__mass_lumping}
@@ -878,8 +878,8 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
     logPhase0TransitionAudit<DisplacementDim>(
         name, use_monolithic_scheme, *variable_p, *variable_u, media,
         solid_constitutive_relations, micro_porosity_parameters,
-        vk_potential_exchange_parameters,
-        vk_potential_exchange_parameters_by_material);
+        potential_exchange_parameters,
+        potential_exchange_parameters_by_material);
 
     RichardsMechanicsProcessData<DisplacementDim> process_data{
         materialIDs(mesh),
@@ -888,8 +888,8 @@ std::unique_ptr<Process> createRichardsMechanicsProcess(
         initial_stress,
         specific_body_force,
         micro_porosity_parameters,
-        vk_potential_exchange_parameters,
-        vk_potential_exchange_parameters_by_material,
+        potential_exchange_parameters,
+        potential_exchange_parameters_by_material,
         mass_lumping,
         explicit_hm_coupling_in_unsaturated_zone,
         use_numerical_jacobian};

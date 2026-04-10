@@ -26,9 +26,9 @@ execute_process(
         pressure
         micro_pressure
         micro_saturation
-        vk_micro_water_content
-        vk_micro_porosity
-        vk_micro_exchange_source
+        micro_water_content
+        micro_porosity
+        micro_exchange_source
         swelling_stress
         sigma
     RESULT_VARIABLE extract_result
