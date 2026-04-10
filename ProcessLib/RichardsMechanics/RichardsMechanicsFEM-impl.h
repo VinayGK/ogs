@@ -122,7 +122,7 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
     out.use_vdw_micro_potential_for_active_exchange =
         use_vdw_micro_potential_for_active_exchange;
     bool const use_notebook_role_mapping =
-        role_mapping == PotentialExchangeRoleMapping::NotebookRoles;
+        role_mapping == PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     out.use_notebook_role_mapping = use_notebook_role_mapping;
     out.use_fd_jacobian_for_direct_macro_derivative =
         use_fd_jacobian_for_direct_macro_derivative;
@@ -550,7 +550,7 @@ struct NotebookMassStorageCoupledSolveData
 };
 
 inline NotebookMassStorageCoupledSolveData
-solveNotebookMassStoragePredictorState(
+solveReferenceMassStoragePredictorState(
     double const n_l_prev, double const rho_l_prev, double const rho_lR_prev,
     double const dt, double const rho_LR, double const alpha_bar,
     double const mu, YoungLaplaceMacroPotentialData const& macro_potential,
@@ -693,7 +693,7 @@ solveNotebookMassStoragePredictorState(
 }
 
 inline NotebookMassStorageCoupledSolveData
-solveNotebookMassStorageCoupledState(
+solveReferenceMassStorageCoupledState(
     double const n_l_prev, double const rho_l_prev, double const rho_lR_prev,
     double const dt, double const rho_LR, double const alpha_bar,
     double const mu, YoungLaplaceMacroPotentialData const& macro_potential,
@@ -735,7 +735,7 @@ solveNotebookMassStorageCoupledState(
                           exchange};
     };
 
-    auto const predictor = solveNotebookMassStoragePredictorState(
+    auto const predictor = solveReferenceMassStoragePredictorState(
         n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
         macro_potential, local_context, potential_exchange_params);
     if (!predictor.converged)
@@ -894,7 +894,7 @@ solveNotebookMassStorageCoupledState(
 }
 
 template <int DisplacementDim>
-inline void applyNotebookMassStorageLocalState(
+inline void applyReferenceMassStorageLocalState(
     StatefulData<DisplacementDim>& state_current,
     StatefulDataPrev<DisplacementDim> const& state_previous,
     MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
@@ -955,7 +955,7 @@ inline VanDerWaalsMicroPotentialData computeActiveMicroPotential(
         computeActiveMicroSolidVolumeFraction(n_l, local_context, potential_exchange_params);
     double const rho_lR_effective =
         potential_exchange_params.local_nonlinear_solve_mode ==
-                LocalNonlinearSolveMode::ScalarNotebookMassStorage
+                LocalNonlinearSolveMode::ScalarReferenceMassStorage
             ? computeReducedMicroLiquidDensity(n_l, rho_lR, active_nS, potential_exchange_params)
                   .rho_lR
             : rho_lR;
@@ -1002,7 +1002,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
         LocalNonlinearSolveMode::ScalarExchange;
     bool const use_mass_storage =
         potential_exchange_params.local_nonlinear_solve_mode ==
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     double const volumetric_strain_rate =
         dt_safe > 0.0
             ? (local_context.volumetric_strain -
@@ -1011,7 +1011,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
             : 0.0;
     bool const notebook_aligned =
         potential_exchange_params.potential_role_mapping ==
-        PotentialExchangeRoleMapping::NotebookRoles;
+        PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     double const n_l_ceiling =
         (use_notebook_storage && std::isfinite(local_context.phi) &&
          !notebook_aligned)
@@ -1060,7 +1060,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
 
     if (use_mass_storage)
     {
-        auto const coupled_update = solveNotebookMassStorageCoupledState(
+        auto const coupled_update = solveReferenceMassStorageCoupledState(
             n_l_prev, rho_l_prev,
             prev_micro_liquid_density ? prev_micro_liquid_density->rho_lR
                                       : rho_LR,
@@ -1221,7 +1221,7 @@ inline double computeImplicitNlDpL(
     }
 
     if (potential_exchange_params.local_nonlinear_solve_mode ==
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage)
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage)
     {
         constexpr double rho_floor = 1e-16;
         double const perturbation =
@@ -1269,7 +1269,7 @@ inline double computeImplicitNlDpL(
 
     double dr_dn_l = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
     if (potential_exchange_params.local_nonlinear_solve_mode ==
-        LocalNonlinearSolveMode::ScalarNotebookStorage)
+        LocalNonlinearSolveMode::ScalarReferenceStorage)
     {
         double const volumetric_strain_rate =
             (local_context.volumetric_strain -
@@ -1421,17 +1421,17 @@ inline void updateMicroscaleHydraulicState(
 
     auto const& potential_exchange_params = *potential_exchange_parameters;
     if (potential_exchange_params.local_nonlinear_solve_mode ==
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage)
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage)
     {
         auto const macro_potential = computeYoungLaplaceMacroPotential(
             -p_cap_ip, rho_LR, potential_exchange_params.pressure_tolerance);
         double const rho_lR_prev_value = std::max(1e-16, **rho_lR_prev);
         double const rho_l_prev = n_l_prev_value * rho_lR_prev_value;
-        auto const coupled_update = solveNotebookMassStorageCoupledState(
+        auto const coupled_update = solveReferenceMassStorageCoupledState(
             n_l_prev_value, rho_l_prev, rho_lR_prev_value, dt,
             rho_LR, micro_porosity_parameters->mass_exchange_coefficient, mu,
             macro_potential, local_context, potential_exchange_params);
-        applyNotebookMassStorageLocalState<DisplacementDim>(
+        applyReferenceMassStorageLocalState<DisplacementDim>(
             state_current, state_previous, variables, variables_prev, rho_LR, local_context, potential_exchange_params,
             coupled_update);
         return;
@@ -1478,8 +1478,8 @@ inline void updatePorositySplitState(
         potential_exchange_parameters->local_nonlinear_solve_mode;
     bool const notebook_aligned =
         potential_exchange_parameters->potential_role_mapping ==
-        PotentialExchangeRoleMapping::NotebookRoles;
-    if (mode == LocalNonlinearSolveMode::ScalarNotebookMassStorage &&
+        PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+    if (mode == LocalNonlinearSolveMode::ScalarReferenceMassStorage &&
         !notebook_aligned)
     {
         return;
@@ -1495,8 +1495,8 @@ inline void updatePorositySplitState(
     auto const n_l = std::max(1e-16, *std::get<MicroWaterContent>(state_current));
 
     if (notebook_aligned &&
-        (mode == LocalNonlinearSolveMode::ScalarNotebookStorage ||
-         mode == LocalNonlinearSolveMode::ScalarNotebookMassStorage))
+        (mode == LocalNonlinearSolveMode::ScalarReferenceStorage ||
+         mode == LocalNonlinearSolveMode::ScalarReferenceMassStorage))
     {
         // Keep notebook support split aligned with the bridge law:
         // phi_m := n_l while transport_porosity remains the process state.
@@ -1537,11 +1537,11 @@ inline void updateTotalPorosityState(
     }
 
     if ((potential_exchange_parameters->local_nonlinear_solve_mode ==
-             LocalNonlinearSolveMode::ScalarNotebookStorage ||
+             LocalNonlinearSolveMode::ScalarReferenceStorage ||
          potential_exchange_parameters->local_nonlinear_solve_mode ==
-             LocalNonlinearSolveMode::ScalarNotebookMassStorage) &&
+             LocalNonlinearSolveMode::ScalarReferenceMassStorage) &&
         potential_exchange_parameters->potential_role_mapping ==
-            PotentialExchangeRoleMapping::NotebookRoles)
+            PotentialExchangeRoleMapping::MathematicaReferenceRoles)
     {
         // In scalar notebook-storage mode, micro porosity is support-state only.
         // Keep the process porosity state on the medium-law carrier.
@@ -1627,7 +1627,7 @@ computeMicroWaterContentStressIncrement(
 
 template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
-computeNotebookMicroPorositySwellingStressIncrement(
+computeReferenceMicroPorositySwellingStressIncrement(
     double const phi_m_prev, double const phi_m,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
@@ -1669,13 +1669,13 @@ computeSwellingStressIncrement(
 
     bool const notebook_aligned =
         potential_exchange_params.potential_role_mapping ==
-        PotentialExchangeRoleMapping::NotebookRoles;
+        PotentialExchangeRoleMapping::MathematicaReferenceRoles;
 
     KV delta_sigma_sw = KV::Zero();
     if (potential_exchange_params.micro_water_content_swelling_slope > 0.0)
     {
         delta_sigma_sw +=
-            computeNotebookMicroPorositySwellingStressIncrement<
+            computeReferenceMicroPorositySwellingStressIncrement<
                 DisplacementDim>(phi_m_prev, phi_m, C_el, potential_exchange_params);
     }
 

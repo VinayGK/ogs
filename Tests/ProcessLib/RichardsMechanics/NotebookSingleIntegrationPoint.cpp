@@ -20,7 +20,7 @@ using namespace ProcessLib::RichardsMechanics;
 
 namespace
 {
-struct ReferenceNotebookSinglePointData
+struct MathematicaReferenceSinglePointData
 {
     double n_l = 0.0;
     VanDerWaalsMicroPotentialData micro_potential;
@@ -265,7 +265,7 @@ ReducedMicroLiquidDensityData solveReferenceReducedMicroLiquidDensity(
             .drho_l_dn_l = rho_lR + n_l_safe * drho_lR_dnl};
 }
 
-ReferenceNotebookSinglePointData solveReferenceNotebookSinglePoint(
+MathematicaReferenceSinglePointData solveMathematicaReferenceSinglePoint(
     double const p_L, double const n_l_prev, double const dt,
     double const rho_LR, double const alpha_bar, double const mu,
     double const phi, PotentialExchangeParameters const& potential_exchange_params,
@@ -283,7 +283,7 @@ ReferenceNotebookSinglePointData solveReferenceNotebookSinglePoint(
         dt > 0.0 ? (volumetric_strain - volumetric_strain_prev) / dt : 0.0;
     bool const use_mass_storage =
         potential_exchange_params.local_nonlinear_solve_mode ==
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     double const nS_prev = potential_exchange_params.micro_solid_volume_fraction_mode ==
                                    MicroSolidVolumeFractionMode::Reference
                                ? potential_exchange_params.micro_solid_volume_fraction_reference
@@ -446,10 +446,10 @@ double referenceDnLDpL(double const p_L, double const n_l_prev, double const dt,
                        double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
-    auto const plus = solveReferenceNotebookSinglePoint(
+    auto const plus = solveMathematicaReferenceSinglePoint(
         p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
-    auto const minus = solveReferenceNotebookSinglePoint(
+    auto const minus = solveMathematicaReferenceSinglePoint(
         p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     return (plus.n_l - minus.n_l) / (2.0 * h);
@@ -464,10 +464,10 @@ double referenceDrhoLHatDpL(double const p_L, double const n_l_prev,
                             double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
-    auto const plus = solveReferenceNotebookSinglePoint(
+    auto const plus = solveMathematicaReferenceSinglePoint(
         p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
-    auto const minus = solveReferenceNotebookSinglePoint(
+    auto const minus = solveMathematicaReferenceSinglePoint(
         p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     return ((-plus.exchange.rho_l_hat) - (-minus.exchange.rho_l_hat)) /
@@ -526,7 +526,7 @@ double referenceCoupledRhoLHat(
     auto potential_exchange_params_eval = potential_exchange_params;
     potential_exchange_params_eval.pressure_tolerance =
         state.pressure_tolerance;
-    auto const reference = solveReferenceNotebookSinglePoint(
+    auto const reference = solveMathematicaReferenceSinglePoint(
         p_L_eval, state.n_l_prev, state.dt, rho_LR_eval, state.alpha_bar,
         state.mu, state.phi, potential_exchange_params_eval,
         state.volumetric_strain,
@@ -638,7 +638,7 @@ TEST(RichardsMechanics, NotebookSingleIntegrationPointReferencePath)
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveReferenceNotebookSinglePoint(
+    auto const reference = solveMathematicaReferenceSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
 
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
@@ -783,7 +783,7 @@ TEST(RichardsMechanics, NotebookBranchSensitivityNearMacroPotentialTransition)
             potential_exchange_params);
         ASSERT_TRUE(ogs_update.converged);
 
-        auto const reference = solveReferenceNotebookSinglePoint(
+        auto const reference = solveMathematicaReferenceSinglePoint(
             p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
         auto const compatibility_output =
             computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR,
@@ -886,7 +886,7 @@ TEST(RichardsMechanics, NotebookNegativeAttractiveMicroPotentialAdmitsWetting)
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveReferenceNotebookSinglePoint(
+    auto const reference = solveMathematicaReferenceSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
     auto const compatibility_output =
         computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
@@ -978,20 +978,20 @@ TEST(RichardsMechanics, NotebookMicroPorositySwellingStressIncrement)
     KM C_el = KM::Identity();
 
     auto const loading_increment =
-        computeNotebookMicroPorositySwellingStressIncrement<2>(
+        computeReferenceMicroPorositySwellingStressIncrement<2>(
             0.2, 0.3, C_el, potential_exchange_params);
     auto const expected_loading = -(0.1 * (0.3 - 0.2) / 3.0) * identity2;
     EXPECT_NEAR((loading_increment - expected_loading).norm(), 0.0, 1e-14);
 
     auto const unloading_increment =
-        computeNotebookMicroPorositySwellingStressIncrement<2>(
+        computeReferenceMicroPorositySwellingStressIncrement<2>(
             0.3, 0.2, C_el, potential_exchange_params);
     auto const expected_unloading = -(0.1 * (0.2 - 0.3) / 3.0) * identity2;
     EXPECT_NEAR((unloading_increment - expected_unloading).norm(), 0.0, 1e-14);
 
     potential_exchange_params.micro_water_content_swelling_slope = 0.0;
     auto const disabled_increment =
-        computeNotebookMicroPorositySwellingStressIncrement<2>(
+        computeReferenceMicroPorositySwellingStressIncrement<2>(
             0.2, 0.3, C_el, potential_exchange_params);
     EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
 }
@@ -1003,9 +1003,9 @@ TEST(RichardsMechanics, NotebookAlignedSwellingIgnoresExploratoryGains)
 
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
-    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::NotebookRoles;
+    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.micro_water_content_swelling_slope = 0.1;
     potential_exchange_params.vdw_relaxation_stress_gain = 100.0;
     potential_exchange_params.micro_water_content_stress_gain = 100.0;
@@ -1019,7 +1019,7 @@ TEST(RichardsMechanics, NotebookAlignedSwellingIgnoresExploratoryGains)
     double const p_L_m = 3.0;
 
     KV const expected =
-        computeNotebookMicroPorositySwellingStressIncrement<2>(
+        computeReferenceMicroPorositySwellingStressIncrement<2>(
             phi_m_prev, phi_m, C_el, potential_exchange_params);
     KV const actual =
         computeSwellingStressIncrement<2>(
@@ -1060,7 +1060,7 @@ TEST(RichardsMechanics, NotebookAdditiveMacroPorosityRateUpdate)
     auto const split = computeTransportPorosityUpdate(
         0.4, phi_M_prev, phi_m_prev, phi_m, volumetric_strain,
         volumetric_strain_prev,
-        MacroPorosityUpdateMode::NotebookAdditiveRate);
+        MacroPorosityUpdateMode::ReferenceAdditiveRate);
 
     double const delta_eps_v = volumetric_strain - volumetric_strain_prev;
     double const expected_phi_M =
@@ -1121,7 +1121,7 @@ TEST(RichardsMechanics, NotebookReducedMicroLiquidDensityEOSReferencePath)
     potential_exchange_params.micro_liquid_density_a = 1.3;
     potential_exchange_params.micro_liquid_density_b = 1.0;
     potential_exchange_params.local_nonlinear_solve_mode =
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
 
     double const n_l = 0.1;
     double const rho_LR = 1000.0;
@@ -1155,7 +1155,7 @@ TEST(RichardsMechanics, NotebookScalarStorageLocalSolveReferencePath)
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
     potential_exchange_params.local_nonlinear_solve_mode =
-        LocalNonlinearSolveMode::ScalarNotebookStorage;
+        LocalNonlinearSolveMode::ScalarReferenceStorage;
     potential_exchange_params.initial_micro_water_content = 0.03;
 
     double const p_L = 0.0;
@@ -1178,7 +1178,7 @@ TEST(RichardsMechanics, NotebookScalarStorageLocalSolveReferencePath)
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveReferenceNotebookSinglePoint(
+    auto const reference = solveMathematicaReferenceSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
@@ -1216,9 +1216,9 @@ TEST(RichardsMechanics, NotebookScalarMassStorageLocalSolveReferencePath)
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
     potential_exchange_params.potential_role_mapping =
-        PotentialExchangeRoleMapping::NotebookRoles;
+        PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.initial_micro_water_content = 0.03;
 
     double const p_L = 0.0;
@@ -1241,7 +1241,7 @@ TEST(RichardsMechanics, NotebookScalarMassStorageLocalSolveReferencePath)
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveReferenceNotebookSinglePoint(
+    auto const reference = solveMathematicaReferenceSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
@@ -1278,9 +1278,9 @@ TEST(RichardsMechanics, NotebookMassStorageCoupledSolveResiduals)
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
     potential_exchange_params.local_nonlinear_solve_mode =
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.macro_porosity_update_mode =
-        MacroPorosityUpdateMode::NotebookAdditiveRate;
+        MacroPorosityUpdateMode::ReferenceAdditiveRate;
     potential_exchange_params.micro_solid_volume_fraction_mode =
         MicroSolidVolumeFractionMode::CurrentPorositySplit;
     potential_exchange_params.initial_micro_water_content = 0.05;
@@ -1312,7 +1312,7 @@ TEST(RichardsMechanics, NotebookMassStorageCoupledSolveResiduals)
                                             potential_exchange_params);
     double const rho_l_prev = n_l_prev * prev_micro_liquid_density.rho_lR;
 
-    auto const coupled_update = solveNotebookMassStorageCoupledState(
+    auto const coupled_update = solveReferenceMassStorageCoupledState(
         n_l_prev, rho_l_prev, prev_micro_liquid_density.rho_lR, dt, rho_LR,
         alpha_bar, mu, macro_potential, local_context, potential_exchange_params);
     ASSERT_TRUE(coupled_update.converged);
@@ -1369,9 +1369,9 @@ TEST(RichardsMechanics, NotebookOverlapTransferBaselineHistory)
     potential_exchange_params.micro_liquid_density_b = 1.0;
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
-    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::NotebookRoles;
+    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.macro_porosity_update_mode = MacroPorosityUpdateMode::AlgebraicSplit;
     potential_exchange_params.initial_micro_water_content = 0.1;
     potential_exchange_params.micro_water_content_swelling_slope = 0.1;
@@ -1401,7 +1401,7 @@ TEST(RichardsMechanics, NotebookOverlapTransferBaselineHistory)
         auto const macro_potential = computeYoungLaplaceMacroPotential(
             row.pressure, rho_LR, potential_exchange_params.pressure_tolerance);
         double const rho_l_prev = n_l_prev * rho_lR_prev;
-        auto const coupled_update = solveNotebookMassStorageCoupledState(
+        auto const coupled_update = solveReferenceMassStorageCoupledState(
             n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
             macro_potential, local_context, potential_exchange_params);
         ASSERT_TRUE(coupled_update.converged);
@@ -1470,9 +1470,9 @@ TEST(RichardsMechanics, NotebookStrainCoupledOverlapBaselineHistory)
     potential_exchange_params.micro_liquid_density_b = 1.0;
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
-    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::NotebookRoles;
+    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.macro_porosity_update_mode = MacroPorosityUpdateMode::AlgebraicSplit;
     potential_exchange_params.initial_micro_water_content = 0.1;
     potential_exchange_params.micro_water_content_swelling_slope = 0.1;
@@ -1506,7 +1506,7 @@ TEST(RichardsMechanics, NotebookStrainCoupledOverlapBaselineHistory)
         auto const macro_potential = computeYoungLaplaceMacroPotential(
             row.pressure, rho_LR, potential_exchange_params.pressure_tolerance);
         double const rho_l_prev = n_l_prev * rho_lR_prev;
-        auto const coupled_update = solveNotebookMassStorageCoupledState(
+        auto const coupled_update = solveReferenceMassStorageCoupledState(
             n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
             macro_potential, local_context, potential_exchange_params);
         ASSERT_TRUE(coupled_update.converged);

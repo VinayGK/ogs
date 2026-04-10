@@ -21,14 +21,14 @@ enum class MicroPotentialConvention
 enum class LocalNonlinearSolveMode
 {
     ScalarExchange,
-    ScalarNotebookStorage,
-    ScalarNotebookMassStorage
+    ScalarReferenceStorage,
+    ScalarReferenceMassStorage
 };
 
 enum class MacroPorosityUpdateMode
 {
     AlgebraicSplit,
-    NotebookAdditiveRate
+    ReferenceAdditiveRate
 };
 
 enum class MicroSolidVolumeFractionMode
@@ -40,7 +40,7 @@ enum class MicroSolidVolumeFractionMode
 enum class PotentialExchangeRoleMapping
 {
     CurrentOgs,
-    NotebookRoles
+    MathematicaReferenceRoles
 };
 
 inline constexpr char const* toString(
@@ -69,9 +69,9 @@ inline constexpr char const* toString(LocalNonlinearSolveMode const mode)
     {
         case LocalNonlinearSolveMode::ScalarExchange:
             return "scalar_exchange";
-        case LocalNonlinearSolveMode::ScalarNotebookStorage:
+        case LocalNonlinearSolveMode::ScalarReferenceStorage:
             return "scalar_notebook_storage";
-        case LocalNonlinearSolveMode::ScalarNotebookMassStorage:
+        case LocalNonlinearSolveMode::ScalarReferenceMassStorage:
             return "scalar_notebook_mass_storage";
     }
     return "unknown";
@@ -83,7 +83,7 @@ inline constexpr char const* toString(MacroPorosityUpdateMode const mode)
     {
         case MacroPorosityUpdateMode::AlgebraicSplit:
             return "algebraic_split";
-        case MacroPorosityUpdateMode::NotebookAdditiveRate:
+        case MacroPorosityUpdateMode::ReferenceAdditiveRate:
             return "notebook_additive_rate";
     }
     return "unknown";
@@ -109,7 +109,7 @@ inline constexpr char const* toString(
     {
         case PotentialExchangeRoleMapping::CurrentOgs:
             return "current_ogs";
-        case PotentialExchangeRoleMapping::NotebookRoles:
+        case PotentialExchangeRoleMapping::MathematicaReferenceRoles:
             return "notebook_roles";
     }
     return "unknown";

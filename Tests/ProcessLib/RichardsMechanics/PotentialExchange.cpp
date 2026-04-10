@@ -173,7 +173,7 @@ TEST(RichardsMechanics, PotentialExchangeRoleMappingToString)
 {
     EXPECT_STREQ(toString(PotentialExchangeRoleMapping::CurrentOgs),
                  "current_ogs");
-    EXPECT_STREQ(toString(PotentialExchangeRoleMapping::NotebookRoles),
+    EXPECT_STREQ(toString(PotentialExchangeRoleMapping::MathematicaReferenceRoles),
                  "notebook_roles");
 }
 

@@ -63,11 +63,11 @@ LocalNonlinearSolveMode parseLocalNonlinearSolveMode(
     }
     if (mode == "scalar_notebook_storage")
     {
-        return LocalNonlinearSolveMode::ScalarNotebookStorage;
+        return LocalNonlinearSolveMode::ScalarReferenceStorage;
     }
     if (mode == "scalar_notebook_mass_storage")
     {
-        return LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        return LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     }
 
     OGS_FATAL(
@@ -87,7 +87,7 @@ MacroPorosityUpdateMode parseMacroPorosityUpdateMode(
     }
     if (mode == "notebook_additive_rate")
     {
-        return MacroPorosityUpdateMode::NotebookAdditiveRate;
+        return MacroPorosityUpdateMode::ReferenceAdditiveRate;
     }
 
     OGS_FATAL(
@@ -125,7 +125,7 @@ PotentialExchangeRoleMapping parsePotentialExchangeRoleMapping(
     }
     if (mapping == "notebook_roles")
     {
-        return PotentialExchangeRoleMapping::NotebookRoles;
+        return PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     }
 
     OGS_FATAL(
@@ -344,7 +344,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
     double micro_liquid_density_b = 0.0;
     bool const uses_micro_liquid_density_eos =
         local_nonlinear_solve_mode ==
-        LocalNonlinearSolveMode::ScalarNotebookMassStorage;
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
 
     if (enabled)
     {
