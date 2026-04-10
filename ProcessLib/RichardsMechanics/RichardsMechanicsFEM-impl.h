@@ -2811,13 +2811,15 @@ void RichardsMechanicsLocalAssembler<
                 dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
             }
 
+            auto const role_mapping = vkp ? vkp->potential_role_mapping
+                                          : VKPotentialExchangeRoleMapping::CurrentOgs;
             auto const vk_exchange = computeVKPhase2CPlaceholderExchange(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
                 pressure_tolerance, potential_exchange_enabled,
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
                 dmu_lR_vdw_drho_lR,
                 /*use_custom_dmu_lR_vdw_dpL=*/false, /*dmu_lR_vdw_dpL=*/0.0,
-                vkp->potential_role_mapping,
+                role_mapping,
                 /*use_fd_jacobian_for_direct_macro_derivative=*/false,
                 /*fd_jacobian_perturbation=*/1e-8);
             maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
@@ -3640,13 +3642,14 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 }
             }
 
+            auto const role_mapping = vkp ? vkp->potential_role_mapping
+                                          : VKPotentialExchangeRoleMapping::CurrentOgs;
             auto const vk_exchange = computeVKPhase2CPlaceholderExchange(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
                 pressure_tolerance, potential_exchange_enabled,
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
                 dmu_lR_vdw_drho_lR, use_custom_dmu_lR_vdw_dpL,
-                dmu_lR_vdw_dpL,
-                vkp->potential_role_mapping,
+                dmu_lR_vdw_dpL, role_mapping,
                 use_fd_jacobian_for_direct_macro_derivative,
                 fd_jacobian_perturbation);
             maybeLogVKPhase2CExchangeSource(p_L_ip, p_L_m, rho_LR, alpha_bar,
