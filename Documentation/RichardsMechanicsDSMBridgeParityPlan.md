@@ -1490,6 +1490,33 @@ Current state:
 - done for the same-law MCC + notebook Tuller benchmark surface
 - not done for full notebook-to-native constitutive equivalence
 
+## Automated validation checkpoint (2026-04-10 12:12 CEST)
+
+Scope and commits validated in this checkpoint:
+
+- native repo: `/Users/vinaykumar/git/ogs-native-dsm-transition`, branch `dsm-nb-transition`, head `8fbdf9a833`
+- MFront repo: `/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled`, branch `dsm-nb-mfront-transition`, head `2cf7b4734d`
+
+Automatic checks executed:
+
+- Python syntax checks (`python3 -m py_compile`) for updated BEACON/ANCHORS helper scripts: passed.
+- XML syntax checks (`xmllint --noout`) for renamed BEACON project files: passed.
+- CTest run on MFront build tree `/Users/vinaykumar/git/build/release-mfront-tpm` with
+  `-R "ogs-RichardsMechanics/double_porosity_swelling|ogs-RichardsMechanics/DoubleStructureBenchmark/double_porosity_swelling_RM"`: passed (`2/2`).
+
+Native CTest status:
+
+- Native reconfigure attempt on `/Users/vinaykumar/git/build/release-native-transition-mfront` failed before generation because the local CPM source cache is incomplete/offline for required packages (`IPhreeqc`, `OgsXdmf`) and TFEL version parsing fails on the currently resolved TFEL path.
+- Native CTest execution with the existing binary (`OpenGeoSys-6 version 6.5.7-169-ga8984e3d`) fails at project parsing (`15/15` in the BEACON/DSM slice) with:
+  `Key <potential_exchange> has been read 1 time(s) less than it was present in the configuration tree.`
+- This indicates the available native executable predates the `potential_exchange` rename and cannot validate the renamed native decks until a fresh rebuild is completed from the current branch state.
+
+Action required for full native confirmation:
+
+- restore/populate local CPM cache content for missing dependencies used by the native build configuration,
+- reconfigure and rebuild `ogs-native-dsm-transition`,
+- rerun the native RichardsMechanics BEACON/DSM CTest slice on the rebuilt executable.
+
 ## Useful commands
 
 Configure:
@@ -1511,6 +1538,15 @@ Focused CTest slice:
 ctest --test-dir /Users/vinaykumar/git/build/release-mfront-tpm \
   --output-on-failure \
   -R 'ogs-RichardsMechanics/mfront_restart_part1$|ogs-RichardsMechanics/mfront_restart_part2$|ogs-RichardsMechanics_mfront_restart_part1_rm_bridge$|ogs-RichardsMechanics_mfront_restart_part1_mcc_compare$|ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_compare$|ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_(native|bridge|compare)$|ogs-RichardsMechanics_mfront_parity_1element_native$|ogs-RichardsMechanics_mfront_parity_1element_bridge$|ogs-RichardsMechanics_mfront_parity_1element_compare$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_bridge$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_compare$|ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_compare$'
+```
+
+Native BEACON/DSM CTest slice after rebuild:
+
+```bash
+ctest --test-dir /Users/vinaykumar/git/build/release-native-transition-mfront \
+  --output-on-failure \
+  -R 'ogs-RichardsMechanics_(double_porosity_swelling_vk_.*-time|beacon_1a01_vk_.*-time|beacon_1b_vk_.*-time|beacon_1c_vk_.*-time)$' \
+  -E 'omp|vtkdiff|history'
 ```
 
 Direct benchmark-pressure bridge guardrail:
