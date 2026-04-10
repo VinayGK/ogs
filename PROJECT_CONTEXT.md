@@ -5,7 +5,7 @@ Keep this file short. It exists to reduce repeated setup and context gathering i
 ## Current session
 
 - Active task: RichardsMechanics transition work tied to `materialmodels/src/TPM/THMDSMRichardsVK_OGS_RM_transition.tex`.
-- Touch points: `ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h`, `Tests/ProcessLib/RichardsMechanics/NotebookSingleIntegrationPoint.cpp`, `Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_roles.prj`, and the generated `Tests/Data/RichardsMechanics/beacon_1a01_vk_stressprobe*` outputs.
+- Touch points: `ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h`, `Tests/ProcessLib/RichardsMechanics/NotebookSingleIntegrationPoint.cpp`, `Tests/Data/RichardsMechanics/beacon_1a01_notebook_roles.prj`, and the generated `Tests/Data/RichardsMechanics/beacon_1a01_notebook_stressprobe*` outputs.
 - Preferred build tree: `build/release-omp-mfront` when available; it is not present in this checkout right now.
 - Verification: run the smallest relevant `ctest` target from that build tree when it exists, and use `git diff` to keep the process file and test data changes aligned.
 

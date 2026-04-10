@@ -14,35 +14,16 @@
         </potential_exchange>
     </add>
 
-    <!-- Keep the macro field as simple as possible: the initial pressure and the
-         top Dirichlet pressure are both held at the same constant suction. This
-         isolates the kept local VK constitutive chain at process level. -->
-    <replace msel="/*/parameters/parameter[name='pressure_ic']/values/text()">
-        -1e7
-    </replace>
-    <replace msel="/*/parameters/parameter[name='dirichlet_pressure']/value/text()">
-        -1e7
-    </replace>
-    <replace msel="/*/curves/curve[name='pressure_ramp']/coords/text()">
-        0.0 1e3
-    </replace>
-    <replace msel="/*/curves/curve[name='pressure_ramp']/values/text()">
-        1 1
-    </replace>
-
     <replace msel="/*/time_loop/processes/process/time_stepping/t_end/text()">
-        1e3
+        1e4
     </replace>
     <replace msel="/*/time_loop/processes/process/time_stepping/initial_dt/text()">
-        10
+        1
     </replace>
     <replace msel="/*/time_loop/processes/process/time_stepping/maximum_dt/text()">
-        100
-    </replace>
-    <replace msel="/*/time_loop/output/fixed_output_times/text()">
-        1e3
+        1e2
     </replace>
     <replace msel="/*/time_loop/output/prefix/text()">
-        double_porosity_swelling_vk_constbc
+        double_porosity_swelling_notebook_optin
     </replace>
 </OpenGeoSysProjectDiff>

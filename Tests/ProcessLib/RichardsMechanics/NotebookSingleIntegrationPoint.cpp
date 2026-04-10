@@ -1350,7 +1350,7 @@ TEST(RichardsMechanics, VKNotebookOverlapTransferBaselineHistory)
 {
     auto const baseline_rows = loadNotebookOverlapBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/RichardsMechanics/VKNotebookOverlapTransferBaseline.csv");
+        "/RichardsMechanics/NotebookOverlapTransferBaseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
 
     VKPotentialExchangeParameters vkp;
@@ -1449,10 +1449,10 @@ TEST(RichardsMechanics, VKNotebookStrainCoupledOverlapBaselineHistory)
 {
     auto const overlap_rows = loadNotebookOverlapBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/RichardsMechanics/VKNotebookOverlapTransferBaseline.csv");
+        "/RichardsMechanics/NotebookOverlapTransferBaseline.csv");
     auto const strain_rows = loadNotebookOverlapBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/RichardsMechanics/VKNotebookStrainCoupledOverlapBaseline.csv");
+        "/RichardsMechanics/NotebookStrainCoupledOverlapBaseline.csv");
     ASSERT_EQ(overlap_rows.size(), 5);
     ASSERT_EQ(strain_rows.size(), 5);
 

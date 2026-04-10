@@ -130,7 +130,7 @@
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>beacon_1a01_vk_inflowprobe</prefix>
+            <prefix>beacon_1a01_notebook_inflowprobe</prefix>
             <suffix>_t_{:time}</suffix>
             <fixed_output_times>1e2 1e3 5e3 1e4</fixed_output_times>
             <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>micro_water_content</variable><variable>micro_porosity</variable><variable>micro_exchange_source</variable><variable>swelling_stress</variable><variable>sigma</variable></variables>
