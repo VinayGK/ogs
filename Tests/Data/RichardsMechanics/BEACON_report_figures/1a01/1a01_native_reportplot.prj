@@ -16,11 +16,11 @@
                 </nonlinear_solver>
             </micro_porosity>
             
-            <vk_potential_exchange>
+            <potential_exchange>
                 <enabled>true</enabled>
                 <mode>full_potential</mode>
-                <pressure_tolerance>0.0</pressure_tolerance>
-                <hamaker_constant>5.1e-21</hamaker_constant>
+                <pressure_tolerance>1e-12</pressure_tolerance>
+                <hamaker_constant>1.9606596248030517e-15</hamaker_constant>
                 <specific_surface>523</specific_surface>
                 <micro_solid_density_reference>2650</micro_solid_density_reference>
                 <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
@@ -28,12 +28,25 @@
                 <local_nonlinear_solve_mode>scalar_notebook_storage</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
+                <micro_solid_volume_fraction_mode>reference</micro_solid_volume_fraction_mode>
+                <potential_role_mapping>notebook_roles</potential_role_mapping>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
-            </vk_potential_exchange>
+            </potential_exchange>
             <constitutive_relation>
-                <type>LinearElasticIsotropic</type>
-                <youngs_modulus>E</youngs_modulus>
-                <poissons_ratio>nu</poissons_ratio>
+                <type>MFront</type>
+                <behaviour>ModCamClay_semiExpl_constE</behaviour>
+                <material_properties>
+                    <material_property name="YoungModulus" parameter="E" />
+                    <material_property name="PoissonRatio" parameter="nu" />
+                    <material_property name="CriticalStateLineSlope" parameter="CriticalStateLineSlope" />
+                    <material_property name="SwellingLineSlope" parameter="SwellingLineSlope" />
+                    <material_property name="VirginConsolidationLineSlope" parameter="VirginConsolidationLineSlope" />
+                    <material_property name="CharacteristicPreConsolidationPressure" parameter="InitialPreConsolidationPressure" />
+                </material_properties>
+                <initial_values>
+                    <state_variable name="PreConsolidationPressure" parameter="InitialPreConsolidationPressure" />
+                    <state_variable name="VolumeRatio" parameter="InitialVolumeRatio" />
+                </initial_values>
             </constitutive_relation>
             <process_variables>
                 <pressure>pressure</pressure>
@@ -50,9 +63,9 @@
                 <secondary_variable name="dry_density_solid" />
                 <secondary_variable name="micro_saturation" />
                 <secondary_variable name="micro_pressure" />
-                <secondary_variable name="vk_micro_water_content" />
-                <secondary_variable name="vk_micro_porosity" />
-                <secondary_variable name="vk_micro_exchange_source" />
+                <secondary_variable name="micro_water_content" />
+                <secondary_variable name="micro_porosity" />
+                <secondary_variable name="micro_exchange_source" />
             </secondary_variables>
             <specific_body_force>0 0</specific_body_force>
             <initial_stress>sigma0</initial_stress>
@@ -124,7 +137,7 @@
             <prefix>beacon_1a01_native_reportplot</prefix>
             <suffix>_t_{:time}</suffix>
             <fixed_output_times>10.000000 30.000000 100.000000 300.000000 1000.000000 3000.000000 10000.000000 30000.000000 50000.000000 75000.000000 100000.000000</fixed_output_times>
-            <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>vk_micro_water_content</variable><variable>vk_micro_porosity</variable><variable>vk_micro_exchange_source</variable><variable>swelling_stress</variable><variable>sigma</variable><variable>porosity</variable><variable>transport_porosity</variable><variable>dry_density_solid</variable></variables>
+            <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>micro_water_content</variable><variable>micro_porosity</variable><variable>micro_exchange_source</variable><variable>swelling_stress</variable><variable>sigma</variable><variable>porosity</variable><variable>transport_porosity</variable><variable>dry_density_solid</variable></variables>
         </output>
     </time_loop>
     <parameters>
@@ -137,6 +150,11 @@
         <parameter><name>pressure_ic</name><type>Constant</type><values>-1e6</values></parameter>
         <parameter><name>dirichlet0</name><type>Constant</type><value>0</value></parameter>
         <parameter><name>top_pressure</name><type>Constant</type><value>2e3</value></parameter>
+        <parameter><name>CriticalStateLineSlope</name><type>Constant</type><value>1.2</value></parameter>
+        <parameter><name>SwellingLineSlope</name><type>Constant</type><value>6.6e-3</value></parameter>
+        <parameter><name>VirginConsolidationLineSlope</name><type>Constant</type><value>7.7e-2</value></parameter>
+        <parameter><name>InitialPreConsolidationPressure</name><type>Constant</type><value>1e10</value></parameter>
+        <parameter><name>InitialVolumeRatio</name><type>Constant</type><value>1.6666666666666667</value></parameter>
     </parameters>
     <process_variables>
         <process_variable>

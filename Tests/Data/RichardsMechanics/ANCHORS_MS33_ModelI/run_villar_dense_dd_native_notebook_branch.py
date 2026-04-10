@@ -206,7 +206,7 @@ def write_native_notebook_project(case: Case, project_path: Path) -> dict:
                     <increment_tolerance>1e-20</increment_tolerance>
                 </nonlinear_solver>
             </micro_porosity>
-            <vk_potential_exchange>
+            <potential_exchange>
                 <enabled>true</enabled>
                 <mode>full_potential</mode>
                 <pressure_tolerance>{PRESSURE_TOLERANCE_PA:.16g}</pressure_tolerance>
@@ -223,7 +223,7 @@ def write_native_notebook_project(case: Case, project_path: Path) -> dict:
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>{MICRO_SWELLING_SLOPE:.16g}</micro_water_content_swelling_slope>
-            </vk_potential_exchange>
+            </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
                 <youngs_modulus>YoungModulus</youngs_modulus>
@@ -241,9 +241,9 @@ def write_native_notebook_project(case: Case, project_path: Path) -> dict:
                 <secondary_variable name="dry_density_solid"/>
                 <secondary_variable name="micro_pressure"/>
                 <secondary_variable name="micro_saturation"/>
-                <secondary_variable name="vk_micro_water_content"/>
-                <secondary_variable name="vk_micro_porosity"/>
-                <secondary_variable name="vk_micro_exchange_source"/>
+                <secondary_variable name="micro_water_content"/>
+                <secondary_variable name="micro_porosity"/>
+                <secondary_variable name="micro_exchange_source"/>
             </secondary_variables>
             <specific_body_force>0 0</specific_body_force>
             <initial_stress>sigma0</initial_stress>
@@ -354,9 +354,9 @@ def write_native_notebook_project(case: Case, project_path: Path) -> dict:
                 <variable>dry_density_solid</variable>
                 <variable>micro_pressure</variable>
                 <variable>micro_saturation</variable>
-                <variable>vk_micro_water_content</variable>
-                <variable>vk_micro_porosity</variable>
-                <variable>vk_micro_exchange_source</variable>
+                <variable>micro_water_content</variable>
+                <variable>micro_porosity</variable>
+                <variable>micro_exchange_source</variable>
             </variables>
         </output>
     </time_loop>

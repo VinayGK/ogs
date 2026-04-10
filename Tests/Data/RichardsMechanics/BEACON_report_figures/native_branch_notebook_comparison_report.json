@@ -31,9 +31,9 @@
         "radial_sigma_kpa": 3.561667550839007,
         "radial_swelling_stress_kpa": 3.561667550839007,
         "saturation_mean": 0.9999999999999998,
-        "vk_micro_exchange_source_mean": 1.0833881371973315e-05,
-        "vk_micro_porosity_mean": 0.01128220031830204,
-        "vk_micro_water_content_mean": 0.01128220031830204
+        "micro_exchange_source_mean": 1.0833881371973315e-05,
+        "micro_porosity_mean": 0.01128220031830204,
+        "micro_water_content_mean": 0.01128220031830204
       },
       "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow.prj",
       "native_vtu": "/tmp/ogs_native_branch_validation/1a01_inflow/native/beacon_1a01_vk_inflow_t_100000.000000.vtu"

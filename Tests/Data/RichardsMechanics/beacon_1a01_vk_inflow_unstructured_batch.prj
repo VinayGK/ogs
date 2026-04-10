@@ -21,7 +21,7 @@
                  The macro part enters through pressure_ic, while the micro
                  part is encoded through the initial micro water content under
                  the literature-backed Hamaker and specific-surface values. -->
-            <vk_potential_exchange>
+            <potential_exchange>
                 <enabled>true</enabled>
                 <mode>full_potential</mode>
                 <pressure_tolerance>1e-12</pressure_tolerance>
@@ -36,7 +36,7 @@
                 <micro_solid_volume_fraction_mode>reference</micro_solid_volume_fraction_mode>
                 <potential_role_mapping>notebook_roles</potential_role_mapping>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
-            </vk_potential_exchange>
+            </potential_exchange>
             <constitutive_relation>
                 <type>MFront</type>
                 <behaviour>ModCamClay_semiExpl_constE</behaviour>
@@ -68,9 +68,9 @@
                 <secondary_variable name="dry_density_solid"/>
                 <secondary_variable name="micro_saturation"/>
                 <secondary_variable name="micro_pressure"/>
-                <secondary_variable name="vk_micro_water_content"/>
-                <secondary_variable name="vk_micro_porosity"/>
-                <secondary_variable name="vk_micro_exchange_source"/>
+                <secondary_variable name="micro_water_content"/>
+                <secondary_variable name="micro_porosity"/>
+                <secondary_variable name="micro_exchange_source"/>
             </secondary_variables>
             <specific_body_force>0 0</specific_body_force>
             <initial_stress>sigma0</initial_stress>
@@ -142,7 +142,7 @@
             <prefix>beacon_1a01_vk_inflow_unstructured_batch</prefix>
             <suffix>_t_{:time}</suffix>
             <fixed_output_times>1e3 1e4 5e4 1e5</fixed_output_times>
-            <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>vk_micro_water_content</variable><variable>vk_micro_porosity</variable><variable>vk_micro_exchange_source</variable><variable>swelling_stress</variable><variable>sigma</variable><variable>porosity</variable><variable>transport_porosity</variable><variable>dry_density_solid</variable></variables>
+            <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>micro_water_content</variable><variable>micro_porosity</variable><variable>micro_exchange_source</variable><variable>swelling_stress</variable><variable>sigma</variable><variable>porosity</variable><variable>transport_porosity</variable><variable>dry_density_solid</variable></variables>
         </output>
     </time_loop>
     <parameters>

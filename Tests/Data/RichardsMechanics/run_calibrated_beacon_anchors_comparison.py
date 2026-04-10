@@ -195,9 +195,9 @@ def relax_first_component_abstol(root: ET.Element, value: float) -> None:
 
 def set_native_hamaker(root: ET.Element, hamaker_j: float) -> None:
     """Inject the calibrated Hamaker constant into a native project copy."""
-    node = root.find("./processes/process/vk_potential_exchange/hamaker_constant")
+    node = root.find("./processes/process/potential_exchange/hamaker_constant")
     if node is None:
-        raise RuntimeError("Could not find vk_potential_exchange/hamaker_constant in native project.")
+        raise RuntimeError("Could not find potential_exchange/hamaker_constant in native project.")
     node.text = f"{hamaker_j:.16g}"
 
 

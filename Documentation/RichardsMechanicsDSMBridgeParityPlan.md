@@ -977,9 +977,9 @@ Comparison summary:
 
 | Case | Native branch run | MFront branch run | Exact overlap fields | Nonzero overlap mismatch | Likely reason | Suggested solution |
 | --- | --- | --- | --- | --- | --- | --- |
-| `1a01` | yes | yes | `displacement`, `swelling_stress`, `sigma` | `pressure`: abs max `4.61e2`, rel max `4.78e-4`; `saturation`: abs max `1.84e-4`, rel max `2.52e-4` | Only the top pressure is fixed, so the interior state exposes the remaining storage-carrier difference between the native VK path and the bridge notebook state path. | Add a BEACON-specific notebook storage-carrier mode before making `1a01` a parity gate. A secondary convenience step is to port `vk_potential_exchange` into the MFront tree so both project families can be run by one executable. |
+| `1a01` | yes | yes | `displacement`, `swelling_stress`, `sigma` | `pressure`: abs max `4.61e2`, rel max `4.78e-4`; `saturation`: abs max `1.84e-4`, rel max `2.52e-4` | Only the top pressure is fixed, so the interior state exposes the remaining storage-carrier difference between the native VK path and the bridge notebook state path. | Add a BEACON-specific notebook storage-carrier mode before making `1a01` a parity gate. A secondary convenience step is to port `potential_exchange` into the MFront tree so both project families can be run by one executable. |
 | `1b` | yes | yes | `displacement`, `pressure`, `saturation`, `swelling_stress`, `sigma` | none on the compared overlap fields | One medium and two pressure Dirichlet boundaries suppress the remaining carrier ambiguity. | Promote `1b` to the first exact BEACON native-vs-bridge compare gate. |
-| `1c` | yes | yes | `displacement`, `porosity`, `swelling_stress`, `sigma` | `pressure`: abs max `7.12e1`, rel max `3.15e-4`; `saturation`: abs max `2.86e-5`, rel max `3.00e-5`; `transport_porosity`: abs max `2.00e-2`, rel max `8.00e-2` | The native VK path has a dedicated heterogeneous `transport_porosity` split update; the bridge path still uses the generic pressure-coupled carrier there. | Widen the bridge/process contract so the bridge can drive `phi_M` or `transport_porosity` explicitly on heterogeneous VK cases. A secondary convenience step is to port `vk_potential_exchange` into the MFront tree so both project families can be run by one executable. |
+| `1c` | yes | yes | `displacement`, `porosity`, `swelling_stress`, `sigma` | `pressure`: abs max `7.12e1`, rel max `3.15e-4`; `saturation`: abs max `2.86e-5`, rel max `3.00e-5`; `transport_porosity`: abs max `2.00e-2`, rel max `8.00e-2` | The native VK path has a dedicated heterogeneous `transport_porosity` split update; the bridge path still uses the generic pressure-coupled carrier there. | Widen the bridge/process contract so the bridge can drive `phi_M` or `transport_porosity` explicitly on heterogeneous VK cases. A secondary convenience step is to port `potential_exchange` into the MFront tree so both project families can be run by one executable. |
 
 Main conclusion:
 
@@ -1141,7 +1141,7 @@ What is still open:
   thresholds are agreed
 - extend the same storage-carrier treatment from `1a01` to the heterogeneous
   `1c` path, where `transport_porosity` is still native-specific
-- port `vk_potential_exchange` into the MFront tree if one executable for both
+- port `potential_exchange` into the MFront tree if one executable for both
   native and bridge project families is still desired
 
 ## BEACON report comparison for `1a01` and `1b`

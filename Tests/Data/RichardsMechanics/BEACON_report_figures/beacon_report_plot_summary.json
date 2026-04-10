@@ -6,15 +6,15 @@
     "profile_csv": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1a01_profile.csv",
     "native_final": {
       "time_s": 100000.0,
-      "axial_kpa": 18.83937353936591,
-      "radial_kpa": 19.481017100881736,
-      "dry_density_mean_kg_m3": 1667.9974047236685
+      "axial_kpa": 18.380502864583168,
+      "radial_kpa": 19.53557680837731,
+      "dry_density_mean_kg_m3": 1667.998455331385
     },
     "bridge_final": {
       "time_s": 100000.0,
-      "axial_kpa": 603.9440998638736,
-      "radial_kpa": 603.3785565626009,
-      "dry_density_mean_kg_m3": 1667.9989096611862
+      "axial_kpa": 605.0781050191957,
+      "radial_kpa": 604.6022624691241,
+      "dry_density_mean_kg_m3": 1667.9973277754873
     }
   },
   {
@@ -24,15 +24,15 @@
     "profile_csv": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/BEACON_report_figures/beacon_1b_profile.csv",
     "native_final": {
       "time_s": 43200000.0,
-      "axial_kpa": 1.287590201677671,
-      "radial_kpa": 3.000953407896319,
-      "dry_density_mean_kg_m3": 1389.9446001342553
+      "axial_kpa": 12.076876638058067,
+      "radial_kpa": 4.686481908650375,
+      "dry_density_mean_kg_m3": 1388.8514409555514
     },
     "bridge_final": {
       "time_s": 43200000.0,
-      "axial_kpa": 6.20117529547284,
-      "radial_kpa": 2.834772983749193,
-      "dry_density_mean_kg_m3": 1389.861763736746
+      "axial_kpa": 12.076876638254971,
+      "radial_kpa": 4.686481908675183,
+      "dry_density_mean_kg_m3": 1388.8514409599788
     }
   },
   {
