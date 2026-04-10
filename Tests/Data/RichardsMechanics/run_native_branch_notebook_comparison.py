@@ -47,20 +47,20 @@ class CaseConfig:
 
 CASE_CONFIGS: dict[str, CaseConfig] = {
     "1a01_smoke": CaseConfig(
-        native_project="beacon_1a01_vk_smoke.prj",
-        mfront_project="beacon_1a01_vk_notebook_mcc_bridge.prj",
+        native_project="beacon_1a01_notebook_smoke.prj",
+        mfront_project="beacon_1a01_notebook_mcc_bridge.prj",
     ),
     "1b_smoke": CaseConfig(
-        native_project="beacon_1b_vk_smoke.prj",
-        mfront_project="beacon_1b_vk_notebook_mcc_bridge.prj",
+        native_project="beacon_1b_notebook_smoke.prj",
+        mfront_project="beacon_1b_notebook_mcc_bridge.prj",
     ),
     "1c_smoke": CaseConfig(
-        native_project="beacon_1c_vk_smoke.prj",
-        mfront_project="beacon_1c_vk_notebook_mcc_bridge.prj",
+        native_project="beacon_1c_notebook_smoke.prj",
+        mfront_project="beacon_1c_notebook_mcc_bridge.prj",
     ),
     "1a01_inflow": CaseConfig(
-        native_project="beacon_1a01_vk_inflow.prj",
-        mfront_project="beacon_1a01_vk_notebook_mcc_inflow_bridge.prj",
+        native_project="beacon_1a01_notebook_inflow.prj",
+        mfront_project="beacon_1a01_notebook_mcc_inflow_bridge.prj",
     ),
 }
 

@@ -30,8 +30,8 @@ ANCHORS_CALIB_CSV = ROOT / "ANCHORS_MS33_ModelI" / "villar_dense_dd_calibration.
 NATIVE_OGS = Path("/Users/vinaykumar/git/build/release-native-transition-mfront/bin/ogs")
 MFRONT_OGS = Path("/Users/vinaykumar/git/build/release-mfront-tpm/bin/ogs")
 
-NATIVE_PROJECT = ROOT / "beacon_1b_vk_unstructured_batch.prj"
-MFRONT_PROJECT = ROOT / "beacon_1b_vk_notebook_mcc_unstructured_batch.prj"
+NATIVE_PROJECT = ROOT / "beacon_1b_unstructured_batch.prj"
+MFRONT_PROJECT = ROOT / "beacon_1b_notebook_mcc_unstructured_batch.prj"
 
 HAMAKER_REFERENCE_J = 5.1e-21
 TARGET_DD_KG_M3 = 1520.0

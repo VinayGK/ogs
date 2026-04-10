@@ -36,8 +36,8 @@ MFRONT_DEFAULT = Path("/Users/vinaykumar/git/build/release-mfront-tpm/bin/ogs")
 
 CASE_CONFIGS = {
     "1a01": {
-        "native_project": HERE / "beacon_1a01_vk_inflow_unstructured_batch.prj",
-        "bridge_project": HERE / "beacon_1a01_vk_notebook_mcc_inflow_unstructured_batch.prj",
+        "native_project": HERE / "beacon_1a01_inflow_unstructured_batch.prj",
+        "bridge_project": HERE / "beacon_1a01_notebook_mcc_inflow_unstructured_batch.prj",
         "native_prefix": "beacon_1a01_native_reportplot",
         "bridge_prefix": "beacon_1a01_bridge_reportplot",
         "t_end_s": 1.0e5,
@@ -61,8 +61,8 @@ CASE_CONFIGS = {
         "report_radial_kpa": 994.0,
     },
     "1b": {
-        "native_project": HERE / "beacon_1b_vk_unstructured_batch.prj",
-        "bridge_project": HERE / "beacon_1b_vk_notebook_mcc_unstructured_batch.prj",
+        "native_project": HERE / "beacon_1b_unstructured_batch.prj",
+        "bridge_project": HERE / "beacon_1b_notebook_mcc_unstructured_batch.prj",
         "native_prefix": "beacon_1b_native_reportplot",
         "bridge_prefix": "beacon_1b_bridge_reportplot",
         "t_end_s": 4.32e7,
@@ -83,7 +83,7 @@ CASE_CONFIGS = {
         "report_density_note": "nonzero and stabilized after about 500 days",
     },
     "1c": {
-        "bridge_project": HERE / "beacon_1c_vk_notebook_mcc_bridge.prj",
+        "bridge_project": HERE / "beacon_1c_notebook_mcc_bridge.prj",
         "bridge_prefix": "beacon_1c_bridge_reportplot",
         "t_end_s": 1.0e3,
         "output_times_s": [50.0, 100.0, 150.0, 250.0, 400.0, 550.0, 700.0, 850.0, 1.0e3],

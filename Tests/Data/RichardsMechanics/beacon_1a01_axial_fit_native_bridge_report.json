@@ -1,9 +1,9 @@
 {
   "artifacts": {
-    "bridge_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_unstructured_batch.prj",
-    "bridge_vtu": "/private/tmp/beacon_probe/axial_fit_1a01/1a01/bridge/beacon_1a01_vk_notebook_mcc_inflow_unstructured_batch_t_100000.000000.vtu",
-    "native_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow_unstructured_batch.prj",
-    "native_vtu": "/private/tmp/beacon_probe/axial_fit_1a01/1a01/native/beacon_1a01_vk_inflow_unstructured_batch_t_100000.000000.vtu"
+    "bridge_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_notebook_mcc_inflow_unstructured_batch.prj",
+    "bridge_vtu": "/private/tmp/beacon_probe/axial_fit_1a01/1a01/bridge/beacon_1a01_notebook_mcc_inflow_unstructured_batch_t_100000.000000.vtu",
+    "native_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_inflow_unstructured_batch.prj",
+    "native_vtu": "/private/tmp/beacon_probe/axial_fit_1a01/1a01/native/beacon_1a01_inflow_unstructured_batch_t_100000.000000.vtu"
   },
   "bridge": {
     "axial_swelling_pressure_kpa": 603.6770403555414,

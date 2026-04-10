@@ -19,8 +19,8 @@
         "radial_swelling_stress_kpa": 603.9348707823655,
         "saturation_mean": 0.9973789159451503
       },
-      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_bridge.prj",
-      "mfront_vtu": "/tmp/ogs_native_branch_validation/1a01_inflow/mfront/beacon_1a01_vk_notebook_mcc_inflow_bridge_t_100000.000000.vtu",
+      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_notebook_mcc_inflow_bridge.prj",
+      "mfront_vtu": "/tmp/ogs_native_branch_validation/1a01_inflow/mfront/beacon_1a01_notebook_mcc_inflow_bridge_t_100000.000000.vtu",
       "native_metrics": {
         "axial_sigma_kpa": 3.5634099989482175,
         "axial_swelling_stress_kpa": 3.563409998948218,
@@ -35,8 +35,8 @@
         "micro_porosity_mean": 0.01128220031830204,
         "micro_water_content_mean": 0.01128220031830204
       },
-      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow.prj",
-      "native_vtu": "/tmp/ogs_native_branch_validation/1a01_inflow/native/beacon_1a01_vk_inflow_t_100000.000000.vtu"
+      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1a01_notebook_inflow.prj",
+      "native_vtu": "/tmp/ogs_native_branch_validation/1a01_inflow/native/beacon_1a01_notebook_inflow_t_100000.000000.vtu"
     },
     "1a01_smoke": {
       "max_abs_diff": {
@@ -57,8 +57,8 @@
         "radial_swelling_stress_kpa": 0.0,
         "saturation_mean": 0.8880898150420123
       },
-      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_bridge.prj",
-      "mfront_vtu": "/tmp/ogs_native_branch_validation/1a01_smoke/mfront/beacon_1a01_vk_notebook_mcc_bridge_t_1000.000000.vtu",
+      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1a01_notebook_mcc_bridge.prj",
+      "mfront_vtu": "/tmp/ogs_native_branch_validation/1a01_smoke/mfront/beacon_1a01_notebook_mcc_bridge_t_1000.000000.vtu",
       "native_metrics": {
         "axial_sigma_kpa": 0.0,
         "axial_swelling_stress_kpa": 0.0,
@@ -70,8 +70,8 @@
         "radial_swelling_stress_kpa": 0.0,
         "saturation_mean": 0.8881688709167219
       },
-      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1a01_vk_smoke.prj",
-      "native_vtu": "/tmp/ogs_native_branch_validation/1a01_smoke/native/beacon_1a01_vk_smoke_t_1000.000000.vtu"
+      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1a01_notebook_smoke.prj",
+      "native_vtu": "/tmp/ogs_native_branch_validation/1a01_smoke/native/beacon_1a01_notebook_smoke_t_1000.000000.vtu"
     },
     "1b_smoke": {
       "max_abs_diff": {
@@ -92,8 +92,8 @@
         "radial_swelling_stress_kpa": 0.0,
         "saturation_mean": 0.9999999999999998
       },
-      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1b_vk_notebook_mcc_bridge.prj",
-      "mfront_vtu": "/tmp/ogs_native_branch_validation/1b_smoke/mfront/beacon_1b_vk_notebook_mcc_bridge_t_1000.000000.vtu",
+      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1b_notebook_mcc_bridge.prj",
+      "mfront_vtu": "/tmp/ogs_native_branch_validation/1b_smoke/mfront/beacon_1b_notebook_mcc_bridge_t_1000.000000.vtu",
       "native_metrics": {
         "axial_sigma_kpa": 0.0,
         "axial_swelling_stress_kpa": 0.0,
@@ -105,8 +105,8 @@
         "radial_swelling_stress_kpa": 0.0,
         "saturation_mean": 0.9999999999999998
       },
-      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1b_vk_smoke.prj",
-      "native_vtu": "/tmp/ogs_native_branch_validation/1b_smoke/native/beacon_1b_vk_smoke_t_1000.000000.vtu"
+      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1b_notebook_smoke.prj",
+      "native_vtu": "/tmp/ogs_native_branch_validation/1b_smoke/native/beacon_1b_notebook_smoke_t_1000.000000.vtu"
     },
     "1c_smoke": {
       "max_abs_diff": {
@@ -127,8 +127,8 @@
         "radial_swelling_stress_kpa": 0.0,
         "saturation_mean": 0.9906766368620289
       },
-      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1c_vk_notebook_mcc_bridge.prj",
-      "mfront_vtu": "/tmp/ogs_native_branch_validation/1c_smoke/mfront/beacon_1c_vk_notebook_mcc_bridge_t_1000.000000.vtu",
+      "mfront_project": "/Users/vinaykumar/git/ogs-TPM_Swelling_MCC_Coupled/Tests/Data/RichardsMechanics/beacon_1c_notebook_mcc_bridge.prj",
+      "mfront_vtu": "/tmp/ogs_native_branch_validation/1c_smoke/mfront/beacon_1c_notebook_mcc_bridge_t_1000.000000.vtu",
       "native_metrics": {
         "axial_sigma_kpa": 0.0,
         "axial_swelling_stress_kpa": 0.0,
@@ -140,8 +140,8 @@
         "radial_swelling_stress_kpa": 0.0,
         "saturation_mean": 0.9906823645769531
       },
-      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1c_vk_smoke.prj",
-      "native_vtu": "/tmp/ogs_native_branch_validation/1c_smoke/native/beacon_1c_vk_smoke_t_1000.000000.vtu"
+      "native_project": "/Users/vinaykumar/git/ogs-native-dsm-transition/Tests/Data/RichardsMechanics/beacon_1c_notebook_smoke.prj",
+      "native_vtu": "/tmp/ogs_native_branch_validation/1c_smoke/native/beacon_1c_notebook_smoke_t_1000.000000.vtu"
     }
   },
   "mfront_ogs": "/Users/vinaykumar/git/build/release-mfront-tpm/bin/ogs",

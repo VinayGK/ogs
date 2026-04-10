@@ -947,14 +947,14 @@ What was run:
 
 - native side: direct `ogs` runs from branch `dsm-nb-transition`
   at commit `d46e11ac00` using
-  - `beacon_1a01_vk_smoke.prj`
-  - `beacon_1b_vk_smoke.prj`
-  - `beacon_1c_vk_smoke.prj`
+  - `beacon_1a01_notebook_smoke.prj`
+  - `beacon_1b_notebook_smoke.prj`
+  - `beacon_1c_notebook_smoke.prj`
 - bridge side: direct `ogs` runs from branch `dsm-nb-mfront-transition`
   at commit `c349ee2713` using
-  - `Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_bridge.prj`
-  - `Tests/Data/RichardsMechanics/beacon_1b_vk_notebook_mcc_bridge.prj`
-  - `Tests/Data/RichardsMechanics/beacon_1c_vk_notebook_mcc_bridge.prj`
+  - `Tests/Data/RichardsMechanics/beacon_1a01_notebook_mcc_bridge.prj`
+  - `Tests/Data/RichardsMechanics/beacon_1b_notebook_mcc_bridge.prj`
+  - `Tests/Data/RichardsMechanics/beacon_1c_notebook_mcc_bridge.prj`
 - comparison time: `t = 1000 s`
 - comparison tool: `vtkdiff`
 - overlap fields:
@@ -999,11 +999,11 @@ This section records the exact changes that were needed to make the bridge-side
 Scope:
 
 - native target:
-  `/Users/vinaykumar/Documents/GitHub/ogs/Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow.prj`
+  `/Users/vinaykumar/Documents/GitHub/ogs/Tests/Data/RichardsMechanics/beacon_1a01_notebook_inflow.prj`
 - native reference end state:
-  `/Users/vinaykumar/Documents/GitHub/ogs/Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow_reference_t_100000.000000.vtu`
+  `/Users/vinaykumar/Documents/GitHub/ogs/Tests/Data/RichardsMechanics/beacon_1a01_notebook_inflow_reference_t_100000.000000.vtu`
 - bridge run deck:
-  `Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_bridge.prj`
+  `Tests/Data/RichardsMechanics/beacon_1a01_notebook_mcc_inflow_bridge.prj`
 - bridge executable:
   `/Users/vinaykumar/git/build/release-mfront-tpm/bin/ogs`
 - comparison time:
@@ -1067,7 +1067,7 @@ same storage balance that the native scalar notebook-storage path uses.
 | `ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h` | Added `liquid_mass_exchange_source` to the pressure residual and wrote bridge `swelling_stress` into the process-owned swelling state | Without the residual source, the pressure equation ignored notebook mass exchange. Without the state write-back, the user-facing `swelling_stress` output stayed zero even when `sigma_S` and `sigma` were correct. |
 | `Tests/MaterialLib/MFront/RichardsMechanicsNotebookBridgeMCC.cpp` | Added bridge regressions for the swelling-stress split and the native-aligned stage-1 local step | These tests prove the constitutive split before the FE run. |
 | `Tests/ProcessLib/RichardsMechanics/PressureCoupledSolidData.cpp` | Added mapping checks for `swelling_stress` and `liquid_mass_exchange_source` | This protects the carrier path between MFront and RM assembly. |
-| `Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_bridge.prj` | Added the dedicated bridge inflow deck | This is the first bridge BEACON deck that targets the full stage-1 end state at `t=100000 s`, not just the smoke state at `t=1000 s`. |
+| `Tests/Data/RichardsMechanics/beacon_1a01_notebook_mcc_inflow_bridge.prj` | Added the dedicated bridge inflow deck | This is the first bridge BEACON deck that targets the full stage-1 end state at `t=100000 s`, not just the smoke state at `t=1000 s`. |
 
 ### Project and calibration choices used for the match
 
@@ -1075,7 +1075,7 @@ The `1a01` inflow match was not obtained by changing the geometry or the load
 path. Those stay on the native stage-1 setup. The required calibration choices
 were inside the bridge constitutive deck.
 
-| Project quantity | Value in `beacon_1a01_vk_notebook_mcc_inflow_bridge.prj` | Purpose |
+| Project quantity | Value in `beacon_1a01_notebook_mcc_inflow_bridge.prj` | Purpose |
 | --- | --- | --- |
 | `InitialPreConsolidationPressure` | `1e10` | Keeps the MCC carrier elastic so the stage-1 swelling comparison is driven by the notebook microstate, not by plastic yielding. |
 | `InitialVolumeRatio` | `1.6666666666666667` | Keeps the pressure-coupled MCC carrier on the same reference surface as the verified MCC bridge decks. |
@@ -1215,8 +1215,8 @@ value. So the `1b` report comparison is partly qualitative.
 
 | Case | Native run | Bridge run | End time used |
 | --- | --- | --- | --- |
-| `1a01` | `beacon_1a01_vk_inflow.prj` | `beacon_1a01_vk_notebook_mcc_inflow_bridge.prj` | `1e5 s` |
-| `1b` | temporary long-horizon copy of `beacon_1b_vk_smoke.prj` | temporary long-horizon copy of `beacon_1b_vk_notebook_mcc_bridge.prj` | `4.32e7 s = 500 days` |
+| `1a01` | `beacon_1a01_notebook_inflow.prj` | `beacon_1a01_notebook_mcc_inflow_bridge.prj` | `1e5 s` |
+| `1b` | temporary long-horizon copy of `beacon_1b_notebook_smoke.prj` | temporary long-horizon copy of `beacon_1b_notebook_mcc_bridge.prj` | `4.32e7 s = 500 days` |
 
 The `1b` long-horizon runs were temporary report-comparison runs only. They are
 not committed CTests.
@@ -1277,8 +1277,8 @@ report-facing metrics are extracted by
 | Item | `1a01` | `1b` |
 | --- | --- | --- |
 | Unstructured mesh | `Tests/Data/RichardsMechanics/beacon_1a01_domain_unstructured_162e.vtu` | `Tests/Data/RichardsMechanics/beacon_1b_domain_unstructured_162e.vtu` |
-| Native project | `Tests/Data/RichardsMechanics/beacon_1a01_vk_inflow_unstructured_batch.prj` | `Tests/Data/RichardsMechanics/beacon_1b_vk_unstructured_batch.prj` |
-| Bridge project | `Tests/Data/RichardsMechanics/beacon_1a01_vk_notebook_mcc_inflow_unstructured_batch.prj` | `Tests/Data/RichardsMechanics/beacon_1b_vk_notebook_mcc_unstructured_batch.prj` |
+| Native project | `Tests/Data/RichardsMechanics/beacon_1a01_inflow_unstructured_batch.prj` | `Tests/Data/RichardsMechanics/beacon_1b_unstructured_batch.prj` |
+| Bridge project | `Tests/Data/RichardsMechanics/beacon_1a01_notebook_mcc_inflow_unstructured_batch.prj` | `Tests/Data/RichardsMechanics/beacon_1b_notebook_mcc_unstructured_batch.prj` |
 | Final time used here | `1e5 s` | `4.32e7 s = 500 days` |
 | Compared report quantity | stage-1 swelling pressure and density | long-time swelling pressure and density |
 
