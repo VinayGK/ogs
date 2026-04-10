@@ -62,10 +62,10 @@ function(run_vtkdiff file_a file_b array_a array_b abs_tol rel_tol)
     endif()
 endfunction()
 
-run_ogs(mfront_restart_part1_notebook_mcc_tuller_native.prj)
-run_ogs(mfront_restart_part1_notebook_mcc_tuller_bridge.prj)
+run_ogs(mfront_restart_part1.prj)
+run_ogs(mfront_restart_part1_dsm_micromacro_mcc_bridge.prj)
 
-set(step_indices 0 1000)
+set(step_indices 0 1)
 set(step_times 0.000000 1000.000000)
 
 foreach(list_index RANGE 0 1)
@@ -73,18 +73,18 @@ foreach(list_index RANGE 0 1)
     list(GET step_times ${list_index} time)
     set(
         native_file
-        "${BINARY_PATH}/mfront_restart_part1_notebook_mcc_tuller_native_ts_${ts}_t_${time}.vtu"
+        "${BINARY_PATH}/mfront_restart_part1_ts_${ts}_t_${time}.vtu"
     )
     set(
         bridge_file
-        "${BINARY_PATH}/mfront_restart_part1_notebook_mcc_tuller_bridge_ts_${ts}_t_${time}.vtu"
+        "${BINARY_PATH}/mfront_restart_part1_dsm_micromacro_mcc_bridge_ts_${ts}_t_${time}.vtu"
     )
 
-    run_vtkdiff("${native_file}" "${bridge_file}" displacement displacement 1e-12 0)
-    run_vtkdiff("${native_file}" "${bridge_file}" pressure pressure 1e-6 0)
-    run_vtkdiff("${native_file}" "${bridge_file}" sigma sigma 1e-9 0)
-    run_vtkdiff("${native_file}" "${bridge_file}" epsilon epsilon 1e-12 0)
-    run_vtkdiff("${native_file}" "${bridge_file}" saturation saturation 1e-12 0)
+    run_vtkdiff("${native_file}" "${bridge_file}" displacement displacement 1e-15 0)
+    run_vtkdiff("${native_file}" "${bridge_file}" pressure pressure 5e-12 0)
+    run_vtkdiff("${native_file}" "${bridge_file}" sigma sigma 1e-10 0)
+    run_vtkdiff("${native_file}" "${bridge_file}" epsilon epsilon 1e-15 0)
+    run_vtkdiff("${native_file}" "${bridge_file}" saturation saturation 1e-15 0)
     run_vtkdiff("${native_file}" "${bridge_file}" velocity velocity 1e-15 0)
     run_vtkdiff("${native_file}" "${bridge_file}" ElasticStrain ElasticStrain 1e-15 0)
     run_vtkdiff(
@@ -97,7 +97,7 @@ foreach(list_index RANGE 0 1)
     )
     run_vtkdiff(
         "${native_file}" "${bridge_file}" PlasticVolumetricStrain
-        PlasticVolumetricStrain 1e-12 0
+        PlasticVolumetricStrain 1e-15 0
     )
     run_vtkdiff("${native_file}" "${bridge_file}" VolumeRatio VolumeRatio 1e-15 0)
     run_vtkdiff("${native_file}" "${bridge_file}" swelling_stress swelling_stress 1e-15 0)
@@ -107,6 +107,6 @@ foreach(list_index RANGE 0 1)
     )
     run_vtkdiff(
         "${native_file}" "${bridge_file}" dry_density_solid dry_density_solid
-        1e-9 0
+        1e-15 0
     )
 endforeach()

@@ -31,7 +31,7 @@ NATIVE_OGS = Path("/Users/vinaykumar/git/build/release-native-transition-mfront/
 MFRONT_OGS = Path("/Users/vinaykumar/git/build/release-mfront-tpm/bin/ogs")
 
 NATIVE_PROJECT = ROOT / "beacon_1b_unstructured_batch.prj"
-MFRONT_PROJECT = ROOT / "beacon_1b_notebook_mcc_unstructured_batch.prj"
+MFRONT_PROJECT = ROOT / "beacon_1b_dsm_micromacro_mcc_unstructured_batch.prj"
 
 HAMAKER_REFERENCE_J = 5.1e-21
 TARGET_DD_KG_M3 = 1520.0
@@ -144,9 +144,9 @@ def build_project_copy(
         set_mfront_hamaker(root, hamaker_j)
         if apply_micro_activation:
             # Switch on the same micro branch used in dense dd calibration.
-            set_parameter_value(root, "NotebookSwellingSlope", 0.1)
-            set_parameter_value(root, "NotebookSaturationMode", 1.0)
-            set_parameter_value(root, "NotebookLocalSolveMode", 0.0)
+            set_parameter_value(root, "MicroSwellingStrainSlope", 0.1)
+            set_parameter_value(root, "MacroSaturationLawMode", 1.0)
+            set_parameter_value(root, "MicroStateLocalSolveMode", 0.0)
             set_parameter_value(root, "MicroPotentialConvention", 1.0)
             set_parameter_value(root, "SpecificSurface", 523.0)
             set_parameter_value(root, "n_l0", 0.00153385355)

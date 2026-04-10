@@ -62,22 +62,22 @@ function(run_vtkdiff file_a file_b array_a array_b abs_tol rel_tol)
     endif()
 endfunction()
 
-run_ogs(mfront_parity_1element_notebook_mcc_tuller_native.prj)
-run_ogs(mfront_parity_1element_notebook_mcc_tuller_bridge.prj)
+run_ogs(mfront_parity_1element_mcc_native.prj)
+run_ogs(mfront_parity_1element_dsm_micromacro_mcc_bridge.prj)
 
 foreach(ts RANGE 0 4)
     set(
         native_file
-        "${BINARY_PATH}/mfront_parity_1element_notebook_mcc_tuller_native_ts_${ts}_t_${ts}.000000.vtu"
+        "${BINARY_PATH}/mfront_parity_1element_mcc_native_ts_${ts}_t_${ts}.000000.vtu"
     )
     set(
         bridge_file
-        "${BINARY_PATH}/mfront_parity_1element_notebook_mcc_tuller_bridge_ts_${ts}_t_${ts}.000000.vtu"
+        "${BINARY_PATH}/mfront_parity_1element_dsm_micromacro_mcc_bridge_ts_${ts}_t_${ts}.000000.vtu"
     )
 
     run_vtkdiff("${native_file}" "${bridge_file}" displacement displacement 1e-14 0)
-    run_vtkdiff("${native_file}" "${bridge_file}" pressure pressure 2e-10 0)
-    run_vtkdiff("${native_file}" "${bridge_file}" sigma sigma 2e-10 0)
+    run_vtkdiff("${native_file}" "${bridge_file}" pressure pressure 1e-14 0)
+    run_vtkdiff("${native_file}" "${bridge_file}" sigma sigma 5e-11 0)
     run_vtkdiff("${native_file}" "${bridge_file}" epsilon epsilon 1e-14 0)
     run_vtkdiff("${native_file}" "${bridge_file}" saturation saturation 1e-14 0)
     run_vtkdiff("${native_file}" "${bridge_file}" velocity velocity 1e-14 0)

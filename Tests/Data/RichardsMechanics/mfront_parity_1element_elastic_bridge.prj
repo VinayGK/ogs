@@ -17,7 +17,7 @@
             </jacobian_assembler>
             <constitutive_relation>
                 <type>MFrontRichardsMechanics</type>
-                <behaviour>RichardsMechanicsNotebookBridge</behaviour>
+                <behaviour>RichardsMechanicsDSMMicroMacroBridge</behaviour>
                 <material_properties>
                     <material_property name="YoungModulus" parameter="YoungModulus" />
                     <material_property name="PoissonRatio" parameter="PoissonRatio" />

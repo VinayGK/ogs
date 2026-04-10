@@ -1,16 +1,16 @@
 @DSL ImplicitGenericBehaviour;
-@Behaviour RichardsMechanicsNotebookBridge_MCC;
+@Behaviour RichardsMechanicsDSMMicroMacroBridge_MCC;
 @Author OpenGeoSys Community;
 @Date 27 / 03 / 2026;
 @Description{
     Pressure-coupled RichardsMechanics bridge that keeps the verified
     ModCamClay_semiExpl_constE mechanical and saturation surface, while also
-    carrying the notebook microstate variables n_l, rho_lR, epsilon_sw, phi_m,
+    carrying the dsm_micromacro microstate variables n_l, rho_lR, epsilon_sw, phi_m,
     phi_M, mu_lR, rho_l_hat, phi, n_S, n_L, rho_LR, omega_l,
-    delta_epsilon_sw, and sigma_S as persistent notebook support state. The
+    delta_epsilon_sw, and sigma_S as persistent dsm_micromacro support state. The
     returned saturation matches either the verified MCC bridge or, when
-    explicitly enabled, the notebook Tuller law. The returned effective stress
-    also includes the notebook isotropic swelling correction driven by the
+    explicitly enabled, the dsm_micromacro Tuller law. The returned effective stress
+    also includes the dsm_micromacro isotropic swelling correction driven by the
     updated microstate.
 }
 
@@ -131,13 +131,13 @@ pᵇ.setEntryName("BubblePressure");
 @MaterialProperty real mⱽᴳ;
 mⱽᴳ.setEntryName("VanGenuchtenExponent_m");
 
-@MaterialProperty real notebook_saturation_mode;
-@PhysicalBounds notebook_saturation_mode in [0:*[;
-notebook_saturation_mode.setEntryName("NotebookSaturationMode");
+@MaterialProperty real macro_saturation_law_mode;
+@PhysicalBounds macro_saturation_law_mode in [0:*[;
+macro_saturation_law_mode.setEntryName("MacroSaturationLawMode");
 
-@MaterialProperty real notebook_local_solve_mode;
-@PhysicalBounds notebook_local_solve_mode in [0:*[;
-notebook_local_solve_mode.setEntryName("NotebookLocalSolveMode");
+@MaterialProperty real microstate_local_solve_mode;
+@PhysicalBounds microstate_local_solve_mode in [0:*[;
+microstate_local_solve_mode.setEntryName("MicroStateLocalSolveMode");
 
 @MaterialProperty real micro_potential_convention;
 @PhysicalBounds micro_potential_convention in [0:*[;
@@ -204,11 +204,11 @@ phi0.setEntryName("InitialPorosity");
 @LocalVariable real rho_l_hat_trial_value;
 @LocalVariable real dn_l_dtrace_eps_trial;
 @LocalVariable real dn_l_dp_trial;
-@LocalVariable bool use_notebook_saturation;
-@LocalVariable bool use_scalar_notebook_storage;
+@LocalVariable bool use_macro_saturation_law;
+@LocalVariable bool use_scalar_microstate_storage;
 @LocalVariable real micro_potential_sign;
 @LocalVariable real tuller_capillary_prefactor;
-@LocalVariable real notebook_support_saturation_trial_value;
+@LocalVariable real macro_support_saturation_trial;
 
 @TangentOperatorBlocks{∂σ∕∂Δεᵗᵒ, ∂σ∕∂Δpᴸᴿ, ∂Sᴸ∕∂Δεᵗᵒ, ∂Sᴸ∕∂Δpᴸᴿ};
 
@@ -221,8 +221,8 @@ phi0.setEntryName("InitialPorosity");
 
     constexpr const auto pressure_tolerance = 1e-12;
 
-    use_notebook_saturation = notebook_saturation_mode > 0.5;
-    use_scalar_notebook_storage = notebook_local_solve_mode > 0.5;
+    use_macro_saturation_law = macro_saturation_law_mode > 0.5;
+    use_scalar_microstate_storage = microstate_local_solve_mode > 0.5;
     tfel::raise_if(area_factor_tuller <= 0.0,
                    "Invalid parameter: AreaFactorTuller must be positive.");
     tfel::raise_if(pore_area_shape_factor_tuller <= 0.0,
@@ -235,7 +235,7 @@ phi0.setEntryName("InitialPorosity");
         4.0 * pore_area_shape_factor_tuller * surface_tension * surface_tension /
         (area_factor_tuller * characteristic_pore_size * characteristic_pore_size);
 
-    const auto saturation_notebook = [&](const auto p_arg) {
+    const auto macro_saturation_law = [&](const auto p_arg) {
         if (p_arg < -pressure_tolerance)
         {
             const auto capillary_term = tuller_capillary_prefactor / (p_arg * p_arg);
@@ -244,11 +244,11 @@ phi0.setEntryName("InitialPorosity");
         return 1.0;
     };
 
-    const auto S = use_notebook_saturation
-                       ? saturation_notebook(pᴸᴿ + Δpᴸᴿ)
+    const auto S = use_macro_saturation_law
+                       ? macro_saturation_law(pᴸᴿ + Δpᴸᴿ)
                        : Sₑ(-(pᴸᴿ + Δpᴸᴿ)) * (1.0 - Sᴳʳ - Sᴸʳ) + Sᴸʳ;
-    Sᴸ = use_notebook_saturation ? S : std::clamp(S, Sᴸʳ, 1.0 - Sᴳʳ);
-    notebook_support_saturation_trial_value = saturation_notebook(pᴸᴿ + Δpᴸᴿ);
+    Sᴸ = use_macro_saturation_law ? S : std::clamp(S, Sᴸʳ, 1.0 - Sᴳʳ);
+    macro_support_saturation_trial = macro_saturation_law(pᴸᴿ + Δpᴸᴿ);
 
     tfel::raise_if(la < ka, "Invalid parameters: la<ka");
     M² = M * M;
@@ -350,7 +350,7 @@ phi0.setEntryName("InitialPorosity");
         const auto rho_macro_step =
             macro_density_from_state(rho_lR_prev_arg);
 
-        if (use_scalar_notebook_storage)
+        if (use_scalar_microstate_storage)
         {
             auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
             const auto rho_scalar = rho_macro_step;
@@ -558,7 +558,7 @@ phi0.setEntryName("InitialPorosity");
 
                     tfel::raise_if(
                         true,
-                        "Notebook-MCC bridge scalar notebook-storage Newton line search failed.");
+                        "DSMMicroMacro-MCC bridge scalar dsm_micromacro-storage Newton line search failed.");
                 }
             }
 
@@ -570,7 +570,7 @@ phi0.setEntryName("InitialPorosity");
 
             tfel::raise_if(
                 true,
-                "Notebook-MCC bridge scalar notebook-storage solve did not converge.");
+                "DSMMicroMacro-MCC bridge scalar dsm_micromacro-storage solve did not converge.");
         }
 
         auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
@@ -892,7 +892,7 @@ phi0.setEntryName("InitialPorosity");
 
                 tfel::raise_if(
                     true,
-                    "Notebook-MCC bridge microstate Newton line search failed.");
+                    "DSMMicroMacro-MCC bridge microstate Newton line search failed.");
             }
 
             if (std::abs(step_scale * delta_n) <
@@ -927,7 +927,7 @@ phi0.setEntryName("InitialPorosity");
 
         tfel::raise_if(
             true,
-            "Notebook-MCC bridge microstate Newton solve did not converge.");
+            "DSMMicroMacro-MCC bridge microstate Newton solve did not converge.");
     };
 
     n_l_trial_value = n_l_prev;
@@ -1077,7 +1077,7 @@ phi0.setEntryName("InitialPorosity");
     phi_M = phi_M_trial_value;
     phi_value = phi_m + phi_M;
     n_S_value = 1.0 - phi_value;
-    n_L_value = phi_M * notebook_support_saturation_trial_value;
+    n_L_value = phi_M * macro_support_saturation_trial;
     rho_LR_value = rho_lR;
     omega_l_value = n_l * rho_lR / (n_S_value * rho_SR);
     mu_lR_value = mu_lR_trial_value;
@@ -1116,7 +1116,7 @@ phi0.setEntryName("InitialPorosity");
                     : 0.0);
     };
 
-    const auto ∂Sᴸ_notebook∕∂p = [&](const auto p_arg) {
+    const auto ∂Sᴸ_dsm_micromacro∕∂p = [&](const auto p_arg) {
         if (p_arg >= -1e-12)
         {
             return 0.0;
@@ -1131,8 +1131,8 @@ phi0.setEntryName("InitialPorosity");
 
     ∂σ∕∂Δpᴸᴿ = -(K * swelling_slope * dn_l_dp_trial) * I₂;
     ∂Sᴸ∕∂Δεᵗᵒ = 0.0 * I₂;
-    ∂Sᴸ∕∂Δpᴸᴿ = use_notebook_saturation
-                     ? ∂Sᴸ_notebook∕∂p(pᴸᴿ + Δpᴸᴿ)
+    ∂Sᴸ∕∂Δpᴸᴿ = use_macro_saturation_law
+                     ? ∂Sᴸ_dsm_micromacro∕∂p(pᴸᴿ + Δpᴸᴿ)
                      : -∂Sᴸ∕∂pᶜᵃᵖ(-(pᴸᴿ + Δpᴸᴿ));
 
     if ((smt == ELASTIC) || (smt == SECANTOPERATOR))

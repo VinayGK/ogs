@@ -44,10 +44,10 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
         RUNTIME 1
     )
     AddTest(
-        NAME RichardsMechanics_mfront_restart_part1_notebook_mcc_bridge
+        NAME RichardsMechanics_mfront_restart_part1_dsm_micromacro_mcc_bridge
         PATH RichardsMechanics
         EXECUTABLE ogs
-        EXECUTABLE_ARGS mfront_restart_part1_notebook_mcc_bridge.prj
+        EXECUTABLE_ARGS mfront_restart_part1_dsm_micromacro_mcc_bridge.prj
         RUNTIME 1
     )
     AddTest(
@@ -107,38 +107,38 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
         RUNTIME 1
     )
     AddTest(
-        NAME RichardsMechanics_mfront_parity_1element_notebook_mcc_bridge
+        NAME RichardsMechanics_mfront_parity_1element_dsm_micromacro_mcc_bridge
         PATH RichardsMechanics
         EXECUTABLE ogs
-        EXECUTABLE_ARGS mfront_parity_1element_notebook_mcc_bridge.prj
+        EXECUTABLE_ARGS mfront_parity_1element_dsm_micromacro_mcc_bridge.prj
         RUNTIME 1
     )
     AddTest(
-        NAME RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_native
+        NAME RichardsMechanics_mfront_parity_1element_dsm_micromacro_mcc_tuller_native
         PATH RichardsMechanics
         EXECUTABLE ogs
-        EXECUTABLE_ARGS mfront_parity_1element_notebook_mcc_tuller_native.prj
+        EXECUTABLE_ARGS mfront_parity_1element_dsm_micromacro_mcc_tuller_native.prj
         RUNTIME 1
     )
     AddTest(
-        NAME RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_bridge
+        NAME RichardsMechanics_mfront_parity_1element_dsm_micromacro_mcc_tuller_bridge
         PATH RichardsMechanics
         EXECUTABLE ogs
-        EXECUTABLE_ARGS mfront_parity_1element_notebook_mcc_tuller_bridge.prj
+        EXECUTABLE_ARGS mfront_parity_1element_dsm_micromacro_mcc_tuller_bridge.prj
         RUNTIME 1
     )
     AddTest(
-        NAME RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_native
+        NAME RichardsMechanics_mfront_restart_part1_dsm_micromacro_mcc_tuller_native
         PATH RichardsMechanics
         EXECUTABLE ogs
-        EXECUTABLE_ARGS mfront_restart_part1_notebook_mcc_tuller_native.prj
+        EXECUTABLE_ARGS mfront_restart_part1_dsm_micromacro_mcc_tuller_native.prj
         RUNTIME 1
     )
     AddTest(
-        NAME RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_bridge
+        NAME RichardsMechanics_mfront_restart_part1_dsm_micromacro_mcc_tuller_bridge
         PATH RichardsMechanics
         EXECUTABLE ogs
-        EXECUTABLE_ARGS mfront_restart_part1_notebook_mcc_tuller_bridge.prj
+        EXECUTABLE_ARGS mfront_restart_part1_dsm_micromacro_mcc_tuller_bridge.prj
         RUNTIME 1
     )
     add_test(
@@ -206,33 +206,33 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
                    WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics
     )
     add_test(
-        NAME ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_compare
+        NAME ogs-RichardsMechanics_mfront_parity_1element_dsm_micromacro_mcc_compare
         COMMAND
             ${CMAKE_COMMAND}
             -DOGS_EXE=$<TARGET_FILE:ogs>
             -DVTKDIFF_EXE=$<TARGET_FILE:vtkdiff>
             -DSOURCE_PATH=${Data_SOURCE_DIR}/RichardsMechanics
-            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_parity_notebook_mcc_compare
-            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontNotebookMCCParity.cmake
+            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_parity_dsm_micromacro_mcc_compare
+            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontDSMMicroMacroMCCParity.cmake
     )
     set_tests_properties(
-        ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_compare
+        ogs-RichardsMechanics_mfront_parity_1element_dsm_micromacro_mcc_compare
         PROPERTIES COST 1
                    LABELS "RichardsMechanics;default;small"
                    WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics
     )
     add_test(
-        NAME ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_compare
+        NAME ogs-RichardsMechanics_mfront_parity_1element_dsm_micromacro_mcc_tuller_compare
         COMMAND
             ${CMAKE_COMMAND}
             -DOGS_EXE=$<TARGET_FILE:ogs>
             -DVTKDIFF_EXE=$<TARGET_FILE:vtkdiff>
             -DSOURCE_PATH=${Data_SOURCE_DIR}/RichardsMechanics
-            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_parity_notebook_mcc_tuller_compare
-            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontNotebookMCCTullerParity.cmake
+            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_parity_dsm_micromacro_mcc_tuller_compare
+            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontDSMMicroMacroMCCTullerParity.cmake
     )
     set_tests_properties(
-        ogs-RichardsMechanics_mfront_parity_1element_notebook_mcc_tuller_compare
+        ogs-RichardsMechanics_mfront_parity_1element_dsm_micromacro_mcc_tuller_compare
         PROPERTIES COST 1
                    LABELS "RichardsMechanics;default;small"
                    WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics
@@ -254,33 +254,33 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
                    WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics
     )
     add_test(
-        NAME ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_compare
+        NAME ogs-RichardsMechanics_mfront_restart_part1_dsm_micromacro_mcc_compare
         COMMAND
             ${CMAKE_COMMAND}
             -DOGS_EXE=$<TARGET_FILE:ogs>
             -DVTKDIFF_EXE=$<TARGET_FILE:vtkdiff>
             -DSOURCE_PATH=${Data_SOURCE_DIR}/RichardsMechanics
-            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_restart_part1_notebook_mcc_compare
-            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontNotebookMCCBenchmarkParity.cmake
+            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_restart_part1_dsm_micromacro_mcc_compare
+            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontDSMMicroMacroMCCBenchmarkParity.cmake
     )
     set_tests_properties(
-        ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_compare
+        ogs-RichardsMechanics_mfront_restart_part1_dsm_micromacro_mcc_compare
         PROPERTIES COST 1
                    LABELS "RichardsMechanics;default;small"
                    WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics
     )
     add_test(
-        NAME ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_compare
+        NAME ogs-RichardsMechanics_mfront_restart_part1_dsm_micromacro_mcc_tuller_compare
         COMMAND
             ${CMAKE_COMMAND}
             -DOGS_EXE=$<TARGET_FILE:ogs>
             -DVTKDIFF_EXE=$<TARGET_FILE:vtkdiff>
             -DSOURCE_PATH=${Data_SOURCE_DIR}/RichardsMechanics
-            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_restart_part1_notebook_mcc_tuller_compare
-            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontNotebookMCCTullerBenchmarkParity.cmake
+            -DBINARY_PATH=${Data_BINARY_DIR}/RichardsMechanics/mfront_restart_part1_dsm_micromacro_mcc_tuller_compare
+            -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/CompareRichardsMechanicsMFrontDSMMicroMacroMCCTullerBenchmarkParity.cmake
     )
     set_tests_properties(
-        ogs-RichardsMechanics_mfront_restart_part1_notebook_mcc_tuller_compare
+        ogs-RichardsMechanics_mfront_restart_part1_dsm_micromacro_mcc_tuller_compare
         PROPERTIES COST 1
                    LABELS "RichardsMechanics;default;small"
                    WORKING_DIRECTORY ${Data_SOURCE_DIR}/RichardsMechanics

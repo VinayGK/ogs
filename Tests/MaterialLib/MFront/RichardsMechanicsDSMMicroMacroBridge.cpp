@@ -266,7 +266,7 @@ static auto createBridgeModel(
 
     const char* xml = R"XML(
         <type>MFrontRichardsMechanics</type>
-        <behaviour>RichardsMechanicsNotebookBridge</behaviour>
+        <behaviour>RichardsMechanicsDSMMicroMacroBridge</behaviour>
         <library path_is_relative_to_prj_file="false">libOgsMFrontBehaviour</library>
         <material_properties>
             <material_property name="YoungModulus" parameter="E"/>
@@ -312,7 +312,7 @@ static auto createBridgeModelThroughFactory(
 
     const char* xml = R"XML(
         <type>MFrontRichardsMechanics</type>
-        <behaviour>RichardsMechanicsNotebookBridge</behaviour>
+        <behaviour>RichardsMechanicsDSMMicroMacroBridge</behaviour>
         <library path_is_relative_to_prj_file="false">libOgsMFrontBehaviour</library>
         <material_properties>
             <material_property name="YoungModulus" parameter="E"/>
@@ -355,7 +355,7 @@ static auto createBridgeModelThroughFactoryPlaneStrain(
 
     const char* xml = R"XML(
         <type>MFrontRichardsMechanics</type>
-        <behaviour>RichardsMechanicsNotebookBridge</behaviour>
+        <behaviour>RichardsMechanicsDSMMicroMacroBridge</behaviour>
         <library path_is_relative_to_prj_file="false">libOgsMFrontBehaviour</library>
         <material_properties>
             <material_property name="YoungModulus" parameter="E"/>
@@ -457,12 +457,12 @@ static void setThermodynamicForces(MB::MaterialStateVariables& state,
     thermodynamic_forces[6] = saturation;
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      OneStepPressureResponse)
 {
     auto const baseline_rows = loadBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
     auto const& saturated_anchor = baseline_rows.front();
 
@@ -522,12 +522,12 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
         [](double const v) { return std::isfinite(v); }));
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      FactoryPathOneStepPressureResponse)
 {
     auto const baseline_rows = loadBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
     auto const& saturated_anchor = baseline_rows.front();
 
@@ -573,12 +573,12 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(tangent_matrix.allFinite());
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      FactoryPathPressureCoupledBlocks)
 {
     auto const baseline_rows = loadBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
     auto const& saturated_anchor = baseline_rows.front();
 
@@ -631,12 +631,12 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     }
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      PressureHistoryResponse)
 {
     auto const baseline_rows = loadBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
 
     auto const parameters = createParameters();
@@ -700,12 +700,12 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     }
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      MicrostateHistoryResponse)
 {
     auto const baseline_rows = loadBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
 
     auto const parameters = createParameters();
@@ -771,15 +771,15 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     }
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      StrainCoupledOverlapHistoryResponse)
 {
     auto const overlap_rows = loadBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
     auto const strain_rows = loadBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_strain_coupled_overlap_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_strain_coupled_overlap_baseline.csv");
     ASSERT_EQ(overlap_rows.size(), 5);
     ASSERT_EQ(strain_rows.size(), 5);
     auto const& anchor = overlap_rows.back();
@@ -865,12 +865,12 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     }
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
-     NotebookOverlapTransferBaselineHistory)
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
+     DSMMicroMacroOverlapTransferBaselineHistory)
 {
     auto const baseline_rows = loadBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
 
     auto const parameters = createParameters();
@@ -945,12 +945,12 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 }
 
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
-     NotebookOverlapCarrierHistory)
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
+     DSMMicroMacroOverlapCarrierHistory)
 {
     auto const baseline_rows = loadBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
 
     auto const parameters = createParameters();
@@ -1025,7 +1025,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 }
 
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      ZeroDtPressureCoupledInitialAssemblyResponse)
 {
     auto const parameters = createParameters();
@@ -1066,7 +1066,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 }
 
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      PlaneStrainFactoryPathZeroDtPressureCoupledInitialAssemblyResponse)
 {
     auto const parameters = createParameters();
@@ -1104,7 +1104,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
 }
 
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      PlaneStrainFactoryPathZeroDtBenchmarkParameterResponse)
 {
     auto const parameters = createBenchmarkParameters();
@@ -1137,7 +1137,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentNegativePressureResponse)
 {
     auto const parameters = createBenchmarkPressureConsistentParameters();
@@ -1175,7 +1175,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentRMeffectiveStressResponse)
 {
     auto const parameters = createBenchmarkPressureConsistentParameters();
@@ -1213,7 +1213,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      PlaneStrainFactoryPathZeroDtBenchmarkPressureConsistentExactRMStateResponse)
 {
     auto const parameters = createBenchmarkPressureConsistentParameters();
@@ -1251,7 +1251,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      PlaneStrainFactoryPathZeroDtElasticNegativePressureSaturationResponse)
 {
     auto parameters = createBenchmarkParameters();
@@ -1302,7 +1302,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(std::isfinite(response->dSaturation_dLiquidPressure));
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      PlaneStrainFactoryPathBenchmarkPressureConsistentExactRMStateFirstStepResponse)
 {
     auto const parameters = createBenchmarkPressureConsistentParameters();
@@ -1340,7 +1340,7 @@ TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
     EXPECT_TRUE(response->dSaturation_dStrain.allFinite());
 }
 
-TEST(MaterialLib_RichardsMechanicsNotebookBridgeMFront,
+TEST(MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront,
      PlaneStrainFactoryPathBenchmarkPressureConsistentProcessFailureStateResponse)
 {
     auto const parameters = createBenchmarkPressureConsistentParameters();

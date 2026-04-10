@@ -9,7 +9,7 @@
             <integration_order>2</integration_order>
             <constitutive_relation>
                 <type>MFrontRichardsMechanics</type>
-                <behaviour>RichardsMechanicsNotebookBridge_MCC</behaviour>
+                <behaviour>RichardsMechanicsDSMMicroMacroBridge_MCC</behaviour>
                 <material_properties>
                     <material_property name="YoungModulus" parameter="YoungModulus"/>
                     <material_property name="PoissonRatio" parameter="PoissonRatio"/>
@@ -21,10 +21,10 @@
                     <material_property name="ResidualGasSaturation" parameter="ResidualGasSaturation"/>
                     <material_property name="BubblePressure" parameter="BubblePressure"/>
                     <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
-                    <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
-                    <material_property name="NotebookLocalSolveMode" parameter="NotebookLocalSolveMode"/>
+                    <material_property name="MacroSaturationLawMode" parameter="MacroSaturationLawMode"/>
+                    <material_property name="MicroStateLocalSolveMode" parameter="MicroStateLocalSolveMode"/>
                     <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
-                    <material_property name="SwellingSlope" parameter="NotebookSwellingSlope"/>
+                    <material_property name="SwellingSlope" parameter="MicroSwellingStrainSlope"/>
                     <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
                     <material_property name="MacroViscosity" parameter="MacroViscosity"/>
                     <material_property name="ReferenceLiquidDensityMacro" parameter="ReferenceLiquidDensityMacro"/>
@@ -301,12 +301,12 @@
             <value>0.4109</value>
         </parameter>
         <parameter>
-            <name>NotebookSaturationMode</name>
+            <name>MacroSaturationLawMode</name>
             <type>Constant</type>
             <value>0</value>
         </parameter>
         <parameter>
-            <name>NotebookLocalSolveMode</name>
+            <name>MicroStateLocalSolveMode</name>
             <type>Constant</type>
             <value>1</value>
         </parameter>
@@ -316,7 +316,7 @@
             <value>1</value>
         </parameter>
         <parameter>
-            <name>NotebookSwellingSlope</name>
+            <name>MicroSwellingStrainSlope</name>
             <type>Constant</type>
             <value>0.15606235939756805</value>
         </parameter>

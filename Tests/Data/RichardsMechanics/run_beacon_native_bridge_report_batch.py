@@ -18,16 +18,16 @@ from analyze_beacon_unstructured_batch import summarise
 CASE_CONFIGS = {
     "1a01": {
         "native_project": "beacon_1a01_inflow_unstructured_batch.prj",
-        "bridge_project": "beacon_1a01_notebook_mcc_inflow_unstructured_batch.prj",
+        "bridge_project": "beacon_1a01_dsm_micromacro_mcc_inflow_unstructured_batch.prj",
         "native_output_prefix": "beacon_1a01_inflow_unstructured_batch",
-        "bridge_output_prefix": "beacon_1a01_notebook_mcc_inflow_unstructured_batch",
+        "bridge_output_prefix": "beacon_1a01_dsm_micromacro_mcc_inflow_unstructured_batch",
         "final_time": "100000.000000",
     },
     "1b": {
         "native_project": "beacon_1b_unstructured_batch.prj",
-        "bridge_project": "beacon_1b_notebook_mcc_unstructured_batch.prj",
+        "bridge_project": "beacon_1b_dsm_micromacro_mcc_unstructured_batch.prj",
         "native_output_prefix": "beacon_1b_unstructured_batch",
-        "bridge_output_prefix": "beacon_1b_notebook_mcc_unstructured_batch",
+        "bridge_output_prefix": "beacon_1b_dsm_micromacro_mcc_unstructured_batch",
         "final_time": "43200000.000000",
     },
 }

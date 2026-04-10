@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare native notebook branch and MFront bridge outputs on BEACON cases.
+"""Compare native dsm_micromacro branch and MFront bridge outputs on BEACON cases.
 
 The script executes paired projects, extracts final-state stress/density
 metrics from VTK outputs, computes field-wise maximum absolute differences, and
@@ -47,20 +47,20 @@ class CaseConfig:
 
 CASE_CONFIGS: dict[str, CaseConfig] = {
     "1a01_smoke": CaseConfig(
-        native_project="beacon_1a01_notebook_smoke.prj",
-        mfront_project="beacon_1a01_notebook_mcc_bridge.prj",
+        native_project="beacon_1a01_dsm_micromacro_smoke.prj",
+        mfront_project="beacon_1a01_dsm_micromacro_mcc_bridge.prj",
     ),
     "1b_smoke": CaseConfig(
-        native_project="beacon_1b_notebook_smoke.prj",
-        mfront_project="beacon_1b_notebook_mcc_bridge.prj",
+        native_project="beacon_1b_dsm_micromacro_smoke.prj",
+        mfront_project="beacon_1b_dsm_micromacro_mcc_bridge.prj",
     ),
     "1c_smoke": CaseConfig(
-        native_project="beacon_1c_notebook_smoke.prj",
-        mfront_project="beacon_1c_notebook_mcc_bridge.prj",
+        native_project="beacon_1c_dsm_micromacro_smoke.prj",
+        mfront_project="beacon_1c_dsm_micromacro_mcc_bridge.prj",
     ),
     "1a01_inflow": CaseConfig(
-        native_project="beacon_1a01_notebook_inflow.prj",
-        mfront_project="beacon_1a01_notebook_mcc_inflow_bridge.prj",
+        native_project="beacon_1a01_dsm_micromacro_inflow.prj",
+        mfront_project="beacon_1a01_dsm_micromacro_mcc_inflow_bridge.prj",
     ),
 }
 

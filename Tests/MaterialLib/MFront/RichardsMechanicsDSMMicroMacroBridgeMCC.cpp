@@ -37,13 +37,13 @@ using MB = MaterialLib::Solids::MechanicsBase<3>;
 namespace
 {
 std::vector<std::unique_ptr<ParameterLib::ParameterBase>>
-createNotebookMCCParameters(double const swelling_slope = 0.0,
+createDSMMicroMacroMCCParameters(double const swelling_slope = 0.0,
                             double const mass_exchange_coefficient = 0.0,
                             double const n_l0 = 0.1,
                             double const rho_lR0 = 1300.0,
                             double const epsilon_sw0 = 0.0,
-                            double const notebook_saturation_mode = 0.0,
-                            double const notebook_local_solve_mode = 0.0,
+                            double const macro_saturation_law_mode = 0.0,
+                            double const microstate_local_solve_mode = 0.0,
                             double const micro_potential_convention = 0.0,
                             double const hamaker_constant = -6e-20,
                             double const macro_viscosity = 1000.0)
@@ -68,11 +68,11 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
     add_param("ResidualGasSaturation", 0.0);
     add_param("BubblePressure", 1e4);
     add_param("VanGenuchtenExponent_m", 0.4);
-    add_param("NotebookSaturationMode", notebook_saturation_mode);
-    add_param("NotebookLocalSolveMode", notebook_local_solve_mode);
+    add_param("MacroSaturationLawMode", macro_saturation_law_mode);
+    add_param("MicroStateLocalSolveMode", microstate_local_solve_mode);
     add_param("MicroPotentialConvention", micro_potential_convention);
 
-    // Neutral first-step notebook coupling: state is updated and visible, but
+    // Neutral first-step dsm_micromacro coupling: state is updated and visible, but
     // the verified MCC stress/saturation surface stays unchanged.
     add_param("SwellingSlope", swelling_slope);
     add_param("MassExchangeCoefficient", mass_exchange_coefficient);
@@ -97,8 +97,8 @@ createNotebookMCCParameters(double const swelling_slope = 0.0,
 }
 
 std::vector<std::unique_ptr<ParameterLib::ParameterBase>>
-createNotebookSupportParameters(double const notebook_saturation_mode = 0.0,
-                                double const notebook_local_solve_mode = 0.0,
+createDSMMicroMacroSupportParameters(double const macro_saturation_law_mode = 0.0,
+                                double const microstate_local_solve_mode = 0.0,
                                 double const micro_potential_convention = 0.0,
                                 double const hamaker_constant = -6e-20)
 {
@@ -111,7 +111,7 @@ createNotebookSupportParameters(double const notebook_saturation_mode = 0.0,
                                                                       value));
     };
 
-    // Use the original notebook support-state settings for the auxiliary
+    // Use the original dsm_micromacro support-state settings for the auxiliary
     // surface, while keeping the MCC carrier mechanically stable.
     add_param("YoungModulus", 1e10);
     add_param("PoissonRatio", 0.25);
@@ -124,8 +124,8 @@ createNotebookSupportParameters(double const notebook_saturation_mode = 0.0,
     add_param("ResidualGasSaturation", 0.0);
     add_param("BubblePressure", 1e4);
     add_param("VanGenuchtenExponent_m", 0.4);
-    add_param("NotebookSaturationMode", notebook_saturation_mode);
-    add_param("NotebookLocalSolveMode", notebook_local_solve_mode);
+    add_param("MacroSaturationLawMode", macro_saturation_law_mode);
+    add_param("MicroStateLocalSolveMode", microstate_local_solve_mode);
     add_param("MicroPotentialConvention", micro_potential_convention);
 
     add_param("SwellingSlope", 0.1);
@@ -193,12 +193,12 @@ std::unique_ptr<MB> createReferenceMCCModel(
     return createModelFromXml(parameters, xml);
 }
 
-std::unique_ptr<MB> createNotebookMCCModel(
+std::unique_ptr<MB> createDSMMicroMacroMCCModel(
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters)
 {
     char const* xml = R"XML(
         <type>MFrontRichardsMechanics</type>
-        <behaviour>RichardsMechanicsNotebookBridge_MCC</behaviour>
+        <behaviour>RichardsMechanicsDSMMicroMacroBridge_MCC</behaviour>
         <library path_is_relative_to_prj_file="false">libOgsMFrontBehaviour</library>
         <material_properties>
             <material_property name="YoungModulus" parameter="YoungModulus"/>
@@ -211,8 +211,8 @@ std::unique_ptr<MB> createNotebookMCCModel(
             <material_property name="ResidualGasSaturation" parameter="ResidualGasSaturation"/>
             <material_property name="BubblePressure" parameter="BubblePressure"/>
             <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
-            <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
-            <material_property name="NotebookLocalSolveMode" parameter="NotebookLocalSolveMode"/>
+            <material_property name="MacroSaturationLawMode" parameter="MacroSaturationLawMode"/>
+            <material_property name="MicroStateLocalSolveMode" parameter="MicroStateLocalSolveMode"/>
             <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
             <material_property name="SwellingSlope" parameter="SwellingSlope"/>
             <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
@@ -310,7 +310,7 @@ void setInternalScalar(MB const& model,
     values[0] = value;
 }
 
-void setNotebookMCCThermodynamicForces(MB::MaterialStateVariables& state,
+void setDSMMicroMacroMCCThermodynamicForces(MB::MaterialStateVariables& state,
                                        KV const& stress,
                                        double const saturation)
 {
@@ -329,7 +329,7 @@ void setNotebookMCCThermodynamicForces(MB::MaterialStateVariables& state,
     thermodynamic_forces[6] = saturation;
 }
 
-KV notebookMCCIsotropicStress(double const value)
+KV dsm_micromacroMCCIsotropicStress(double const value)
 {
     KV sigma = KV::Zero();
     sigma[0] = value;
@@ -338,7 +338,7 @@ KV notebookMCCIsotropicStress(double const value)
     return sigma;
 }
 
-KV notebookMCCIsotropicStrainFromVolumetric(double const epsilon_v)
+KV dsm_micromacroMCCIsotropicStrainFromVolumetric(double const epsilon_v)
 {
     KV eps = KV::Zero();
     eps[0] = epsilon_v / 3.0;
@@ -347,7 +347,7 @@ KV notebookMCCIsotropicStrainFromVolumetric(double const epsilon_v)
     return eps;
 }
 
-double notebookTullerSaturation(double const liquid_pressure)
+double dsm_micromacroTullerSaturation(double const liquid_pressure)
 {
     if (liquid_pressure >= -1e-12)
     {
@@ -366,7 +366,7 @@ double notebookTullerSaturation(double const liquid_pressure)
     return 1.0 - std::exp(-prefactor / (liquid_pressure * liquid_pressure));
 }
 
-double notebookTullerDSaturationDLiquidPressure(double const liquid_pressure)
+double dsm_micromacroTullerDSaturationDLiquidPressure(double const liquid_pressure)
 {
     if (liquid_pressure >= -1e-12)
     {
@@ -387,26 +387,26 @@ double notebookTullerDSaturationDLiquidPressure(double const liquid_pressure)
     return -2.0 * prefactor * exp_term * inv_p * inv_p * inv_p;
 }
 
-std::string notebookMCCStripQuotes(std::string value)
+std::string dsm_micromacroMCCStripQuotes(std::string value)
 {
     value.erase(0, value.find_first_not_of(" \t\r\n\""));
     value.erase(value.find_last_not_of(" \t\r\n\"") + 1);
     return value;
 }
 
-std::vector<std::string> notebookMCCSplitCommaLine(std::string const& line)
+std::vector<std::string> dsm_micromacroMCCSplitCommaLine(std::string const& line)
 {
     std::stringstream ss(line);
     std::string field;
     std::vector<std::string> fields;
     while (std::getline(ss, field, ','))
     {
-        fields.push_back(notebookMCCStripQuotes(field));
+        fields.push_back(dsm_micromacroMCCStripQuotes(field));
     }
     return fields;
 }
 
-struct NotebookSupportBaselineRow
+struct DSMMicroMacroSupportBaselineRow
 {
     int step = 0;
     double pressure = 0.0;
@@ -428,7 +428,7 @@ struct NotebookSupportBaselineRow
     double sigma_S_xx = 0.0;
 };
 
-std::vector<NotebookSupportBaselineRow> loadNotebookSupportBaselineRows(
+std::vector<DSMMicroMacroSupportBaselineRow> loadDSMMicroMacroSupportBaselineRows(
     std::string const& filename)
 {
     std::ifstream in(filename);
@@ -436,7 +436,7 @@ std::vector<NotebookSupportBaselineRow> loadNotebookSupportBaselineRows(
 
     std::string header_line;
     std::getline(in, header_line);
-    auto const headers = notebookMCCSplitCommaLine(header_line);
+    auto const headers = dsm_micromacroMCCSplitCommaLine(header_line);
 
     std::unordered_map<std::string, std::size_t> column;
     for (std::size_t i = 0; i < headers.size(); ++i)
@@ -460,7 +460,7 @@ std::vector<NotebookSupportBaselineRow> loadNotebookSupportBaselineRows(
         return std::stod(fields.at(it->second));
     };
 
-    std::vector<NotebookSupportBaselineRow> rows;
+    std::vector<DSMMicroMacroSupportBaselineRow> rows;
     std::string line;
     while (std::getline(in, line))
     {
@@ -469,8 +469,8 @@ std::vector<NotebookSupportBaselineRow> loadNotebookSupportBaselineRows(
             continue;
         }
 
-        auto const fields = notebookMCCSplitCommaLine(line);
-        NotebookSupportBaselineRow row;
+        auto const fields = dsm_micromacroMCCSplitCommaLine(line);
+        DSMMicroMacroSupportBaselineRow row;
         row.step = static_cast<int>(get_value(fields, "step"));
         row.pressure = get_value(fields, "pressure");
         row.epsilon_v_total =
@@ -496,7 +496,7 @@ std::vector<NotebookSupportBaselineRow> loadNotebookSupportBaselineRows(
     return rows;
 }
 
-double notebookMCCScaledTolerance(double const value,
+double dsm_micromacroMCCScaledTolerance(double const value,
                                   double const relative = 1e-8,
                                   double const absolute = 1e-12)
 {
@@ -504,28 +504,28 @@ double notebookMCCScaledTolerance(double const value,
 }
 }  // namespace
 
-TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
-     NeutralNotebookStateMatchesVerifiedMCCBridge)
+TEST(MaterialLib_RMBridgeMFront_DSMMicroMacroMCC,
+     NeutralDSMMicroMacroStateMatchesVerifiedMCCBridge)
 {
-    auto parameters = createNotebookMCCParameters();
+    auto parameters = createDSMMicroMacroMCCParameters();
     auto reference = createReferenceMCCModel(parameters);
-    auto notebook_mcc = createNotebookMCCModel(parameters);
+    auto dsm_micromacro_mcc = createDSMMicroMacroMCCModel(parameters);
 
     auto reference_state = reference->createMaterialStateVariables();
-    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    auto dsm_micromacro_state = dsm_micromacro_mcc->createMaterialStateVariables();
     initializeState(*reference, *reference_state);
-    initializeState(*notebook_mcc, *notebook_state);
+    initializeState(*dsm_micromacro_mcc, *dsm_micromacro_state);
 
     ParameterLib::SpatialPosition x{};
 
     MPL::VariableArray previous;
     previous.mechanical_strain.emplace<KV>(KV::Zero());
-    previous.stress.emplace<KV>(notebookMCCIsotropicStress(-5e3));
+    previous.stress.emplace<KV>(dsm_micromacroMCCIsotropicStress(-5e3));
     previous.liquid_phase_pressure = -5e3;
     previous.temperature = 293.15;
 
     auto reference_previous = previous;
-    auto notebook_previous = previous;
+    auto dsm_micromacro_previous = previous;
 
     struct Step
     {
@@ -545,44 +545,44 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
     {
         MPL::VariableArray reference_current = reference_previous;
         reference_current.mechanical_strain.emplace<KV>(
-            notebookMCCIsotropicStrainFromVolumetric(steps[i].eps_v));
+            dsm_micromacroMCCIsotropicStrainFromVolumetric(steps[i].eps_v));
         reference_current.liquid_phase_pressure = steps[i].liquid_pressure;
 
-        MPL::VariableArray notebook_current = notebook_previous;
-        notebook_current.mechanical_strain.emplace<KV>(
-            notebookMCCIsotropicStrainFromVolumetric(steps[i].eps_v));
-        notebook_current.liquid_phase_pressure = steps[i].liquid_pressure;
+        MPL::VariableArray dsm_micromacro_current = dsm_micromacro_previous;
+        dsm_micromacro_current.mechanical_strain.emplace<KV>(
+            dsm_micromacroMCCIsotropicStrainFromVolumetric(steps[i].eps_v));
+        dsm_micromacro_current.liquid_phase_pressure = steps[i].liquid_pressure;
 
         double const dt = i == 0 ? steps[i].t : steps[i].t - steps[i - 1].t;
 
         auto reference_response = reference->integrateStressPressureCoupled(
             reference_previous, reference_current, steps[i].t, x, dt,
             *reference_state);
-        auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
-            notebook_previous, notebook_current, steps[i].t, x, dt,
-            *notebook_state);
+        auto dsm_micromacro_response = dsm_micromacro_mcc->integrateStressPressureCoupled(
+            dsm_micromacro_previous, dsm_micromacro_current, steps[i].t, x, dt,
+            *dsm_micromacro_state);
 
         ASSERT_TRUE(reference_response);
-        ASSERT_TRUE(notebook_response);
+        ASSERT_TRUE(dsm_micromacro_response);
         ASSERT_TRUE(reference_response->state);
-        ASSERT_TRUE(notebook_response->state);
+        ASSERT_TRUE(dsm_micromacro_response->state);
 
-        EXPECT_TRUE((reference_response->stress - notebook_response->stress)
+        EXPECT_TRUE((reference_response->stress - dsm_micromacro_response->stress)
                         .isZero(5e-11));
         EXPECT_TRUE(
             (reference_response->dStress_dStrain -
-             notebook_response->dStress_dStrain)
+             dsm_micromacro_response->dStress_dStrain)
                 .isZero(1e-8));
         EXPECT_TRUE((reference_response->dStress_dLiquidPressure -
-                     notebook_response->dStress_dLiquidPressure)
+                     dsm_micromacro_response->dStress_dLiquidPressure)
                         .isZero(1e-12));
         EXPECT_TRUE((reference_response->dSaturation_dStrain -
-                     notebook_response->dSaturation_dStrain)
+                     dsm_micromacro_response->dSaturation_dStrain)
                         .isZero(1e-12));
-        EXPECT_NEAR(reference_response->saturation, notebook_response->saturation,
+        EXPECT_NEAR(reference_response->saturation, dsm_micromacro_response->saturation,
                     1e-15);
         EXPECT_NEAR(reference_response->dSaturation_dLiquidPressure,
-                    notebook_response->dSaturation_dLiquidPressure, 1e-15);
+                    dsm_micromacro_response->dSaturation_dLiquidPressure, 1e-15);
 
         for (auto const& name :
              {"EquivalentPlasticStrain", "PreConsolidationPressure",
@@ -590,10 +590,10 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
         {
             auto const reference_value =
                 getInternalScalar(*reference, *reference_response->state, name);
-            auto const notebook_value =
-                getInternalScalar(*notebook_mcc, *notebook_response->state,
+            auto const dsm_micromacro_value =
+                getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                                   name);
-            EXPECT_NEAR(reference_value, notebook_value,
+            EXPECT_NEAR(reference_value, dsm_micromacro_value,
                         name == std::string("PreConsolidationPressure") ? 1e-8
                                                                         : 1e-14)
                 << name;
@@ -601,32 +601,32 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 
         auto const reference_elastic_strain = getInternalVector(
             *reference, *reference_response->state, "ElasticStrain");
-        auto const notebook_elastic_strain = getInternalVector(
-            *notebook_mcc, *notebook_response->state, "ElasticStrain");
-        ASSERT_EQ(reference_elastic_strain.size(), notebook_elastic_strain.size());
+        auto const dsm_micromacro_elastic_strain = getInternalVector(
+            *dsm_micromacro_mcc, *dsm_micromacro_response->state, "ElasticStrain");
+        ASSERT_EQ(reference_elastic_strain.size(), dsm_micromacro_elastic_strain.size());
         for (std::size_t k = 0; k < reference_elastic_strain.size(); ++k)
         {
-            EXPECT_NEAR(reference_elastic_strain[k], notebook_elastic_strain[k],
+            EXPECT_NEAR(reference_elastic_strain[k], dsm_micromacro_elastic_strain[k],
                         1e-14);
         }
 
         auto const n_l =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_l");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "n_l");
         auto const rho_lR =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "rho_lR");
-        auto const epsilon_sw = getInternalScalar(*notebook_mcc,
-                                                  *notebook_response->state,
+        auto const epsilon_sw = getInternalScalar(*dsm_micromacro_mcc,
+                                                  *dsm_micromacro_response->state,
                                                   "epsilon_sw");
         auto const phi_m =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_m");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "phi_m");
         auto const phi_M =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_M");
-        auto const mu_lR = getInternalScalar(*notebook_mcc,
-                                             *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "phi_M");
+        auto const mu_lR = getInternalScalar(*dsm_micromacro_mcc,
+                                             *dsm_micromacro_response->state,
                                              "mu_lR");
         auto const rho_l_hat =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "rho_l_hat");
 
         EXPECT_TRUE(std::isfinite(n_l));
@@ -644,32 +644,32 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
         EXPECT_NEAR(rho_l_hat, 0.0, 1e-14);
 
         reference_state = std::move(reference_response->state);
-        notebook_state = std::move(notebook_response->state);
+        dsm_micromacro_state = std::move(dsm_micromacro_response->state);
 
         reference_previous = reference_current;
         reference_previous.stress.emplace<KV>(reference_response->stress);
-        notebook_previous = notebook_current;
-        notebook_previous.stress.emplace<KV>(notebook_response->stress);
+        dsm_micromacro_previous = dsm_micromacro_current;
+        dsm_micromacro_previous.stress.emplace<KV>(dsm_micromacro_response->stress);
     }
 }
 
-TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+TEST(MaterialLib_RMBridgeMFront_DSMMicroMacroMCC,
      SwellingFeedbackChangesStressButKeepsCarrierSaturation)
 {
-    auto parameters = createNotebookMCCParameters(2.0, 1e-4, 0.1, 1300.0, 0.0);
+    auto parameters = createDSMMicroMacroMCCParameters(2.0, 1e-4, 0.1, 1300.0, 0.0);
     auto reference = createReferenceMCCModel(parameters);
-    auto notebook_mcc = createNotebookMCCModel(parameters);
+    auto dsm_micromacro_mcc = createDSMMicroMacroMCCModel(parameters);
 
     auto reference_state = reference->createMaterialStateVariables();
-    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    auto dsm_micromacro_state = dsm_micromacro_mcc->createMaterialStateVariables();
     initializeState(*reference, *reference_state);
-    initializeState(*notebook_mcc, *notebook_state);
+    initializeState(*dsm_micromacro_mcc, *dsm_micromacro_state);
 
     ParameterLib::SpatialPosition x{};
 
     MPL::VariableArray previous;
     previous.mechanical_strain.emplace<KV>(KV::Zero());
-    previous.stress.emplace<KV>(notebookMCCIsotropicStress(-5e3));
+    previous.stress.emplace<KV>(dsm_micromacroMCCIsotropicStress(-5e3));
     previous.liquid_phase_pressure = -5e3;
     previous.temperature = 293.15;
 
@@ -680,32 +680,32 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 
     MPL::VariableArray current = previous;
     current.mechanical_strain.emplace<KV>(
-        notebookMCCIsotropicStrainFromVolumetric(eps_v));
+        dsm_micromacroMCCIsotropicStrainFromVolumetric(eps_v));
     current.liquid_phase_pressure = liquid_pressure;
 
     auto reference_response = reference->integrateStressPressureCoupled(
         previous, current, t, x, dt, *reference_state);
-    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
-        previous, current, t, x, dt, *notebook_state);
+    auto dsm_micromacro_response = dsm_micromacro_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *dsm_micromacro_state);
 
     ASSERT_TRUE(reference_response);
-    ASSERT_TRUE(notebook_response);
+    ASSERT_TRUE(dsm_micromacro_response);
     ASSERT_TRUE(reference_response->state);
-    ASSERT_TRUE(notebook_response->state);
+    ASSERT_TRUE(dsm_micromacro_response->state);
 
     auto const epsilon_sw =
-        getInternalScalar(*notebook_mcc, *notebook_response->state,
+        getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                           "epsilon_sw");
     EXPECT_GT(std::abs(epsilon_sw), 1e-12);
 
     double const bulk_modulus = 52e6 / (3.0 * (1.0 - 2.0 * 0.3));
     auto const expected_stress =
         reference_response->stress -
-        notebookMCCIsotropicStress(bulk_modulus * epsilon_sw);
-    EXPECT_TRUE((expected_stress - notebook_response->stress).isZero(5e-8));
+        dsm_micromacroMCCIsotropicStress(bulk_modulus * epsilon_sw);
+    EXPECT_TRUE((expected_stress - dsm_micromacro_response->stress).isZero(5e-8));
 
     auto const sigma_S_values =
-        getInternalVector(*notebook_mcc, *notebook_response->state, "sigma_S");
+        getInternalVector(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "sigma_S");
     ASSERT_EQ(sigma_S_values.size(), static_cast<std::size_t>(KV::RowsAtCompileTime));
     KV sigma_S = KV::Zero();
     for (Eigen::Index i = 0; i < KV::RowsAtCompileTime; ++i)
@@ -713,29 +713,29 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
         sigma_S[i] = sigma_S_values[static_cast<std::size_t>(i)];
     }
     auto const added_swelling_stress =
-        notebook_response->stress - reference_response->stress;
+        dsm_micromacro_response->stress - reference_response->stress;
     EXPECT_TRUE((added_swelling_stress - sigma_S).isZero(5e-8));
 
-    EXPECT_NEAR(reference_response->saturation, notebook_response->saturation,
+    EXPECT_NEAR(reference_response->saturation, dsm_micromacro_response->saturation,
                 1e-15);
     EXPECT_TRUE((reference_response->dSaturation_dStrain -
-                 notebook_response->dSaturation_dStrain)
+                 dsm_micromacro_response->dSaturation_dStrain)
                     .isZero(1e-12));
     EXPECT_NEAR(reference_response->dSaturation_dLiquidPressure,
-                notebook_response->dSaturation_dLiquidPressure, 1e-15);
+                dsm_micromacro_response->dSaturation_dLiquidPressure, 1e-15);
 
-    auto evaluate_notebook_response =
+    auto evaluate_dsm_micromacro_response =
         [&](double const eps_v_value, double const pressure_value)
     {
         auto local_parameters =
-            createNotebookMCCParameters(2.0, 1e-4, 0.1, 1300.0, 0.0);
-        auto local_model = createNotebookMCCModel(local_parameters);
+            createDSMMicroMacroMCCParameters(2.0, 1e-4, 0.1, 1300.0, 0.0);
+        auto local_model = createDSMMicroMacroMCCModel(local_parameters);
         auto local_state = local_model->createMaterialStateVariables();
         initializeState(*local_model, *local_state);
 
         MPL::VariableArray local_current = previous;
         local_current.mechanical_strain.emplace<KV>(
-            notebookMCCIsotropicStrainFromVolumetric(eps_v_value));
+            dsm_micromacroMCCIsotropicStrainFromVolumetric(eps_v_value));
         local_current.liquid_phase_pressure = pressure_value;
 
         return local_model->integrateStressPressureCoupled(
@@ -743,33 +743,33 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
     };
 
     double const dp_fd = std::max(1e-6, std::abs(liquid_pressure) * 1e-6);
-    auto notebook_p_plus = evaluate_notebook_response(eps_v, liquid_pressure + dp_fd);
-    auto notebook_p_minus = evaluate_notebook_response(eps_v, liquid_pressure - dp_fd);
-    ASSERT_TRUE(notebook_p_plus);
-    ASSERT_TRUE(notebook_p_minus);
+    auto dsm_micromacro_p_plus = evaluate_dsm_micromacro_response(eps_v, liquid_pressure + dp_fd);
+    auto dsm_micromacro_p_minus = evaluate_dsm_micromacro_response(eps_v, liquid_pressure - dp_fd);
+    ASSERT_TRUE(dsm_micromacro_p_plus);
+    ASSERT_TRUE(dsm_micromacro_p_minus);
     auto const dsigma_dp_fd =
-        (notebook_p_plus->stress - notebook_p_minus->stress) / (2.0 * dp_fd);
-    EXPECT_TRUE((notebook_response->dStress_dLiquidPressure - dsigma_dp_fd)
+        (dsm_micromacro_p_plus->stress - dsm_micromacro_p_minus->stress) / (2.0 * dp_fd);
+    EXPECT_TRUE((dsm_micromacro_response->dStress_dLiquidPressure - dsigma_dp_fd)
                     .isZero(5e-4));
 }
 
-TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+TEST(MaterialLib_RMBridgeMFront_DSMMicroMacroMCC,
      MicroOnlySwellingKeepsMacroExchangeOffAndPreservesCarrierSaturation)
 {
-    auto parameters = createNotebookMCCParameters(2.0, 0.0, 0.1, 1300.0, 0.0);
+    auto parameters = createDSMMicroMacroMCCParameters(2.0, 0.0, 0.1, 1300.0, 0.0);
     auto reference = createReferenceMCCModel(parameters);
-    auto notebook_mcc = createNotebookMCCModel(parameters);
+    auto dsm_micromacro_mcc = createDSMMicroMacroMCCModel(parameters);
 
     auto reference_state = reference->createMaterialStateVariables();
-    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    auto dsm_micromacro_state = dsm_micromacro_mcc->createMaterialStateVariables();
     initializeState(*reference, *reference_state);
-    initializeState(*notebook_mcc, *notebook_state);
+    initializeState(*dsm_micromacro_mcc, *dsm_micromacro_state);
 
     ParameterLib::SpatialPosition x{};
 
     MPL::VariableArray previous;
     previous.mechanical_strain.emplace<KV>(KV::Zero());
-    previous.stress.emplace<KV>(notebookMCCIsotropicStress(-5e3));
+    previous.stress.emplace<KV>(dsm_micromacroMCCIsotropicStress(-5e3));
     previous.liquid_phase_pressure = -5e3;
     previous.temperature = 293.15;
 
@@ -780,36 +780,36 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 
     MPL::VariableArray current = previous;
     current.mechanical_strain.emplace<KV>(
-        notebookMCCIsotropicStrainFromVolumetric(eps_v));
+        dsm_micromacroMCCIsotropicStrainFromVolumetric(eps_v));
     current.liquid_phase_pressure = liquid_pressure;
 
     auto reference_response = reference->integrateStressPressureCoupled(
         previous, current, t, x, dt, *reference_state);
-    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
-        previous, current, t, x, dt, *notebook_state);
+    auto dsm_micromacro_response = dsm_micromacro_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *dsm_micromacro_state);
 
     ASSERT_TRUE(reference_response);
-    ASSERT_TRUE(notebook_response);
-    ASSERT_TRUE(notebook_response->state);
+    ASSERT_TRUE(dsm_micromacro_response);
+    ASSERT_TRUE(dsm_micromacro_response->state);
 
     auto const epsilon_sw =
-        getInternalScalar(*notebook_mcc, *notebook_response->state,
+        getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                           "epsilon_sw");
     EXPECT_GT(std::abs(epsilon_sw), 1e-12);
 
     EXPECT_NEAR(reference_response->liquid_mass_exchange_source, 0.0, 1e-18);
-    EXPECT_NEAR(notebook_response->liquid_mass_exchange_source, 0.0, 1e-18);
+    EXPECT_NEAR(dsm_micromacro_response->liquid_mass_exchange_source, 0.0, 1e-18);
 
-    EXPECT_NEAR(reference_response->saturation, notebook_response->saturation,
+    EXPECT_NEAR(reference_response->saturation, dsm_micromacro_response->saturation,
                 1e-15);
     EXPECT_TRUE((reference_response->dSaturation_dStrain -
-                 notebook_response->dSaturation_dStrain)
+                 dsm_micromacro_response->dSaturation_dStrain)
                     .isZero(1e-12));
     EXPECT_NEAR(reference_response->dSaturation_dLiquidPressure,
-                notebook_response->dSaturation_dLiquidPressure, 1e-15);
+                dsm_micromacro_response->dSaturation_dLiquidPressure, 1e-15);
 
     auto const sigma_S_values =
-        getInternalVector(*notebook_mcc, *notebook_response->state, "sigma_S");
+        getInternalVector(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "sigma_S");
     ASSERT_EQ(sigma_S_values.size(), static_cast<std::size_t>(KV::RowsAtCompileTime));
     KV sigma_S = KV::Zero();
     for (Eigen::Index i = 0; i < KV::RowsAtCompileTime; ++i)
@@ -818,28 +818,28 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
     }
 
     auto const added_swelling_stress =
-        notebook_response->stress - reference_response->stress;
+        dsm_micromacro_response->stress - reference_response->stress;
     EXPECT_TRUE((added_swelling_stress - sigma_S).isZero(5e-8));
 }
 
-TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+TEST(MaterialLib_RMBridgeMFront_DSMMicroMacroMCC,
      NativeAlignedStageOneStressGapIsMicroSupportStress)
 {
-    auto parameters = createNotebookMCCParameters(
+    auto parameters = createDSMMicroMacroMCCParameters(
         0.1, 1e-13, 0.1, 2095.3222465784393, 0.0, 0.0, 0.0, 1.0, 6e-20, 1e-3);
     auto reference = createReferenceMCCModel(parameters);
-    auto notebook_mcc = createNotebookMCCModel(parameters);
+    auto dsm_micromacro_mcc = createDSMMicroMacroMCCModel(parameters);
 
     auto reference_state = reference->createMaterialStateVariables();
-    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    auto dsm_micromacro_state = dsm_micromacro_mcc->createMaterialStateVariables();
     initializeState(*reference, *reference_state);
-    initializeState(*notebook_mcc, *notebook_state);
+    initializeState(*dsm_micromacro_mcc, *dsm_micromacro_state);
 
     ParameterLib::SpatialPosition x{};
 
     MPL::VariableArray previous;
     previous.mechanical_strain.emplace<KV>(KV::Zero());
-    previous.stress.emplace<KV>(notebookMCCIsotropicStress(0.0));
+    previous.stress.emplace<KV>(dsm_micromacroMCCIsotropicStress(0.0));
     previous.liquid_phase_pressure = -1e6;
     previous.temperature = 293.15;
 
@@ -851,16 +851,16 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 
     auto reference_response = reference->integrateStressPressureCoupled(
         previous, current, t, x, dt, *reference_state);
-    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
-        previous, current, t, x, dt, *notebook_state);
+    auto dsm_micromacro_response = dsm_micromacro_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *dsm_micromacro_state);
 
     ASSERT_TRUE(reference_response);
-    ASSERT_TRUE(notebook_response);
+    ASSERT_TRUE(dsm_micromacro_response);
     ASSERT_TRUE(reference_response->state);
-    ASSERT_TRUE(notebook_response->state);
+    ASSERT_TRUE(dsm_micromacro_response->state);
 
     auto const sigma_S_values =
-        getInternalVector(*notebook_mcc, *notebook_response->state, "sigma_S");
+        getInternalVector(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "sigma_S");
     ASSERT_EQ(sigma_S_values.size(), static_cast<std::size_t>(KV::RowsAtCompileTime));
     KV sigma_S = KV::Zero();
     for (Eigen::Index i = 0; i < KV::RowsAtCompileTime; ++i)
@@ -869,25 +869,25 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
     }
 
     auto const added_swelling_stress =
-        notebook_response->stress - reference_response->stress;
+        dsm_micromacro_response->stress - reference_response->stress;
     EXPECT_GT(sigma_S.norm(), 1e-3);
     EXPECT_TRUE((added_swelling_stress - sigma_S).isZero(1e-6));
-    EXPECT_NEAR(reference_response->saturation, notebook_response->saturation,
+    EXPECT_NEAR(reference_response->saturation, dsm_micromacro_response->saturation,
                 1e-15);
 }
 
-TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+TEST(MaterialLib_RMBridgeMFront_DSMMicroMacroMCC,
      PressureCoupledResponseExposesMacroExchangeSource)
 {
-    auto parameters = createNotebookMCCParameters(
+    auto parameters = createDSMMicroMacroMCCParameters(
         0.1, 1e-13, 0.01, 2276.031917690513, 0.0, 0.0, 1.0, 1.0, 5.1e-21, 1e-3);
     auto reference = createReferenceMCCModel(parameters);
-    auto notebook_mcc = createNotebookMCCModel(parameters);
+    auto dsm_micromacro_mcc = createDSMMicroMacroMCCModel(parameters);
 
     auto reference_state = reference->createMaterialStateVariables();
-    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    auto dsm_micromacro_state = dsm_micromacro_mcc->createMaterialStateVariables();
     initializeState(*reference, *reference_state);
-    initializeState(*notebook_mcc, *notebook_state);
+    initializeState(*dsm_micromacro_mcc, *dsm_micromacro_state);
 
     ParameterLib::SpatialPosition x{};
 
@@ -904,18 +904,18 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 
     auto reference_response = reference->integrateStressPressureCoupled(
         previous, current, t, x, dt, *reference_state);
-    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
-        previous, current, t, x, dt, *notebook_state);
+    auto dsm_micromacro_response = dsm_micromacro_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *dsm_micromacro_state);
 
     ASSERT_TRUE(reference_response);
-    ASSERT_TRUE(notebook_response);
-    ASSERT_TRUE(notebook_response->state);
+    ASSERT_TRUE(dsm_micromacro_response);
+    ASSERT_TRUE(dsm_micromacro_response->state);
 
     auto const rho_l_hat =
-        getInternalScalar(*notebook_mcc, *notebook_response->state,
+        getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                           "rho_l_hat");
     auto const sigma_S_values =
-        getInternalVector(*notebook_mcc, *notebook_response->state, "sigma_S");
+        getInternalVector(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "sigma_S");
     KV sigma_S = KV::Zero();
     for (Eigen::Index i = 0; i < KV::RowsAtCompileTime; ++i)
     {
@@ -924,23 +924,23 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 
     EXPECT_NEAR(reference_response->liquid_mass_exchange_source, 0.0, 1e-18);
     EXPECT_GT(rho_l_hat, 0.0);
-    EXPECT_NEAR(notebook_response->liquid_mass_exchange_source, -rho_l_hat,
+    EXPECT_NEAR(dsm_micromacro_response->liquid_mass_exchange_source, -rho_l_hat,
                 std::max(1e-18, 1e-12 * std::abs(rho_l_hat)));
     EXPECT_TRUE(
-        (notebook_response->swelling_stress - sigma_S).isZero(1e-12));
+        (dsm_micromacro_response->swelling_stress - sigma_S).isZero(1e-12));
 }
 
-TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
+TEST(MaterialLib_RMBridgeMFront_DSMMicroMacroMCC,
      NegativeAttractiveConventionMatchesLegacyNegativeHamakerPath)
 {
-    auto legacy_parameters = createNotebookMCCParameters(
+    auto legacy_parameters = createDSMMicroMacroMCCParameters(
         8.0, 1e-13, 0.1, 1300.0, 0.0, 0.0, 0.0, 0.0, -6e-20);
-    auto native_aligned_parameters = createNotebookMCCParameters(
+    auto native_aligned_parameters = createDSMMicroMacroMCCParameters(
         8.0, 1e-13, 0.1, 1300.0, 0.0, 0.0, 0.0, 1.0, 6e-20);
 
-    auto legacy_model = createNotebookMCCModel(legacy_parameters);
+    auto legacy_model = createDSMMicroMacroMCCModel(legacy_parameters);
     auto native_aligned_model =
-        createNotebookMCCModel(native_aligned_parameters);
+        createDSMMicroMacroMCCModel(native_aligned_parameters);
 
     auto legacy_state = legacy_model->createMaterialStateVariables();
     auto native_aligned_state =
@@ -952,7 +952,7 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 
     MPL::VariableArray previous;
     previous.mechanical_strain.emplace<KV>(KV::Zero());
-    previous.stress.emplace<KV>(notebookMCCIsotropicStress(0.0));
+    previous.stress.emplace<KV>(dsm_micromacroMCCIsotropicStress(0.0));
     previous.liquid_phase_pressure = -1e6;
     previous.temperature = 293.15;
 
@@ -995,24 +995,24 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
     EXPECT_NEAR(legacy_epsilon_sw, aligned_epsilon_sw, 1e-12);
 }
 
-TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
-     NotebookSaturationModeMatchesTullerLawAndKeepsStressSurface)
+TEST(MaterialLib_RMBridgeMFront_DSMMicroMacroMCC,
+     DSMMicroMacroSaturationModeMatchesTullerLawAndKeepsStressSurface)
 {
-    auto parameters = createNotebookMCCParameters(0.0, 0.0, 0.1, 1300.0, 0.0,
+    auto parameters = createDSMMicroMacroMCCParameters(0.0, 0.0, 0.1, 1300.0, 0.0,
                                                   1.0);
     auto reference = createReferenceMCCModel(parameters);
-    auto notebook_mcc = createNotebookMCCModel(parameters);
+    auto dsm_micromacro_mcc = createDSMMicroMacroMCCModel(parameters);
 
     auto reference_state = reference->createMaterialStateVariables();
-    auto notebook_state = notebook_mcc->createMaterialStateVariables();
+    auto dsm_micromacro_state = dsm_micromacro_mcc->createMaterialStateVariables();
     initializeState(*reference, *reference_state);
-    initializeState(*notebook_mcc, *notebook_state);
+    initializeState(*dsm_micromacro_mcc, *dsm_micromacro_state);
 
     ParameterLib::SpatialPosition x{};
 
     MPL::VariableArray previous;
     previous.mechanical_strain.emplace<KV>(KV::Zero());
-    previous.stress.emplace<KV>(notebookMCCIsotropicStress(-5e3));
+    previous.stress.emplace<KV>(dsm_micromacroMCCIsotropicStress(-5e3));
     previous.liquid_phase_pressure = -5e3;
     previous.temperature = 293.15;
 
@@ -1023,66 +1023,66 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
 
     MPL::VariableArray current = previous;
     current.mechanical_strain.emplace<KV>(
-        notebookMCCIsotropicStrainFromVolumetric(eps_v));
+        dsm_micromacroMCCIsotropicStrainFromVolumetric(eps_v));
     current.liquid_phase_pressure = liquid_pressure;
 
     auto reference_response = reference->integrateStressPressureCoupled(
         previous, current, t, x, dt, *reference_state);
-    auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
-        previous, current, t, x, dt, *notebook_state);
+    auto dsm_micromacro_response = dsm_micromacro_mcc->integrateStressPressureCoupled(
+        previous, current, t, x, dt, *dsm_micromacro_state);
 
     ASSERT_TRUE(reference_response);
-    ASSERT_TRUE(notebook_response);
+    ASSERT_TRUE(dsm_micromacro_response);
     ASSERT_TRUE(reference_response->state);
-    ASSERT_TRUE(notebook_response->state);
+    ASSERT_TRUE(dsm_micromacro_response->state);
 
-    EXPECT_TRUE((reference_response->stress - notebook_response->stress)
+    EXPECT_TRUE((reference_response->stress - dsm_micromacro_response->stress)
                     .isZero(5e-11));
     EXPECT_TRUE((reference_response->dStress_dStrain -
-                 notebook_response->dStress_dStrain)
+                 dsm_micromacro_response->dStress_dStrain)
                     .isZero(1e-8));
     EXPECT_TRUE((reference_response->dStress_dLiquidPressure -
-                 notebook_response->dStress_dLiquidPressure)
+                 dsm_micromacro_response->dStress_dLiquidPressure)
                     .isZero(1e-12));
 
-    EXPECT_NEAR(notebook_response->saturation,
-                notebookTullerSaturation(liquid_pressure), 1e-15);
-    EXPECT_NEAR(notebook_response->dSaturation_dLiquidPressure,
-                notebookTullerDSaturationDLiquidPressure(liquid_pressure),
+    EXPECT_NEAR(dsm_micromacro_response->saturation,
+                dsm_micromacroTullerSaturation(liquid_pressure), 1e-15);
+    EXPECT_NEAR(dsm_micromacro_response->dSaturation_dLiquidPressure,
+                dsm_micromacroTullerDSaturationDLiquidPressure(liquid_pressure),
                 1e-15);
-    EXPECT_TRUE(notebook_response->dSaturation_dStrain.isZero(1e-12));
+    EXPECT_TRUE(dsm_micromacro_response->dSaturation_dStrain.isZero(1e-12));
 
     auto const epsilon_sw =
-        getInternalScalar(*notebook_mcc, *notebook_response->state,
+        getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                           "epsilon_sw");
     EXPECT_NEAR(epsilon_sw, 0.0, 1e-14);
 
     MPL::VariableArray saturated_current = previous;
     saturated_current.mechanical_strain.emplace<KV>(
-        notebookMCCIsotropicStrainFromVolumetric(eps_v));
+        dsm_micromacroMCCIsotropicStrainFromVolumetric(eps_v));
     saturated_current.liquid_phase_pressure = 1e3;
 
-    auto saturated_response = notebook_mcc->integrateStressPressureCoupled(
-        previous, saturated_current, t, x, dt, *notebook_state);
+    auto saturated_response = dsm_micromacro_mcc->integrateStressPressureCoupled(
+        previous, saturated_current, t, x, dt, *dsm_micromacro_state);
     ASSERT_TRUE(saturated_response);
     EXPECT_NEAR(saturated_response->saturation, 1.0, 1e-15);
     EXPECT_NEAR(saturated_response->dSaturation_dLiquidPressure, 0.0, 1e-15);
     EXPECT_TRUE(saturated_response->dSaturation_dStrain.isZero(1e-12));
 }
 
-TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
-     NotebookSupportStateMatchesOverlapTransferBaseline)
+TEST(MaterialLib_RMBridgeMFront_DSMMicroMacroMCC,
+     DSMMicroMacroSupportStateMatchesOverlapTransferBaseline)
 {
-    auto const baseline_rows = loadNotebookSupportBaselineRows(
+    auto const baseline_rows = loadDSMMicroMacroSupportBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
 
-    auto parameters = createNotebookSupportParameters();
-    auto notebook_mcc = createNotebookMCCModel(parameters);
+    auto parameters = createDSMMicroMacroSupportParameters();
+    auto dsm_micromacro_mcc = createDSMMicroMacroMCCModel(parameters);
 
-    auto notebook_state = notebook_mcc->createMaterialStateVariables();
-    initializeState(*notebook_mcc, *notebook_state);
+    auto dsm_micromacro_state = dsm_micromacro_mcc->createMaterialStateVariables();
+    initializeState(*dsm_micromacro_mcc, *dsm_micromacro_state);
 
     ParameterLib::SpatialPosition x{};
 
@@ -1098,127 +1098,127 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
         MPL::VariableArray current = previous;
         current.liquid_phase_pressure = row.pressure;
 
-        auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
+        auto dsm_micromacro_response = dsm_micromacro_mcc->integrateStressPressureCoupled(
             previous, current, static_cast<double>(row.step + 1), x, 1.0,
-            *notebook_state);
+            *dsm_micromacro_state);
 
-        ASSERT_TRUE(notebook_response);
-        ASSERT_TRUE(notebook_response->state);
+        ASSERT_TRUE(dsm_micromacro_response);
+        ASSERT_TRUE(dsm_micromacro_response->state);
 
         auto const n_l =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_l");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "n_l");
         auto const phi_m =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_m");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "phi_m");
         auto const phi_M =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_M");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "phi_M");
         auto const phi =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "phi");
         auto const n_S =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_S");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "n_S");
         auto const n_L =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_L");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "n_L");
         auto const rho_lR =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "rho_lR");
         auto const rho_LR =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "rho_LR");
         auto const omega_l =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "omega_l");
         auto const mu_lR =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "mu_lR");
         auto const rho_l_hat =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "rho_l_hat");
         auto const delta_epsilon_sw = getInternalScalar(
-            *notebook_mcc, *notebook_response->state, "delta_epsilon_sw");
+            *dsm_micromacro_mcc, *dsm_micromacro_response->state, "delta_epsilon_sw");
         auto const epsilon_sw = getInternalScalar(
-            *notebook_mcc, *notebook_response->state, "epsilon_sw");
+            *dsm_micromacro_mcc, *dsm_micromacro_response->state, "epsilon_sw");
         auto const sigma_S =
-            getInternalVector(*notebook_mcc, *notebook_response->state,
+            getInternalVector(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "sigma_S");
 
-        EXPECT_NEAR(notebook_response->saturation, row.saturation,
-                    notebookMCCScaledTolerance(row.saturation));
+        EXPECT_NEAR(dsm_micromacro_response->saturation, row.saturation,
+                    dsm_micromacroMCCScaledTolerance(row.saturation));
         EXPECT_NEAR(n_l, row.n_l,
-                    notebookMCCScaledTolerance(row.n_l, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.n_l, 5e-3, 1e-8));
         EXPECT_NEAR(phi_m, row.phi_m,
-                    notebookMCCScaledTolerance(row.phi_m, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.phi_m, 5e-3, 1e-8));
         EXPECT_NEAR(phi_M, row.phi_M,
-                    notebookMCCScaledTolerance(row.phi_M, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.phi_M, 5e-3, 1e-8));
         EXPECT_NEAR(phi, row.phi,
-                    notebookMCCScaledTolerance(row.phi, 1e-12, 1e-12));
+                    dsm_micromacroMCCScaledTolerance(row.phi, 1e-12, 1e-12));
         EXPECT_NEAR(n_S, row.n_S,
-                    notebookMCCScaledTolerance(row.n_S, 1e-12, 1e-12));
+                    dsm_micromacroMCCScaledTolerance(row.n_S, 1e-12, 1e-12));
         EXPECT_NEAR(n_L, row.n_L,
-                    notebookMCCScaledTolerance(row.n_L, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.n_L, 5e-3, 1e-8));
         EXPECT_NEAR(rho_lR, row.rho_lR,
-                    notebookMCCScaledTolerance(row.rho_lR, 1e-3, 1e-6));
+                    dsm_micromacroMCCScaledTolerance(row.rho_lR, 1e-3, 1e-6));
         EXPECT_NEAR(rho_LR, row.rho_LR,
-                    notebookMCCScaledTolerance(row.rho_LR, 1e-12, 1e-12));
+                    dsm_micromacroMCCScaledTolerance(row.rho_LR, 1e-12, 1e-12));
         EXPECT_NEAR(omega_l, row.omega_l,
-                    notebookMCCScaledTolerance(row.omega_l, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.omega_l, 5e-3, 1e-8));
         EXPECT_NEAR(mu_lR, row.mu_lR,
-                    notebookMCCScaledTolerance(row.mu_lR, 1e-2, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.mu_lR, 1e-2, 1e-8));
         EXPECT_NEAR(rho_l_hat, row.rho_l_hat,
-                    notebookMCCScaledTolerance(row.rho_l_hat, 1e-2, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.rho_l_hat, 1e-2, 1e-8));
         EXPECT_NEAR(delta_epsilon_sw, row.delta_epsilon_sw,
-                    notebookMCCScaledTolerance(row.delta_epsilon_sw, 5e-3,
+                    dsm_micromacroMCCScaledTolerance(row.delta_epsilon_sw, 5e-3,
                                                1e-8));
         EXPECT_NEAR(epsilon_sw, row.epsilon_sw,
-                    notebookMCCScaledTolerance(row.epsilon_sw, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.epsilon_sw, 5e-3, 1e-8));
         ASSERT_EQ(sigma_S.size(), 6u);
         EXPECT_NEAR(sigma_S[0], row.sigma_S_xx,
-                    notebookMCCScaledTolerance(row.sigma_S_xx, 5e-3, 1e-6));
+                    dsm_micromacroMCCScaledTolerance(row.sigma_S_xx, 5e-3, 1e-6));
         EXPECT_NEAR(sigma_S[1], row.sigma_S_xx,
-                    notebookMCCScaledTolerance(row.sigma_S_xx, 5e-3, 1e-6));
+                    dsm_micromacroMCCScaledTolerance(row.sigma_S_xx, 5e-3, 1e-6));
         EXPECT_NEAR(sigma_S[2], row.sigma_S_xx,
-                    notebookMCCScaledTolerance(row.sigma_S_xx, 5e-3, 1e-6));
+                    dsm_micromacroMCCScaledTolerance(row.sigma_S_xx, 5e-3, 1e-6));
         EXPECT_NEAR(sigma_S[3], 0.0, 1e-12);
         EXPECT_NEAR(sigma_S[4], 0.0, 1e-12);
         EXPECT_NEAR(sigma_S[5], 0.0, 1e-12);
 
-        notebook_state = std::move(notebook_response->state);
-        notebook_state->pushBackState();
+        dsm_micromacro_state = std::move(dsm_micromacro_response->state);
+        dsm_micromacro_state->pushBackState();
 
         previous = current;
-        previous.stress.emplace<KV>(notebook_response->stress);
-        previous.liquid_saturation = notebook_response->saturation;
+        previous.stress.emplace<KV>(dsm_micromacro_response->stress);
+        previous.liquid_saturation = dsm_micromacro_response->saturation;
     }
 }
 
-TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
-     NotebookSupportStateMatchesStrainCoupledBaseline)
+TEST(MaterialLib_RMBridgeMFront_DSMMicroMacroMCC,
+     DSMMicroMacroSupportStateMatchesStrainCoupledBaseline)
 {
-    auto const overlap_rows = loadNotebookSupportBaselineRows(
+    auto const overlap_rows = loadDSMMicroMacroSupportBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_overlap_transfer_baseline.csv");
-    auto const strain_rows = loadNotebookSupportBaselineRows(
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_overlap_transfer_baseline.csv");
+    auto const strain_rows = loadDSMMicroMacroSupportBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/MaterialLib/MFront/RichardsMechanicsNotebookBridge_strain_coupled_overlap_baseline.csv");
+        "/MaterialLib/MFront/RichardsMechanicsDSMMicroMacroBridge_strain_coupled_overlap_baseline.csv");
     ASSERT_EQ(overlap_rows.size(), 5);
     ASSERT_EQ(strain_rows.size(), 5);
     auto const& anchor = overlap_rows.back();
 
-    auto parameters = createNotebookSupportParameters();
-    auto notebook_mcc = createNotebookMCCModel(parameters);
+    auto parameters = createDSMMicroMacroSupportParameters();
+    auto dsm_micromacro_mcc = createDSMMicroMacroMCCModel(parameters);
 
-    auto notebook_state = notebook_mcc->createMaterialStateVariables();
-    initializeState(*notebook_mcc, *notebook_state);
-    setInternalScalar(*notebook_mcc, *notebook_state, "n_l", anchor.n_l);
-    setInternalScalar(*notebook_mcc, *notebook_state, "rho_lR", anchor.rho_lR);
-    setInternalScalar(*notebook_mcc, *notebook_state, "epsilon_sw",
+    auto dsm_micromacro_state = dsm_micromacro_mcc->createMaterialStateVariables();
+    initializeState(*dsm_micromacro_mcc, *dsm_micromacro_state);
+    setInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_state, "n_l", anchor.n_l);
+    setInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_state, "rho_lR", anchor.rho_lR);
+    setInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_state, "epsilon_sw",
                       anchor.epsilon_sw);
 
     KV anchor_stress = KV::Zero();
     anchor_stress[0] = anchor.sigma_S_xx;
     anchor_stress[1] = anchor.sigma_S_xx;
     anchor_stress[2] = anchor.sigma_S_xx;
-    setNotebookMCCThermodynamicForces(*notebook_state, anchor_stress,
+    setDSMMicroMacroMCCThermodynamicForces(*dsm_micromacro_state, anchor_stress,
                                       anchor.saturation);
-    notebook_state->pushBackState();
+    dsm_micromacro_state->pushBackState();
 
     ParameterLib::SpatialPosition x{};
 
@@ -1234,101 +1234,101 @@ TEST(MaterialLib_RMBridgeMFront_NotebookMCC,
         MPL::VariableArray current = previous;
         current.liquid_phase_pressure = row.pressure;
         current.mechanical_strain.emplace<KV>(
-            notebookMCCIsotropicStrainFromVolumetric(row.epsilon_v_total));
+            dsm_micromacroMCCIsotropicStrainFromVolumetric(row.epsilon_v_total));
 
-        auto notebook_response = notebook_mcc->integrateStressPressureCoupled(
+        auto dsm_micromacro_response = dsm_micromacro_mcc->integrateStressPressureCoupled(
             previous, current, static_cast<double>(row.step + 1), x, 1.0,
-            *notebook_state);
+            *dsm_micromacro_state);
 
-        ASSERT_TRUE(notebook_response);
-        ASSERT_TRUE(notebook_response->state);
+        ASSERT_TRUE(dsm_micromacro_response);
+        ASSERT_TRUE(dsm_micromacro_response->state);
 
         auto const n_l =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_l");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "n_l");
         auto const phi_m =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_m");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "phi_m");
         auto const phi_M =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi_M");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "phi_M");
         auto const phi =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "phi");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "phi");
         auto const n_S =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_S");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "n_S");
         auto const n_L =
-            getInternalScalar(*notebook_mcc, *notebook_response->state, "n_L");
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state, "n_L");
         auto const rho_lR =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "rho_lR");
         auto const rho_LR =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "rho_LR");
         auto const omega_l =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "omega_l");
         auto const mu_lR =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "mu_lR");
         auto const rho_l_hat =
-            getInternalScalar(*notebook_mcc, *notebook_response->state,
+            getInternalScalar(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "rho_l_hat");
         auto const delta_epsilon_sw = getInternalScalar(
-            *notebook_mcc, *notebook_response->state, "delta_epsilon_sw");
+            *dsm_micromacro_mcc, *dsm_micromacro_response->state, "delta_epsilon_sw");
         auto const epsilon_sw = getInternalScalar(
-            *notebook_mcc, *notebook_response->state, "epsilon_sw");
+            *dsm_micromacro_mcc, *dsm_micromacro_response->state, "epsilon_sw");
         auto const sigma_S =
-            getInternalVector(*notebook_mcc, *notebook_response->state,
+            getInternalVector(*dsm_micromacro_mcc, *dsm_micromacro_response->state,
                               "sigma_S");
 
-        EXPECT_NEAR(notebook_response->saturation, row.saturation,
-                    notebookMCCScaledTolerance(row.saturation));
+        EXPECT_NEAR(dsm_micromacro_response->saturation, row.saturation,
+                    dsm_micromacroMCCScaledTolerance(row.saturation));
         EXPECT_NEAR(n_l, row.n_l,
-                    notebookMCCScaledTolerance(row.n_l, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.n_l, 5e-3, 1e-8));
         EXPECT_NEAR(phi_m, row.phi_m,
-                    notebookMCCScaledTolerance(row.phi_m, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.phi_m, 5e-3, 1e-8));
         EXPECT_NEAR(phi_M, row.phi_M,
-                    notebookMCCScaledTolerance(row.phi_M, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.phi_M, 5e-3, 1e-8));
         EXPECT_NEAR(phi, row.phi,
-                    notebookMCCScaledTolerance(row.phi, 1e-12, 1e-12));
+                    dsm_micromacroMCCScaledTolerance(row.phi, 1e-12, 1e-12));
         EXPECT_NEAR(n_S, row.n_S,
-                    notebookMCCScaledTolerance(row.n_S, 1e-12, 1e-12));
+                    dsm_micromacroMCCScaledTolerance(row.n_S, 1e-12, 1e-12));
         EXPECT_NEAR(n_L, row.n_L,
-                    notebookMCCScaledTolerance(row.n_L, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.n_L, 5e-3, 1e-8));
         EXPECT_NEAR(rho_lR, row.rho_lR,
-                    notebookMCCScaledTolerance(row.rho_lR, 1e-3, 1e-6));
+                    dsm_micromacroMCCScaledTolerance(row.rho_lR, 1e-3, 1e-6));
         EXPECT_NEAR(rho_LR, row.rho_LR,
-                    notebookMCCScaledTolerance(row.rho_LR, 1e-12, 1e-12));
+                    dsm_micromacroMCCScaledTolerance(row.rho_LR, 1e-12, 1e-12));
         EXPECT_NEAR(omega_l, row.omega_l,
-                    notebookMCCScaledTolerance(row.omega_l, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.omega_l, 5e-3, 1e-8));
         EXPECT_NEAR(mu_lR, row.mu_lR,
-                    notebookMCCScaledTolerance(row.mu_lR, 1e-2, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.mu_lR, 1e-2, 1e-8));
         EXPECT_NEAR(rho_l_hat, row.rho_l_hat,
-                    notebookMCCScaledTolerance(row.rho_l_hat, 1e-2, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.rho_l_hat, 1e-2, 1e-8));
         EXPECT_NEAR(delta_epsilon_sw, row.delta_epsilon_sw,
-                    notebookMCCScaledTolerance(row.delta_epsilon_sw, 5e-3,
+                    dsm_micromacroMCCScaledTolerance(row.delta_epsilon_sw, 5e-3,
                                                1e-8));
         EXPECT_NEAR(epsilon_sw, row.epsilon_sw,
-                    notebookMCCScaledTolerance(row.epsilon_sw, 5e-3, 1e-8));
+                    dsm_micromacroMCCScaledTolerance(row.epsilon_sw, 5e-3, 1e-8));
         double const bulk_modulus = 1e10 / (3.0 * (1.0 - 2.0 * 0.25));
         double const expected_sigma_S_xx = -bulk_modulus * row.epsilon_sw;
         ASSERT_EQ(sigma_S.size(), 6u);
         EXPECT_NEAR(sigma_S[0], expected_sigma_S_xx,
-                    notebookMCCScaledTolerance(expected_sigma_S_xx, 5e-3,
+                    dsm_micromacroMCCScaledTolerance(expected_sigma_S_xx, 5e-3,
                                                1e-6));
         EXPECT_NEAR(sigma_S[1], expected_sigma_S_xx,
-                    notebookMCCScaledTolerance(expected_sigma_S_xx, 5e-3,
+                    dsm_micromacroMCCScaledTolerance(expected_sigma_S_xx, 5e-3,
                                                1e-6));
         EXPECT_NEAR(sigma_S[2], expected_sigma_S_xx,
-                    notebookMCCScaledTolerance(expected_sigma_S_xx, 5e-3,
+                    dsm_micromacroMCCScaledTolerance(expected_sigma_S_xx, 5e-3,
                                                1e-6));
         EXPECT_NEAR(sigma_S[3], 0.0, 1e-12);
         EXPECT_NEAR(sigma_S[4], 0.0, 1e-12);
         EXPECT_NEAR(sigma_S[5], 0.0, 1e-12);
 
-        notebook_state = std::move(notebook_response->state);
-        notebook_state->pushBackState();
+        dsm_micromacro_state = std::move(dsm_micromacro_response->state);
+        dsm_micromacro_state->pushBackState();
 
         previous = current;
-        previous.stress.emplace<KV>(notebook_response->stress);
-        previous.liquid_saturation = notebook_response->saturation;
+        previous.stress.emplace<KV>(dsm_micromacro_response->stress);
+        previous.liquid_saturation = dsm_micromacro_response->saturation;
     }
 }
 

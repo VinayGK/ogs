@@ -144,7 +144,7 @@ def anchors_rows_identical_multiplier(
             mfront_nl0,
             900 + i,
         )
-        native_run = native_mod.run_native_notebook_case(
+        native_run = native_mod.run_native_dsm_micromacro_case(
             native_ogs,
             native_case,
             multiplier,
@@ -234,8 +234,8 @@ def main() -> None:
         "run_villar_dense_dd_calibration_mod",
     )
     native_mod = load_module(
-        ANCHORS_DIR / "run_villar_dense_dd_native_notebook_calibration.py",
-        "run_villar_dense_dd_native_notebook_calibration_mod",
+        ANCHORS_DIR / "run_villar_dense_dd_native_dsm_micromacro_calibration.py",
+        "run_villar_dense_dd_native_dsm_micromacro_calibration_mod",
     )
 
     if not args.shared_curve_csv.exists():

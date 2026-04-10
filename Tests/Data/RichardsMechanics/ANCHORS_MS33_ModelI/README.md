@@ -19,17 +19,17 @@ Tracked artefacts include:
   `villar_dense_dd_calibration_summary.json`,
   `villar_dense_dd_swelling_pressure_comparison.png`,
   `villar_dense_dd_vdw_multiplier.png`),
-- the dense dry-density native-notebook-branch Villar-style sweep
-  (`run_villar_dense_dd_native_notebook_branch.py`,
-  `villar_dense_dd_native_notebook_branch.csv`,
-  `villar_dense_dd_native_notebook_branch_summary.json`,
-  `villar_dense_dd_native_notebook_branch_vs_villar.png`),
-- the dense dry-density native-notebook-branch effective-vdW calibration
-  run (`run_villar_dense_dd_native_notebook_calibration.py`,
-  `villar_dense_dd_native_notebook_calibration.csv`,
-  `villar_dense_dd_native_notebook_calibration_summary.json`,
-  `villar_dense_dd_native_notebook_calibration_comparison.png`,
-  `villar_dense_dd_native_notebook_vdw_multiplier.png`),
+- the dense dry-density native-dsm_micromacro-branch Villar-style sweep
+  (`run_villar_dense_dd_native_dsm_micromacro_branch.py`,
+  `villar_dense_dd_native_dsm_micromacro_branch.csv`,
+  `villar_dense_dd_native_dsm_micromacro_branch_summary.json`,
+  `villar_dense_dd_native_dsm_micromacro_branch_vs_villar.png`),
+- the dense dry-density native-dsm_micromacro-branch effective-vdW calibration
+  run (`run_villar_dense_dd_native_dsm_micromacro_calibration.py`,
+  `villar_dense_dd_native_dsm_micromacro_calibration.csv`,
+  `villar_dense_dd_native_dsm_micromacro_calibration_summary.json`,
+  `villar_dense_dd_native_dsm_micromacro_calibration_comparison.png`,
+  `villar_dense_dd_native_dsm_micromacro_vdw_multiplier.png`),
 - direct calibrated native-vs-MFront parity summary
   (`villar_dense_dd_native_vs_mfront_calibrated_comparison.csv`,
   `villar_dense_dd_native_vs_mfront_calibrated_comparison_summary.json`).
@@ -46,40 +46,40 @@ HOME=/tmp MPLCONFIGDIR=/tmp/mplcache XDG_CACHE_HOME=/tmp \
 python3 run_villar_dense_dd_calibration.py --dd-step 25 --rel-tol 0.02
 ```
 
-Native notebook branch Villar-style sweep command (same density grid):
+Native dsm_micromacro branch Villar-style sweep command (same density grid):
 
 ```bash
 HOME=/tmp MPLCONFIGDIR=/tmp/mplcache XDG_CACHE_HOME=/tmp \
-python3 run_villar_dense_dd_native_notebook_branch.py --dd-step 25
+python3 run_villar_dense_dd_native_dsm_micromacro_branch.py --dd-step 25
 ```
 
-Native notebook branch dense calibration command
+Native dsm_micromacro branch dense calibration command
 (pointwise effective-vdW multiplier per dry density):
 
 ```bash
 HOME=/tmp MPLCONFIGDIR=/tmp/mplcache XDG_CACHE_HOME=/tmp \
-python3 run_villar_dense_dd_native_notebook_calibration.py \
+python3 run_villar_dense_dd_native_dsm_micromacro_calibration.py \
   --native-ogs /Users/vinaykumar/git/build/release-native-beacon/bin/ogs \
   --native-source /Users/vinaykumar/Documents/GitHub/ogs \
   --dd-step 25 --rel-tol 0.02
 ```
 
-Key result from the native notebook branch baseline run (`d46e11ac00`):
+Key result from the native dsm_micromacro branch baseline run (`d46e11ac00`):
 - simulated swelling pressure stays around `0.050` to `0.062` MPa for
   `1400` to `1800` kg/m³, while Villar Eq.(7) rises from about `1.50` to
   `22.56` MPa.
 - mean mismatch over the 17 dry-density points is about `-7.99` MPa
   (native below target).
 
-Key result from the updated native notebook branch calibration run:
+Key result from the updated native dsm_micromacro branch calibration run:
 - baseline mean relative error vs Villar: `98.69%`.
 - calibrated mean relative error vs Villar: `1.26%`.
 - calibrated max relative error vs Villar: `1.83%`.
 - calibrated pressure follows Villar closely over `1400` to `1800` kg/m³.
 
-Native vs MFront comparison notes (same notebook-derived equations target):
-- native dense run now uses `scalar_notebook_mass_storage` with
-  `potential_role_mapping=notebook_roles`, EOS-driven `rho_lR` carry-over,
+Native vs MFront comparison notes (same dsm_micromacro-derived equations target):
+- native dense run now uses `scalar_micro_macro_mass_storage_mode` with
+  `potential_role_mapping=micro_macro_potential_role_mapping_mode`, EOS-driven `rho_lR` carry-over,
   and robust multiplier bracketing in log-space.
 - calibrated native and calibrated MFront curves are now close on the dense
   grid (mean absolute pressure difference about `0.135 MPa`, max about

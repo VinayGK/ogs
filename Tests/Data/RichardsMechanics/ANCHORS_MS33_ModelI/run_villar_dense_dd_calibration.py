@@ -43,13 +43,13 @@ TOTAL_SUCTION_MPA = 100.0
 MACRO_SUCTION_MPA = 1.0
 MICRO_SUCTION_MPA = TOTAL_SUCTION_MPA - MACRO_SUCTION_MPA
 
-NOTEBOOK_SWELLING_SLOPE = 0.1
+DSM_MICROMACRO_SWELLING_SLOPE = 0.1
 MASS_EXCHANGE_COEFFICIENT = 1e-13
 LIQUID_VISCOSITY = 1e-3
-NOTEBOOK_SATURATION_MODE = 1
-# 0 => coupled notebook mass-storage branch in RichardsMechanicsNotebookBridge_MCC
-# (aligns with native scalar_notebook_mass_storage solve intent).
-NOTEBOOK_LOCAL_SOLVE_MODE = 0
+DSM_MICROMACRO_SATURATION_MODE = 1
+# 0 => coupled dsm_micromacro mass-storage branch in RichardsMechanicsDSMMicroMacroBridge_MCC
+# (aligns with native scalar_micro_macro_mass_storage_mode solve intent).
+DSM_MICROMACRO_LOCAL_SOLVE_MODE = 0
 MICRO_POTENTIAL_CONVENTION = 1
 
 PORE_AREA_SHAPE_FACTOR_TULLER = 0.8584073464102069
@@ -194,7 +194,7 @@ def write_mfront_project(
             <jacobian_assembler><type>Analytical</type></jacobian_assembler>
             <constitutive_relation>
                 <type>MFrontRichardsMechanics</type>
-                <behaviour>RichardsMechanicsNotebookBridge_MCC</behaviour>
+                <behaviour>RichardsMechanicsDSMMicroMacroBridge_MCC</behaviour>
                 <material_properties>
                     <material_property name="YoungModulus" parameter="YoungModulus"/>
                     <material_property name="PoissonRatio" parameter="PoissonRatio"/>
@@ -206,10 +206,10 @@ def write_mfront_project(
                     <material_property name="ResidualGasSaturation" parameter="ResidualGasSaturation"/>
                     <material_property name="BubblePressure" parameter="BubblePressure"/>
                     <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
-                    <material_property name="NotebookSaturationMode" parameter="NotebookSaturationMode"/>
-                    <material_property name="NotebookLocalSolveMode" parameter="NotebookLocalSolveMode"/>
+                    <material_property name="MacroSaturationLawMode" parameter="MacroSaturationLawMode"/>
+                    <material_property name="MicroStateLocalSolveMode" parameter="MicroStateLocalSolveMode"/>
                     <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
-                    <material_property name="SwellingSlope" parameter="NotebookSwellingSlope"/>
+                    <material_property name="SwellingSlope" parameter="MicroSwellingStrainSlope"/>
                     <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
                     <material_property name="MacroViscosity" parameter="MacroViscosity"/>
                     <material_property name="ReferenceLiquidDensityMacro" parameter="ReferenceLiquidDensityMacro"/>
@@ -366,10 +366,10 @@ def write_mfront_project(
         <parameter><name>ResidualGasSaturation</name><type>Constant</type><value>0.0</value></parameter>
         <parameter><name>BubblePressure</name><type>Constant</type><value>{MS33_PB:.16g}</value></parameter>
         <parameter><name>VanGenuchtenExponent_m</name><type>Constant</type><value>{MS33_M:.16g}</value></parameter>
-        <parameter><name>NotebookSaturationMode</name><type>Constant</type><value>{NOTEBOOK_SATURATION_MODE}</value></parameter>
-        <parameter><name>NotebookLocalSolveMode</name><type>Constant</type><value>{NOTEBOOK_LOCAL_SOLVE_MODE}</value></parameter>
+        <parameter><name>MacroSaturationLawMode</name><type>Constant</type><value>{DSM_MICROMACRO_SATURATION_MODE}</value></parameter>
+        <parameter><name>MicroStateLocalSolveMode</name><type>Constant</type><value>{DSM_MICROMACRO_LOCAL_SOLVE_MODE}</value></parameter>
         <parameter><name>MicroPotentialConvention</name><type>Constant</type><value>{MICRO_POTENTIAL_CONVENTION}</value></parameter>
-        <parameter><name>NotebookSwellingSlope</name><type>Constant</type><value>{NOTEBOOK_SWELLING_SLOPE:.16g}</value></parameter>
+        <parameter><name>MicroSwellingStrainSlope</name><type>Constant</type><value>{DSM_MICROMACRO_SWELLING_SLOPE:.16g}</value></parameter>
         <parameter><name>MassExchangeCoefficient</name><type>Constant</type><value>{MASS_EXCHANGE_COEFFICIENT:.16g}</value></parameter>
         <parameter><name>MacroViscosity</name><type>Constant</type><value>{LIQUID_VISCOSITY:.16g}</value></parameter>
         <parameter><name>ReferenceLiquidDensityMacro</name><type>Constant</type><value>{RHO_LR_REF:.16g}</value></parameter>

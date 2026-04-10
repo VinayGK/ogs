@@ -27,7 +27,7 @@ from vtk.util.numpy_support import vtk_to_numpy
 ROOT = Path(__file__).resolve().parent
 ANCHORS_DIR = ROOT / "ANCHORS_MS33_ModelI"
 MFRONT_CALIBRATION_CSV = ANCHORS_DIR / "villar_dense_dd_calibration.csv"
-NATIVE_CALIBRATION_CSV = ANCHORS_DIR / "villar_dense_dd_native_notebook_calibration.csv"
+NATIVE_CALIBRATION_CSV = ANCHORS_DIR / "villar_dense_dd_native_dsm_micromacro_calibration.csv"
 HAMAKER_REFERENCE_J = 5.1e-21
 OUTPUT_ROOT = ROOT / "_outputs" / "calibrated_native_mfront_comparison"
 
@@ -43,12 +43,12 @@ BEACON_CASES = [
     BeaconCase(
         case_id="1a01",
         native_project=ROOT / "beacon_1a01_inflow_unstructured_batch.prj",
-        mfront_project=ROOT / "beacon_1a01_notebook_mcc_inflow_unstructured_batch.prj",
+        mfront_project=ROOT / "beacon_1a01_dsm_micromacro_mcc_inflow_unstructured_batch.prj",
     ),
     BeaconCase(
         case_id="1b",
         native_project=ROOT / "beacon_1b_unstructured_batch.prj",
-        mfront_project=ROOT / "beacon_1b_notebook_mcc_unstructured_batch.prj",
+        mfront_project=ROOT / "beacon_1b_dsm_micromacro_mcc_unstructured_batch.prj",
     ),
 ]
 
@@ -674,7 +674,7 @@ def main() -> None:
         "notes": [
             (
                 "Dry-density calibrated multipliers are implementation-specific: "
-                "native uses villar_dense_dd_native_notebook_calibration.csv and "
+                "native uses villar_dense_dd_native_dsm_micromacro_calibration.csv and "
                 "MFront uses villar_dense_dd_calibration.csv."
             ),
             (

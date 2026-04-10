@@ -20,10 +20,10 @@
                 <micro_solid_density_reference>2650</micro_solid_density_reference>
                 <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
                 <initial_micro_water_content>0.00153385355</initial_micro_water_content>
-                <local_nonlinear_solve_mode>scalar_notebook_storage</local_nonlinear_solve_mode>
+                <local_nonlinear_solve_mode>scalar_microstate_storage_mode</local_nonlinear_solve_mode>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_solid_volume_fraction_mode>reference</micro_solid_volume_fraction_mode>
-                <potential_role_mapping>notebook_roles</potential_role_mapping>
+                <potential_role_mapping>micro_macro_potential_role_mapping_mode</potential_role_mapping>
                 <!-- micro_water_content_swelling_slope intentionally omitted here:
                      this native 1b deck fails at time step 2 when the slope term is enabled
                      with the current long-horizon setup and fixed stepping. -->

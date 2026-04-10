@@ -1,14 +1,14 @@
 @DSL DefaultGenericBehaviour;
-@Behaviour RichardsMechanicsNotebookBridge;
+@Behaviour RichardsMechanicsDSMMicroMacroBridge;
 @Author OpenGeoSys Community;
 @Date 2026 / 03 / 24;
 @Description {
-Reduced notebook-aligned RichardsMechanics bridge for the verified shared
+Reduced dsm_micromacro-aligned RichardsMechanics bridge for the verified shared
 pressure-history boundary. This bridge replaces the earlier logistic pressure
 surrogate by a local microstate update with phi_m := n_l, a reduced micro-liquid
 EOS, a van-der-Waals micro potential, and an isotropic swelling-stress update.
 The verified regression boundary of this step is the nonnegative pressure path
-used by the committed notebook overlap-transfer baseline.
+used by the committed dsm_micromacro overlap-transfer baseline.
 }
 
 @Gradient StrainStensor eps_to;
@@ -400,7 +400,7 @@ rho_l_hat_value.setEntryName("rho_l_hat");
       const auto j22 = (residual_2_rho - residual_2) / h_rho;
       const auto determinant = j11 * j22 - j12 * j21;
       tfel::raise_if(std::abs(determinant) < 1e-24,
-                     "Notebook bridge microstate Newton system became singular.");
+                     "DSMMicroMacro bridge microstate Newton system became singular.");
 
       const auto delta_n_l = (-residual_1 * j22 + j12 * residual_2) / determinant;
       const auto delta_rho = (j21 * residual_1 - j11 * residual_2) / determinant;
@@ -443,7 +443,7 @@ rho_l_hat_value.setEntryName("rho_l_hat");
           break;
         }
         tfel::raise_if(true,
-                       "Notebook bridge microstate Newton line search failed.");
+                       "DSMMicroMacro bridge microstate Newton line search failed.");
       }
     }
 
@@ -456,7 +456,7 @@ rho_l_hat_value.setEntryName("rho_l_hat");
       }
 
       tfel::raise_if(true,
-                     "Notebook bridge microstate Newton solve did not converge.");
+                     "DSMMicroMacro bridge microstate Newton solve did not converge.");
     }
   };
 

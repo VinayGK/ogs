@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Run the native notebook-style dense dry-density sweep.
+"""Calibrate the native dsm_micromacro dense dry-density sweep against Villar data.
 
-The script builds per-density projects, runs OGS, and records the calibrated
-native-branch response along with a comparison curve.
+This workflow mirrors the MFront calibration logic so the two implementations
+can be compared with the same dry-density sampling and output schema.
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ MICRO_LIQUID_DENSITY_REFERENCE = 1e-6
 MICRO_LIQUID_DENSITY_A = 1e-16
 MICRO_LIQUID_DENSITY_B = 1.0
 
-NATIVE_NOTEBOOK_SOURCE = Path("/Users/vinaykumar/git/ogs-native-dsm-transition")
+NATIVE_DSM_MICROMACRO_SOURCE = Path("/Users/vinaykumar/git/ogs-native-dsm-transition")
 DEFAULT_NATIVE_OGS = Path("/Users/vinaykumar/git/build/release-native-beacon/bin/ogs")
 DEFAULT_MFRONT_CALIBRATION_CSV = ROOT / "villar_dense_dd_calibration.csv"
 
@@ -176,11 +176,13 @@ def n_l0_from_micro_suction(phi0: float, hamaker_eff: float) -> float:
     return max(1e-12, n_l0)
 
 
-def write_native_notebook_project(case: Case, project_path: Path) -> dict:
-    """Create a temporary native notebook project for one density case."""
+def write_native_dsm_micromacro_project(
+    case: Case, project_path: Path, vdw_multiplier: float, n_l0_fixed: float
+) -> dict:
+    """Create a temporary native dsm_micromacro project for one multiplier trial."""
     prefix = project_path.stem
-    hamaker_eff = HAMAKER_LITERATURE
-    n_l0 = n_l0_from_micro_suction(case.phi0, hamaker_eff)
+    hamaker_eff = HAMAKER_LITERATURE * vdw_multiplier
+    n_l0 = n_l0_fixed
     n_s = 1.0 - case.phi0
 
     xml = f"""<?xml version='1.0' encoding='ISO-8859-1'?>
@@ -218,8 +220,8 @@ def write_native_notebook_project(case: Case, project_path: Path) -> dict:
                 <micro_liquid_density_a>{MICRO_LIQUID_DENSITY_A:.16g}</micro_liquid_density_a>
                 <micro_liquid_density_b>{MICRO_LIQUID_DENSITY_B:.16g}</micro_liquid_density_b>
                 <initial_micro_water_content>{n_l0:.16g}</initial_micro_water_content>
-                <local_nonlinear_solve_mode>scalar_notebook_mass_storage</local_nonlinear_solve_mode>
-                <potential_role_mapping>notebook_roles</potential_role_mapping>
+                <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
+                <potential_role_mapping>micro_macro_potential_role_mapping_mode</potential_role_mapping>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>{MICRO_SWELLING_SLOPE:.16g}</micro_water_content_swelling_slope>
@@ -428,17 +430,103 @@ def run_ogs(ogs_bin: Path, project_path: Path) -> None:
     )
 
 
-def run_native_notebook_case(ogs_bin: Path, case: Case) -> dict:
-    case_tag = f"dd{int(case.dry_density)}_native_notebook"
+def run_native_dsm_micromacro_case(
+    ogs_bin: Path, case: Case, multiplier: float, n_l0_fixed: float, idx: int
+) -> dict:
+    case_tag = f"dd{int(case.dry_density)}_native_dsm_micromacro_{idx:02d}"
     project_path = ROOT / f"{case_tag}.prj"
-    meta = write_native_notebook_project(case, project_path)
+    meta = write_native_dsm_micromacro_project(case, project_path, multiplier, n_l0_fixed)
     try:
         run_ogs(ogs_bin, project_path)
         last_vtu = extract_last_vtu(case_tag)
         pressure_mpa = mean_total_stress_mpa(last_vtu)
     finally:
         cleanup_runtime(case_tag, project_path)
-    return {"pressure_mpa": pressure_mpa, **meta}
+    return {"pressure_mpa": pressure_mpa, "multiplier": multiplier, **meta}
+
+
+def calibrate_multiplier_for_case(
+    ogs_bin: Path,
+    case: Case,
+    n_l0_fixed: float,
+    target_mpa: float,
+    rel_tol: float = 0.02,
+    max_iter: int = 18,
+) -> dict:
+    """Solve for the multiplier that matches the Villar target."""
+    target_scale = max(target_mpa, 1e-12)
+    max_multiplier = 1e18
+
+    def rel_err(run: dict) -> float:
+        pressure = run["pressure_mpa"]
+        if not math.isfinite(pressure):
+            return float("inf")
+        return abs(pressure - target_mpa) / target_scale
+
+    # Baseline.
+    run_id = 0
+    run_lo = run_native_dsm_micromacro_case(ogs_bin, case, 1.0, n_l0_fixed, run_id)
+    run_id += 1
+    best = run_lo
+    if rel_err(run_lo) < rel_tol:
+        return run_lo
+
+    # Bracket from above with geometric expansion.
+    m_lo = 1.0
+    m_hi = max(2.0, target_mpa / max(abs(run_lo["pressure_mpa"]), 1e-12))
+    m_hi = float(np.clip(m_hi, 1e-6, max_multiplier))
+    if m_hi <= m_lo:
+        m_hi = 2.0
+
+    run_hi = run_native_dsm_micromacro_case(ogs_bin, case, m_hi, n_l0_fixed, run_id)
+    run_id += 1
+    if rel_err(run_hi) < rel_err(best):
+        best = run_hi
+    p_hi = run_hi["pressure_mpa"] if math.isfinite(run_hi["pressure_mpa"]) else float("inf")
+
+    expand_limit = max_iter + 16
+    while p_hi < target_mpa and m_hi < max_multiplier and run_id < expand_limit:
+        m_lo, run_lo = m_hi, run_hi
+        m_hi = min(max_multiplier, m_hi * 10.0)
+        if m_hi <= m_lo:
+            break
+        run_hi = run_native_dsm_micromacro_case(ogs_bin, case, m_hi, n_l0_fixed, run_id)
+        run_id += 1
+        if rel_err(run_hi) < rel_err(best):
+            best = run_hi
+        p_hi = (
+            run_hi["pressure_mpa"]
+            if math.isfinite(run_hi["pressure_mpa"])
+            else float("inf")
+        )
+
+    if p_hi < target_mpa:
+        return best
+
+    # Log-space bisection inside bracket [m_lo, m_hi].
+    for _ in range(max_iter):
+        m_mid = math.sqrt(m_lo * m_hi)
+        if m_mid <= m_lo * (1.0 + 1e-12) or m_mid >= m_hi * (1.0 - 1e-12):
+            break
+        run_mid = run_native_dsm_micromacro_case(ogs_bin, case, m_mid, n_l0_fixed, run_id)
+        run_id += 1
+        err_mid = rel_err(run_mid)
+        if err_mid < rel_err(best):
+            best = run_mid
+        if err_mid < rel_tol:
+            return run_mid
+
+        p_mid = (
+            run_mid["pressure_mpa"]
+            if math.isfinite(run_mid["pressure_mpa"])
+            else float("inf")
+        )
+        if p_mid < target_mpa:
+            m_lo, run_lo = m_mid, run_mid
+        else:
+            m_hi, run_hi = m_mid, run_mid
+
+    return best
 
 
 def load_mfront_calibrated_curve(path: Path) -> tuple[np.ndarray, np.ndarray] | None:
@@ -461,20 +549,21 @@ def main() -> None:
     """Run the dense sweep and write the CSV, JSON, and comparison plots."""
     parser = argparse.ArgumentParser(
         description=(
-            "Villar-style dry-density sweep for the native notebook branch "
-            "(micro-enabled native implementation)."
+            "Dense dry-density calibration of effective micro vdW multiplier "
+            "for the native dsm_micromacro branch against Villar Eq.(7)."
         )
     )
     parser.add_argument("--native-ogs", type=Path, default=DEFAULT_NATIVE_OGS)
     parser.add_argument(
         "--native-source",
         type=Path,
-        default=NATIVE_NOTEBOOK_SOURCE,
+        default=NATIVE_DSM_MICROMACRO_SOURCE,
         help="Native OGS source tree for commit-hash provenance in summary JSON.",
     )
     parser.add_argument("--dd-min", type=float, default=1400.0)
     parser.add_argument("--dd-max", type=float, default=1800.0)
     parser.add_argument("--dd-step", type=float, default=25.0)
+    parser.add_argument("--rel-tol", type=float, default=0.02)
     parser.add_argument(
         "--mfront-calibration-csv",
         type=Path,
@@ -488,13 +577,20 @@ def main() -> None:
 
     rows = []
     for case in cases:
-        result = run_native_notebook_case(args.native_ogs, case)
         target = case.villar_target_swelling_mpa
-        native_p = result["pressure_mpa"]
+        # Keep n_l0 fixed per dry density from literature Hamaker baseline,
+        # matching the MFront dense calibration workflow.
+        n_l0_fixed = n_l0_from_micro_suction(case.phi0, HAMAKER_LITERATURE)
+        baseline = run_native_dsm_micromacro_case(args.native_ogs, case, 1.0, n_l0_fixed, 90)
+        calibrated = calibrate_multiplier_for_case(
+            args.native_ogs, case, n_l0_fixed, target, rel_tol=args.rel_tol
+        )
         print(
             f"dd={case.dry_density:.0f} kg/m3: "
-            f"Villar={target:.3f} MPa, "
-            f"native-notebook={native_p:.3f} MPa"
+            f"target={target:.3f} MPa, "
+            f"native_baseline={baseline['pressure_mpa']:.3f} MPa, "
+            f"native_calibrated={calibrated['pressure_mpa']:.3f} MPa, "
+            f"mult={calibrated['multiplier']:.3e}"
         )
         rows.append(
             {
@@ -504,31 +600,45 @@ def main() -> None:
                 "phi_micro_assumed": case.phi_micro_assumed,
                 "phi_macro_assumed": case.phi_macro_assumed,
                 "k0_m2": case.intrinsic_permeability,
+                "target_villar_MPa": target,
+                "native_baseline_MPa": baseline["pressure_mpa"],
+                "native_calibrated_MPa": calibrated["pressure_mpa"],
+                "vdw_multiplier": calibrated["multiplier"],
                 "hamaker_literature_J": HAMAKER_LITERATURE,
-                "hamaker_effective_J": result["hamaker_effective_J"],
+                "hamaker_effective_J": calibrated["hamaker_effective_J"],
                 "specific_surface_mass_m2_g": SPECIFIC_SURFACE_MASS,
-                "n_l0": result["n_l0"],
-                "micro_solid_volume_fraction_reference": result[
+                "n_l0": calibrated["n_l0"],
+                "micro_solid_volume_fraction_reference": calibrated[
                     "micro_solid_volume_fraction_reference"
                 ],
-                "target_villar_MPa": target,
-                "native_notebook_branch_MPa": native_p,
-                "native_minus_target_MPa": native_p - target,
+                "macro_suction_MPa": MACRO_SUCTION_MPA,
+                "micro_suction_MPa": MICRO_SUCTION_MPA,
+                "native_baseline_minus_target_MPa": baseline["pressure_mpa"] - target,
+                "native_calibrated_minus_target_MPa": calibrated["pressure_mpa"] - target,
             }
         )
 
     rows = sorted(rows, key=lambda r: r["dry_density_kg_m3"])
 
-    out_csv = ROOT / "villar_dense_dd_native_notebook_branch.csv"
+    out_csv = ROOT / "villar_dense_dd_native_dsm_micromacro_calibration.csv"
     with out_csv.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
 
+    rel_err_baseline = [
+        abs(r["native_baseline_minus_target_MPa"]) / max(r["target_villar_MPa"], 1e-12)
+        for r in rows
+    ]
+    rel_err_calibrated = [
+        abs(r["native_calibrated_minus_target_MPa"]) / max(r["target_villar_MPa"], 1e-12)
+        for r in rows
+    ]
+
     summary = {
         "ogs_repo_hash": git_short_hash(RICHARDS_DATA_ROOT.parents[2]),
-        "native_notebook_source_hash": git_short_hash(args.native_source),
-        "native_notebook_source_path": str(args.native_source),
+        "native_dsm_micromacro_source_hash": git_short_hash(args.native_source),
+        "native_dsm_micromacro_source_path": str(args.native_source),
         "native_ogs_version": subprocess.check_output(
             [str(args.native_ogs), "--version"], text=True
         ),
@@ -537,54 +647,75 @@ def main() -> None:
         "micro_initial_suction_MPa": MICRO_SUCTION_MPA,
         "hamaker_literature_J": HAMAKER_LITERATURE,
         "specific_surface_mass_m2_g": SPECIFIC_SURFACE_MASS,
+        "mean_relative_error_baseline_percent": 100.0 * float(np.mean(rel_err_baseline)),
+        "mean_relative_error_calibrated_percent": 100.0 * float(np.mean(rel_err_calibrated)),
+        "max_relative_error_calibrated_percent": 100.0 * float(np.max(rel_err_calibrated)),
         "results": rows,
     }
-    out_summary = ROOT / "villar_dense_dd_native_notebook_branch_summary.json"
+    out_summary = ROOT / "villar_dense_dd_native_dsm_micromacro_calibration_summary.json"
     out_summary.write_text(json.dumps(summary, indent=2))
 
     x = np.array([r["dry_density_kg_m3"] for r in rows])
     y_target = np.array([r["target_villar_MPa"] for r in rows])
-    y_native = np.array([r["native_notebook_branch_MPa"] for r in rows])
+    y_calibrated = np.array([r["native_calibrated_MPa"] for r in rows])
+    y_mult = np.array([r["vdw_multiplier"] for r in rows])
 
-    plt.figure(figsize=(8.0, 5.2))
+    plt.figure(figsize=(8.2, 5.2))
     plt.plot(x, y_target, "k-", linewidth=2.0, label="Villar Eq. (7) target")
     plt.plot(
         x,
-        y_native,
-        color="#d62728",
-        marker="s",
-        linestyle=":",
-        linewidth=1.6,
-        markersize=3.8,
-        label="Native notebook branch",
+        y_calibrated,
+        color="#2ca02c",
+        marker="D",
+        linestyle="--",
+        linewidth=1.8,
+        markersize=4.2,
+        label="Native dsm_micromacro calibrated",
     )
-
     mfront_curve = load_mfront_calibrated_curve(args.mfront_calibration_csv)
     if mfront_curve is not None:
         x_m, y_m = mfront_curve
         plt.plot(
             x_m,
             y_m,
-            color="black",
-            marker="o",
-            linestyle="-",
-            linewidth=1.4,
-            markersize=3.4,
-            label="Villar fit reference",
+            color="#d62728",
+            marker="s",
+            linestyle="-.",
+            linewidth=1.5,
+            markersize=3.6,
+            label="MFront calibrated (existing run)",
         )
-
     plt.xlabel("Dry density (kg/m$^3$)")
     plt.ylabel("Swelling pressure at full saturation (MPa)")
     plt.grid(True, alpha=0.35)
     plt.legend(frameon=False)
     plt.tight_layout()
-    out_png = ROOT / "villar_dense_dd_native_notebook_branch_vs_villar.png"
-    plt.savefig(out_png, dpi=220)
+    out_cmp = ROOT / "villar_dense_dd_native_dsm_micromacro_calibration_comparison.png"
+    plt.savefig(out_cmp, dpi=220)
+    plt.close()
+
+    plt.figure(figsize=(8.2, 5.2))
+    plt.semilogy(
+        x,
+        y_mult,
+        color="#9467bd",
+        marker="^",
+        linestyle="-",
+        linewidth=1.8,
+        markersize=4.3,
+    )
+    plt.xlabel("Dry density (kg/m$^3$)")
+    plt.ylabel("Native dsm_micromacro effective vdW multiplier (-)")
+    plt.grid(True, which="both", alpha=0.35)
+    plt.tight_layout()
+    out_mult = ROOT / "villar_dense_dd_native_dsm_micromacro_vdw_multiplier.png"
+    plt.savefig(out_mult, dpi=220)
     plt.close()
 
     print(f"Wrote: {out_csv}")
     print(f"Wrote: {out_summary}")
-    print(f"Wrote: {out_png}")
+    print(f"Wrote: {out_cmp}")
+    print(f"Wrote: {out_mult}")
 
 
 if __name__ == "__main__":
