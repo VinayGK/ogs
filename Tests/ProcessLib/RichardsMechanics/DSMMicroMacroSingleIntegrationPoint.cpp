@@ -50,7 +50,7 @@ std::vector<std::string> splitCommaLine(std::string const& line)
     return fields;
 }
 
-struct NotebookOverlapBaselineRow
+struct DSMMicroMacroOverlapBaselineRow
 {
     int step = 0;
     double pressure = 0.0;
@@ -70,7 +70,7 @@ struct NotebookOverlapBaselineRow
     double stress_xx = 0.0;
 };
 
-std::vector<NotebookOverlapBaselineRow> loadNotebookOverlapBaselineRows(
+std::vector<DSMMicroMacroOverlapBaselineRow> loadDSMMicroMacroOverlapBaselineRows(
     std::string const& filename)
 {
     std::ifstream in(filename);
@@ -103,7 +103,7 @@ std::vector<NotebookOverlapBaselineRow> loadNotebookOverlapBaselineRows(
         return std::stod(fields.at(it->second));
     };
 
-    std::vector<NotebookOverlapBaselineRow> rows;
+    std::vector<DSMMicroMacroOverlapBaselineRow> rows;
     std::string line;
     while (std::getline(in, line))
     {
@@ -608,7 +608,7 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
 }
 }  // namespace
 
-TEST(RichardsMechanics, NotebookSingleIntegrationPointReferencePath)
+TEST(RichardsMechanics, DSMMicroMacroSingleIntegrationPointReferencePath)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
@@ -712,7 +712,7 @@ TEST(RichardsMechanics, NotebookSingleIntegrationPointReferencePath)
                                     5e-5, 1e-18));
 }
 
-TEST(RichardsMechanics, NotebookBranchSensitivityNearMacroPotentialTransition)
+TEST(RichardsMechanics, DSMMicroMacroBranchSensitivityNearMacroPotentialTransition)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
@@ -802,7 +802,7 @@ TEST(RichardsMechanics, NotebookBranchSensitivityNearMacroPotentialTransition)
                     comparisonTolerance(compatibility_output.S_L_m,
                                         reference.S_L_m));
 
-        // Current kept VK branch: mu_LR <= 0 on the macro side, mu_lR > 0 on
+        // Current kept DSM branch: mu_LR <= 0 on the macro side, mu_lR > 0 on
         // the vdW microscale side. The exchange law therefore stays
         // sign-locked to non-increasing micro water content.
         EXPECT_LE(ogs_update.exchange.rho_l_hat, 0.0);
@@ -822,7 +822,7 @@ TEST(RichardsMechanics, NotebookBranchSensitivityNearMacroPotentialTransition)
     }
 
     // Once the macro state is on the saturated helper branch, the active macro
-    // potential is identically zero, so the local VK update becomes invariant
+    // potential is identically zero, so the local DSM update becomes invariant
     // with respect to further increases in p_L as long as rho_LR stays fixed.
     for (std::size_t i = 3; i < results.size(); ++i)
     {
@@ -853,7 +853,7 @@ TEST(RichardsMechanics, NotebookBranchSensitivityNearMacroPotentialTransition)
     }
 }
 
-TEST(RichardsMechanics, NotebookNegativeAttractiveMicroPotentialAdmitsWetting)
+TEST(RichardsMechanics, DSMMicroMacroNegativeAttractiveMicroPotentialAdmitsWetting)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
@@ -911,7 +911,7 @@ TEST(RichardsMechanics, NotebookNegativeAttractiveMicroPotentialAdmitsWetting)
                                     reference.S_L_m));
 }
 
-TEST(RichardsMechanics, NotebookVdWRelaxationStressIncrement)
+TEST(RichardsMechanics, DSMMicroMacroVdWRelaxationStressIncrement)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
@@ -942,7 +942,7 @@ TEST(RichardsMechanics, NotebookVdWRelaxationStressIncrement)
     EXPECT_NEAR(unsupported_convention_increment.norm(), 0.0, 1e-14);
 }
 
-TEST(RichardsMechanics, NotebookMicroWaterContentStressIncrement)
+TEST(RichardsMechanics, DSMMicroMacroMicroWaterContentStressIncrement)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
@@ -965,7 +965,7 @@ TEST(RichardsMechanics, NotebookMicroWaterContentStressIncrement)
     EXPECT_NEAR(zero_gain_increment.norm(), 0.0, 1e-14);
 }
 
-TEST(RichardsMechanics, NotebookMicroPorositySwellingStressIncrement)
+TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
 {
     using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
 
@@ -996,7 +996,7 @@ TEST(RichardsMechanics, NotebookMicroPorositySwellingStressIncrement)
     EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
 }
 
-TEST(RichardsMechanics, NotebookAlignedSwellingIgnoresExploratoryGains)
+TEST(RichardsMechanics, DSMMicroMacroAlignedSwellingIgnoresExploratoryGains)
 {
     using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
     using KV = MathLib::KelvinVector::KelvinVectorType<2>;
@@ -1028,7 +1028,7 @@ TEST(RichardsMechanics, NotebookAlignedSwellingIgnoresExploratoryGains)
     EXPECT_NEAR((actual - expected).norm(), 0.0, 1e-14);
 }
 
-TEST(RichardsMechanics, NotebookTransportPorositySplitRecomposesTotalPorosity)
+TEST(RichardsMechanics, DSMMicroMacroTransportPorositySplitRecomposesTotalPorosity)
 {
     auto const split = computeTransportPorosityUpdate(
         0.4, 0.27, 0.08, 0.1, 0.0, 0.0,
@@ -1049,7 +1049,7 @@ TEST(RichardsMechanics, NotebookTransportPorositySplitRecomposesTotalPorosity)
     EXPECT_NEAR(clamped.phi_M + clamped.phi_m, 0.25, 1e-14);
 }
 
-TEST(RichardsMechanics, NotebookAdditiveMacroPorosityRateUpdate)
+TEST(RichardsMechanics, DSMMicroMacroAdditiveMacroPorosityRateUpdate)
 {
     double const phi_M_prev = 0.30;
     double const phi_m_prev = 0.10;
@@ -1075,7 +1075,7 @@ TEST(RichardsMechanics, NotebookAdditiveMacroPorosityRateUpdate)
     EXPECT_GT(split.phi_M + split.phi_m, phi_M_prev + phi_m_prev);
 }
 
-TEST(RichardsMechanics, NotebookCurrentPorositySplitMicroSolidFractionMode)
+TEST(RichardsMechanics, DSMMicroMacroCurrentPorositySplitMicroSolidFractionMode)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.hamaker_constant = 6.0e-20;
@@ -1112,7 +1112,7 @@ TEST(RichardsMechanics, NotebookCurrentPorositySplitMicroSolidFractionMode)
                 expected_ratio, 1e-12);
 }
 
-TEST(RichardsMechanics, NotebookReducedMicroLiquidDensityEOSReferencePath)
+TEST(RichardsMechanics, DSMMicroMacroReducedMicroLiquidDensityEOSReferencePath)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.micro_solid_density_reference = 2650.0;
@@ -1143,7 +1143,7 @@ TEST(RichardsMechanics, NotebookReducedMicroLiquidDensityEOSReferencePath)
                                     reference.drho_l_dn_l, 1e-7, 1e-12));
 }
 
-TEST(RichardsMechanics, NotebookScalarStorageLocalSolveReferencePath)
+TEST(RichardsMechanics, DSMMicroMacroScalarStorageLocalSolveReferencePath)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
@@ -1201,7 +1201,7 @@ TEST(RichardsMechanics, NotebookScalarStorageLocalSolveReferencePath)
                   comparisonTolerance(ogs_update.n_l, scalar_update.n_l));
 }
 
-TEST(RichardsMechanics, NotebookScalarMassStorageLocalSolveReferencePath)
+TEST(RichardsMechanics, DSMMicroMacroScalarMassStorageLocalSolveReferencePath)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
@@ -1263,7 +1263,7 @@ TEST(RichardsMechanics, NotebookScalarMassStorageLocalSolveReferencePath)
                                     1e-6, 1e-12));
 }
 
-TEST(RichardsMechanics, NotebookMassStorageCoupledSolveResiduals)
+TEST(RichardsMechanics, DSMMicroMacroMassStorageCoupledSolveResiduals)
 {
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
@@ -1348,16 +1348,16 @@ TEST(RichardsMechanics, NotebookMassStorageCoupledSolveResiduals)
     EXPECT_LE(residual_norm, 1e-8);
 }
 
-TEST(RichardsMechanics, NotebookOverlapTransferBaselineHistory)
+TEST(RichardsMechanics, DSMMicroMacroOverlapTransferBaselineHistory)
 {
-    auto const baseline_rows = loadNotebookOverlapBaselineRows(
+    auto const baseline_rows = loadDSMMicroMacroOverlapBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/RichardsMechanics/NotebookOverlapTransferBaseline.csv");
+        "/RichardsMechanics/DSMMicroMacroOverlapTransferBaseline.csv");
     ASSERT_EQ(baseline_rows.size(), 5);
 
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
-    // Match the shared notebook/MFront nonnegative branch: p_L = 0 belongs to
+    // Match the shared dsm_micromacro/MFront nonnegative branch: p_L = 0 belongs to
     // the saturated Young-Laplace side.
     potential_exchange_params.pressure_tolerance = 1e-12;
     potential_exchange_params.hamaker_constant = 6.0e-20;
@@ -1447,14 +1447,14 @@ TEST(RichardsMechanics, NotebookOverlapTransferBaselineHistory)
     }
 }
 
-TEST(RichardsMechanics, NotebookStrainCoupledOverlapBaselineHistory)
+TEST(RichardsMechanics, DSMMicroMacroStrainCoupledOverlapBaselineHistory)
 {
-    auto const overlap_rows = loadNotebookOverlapBaselineRows(
+    auto const overlap_rows = loadDSMMicroMacroOverlapBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/RichardsMechanics/NotebookOverlapTransferBaseline.csv");
-    auto const strain_rows = loadNotebookOverlapBaselineRows(
+        "/RichardsMechanics/DSMMicroMacroOverlapTransferBaseline.csv");
+    auto const strain_rows = loadDSMMicroMacroOverlapBaselineRows(
         TestInfoLib::TestInfo::data_path +
-        "/RichardsMechanics/NotebookStrainCoupledOverlapBaseline.csv");
+        "/RichardsMechanics/DSMMicroMacroStrainCoupledOverlapBaseline.csv");
     ASSERT_EQ(overlap_rows.size(), 5);
     ASSERT_EQ(strain_rows.size(), 5);
 

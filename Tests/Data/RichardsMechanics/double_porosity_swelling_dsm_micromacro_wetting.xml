@@ -54,6 +54,6 @@
         1e3
     </replace>
     <replace msel="/*/time_loop/output/prefix/text()">
-        double_porosity_swelling_notebook_wetting
+        double_porosity_swelling_dsm_micromacro_wetting
     </replace>
 </OpenGeoSysProjectDiff>

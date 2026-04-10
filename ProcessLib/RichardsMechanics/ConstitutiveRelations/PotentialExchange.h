@@ -17,7 +17,7 @@ struct YoungLaplaceMacroPotentialData
     bool saturated_branch = true;
 };
 
-// VK notebook Phase-2 macro potential helper (Young-Laplace side):
+// DSM dsm_micromacro Phase-2 macro potential helper (Young-Laplace side):
 // mu_LR = 0            for pLR > -ptol
 // mu_LR = pLR / rho_LR otherwise
 inline YoungLaplaceMacroPotentialData computeYoungLaplaceMacroPotential(
@@ -66,7 +66,7 @@ struct VanDerWaalsMicroPotentialData
     double dmu_lR_drho_SR = 0.0;
 };
 
-// VK notebook microscale vdW potential helper:
+// DSM dsm_micromacro microscale vdW potential helper:
 // omega_l = n_l * rho_lR / (nS * rho_SR)
 // mu_lR = (A * rho_lR^3 / (6*pi)) * (Sa / omega_l)^3
 //       = (A * Sa^3 / (6*pi)) * (nS^3 * rho_SR^3) / n_l^3
@@ -147,7 +147,7 @@ struct PotentialDrivenMassExchangeData
     double drho_l_hat_dalpha_M = 0.0;
 };
 
-// VK notebook sign convention:
+// DSM dsm_micromacro sign convention:
 // rho_l_hat = alpha_M * (mu_LR - mu_lR)
 // rho_L_hat = -rho_l_hat
 inline PotentialDrivenMassExchangeData computePotentialDrivenMassExchange(

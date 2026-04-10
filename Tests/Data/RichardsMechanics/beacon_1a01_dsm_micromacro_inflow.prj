@@ -15,29 +15,23 @@
                     <increment_tolerance>1e-20</increment_tolerance>
                 </nonlinear_solver>
             </micro_porosity>
+            <!-- Exploratory inflow probe:
+                 keep the macro branch on the saturated helper side (mu_LR = 0)
+                 by using positive liquid pressure, and make the attractive vdW
+                 microscale term larger by lowering the initial micro water
+                 content and using literature-scale clay values. -->
             <potential_exchange>
                 <enabled>true</enabled>
                 <mode>full_potential</mode>
                 <pressure_tolerance>0.0</pressure_tolerance>
-                <hamaker_constant>6e-20</hamaker_constant>
-                <specific_surface>4000</specific_surface>
+                <hamaker_constant>5.1e-21</hamaker_constant>
+                <specific_surface>523</specific_surface>
                 <micro_solid_density_reference>2650</micro_solid_density_reference>
                 <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
-                <!-- Deliberate unsaturated contrast case:
-                     keep the microscale hydrated enough that the attractive
-                     vdW term stays moderate, but drive the macro reduced
-                     potential more negative so the exchange stays on the
-                     drainage side and n_l decreases. -->
-                <initial_micro_water_content>0.2</initial_micro_water_content>
-                <local_nonlinear_solve_mode>scalar_notebook_mass_storage</local_nonlinear_solve_mode>
-                <macro_porosity_update_mode>notebook_additive_rate</macro_porosity_update_mode>
-                <micro_solid_volume_fraction_mode>current_porosity_split</micro_solid_volume_fraction_mode>
-                <micro_liquid_density_reference>1300</micro_liquid_density_reference>
-                <micro_liquid_density_a>1.3</micro_liquid_density_a>
-                <micro_liquid_density_b>1.0</micro_liquid_density_b>
+                <initial_micro_water_content>0.01</initial_micro_water_content>
+                <local_nonlinear_solve_mode>scalar_microstate_storage_mode</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
-                <potential_role_mapping>notebook_roles</potential_role_mapping>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
             </potential_exchange>
             <constitutive_relation>
@@ -120,7 +114,7 @@
                 <time_stepping>
                     <type>IterationNumberBasedTimeStepping</type>
                     <t_initial>0.0</t_initial>
-                    <t_end>1e4</t_end>
+                    <t_end>1e5</t_end>
                     <initial_dt>10</initial_dt>
                     <minimum_dt>0.1</minimum_dt>
                     <maximum_dt>2e3</maximum_dt>
@@ -131,9 +125,9 @@
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>beacon_1a01_notebook_roles</prefix>
+            <prefix>beacon_1a01_dsm_micromacro_inflow</prefix>
             <suffix>_t_{:time}</suffix>
-            <fixed_output_times>1e2 1e3 5e3 1e4</fixed_output_times>
+            <fixed_output_times>1e3 1e4 5e4 1e5</fixed_output_times>
             <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>micro_water_content</variable><variable>micro_porosity</variable><variable>micro_exchange_source</variable><variable>swelling_stress</variable><variable>sigma</variable></variables>
         </output>
     </time_loop>
@@ -144,9 +138,9 @@
         <parameter><name>phi0</name><type>Constant</type><value>0.4</value></parameter>
         <parameter><name>phi_tr0</name><type>Constant</type><value>0.3</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
-        <parameter><name>pressure_ic</name><type>Constant</type><values>-3e5</values></parameter>
+        <parameter><name>pressure_ic</name><type>Constant</type><values>2e3</values></parameter>
         <parameter><name>dirichlet0</name><type>Constant</type><value>0</value></parameter>
-        <parameter><name>top_pressure</name><type>Constant</type><value>-2e5</value></parameter>
+        <parameter><name>top_pressure</name><type>Constant</type><value>2e3</value></parameter>
     </parameters>
     <process_variables>
         <process_variable>

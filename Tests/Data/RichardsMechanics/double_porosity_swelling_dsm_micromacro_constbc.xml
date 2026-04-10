@@ -16,7 +16,7 @@
 
     <!-- Keep the macro field as simple as possible: the initial pressure and the
          top Dirichlet pressure are both held at the same constant suction. This
-         isolates the kept local VK constitutive chain at process level. -->
+         isolates the kept local DSM constitutive chain at process level. -->
     <replace msel="/*/parameters/parameter[name='pressure_ic']/values/text()">
         -1e7
     </replace>
@@ -43,6 +43,6 @@
         1e3
     </replace>
     <replace msel="/*/time_loop/output/prefix/text()">
-        double_porosity_swelling_notebook_constbc
+        double_porosity_swelling_dsm_micromacro_constbc
     </replace>
 </OpenGeoSysProjectDiff>

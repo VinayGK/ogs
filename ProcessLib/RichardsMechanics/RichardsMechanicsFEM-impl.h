@@ -76,7 +76,7 @@ struct PotentialExchangeUpdateData
     double mu_lR_exchange_input = 0.0;
     bool use_macro_potential_for_active_exchange = false;
     bool use_vdw_micro_potential_for_active_exchange = false;
-    bool use_notebook_role_mapping = false;
+    bool use_micro_macro_potential_role_mapping = false;
     bool use_fd_jacobian_for_direct_macro_derivative = false;
     double fd_jacobian_perturbation = 0.0;
 
@@ -121,18 +121,18 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
         use_macro_potential_for_active_exchange;
     out.use_vdw_micro_potential_for_active_exchange =
         use_vdw_micro_potential_for_active_exchange;
-    bool const use_notebook_role_mapping =
+    bool const use_micro_macro_potential_role_mapping =
         role_mapping == PotentialExchangeRoleMapping::MathematicaReferenceRoles;
-    out.use_notebook_role_mapping = use_notebook_role_mapping;
+    out.use_micro_macro_potential_role_mapping = use_micro_macro_potential_role_mapping;
     out.use_fd_jacobian_for_direct_macro_derivative =
         use_fd_jacobian_for_direct_macro_derivative;
     out.fd_jacobian_perturbation = fd_jacobian_perturbation;
 
     // Default Phase 2C compatibility microscale potential: derived from the
     // existing OGS microscale pressure state.
-    if (use_notebook_role_mapping)
+    if (use_micro_macro_potential_role_mapping)
     {
-        // Notebook role mapping: keep the exchange law in its notebook form
+        // DSMMicroMacro role mapping: keep the exchange law in its dsm_micromacro form
         // rho_l_hat = alpha_M * (mu_LR - mu_lR), i.e. macro Young-Laplace
         // potential on the first argument and microscale vdW potential on the
         // second argument.
@@ -170,14 +170,14 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
                 p_L_ip_eval, rho_LR_eval, pressure_tolerance);
             double const alpha_M_effective_eval =
                 alpha_bar * rho_LR_eval / mu;
-            double const mu_LR_active_eval = use_notebook_role_mapping
+            double const mu_LR_active_eval = use_micro_macro_potential_role_mapping
                                                  ? macro_potential_eval.mu_LR
                                                  : (use_macro_potential_for_active_exchange
                                                         ? macro_potential_eval
                                                               .mu_LR
                                                         : p_L_ip_eval /
                                                               rho_LR_eval);
-            double const mu_lR_active_eval = use_notebook_role_mapping
+            double const mu_lR_active_eval = use_micro_macro_potential_role_mapping
                                                  ? mu_lR_vdw
                                                  : (use_vdw_micro_potential_for_active_exchange
                                                         ? mu_lR_vdw
@@ -223,7 +223,7 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
     // Direct macro derivative with density dependence. In the opt-in path this
     // uses the Young-Laplace helper derivatives; otherwise it reduces to the
     // legacy p/rho placeholder derivative.
-    double const dmu_LR_dpL = use_notebook_role_mapping
+    double const dmu_LR_dpL = use_micro_macro_potential_role_mapping
                                   ? dmu_lR_vdw_dpL
                                   : (use_macro_potential_for_active_exchange
                                          ? out.macro_potential.dmu_LR_dpLR +
@@ -238,7 +238,7 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
     // mu_lR = p_L_m/rho_LR with lagged p_L_m. In the vdW path the helper
     // derivative w.r.t. rho_LR can be used (currently zero in the reduced
     // algebraic form).
-    double const dmu_lR_exchange_input_dpL = use_notebook_role_mapping
+    double const dmu_lR_exchange_input_dpL = use_micro_macro_potential_role_mapping
                                                ? (out.macro_potential.dmu_LR_dpLR +
                                                   out.macro_potential
                                                       .dmu_LR_drho_LR *
@@ -355,7 +355,7 @@ inline TransportPorosityUpdateData computeTransportPorosityUpdate(
         std::call_once(once, []
         {
             WARN(
-                "[RM Phase6I] notebook_additive_rate porosity update encountered a near-singular denominator and fell back to algebraic_split at least once.");
+                "[RM Phase6I] additive_macro_porosity_rate_mode porosity update encountered a near-singular denominator and fell back to algebraic_split at least once.");
         });
         return {
             .phi_M = std::max(0.0, phi_safe - phi_m),
@@ -536,7 +536,7 @@ inline ReducedMicroLiquidDensityData computePreviousMicroLiquidDensity(
                                               potential_exchange_params);
 }
 
-struct NotebookMassStorageCoupledSolveData
+struct MicroMacroMassStorageCoupledSolveData
 {
     double n_l = 0.0;
     double rho_lR = 0.0;
@@ -549,7 +549,7 @@ struct NotebookMassStorageCoupledSolveData
     bool converged = true;
 };
 
-inline NotebookMassStorageCoupledSolveData
+inline MicroMacroMassStorageCoupledSolveData
 solveReferenceMassStoragePredictorState(
     double const n_l_prev, double const rho_l_prev, double const rho_lR_prev,
     double const dt, double const rho_LR, double const alpha_bar,
@@ -591,7 +591,7 @@ solveReferenceMassStoragePredictorState(
                           micro_liquid_density};
     };
 
-    NotebookMassStorageCoupledSolveData out;
+    MicroMacroMassStorageCoupledSolveData out;
     if (dt_safe <= 0.0)
     {
         out.n_l = std::clamp(n_l_prev, n_l_floor, n_l_ceiling);
@@ -692,7 +692,7 @@ solveReferenceMassStoragePredictorState(
     return out;
 }
 
-inline NotebookMassStorageCoupledSolveData
+inline MicroMacroMassStorageCoupledSolveData
 solveReferenceMassStorageCoupledState(
     double const n_l_prev, double const rho_l_prev, double const rho_lR_prev,
     double const dt, double const rho_LR, double const alpha_bar,
@@ -743,7 +743,7 @@ solveReferenceMassStorageCoupledState(
         return predictor;
     }
 
-    NotebookMassStorageCoupledSolveData out = predictor;
+    MicroMacroMassStorageCoupledSolveData out = predictor;
     if (dt_safe <= 0.0)
     {
         return out;
@@ -900,7 +900,7 @@ inline void applyReferenceMassStorageLocalState(
     MPL::VariableArray& variables, MPL::VariableArray& variables_prev,
     double const rho_LR, PotentialExchangeLocalSolveContext const& local_context,
     PotentialExchangeParameters const& potential_exchange_params,
-    NotebookMassStorageCoupledSolveData const& coupled_update)
+    MicroMacroMassStorageCoupledSolveData const& coupled_update)
 {
     auto const transport_porosity_update = computeTransportPorosityUpdate(
         local_context.phi, local_context.phi_M_prev, local_context.phi_m_prev,
@@ -997,7 +997,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
     constexpr double n_l_floor = 1e-16;
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
     double const alpha_M_effective = alpha_bar * rho_LR / mu;
-    bool const use_notebook_storage =
+    bool const use_microstate_storage_mode =
         potential_exchange_params.local_nonlinear_solve_mode !=
         LocalNonlinearSolveMode::ScalarExchange;
     bool const use_mass_storage =
@@ -1009,12 +1009,12 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
                local_context.volumetric_strain_prev) /
                   dt_safe
             : 0.0;
-    bool const notebook_aligned =
+    bool const is_micro_macro_dsm_aligned =
         potential_exchange_params.potential_role_mapping ==
         PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     double const n_l_ceiling =
-        (use_notebook_storage && std::isfinite(local_context.phi) &&
-         !notebook_aligned)
+        (use_microstate_storage_mode && std::isfinite(local_context.phi) &&
+         !is_micro_macro_dsm_aligned)
             ? std::max(n_l_floor, local_context.phi)
             : std::numeric_limits<double>::infinity();
 
@@ -1105,13 +1105,13 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
         {
             residual =
                 n_l - n_l_prev - dt_safe * exchange.rho_l_hat / rho_LR;
-            if (use_notebook_storage)
+            if (use_microstate_storage_mode)
             {
                 residual -= dt_safe * n_l * volumetric_strain_rate;
             }
 
             jacobian = 1.0 - dt_safe * drho_l_hat_dn_l / rho_LR;
-            if (use_notebook_storage)
+            if (use_microstate_storage_mode)
             {
                 jacobian -= dt_safe * volumetric_strain_rate;
             }
@@ -1174,7 +1174,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
         {
             explicit_increment =
                 dt_safe * exchange_prev.rho_l_hat / rho_LR;
-            if (use_notebook_storage)
+            if (use_microstate_storage_mode)
             {
                 explicit_increment +=
                     dt_safe * std::clamp(n_l_prev, n_l_floor, n_l_ceiling) *
@@ -1308,7 +1308,7 @@ inline LocalJacobianDiagnosticData computeLocalJacobianDiagnosticData(
     if (!(perturbation > 0.0) || !std::isfinite(perturbation))
     {
         OGS_FATAL(
-            "VK local Jacobian diagnostic requires finite h > 0, got {:g} "
+            "DSM local Jacobian diagnostic requires finite h > 0, got {:g} "
             "(from local_jacobian_perturbation={:g}, p_L_ip={:g}).",
             perturbation, potential_exchange_params.local_jacobian_perturbation, p_L_ip);
     }
@@ -1445,7 +1445,7 @@ inline void updateMicroscaleHydraulicState(
         macro_potential, local_context, potential_exchange_params);
 
     *n_l = n_l_update.n_l;
-    // Keep notebook-mode rho_lR evolution consistent with the notebook bridge:
+    // Keep dsm_micromacro-mode rho_lR evolution consistent with the dsm_micromacro bridge:
     // rho_lR is updated from the active reduced micro EOS.
     *rho_lR = computeActiveMicroLiquidDensity(n_l_update.n_l, rho_LR,
                                                 local_context, potential_exchange_params)
@@ -1476,11 +1476,11 @@ inline void updatePorositySplitState(
 
     auto const mode =
         potential_exchange_parameters->local_nonlinear_solve_mode;
-    bool const notebook_aligned =
+    bool const is_micro_macro_dsm_aligned =
         potential_exchange_parameters->potential_role_mapping ==
         PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     if (mode == LocalNonlinearSolveMode::ScalarReferenceMassStorage &&
-        !notebook_aligned)
+        !is_micro_macro_dsm_aligned)
     {
         return;
     }
@@ -1494,13 +1494,13 @@ inline void updatePorositySplitState(
                                 ->phi;
     auto const n_l = std::max(1e-16, *std::get<MicroWaterContent>(state_current));
 
-    if (notebook_aligned &&
+    if (is_micro_macro_dsm_aligned &&
         (mode == LocalNonlinearSolveMode::ScalarReferenceStorage ||
          mode == LocalNonlinearSolveMode::ScalarReferenceMassStorage))
     {
-        // Keep notebook support split aligned with the bridge law:
+        // Keep dsm_micromacro support split aligned with the bridge law:
         // phi_m := n_l while transport_porosity remains the process state.
-        // The notebook support split (phi_m, phi_M) can step outside the
+        // The dsm_micromacro support split (phi_m, phi_M) can step outside the
         // algebraic porosity bounds and should not collapse transport porosity.
         *micro_porosity = n_l;
         transport_porosity = phi_M_prev;
@@ -1543,7 +1543,7 @@ inline void updateTotalPorosityState(
         potential_exchange_parameters->potential_role_mapping ==
             PotentialExchangeRoleMapping::MathematicaReferenceRoles)
     {
-        // In scalar notebook-storage mode, micro porosity is support-state only.
+        // In scalar dsm_micromacro-storage mode, micro porosity is support-state only.
         // Keep the process porosity state on the medium-law carrier.
         return;
     }
@@ -1667,7 +1667,7 @@ computeSwellingStressIncrement(
 {
     using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
 
-    bool const notebook_aligned =
+    bool const is_micro_macro_dsm_aligned =
         potential_exchange_params.potential_role_mapping ==
         PotentialExchangeRoleMapping::MathematicaReferenceRoles;
 
@@ -1679,7 +1679,7 @@ computeSwellingStressIncrement(
                 DisplacementDim>(phi_m_prev, phi_m, C_el, potential_exchange_params);
     }
 
-    if (notebook_aligned)
+    if (is_micro_macro_dsm_aligned)
     {
         return delta_sigma_sw;
     }

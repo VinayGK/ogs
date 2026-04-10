@@ -174,7 +174,7 @@ TEST(RichardsMechanics, PotentialExchangeRoleMappingToString)
     EXPECT_STREQ(toString(PotentialExchangeRoleMapping::CurrentOgs),
                  "current_ogs");
     EXPECT_STREQ(toString(PotentialExchangeRoleMapping::MathematicaReferenceRoles),
-                 "notebook_roles");
+                 "micro_macro_potential_role_mapping_mode");
 }
 
 TEST(RichardsMechanics, PotentialExchangeRoleMappingDirectExchangeAlgebra)

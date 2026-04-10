@@ -61,11 +61,11 @@ LocalNonlinearSolveMode parseLocalNonlinearSolveMode(
     {
         return LocalNonlinearSolveMode::ScalarExchange;
     }
-    if (mode == "scalar_notebook_storage")
+    if (mode == "scalar_microstate_storage_mode")
     {
         return LocalNonlinearSolveMode::ScalarReferenceStorage;
     }
-    if (mode == "scalar_notebook_mass_storage")
+    if (mode == "scalar_micro_macro_mass_storage_mode")
     {
         return LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     }
@@ -73,8 +73,8 @@ LocalNonlinearSolveMode parseLocalNonlinearSolveMode(
     OGS_FATAL(
         "RichardsMechanics: unsupported potential_exchange "
         "local_nonlinear_solve_mode '{}'. Currently supported: "
-        "'scalar_exchange', 'scalar_notebook_storage', "
-        "'scalar_notebook_mass_storage'.",
+        "'scalar_exchange', 'scalar_microstate_storage_mode', "
+        "'scalar_micro_macro_mass_storage_mode'.",
         mode);
 }
 
@@ -85,7 +85,7 @@ MacroPorosityUpdateMode parseMacroPorosityUpdateMode(
     {
         return MacroPorosityUpdateMode::AlgebraicSplit;
     }
-    if (mode == "notebook_additive_rate")
+    if (mode == "additive_macro_porosity_rate_mode")
     {
         return MacroPorosityUpdateMode::ReferenceAdditiveRate;
     }
@@ -93,7 +93,7 @@ MacroPorosityUpdateMode parseMacroPorosityUpdateMode(
     OGS_FATAL(
         "RichardsMechanics: unsupported potential_exchange "
         "macro_porosity_update_mode '{}'. Currently supported: "
-        "'algebraic_split', 'notebook_additive_rate'.",
+        "'algebraic_split', 'additive_macro_porosity_rate_mode'.",
         mode);
 }
 
@@ -123,7 +123,7 @@ PotentialExchangeRoleMapping parsePotentialExchangeRoleMapping(
     {
         return PotentialExchangeRoleMapping::CurrentOgs;
     }
-    if (mapping == "notebook_roles")
+    if (mapping == "micro_macro_potential_role_mapping_mode")
     {
         return PotentialExchangeRoleMapping::MathematicaReferenceRoles;
     }
@@ -131,7 +131,7 @@ PotentialExchangeRoleMapping parsePotentialExchangeRoleMapping(
     OGS_FATAL(
         "RichardsMechanics: unsupported potential_exchange "
         "potential_role_mapping '{}'. Currently supported: 'current_ogs', "
-        "'notebook_roles'.",
+        "'micro_macro_potential_role_mapping_mode'.",
         mapping);
 }
 
@@ -186,7 +186,7 @@ void validateMicroPorosityAndPotentialExchangeConfiguration(
 
     bool const micro_porosity_enabled = micro_porosity_parameters.has_value();
     bool any_saturation_micro = false;
-    bool const any_vk_enabled =
+    bool const any_dsm_exchange_enabled =
         (potential_exchange_parameters &&
          potential_exchange_parameters->enabled) ||
         std::any_of(potential_exchange_parameters_by_material.begin(),
@@ -209,7 +209,7 @@ void validateMicroPorosityAndPotentialExchangeConfiguration(
         }
     }
 
-    if (micro_porosity_enabled && !any_saturation_micro && !any_vk_enabled)
+    if (micro_porosity_enabled && !any_saturation_micro && !any_dsm_exchange_enabled)
     {
         OGS_FATAL(
             "RichardsMechanics: <micro_porosity> is configured, but no medium "
@@ -217,7 +217,7 @@ void validateMicroPorosityAndPotentialExchangeConfiguration(
             "one medium or remove <micro_porosity>.");
     }
 
-    if (any_vk_enabled && !micro_porosity_enabled)
+    if (any_dsm_exchange_enabled && !micro_porosity_enabled)
     {
         OGS_FATAL(
             "RichardsMechanics: potential_exchange.enabled=true requires "

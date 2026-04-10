@@ -70,9 +70,9 @@ inline constexpr char const* toString(LocalNonlinearSolveMode const mode)
         case LocalNonlinearSolveMode::ScalarExchange:
             return "scalar_exchange";
         case LocalNonlinearSolveMode::ScalarReferenceStorage:
-            return "scalar_notebook_storage";
+            return "scalar_microstate_storage_mode";
         case LocalNonlinearSolveMode::ScalarReferenceMassStorage:
-            return "scalar_notebook_mass_storage";
+            return "scalar_micro_macro_mass_storage_mode";
     }
     return "unknown";
 }
@@ -84,7 +84,7 @@ inline constexpr char const* toString(MacroPorosityUpdateMode const mode)
         case MacroPorosityUpdateMode::AlgebraicSplit:
             return "algebraic_split";
         case MacroPorosityUpdateMode::ReferenceAdditiveRate:
-            return "notebook_additive_rate";
+            return "additive_macro_porosity_rate_mode";
     }
     return "unknown";
 }
@@ -110,7 +110,7 @@ inline constexpr char const* toString(
         case PotentialExchangeRoleMapping::CurrentOgs:
             return "current_ogs";
         case PotentialExchangeRoleMapping::MathematicaReferenceRoles:
-            return "notebook_roles";
+            return "micro_macro_potential_role_mapping_mode";
     }
     return "unknown";
 }
@@ -145,7 +145,7 @@ struct PotentialExchangeParameters
     // Optional GP-local n_l initialization (future full 2C path).
     std::optional<double> initial_micro_water_content;
 
-    // Optional Jacobian approximation for VK exchange contribution only.
+    // Optional Jacobian approximation for DSM exchange contribution only.
     // If true, drho_L_hat/dp_L is computed by finite difference in the local
     // helper path.
     bool use_fd_jacobian_for_exchange = false;
@@ -157,20 +157,20 @@ struct PotentialExchangeParameters
     double local_jacobian_perturbation = 1e-8;
     double local_jacobian_relative_tolerance = 1e-3;
 
-    // Optional VK-only mechanical gain on relaxation of the vdW-derived
+    // Optional DSM-only mechanical gain on relaxation of the vdW-derived
     // compatibility pressure p_L_m = -rho_LR * mu_lR. Zero preserves the
     // current committed behavior.
     double vdw_relaxation_stress_gain = 0.0;
 
-    // Optional VK-only mechanical gain on positive microscale water-content
-    // increments. This is intended for the notebook-consistent fully saturated
+    // Optional DSM-only mechanical gain on positive microscale water-content
+    // increments. This is intended for the dsm_micromacro-consistent fully saturated
     // microscale interpretation, where swelling is driven by n_l growth rather
     // than by a change in saturation.
     double micro_water_content_stress_gain = 0.0;
 
-    // Optional VK-only notebook-style reversible swelling-strain slope driven
+    // Optional DSM-only dsm_micromacro-style reversible swelling-strain slope driven
     // by signed microscale water-content increments Delta n_l. If enabled, the
-    // VK branch uses Delta eps_sw = slope * Delta n_l and converts that
+    // DSM branch uses Delta eps_sw = slope * Delta n_l and converts that
     // isotropic swelling-strain increment into a stress increment via the
     // elastic stiffness, instead of using the legacy saturation-driven
     // swelling_stress_rate path.

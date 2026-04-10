@@ -24,6 +24,6 @@
         1e2
     </replace>
     <replace msel="/*/time_loop/output/prefix/text()">
-        double_porosity_swelling_notebook_optin
+        double_porosity_swelling_dsm_micromacro_optin
     </replace>
 </OpenGeoSysProjectDiff>
