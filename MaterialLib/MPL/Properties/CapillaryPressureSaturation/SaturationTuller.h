@@ -14,11 +14,11 @@
 namespace MaterialPropertyLib
 {
 /**
- * \brief Tuller-style saturation law used by the notebook bridge.
+ * \brief Tuller-style saturation law used by DSM micro-macro coupling.
  *
  * \details This property must be a medium property. It computes the liquid
- * saturation from capillary pressure using the same scalar law as
- * \c RichardsMechanicsNotebookBridge on the unsaturated branch.
+ * saturation from capillary pressure using the same scalar law as the
+ * DSM micro-scale unsaturated branch.
  *
  * For capillary pressure \f$p_\mathrm{cap}\f$ the saturation is
  *
