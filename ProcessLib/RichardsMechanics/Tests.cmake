@@ -35,35 +35,6 @@ if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)
 endif()
 
 AddTest(
-    NAME RichardsMechanics_double_porosity_swelling_dsm_micromacro_optin_smoke
-    PATH RichardsMechanics
-    EXECUTABLE ogs
-    RUNTIME 20
-    EXECUTABLE_ARGS double_porosity_swelling_dsm_micromacro_optin.xml
-    WRAPPER time
-    REQUIREMENTS NOT OGS_USE_MPI
-)
-
-AddTest(
-    NAME RichardsMechanics_double_porosity_swelling_dsm_micromacro_optin_reference
-    PATH RichardsMechanics
-    EXECUTABLE ogs
-    RUNTIME 20
-    EXECUTABLE_ARGS double_porosity_swelling_dsm_micromacro_optin.xml
-    WRAPPER time
-    TESTER vtkdiff
-    REQUIREMENTS NOT OGS_USE_MPI
-    DIFF_DATA
-    dsm_micromacro_optin_reference_t_10000.000000.vtu double_porosity_swelling_dsm_micromacro_optin_t_10000.000000.vtu displacement displacement 1e-16 0
-    dsm_micromacro_optin_reference_t_10000.000000.vtu double_porosity_swelling_dsm_micromacro_optin_t_10000.000000.vtu pressure pressure 1e-16 1e-12
-    dsm_micromacro_optin_reference_t_10000.000000.vtu double_porosity_swelling_dsm_micromacro_optin_t_10000.000000.vtu sigma sigma 5e-8 0
-    dsm_micromacro_optin_reference_t_10000.000000.vtu double_porosity_swelling_dsm_micromacro_optin_t_10000.000000.vtu epsilon epsilon 5e-14 0
-    dsm_micromacro_optin_reference_t_10000.000000.vtu double_porosity_swelling_dsm_micromacro_optin_t_10000.000000.vtu saturation saturation 4e-15 0
-    dsm_micromacro_optin_reference_t_10000.000000.vtu double_porosity_swelling_dsm_micromacro_optin_t_10000.000000.vtu micro_pressure micro_pressure 1e-16 1e-12
-    dsm_micromacro_optin_reference_t_10000.000000.vtu double_porosity_swelling_dsm_micromacro_optin_t_10000.000000.vtu micro_saturation micro_saturation 4e-15 0
-)
-
-AddTest(
     NAME RichardsMechanics_double_porosity_swelling_dsm_micromacro_constbc_reference
     PATH RichardsMechanics
     EXECUTABLE ogs
@@ -108,83 +79,6 @@ AddTest(
     EXECUTABLE ogs
     RUNTIME 20
     EXECUTABLE_ARGS beacon_1a01_dsm_micromacro_inflow.prj
-    WRAPPER time
-    REQUIREMENTS NOT OGS_USE_MPI
-)
-
-AddTest(
-    NAME RichardsMechanics_beacon_1a01_dsm_micromacro_roles_smoke
-    PATH RichardsMechanics
-    EXECUTABLE ogs
-    RUNTIME 20
-    EXECUTABLE_ARGS beacon_1a01_dsm_micromacro_roles.prj
-    WRAPPER time
-    REQUIREMENTS NOT OGS_USE_MPI
-)
-
-AddTest(
-    NAME RichardsMechanics_beacon_1a01_dsm_micromacro_roles_reference
-    PATH RichardsMechanics
-    EXECUTABLE ogs
-    RUNTIME 20
-    EXECUTABLE_ARGS beacon_1a01_dsm_micromacro_roles.prj
-    WRAPPER time
-    TESTER vtkdiff
-    REQUIREMENTS NOT OGS_USE_MPI
-    DIFF_DATA
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu displacement displacement 1e-16 0
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu pressure pressure 1e-16 1e-12
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu saturation saturation 1e-14 0
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu micro_pressure micro_pressure 1e-16 1e-12
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu micro_saturation micro_saturation 1e-14 0
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu micro_water_content micro_water_content 1e-16 0
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu micro_porosity micro_porosity 1e-16 0
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu micro_exchange_source micro_exchange_source 1e-16 0
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu swelling_stress swelling_stress 1e-16 0
-    beacon_1a01_dsm_micromacro_roles_reference_t_10000.000000.vtu beacon_1a01_dsm_micromacro_roles_t_10000.000000.vtu sigma sigma 1e-16 1e-10
-)
-
-add_test(
-    NAME ogs-RichardsMechanics_beacon_1a01_dsm_micromacro_roles_history
-    COMMAND
-        ${CMAKE_COMMAND}
-        -DPYTHON_EXECUTABLE=${Python_EXECUTABLE}
-        -DPROJECT_SOURCE_DIR=${PROJECT_SOURCE_DIR}
-        -DBINARY_DIR=${Data_BINARY_DIR}/RichardsMechanics
-        -DSOURCE_CSV=${Data_SOURCE_DIR}/RichardsMechanics/beacon_1a01_dsm_micromacro_roles_history.csv
-        -DOUTPUT_CSV=${Data_BINARY_DIR}/RichardsMechanics/beacon_1a01_dsm_micromacro_roles_history.csv
-        -P ${PROJECT_SOURCE_DIR}/scripts/cmake/test/HistoryExtraction.cmake
-    WORKING_DIRECTORY ${Data_BINARY_DIR}/RichardsMechanics
-)
-set_tests_properties(
-    ogs-RichardsMechanics_beacon_1a01_dsm_micromacro_roles_history
-    PROPERTIES
-        DEPENDS ogs-RichardsMechanics_beacon_1a01_dsm_micromacro_roles_reference-time
-        LABELS "RichardsMechanics;default;small;tester"
-)
-
-add_test(
-    NAME ogs-RichardsMechanics_beacon_1a01_dsm_micromacro_roles_history_trend
-    COMMAND
-        ${Python_EXECUTABLE}
-        ${PROJECT_SOURCE_DIR}/scripts/history_trend_check.py
-        --reference ${Data_SOURCE_DIR}/RichardsMechanics/beacon_1a01_dsm_micromacro_roles_history.csv
-        --actual ${Data_BINARY_DIR}/RichardsMechanics/beacon_1a01_dsm_micromacro_roles_history.csv
-    WORKING_DIRECTORY ${Data_BINARY_DIR}/RichardsMechanics
-)
-set_tests_properties(
-    ogs-RichardsMechanics_beacon_1a01_dsm_micromacro_roles_history_trend
-    PROPERTIES
-        DEPENDS ogs-RichardsMechanics_beacon_1a01_dsm_micromacro_roles_history
-        LABELS "RichardsMechanics;default;small;tester"
-)
-
-AddTest(
-    NAME RichardsMechanics_beacon_1a01_dsm_micromacro_no_satmicro_smoke
-    PATH RichardsMechanics
-    EXECUTABLE ogs
-    RUNTIME 20
-    EXECUTABLE_ARGS beacon_1a01_dsm_micromacro_no_satmicro.prj
     WRAPPER time
     REQUIREMENTS NOT OGS_USE_MPI
 )

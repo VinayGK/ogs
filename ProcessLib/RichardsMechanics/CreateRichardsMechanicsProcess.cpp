@@ -116,25 +116,6 @@ MicroSolidVolumeFractionMode parseMicroSolidVolumeFractionMode(
         mode);
 }
 
-PotentialExchangeRoleMapping parsePotentialExchangeRoleMapping(
-    std::string const& mapping)
-{
-    if (mapping == "current_ogs")
-    {
-        return PotentialExchangeRoleMapping::CurrentOgs;
-    }
-    if (mapping == "micro_macro_potential_role_mapping_mode")
-    {
-        return PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
-    }
-
-    OGS_FATAL(
-        "RichardsMechanics: unsupported potential_exchange "
-        "potential_role_mapping '{}'. Currently supported: 'current_ogs', "
-        "'micro_macro_potential_role_mapping_mode'.",
-        mapping);
-}
-
 PotentialExchangeMode parsePotentialExchangeMode(std::string const& mode)
 {
     if (mode == "full_potential")
@@ -283,13 +264,6 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
                 defaults
                     ? toString(defaults->micro_solid_volume_fraction_mode)
                     : "reference"));
-    auto const potential_role_mapping =
-        parsePotentialExchangeRoleMapping(
-            config.getConfigParameter<std::string>(
-                "potential_role_mapping",
-                defaults ? toString(defaults->potential_role_mapping)
-                         : "current_ogs"));
-
     auto get_positive_required_or_default =
         [&](char const* const key, double const fallback)
     {
@@ -535,7 +509,6 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         local_nonlinear_solve_mode,
         macro_porosity_update_mode,
         micro_solid_volume_fraction_mode,
-        potential_role_mapping,
         initial_micro_water_content,
         use_fd_jacobian_for_exchange,
         fd_jacobian_perturbation,

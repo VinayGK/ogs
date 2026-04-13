@@ -562,7 +562,7 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
         auto const data = computePotentialExchangeUpdate(
             state.alpha_bar, state.mu, state.p_L, state.p_L_m, state.rho_LR,
             beta_LR, state.pressure_tolerance, false, false, 0.0, 0.0,
-            false, 0.0, PotentialExchangeRoleMapping::CurrentOgs, false,
+            false, 0.0, false,
             potential_exchange_params.fd_jacobian_perturbation);
         return {
             .rho_L_hat = data.exchange.rho_L_hat,
@@ -597,7 +597,6 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
         beta_LR, state.pressure_tolerance, true, true,
         n_l_update.micro_potential.mu_lR,
         n_l_update.micro_potential.dmu_lR_drho_lR, true, dmu_lR_vdw_dpL,
-        potential_exchange_params.potential_role_mapping,
         false, potential_exchange_params.fd_jacobian_perturbation);
 
     return {
@@ -1003,7 +1002,6 @@ TEST(RichardsMechanics, DSMMicroMacroAlignedSwellingIgnoresExploratoryGains)
 
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
-    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.micro_water_content_swelling_slope = 0.1;
@@ -1215,8 +1213,6 @@ TEST(RichardsMechanics, DSMMicroMacroScalarMassStorageLocalSolveReferencePath)
     potential_exchange_params.micro_liquid_density_b = 1.0;
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
-    potential_exchange_params.potential_role_mapping =
-        PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.initial_micro_water_content = 0.03;
@@ -1326,7 +1322,8 @@ TEST(RichardsMechanics, DSMMicroMacroMassStorageCoupledSolveResiduals)
     auto const micro_potential = computeVanDerWaalsMicroPotential(
         coupled_update.n_l, coupled_update.rho_lR, active_nS,
         potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
-        potential_exchange_params.specific_surface, vkMicroPotentialSignFactor(potential_exchange_params));
+        potential_exchange_params.specific_surface,
+        microPotentialSignFactorFromParameters(potential_exchange_params));
     auto const exchange = computePotentialDrivenMassExchange(
         alpha_bar * rho_LR / mu, macro_potential.mu_LR,
         micro_potential.mu_lR);
@@ -1369,7 +1366,6 @@ TEST(RichardsMechanics, DSMMicroMacroOverlapTransferBaselineHistory)
     potential_exchange_params.micro_liquid_density_b = 1.0;
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
-    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.macro_porosity_update_mode = MacroPorosityUpdateMode::AlgebraicSplit;
@@ -1470,7 +1466,6 @@ TEST(RichardsMechanics, DSMMicroMacroStrainCoupledOverlapBaselineHistory)
     potential_exchange_params.micro_liquid_density_b = 1.0;
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
-    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.macro_porosity_update_mode = MacroPorosityUpdateMode::AlgebraicSplit;

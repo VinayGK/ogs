@@ -76,7 +76,6 @@ struct PotentialExchangeUpdateData
     double mu_lR_exchange_input = 0.0;
     bool use_macro_potential_for_active_exchange = false;
     bool use_vdw_micro_potential_for_active_exchange = false;
-    bool use_micro_macro_potential_role_mapping = false;
     bool use_fd_jacobian_for_direct_macro_derivative = false;
     double fd_jacobian_perturbation = 0.0;
 
@@ -95,8 +94,6 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
     double const dmu_lR_vdw_drho_lR = 0.0,
     bool const use_custom_dmu_lR_vdw_dpL = false,
     double const dmu_lR_vdw_dpL = 0.0,
-    PotentialExchangeRoleMapping const role_mapping =
-        PotentialExchangeRoleMapping::CurrentOgs,
     bool const use_fd_jacobian_for_direct_macro_derivative = false,
     double const fd_jacobian_perturbation = 1e-8)
 {
@@ -109,10 +106,7 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
 
     PotentialExchangeUpdateData out;
 
-    // Transitional coefficient mapping: recover the dimensional scaling of the
-    // legacy pressure-difference exchange when potentials are represented as
-    // p/rho. This keeps Phase 2C reversible while activating the helper-based
-    // source path.
+    // Keep the exchange coefficient scaling in mass-density units.
     out.alpha_M_effective = alpha_bar * rho_LR / mu;
 
     out.macro_potential =
@@ -121,39 +115,16 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
         use_macro_potential_for_active_exchange;
     out.use_vdw_micro_potential_for_active_exchange =
         use_vdw_micro_potential_for_active_exchange;
-    bool const use_micro_macro_potential_role_mapping =
-        role_mapping == PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
-    out.use_micro_macro_potential_role_mapping = use_micro_macro_potential_role_mapping;
     out.use_fd_jacobian_for_direct_macro_derivative =
         use_fd_jacobian_for_direct_macro_derivative;
     out.fd_jacobian_perturbation = fd_jacobian_perturbation;
 
-    // Default Phase 2C compatibility microscale potential: derived from the
-    // existing OGS microscale pressure state.
-    if (use_micro_macro_potential_role_mapping)
-    {
-        // DSMMicroMacro role mapping: keep the exchange law in its dsm_micromacro form
-        // rho_l_hat = alpha_M * (mu_LR - mu_lR), i.e. macro Young-Laplace
-        // potential on the first argument and microscale vdW potential on the
-        // second argument.
-        out.mu_LR_active = out.macro_potential.mu_LR;
-        out.mu_lR_exchange_input = mu_lR_vdw;
-    }
-    else
-    {
-        out.mu_lR_exchange_input = use_vdw_micro_potential_for_active_exchange
-                                    ? mu_lR_vdw
-                                    : p_L_m / rho_LR;
-
-        // Phase 2C compatibility slice: activate the potential-driven source
-        // helper path while preserving the current OGS double-structure
-        // exchange behavior. By default, the active macro and microscale
-        // potentials are represented as p/rho placeholders, which makes the
-        // source equivalent to the legacy pressure-difference law.
-        out.mu_LR_active = use_macro_potential_for_active_exchange
-                               ? out.macro_potential.mu_LR
-                               : p_L_ip / rho_LR;
-    }
+    out.mu_lR_exchange_input = use_vdw_micro_potential_for_active_exchange
+                                   ? mu_lR_vdw
+                                   : p_L_m / rho_LR;
+    out.mu_LR_active = use_macro_potential_for_active_exchange
+                           ? out.macro_potential.mu_LR
+                           : p_L_ip / rho_LR;
 
     out.exchange = computePotentialDrivenMassExchange(
         out.alpha_M_effective, out.mu_LR_active, out.mu_lR_exchange_input);
@@ -170,19 +141,12 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
                 p_L_ip_eval, rho_LR_eval, pressure_tolerance);
             double const alpha_M_effective_eval =
                 alpha_bar * rho_LR_eval / mu;
-            double const mu_LR_active_eval = use_micro_macro_potential_role_mapping
+            double const mu_LR_active_eval = use_macro_potential_for_active_exchange
                                                  ? macro_potential_eval.mu_LR
-                                                 : (use_macro_potential_for_active_exchange
-                                                        ? macro_potential_eval
-                                                              .mu_LR
-                                                        : p_L_ip_eval /
-                                                              rho_LR_eval);
-            double const mu_lR_active_eval = use_micro_macro_potential_role_mapping
+                                                 : p_L_ip_eval / rho_LR_eval;
+            double const mu_lR_active_eval = use_vdw_micro_potential_for_active_exchange
                                                  ? mu_lR_vdw
-                                                 : (use_vdw_micro_potential_for_active_exchange
-                                                        ? mu_lR_vdw
-                                                        : p_L_m /
-                                                              rho_LR_eval);
+                                                 : p_L_m / rho_LR_eval;
             auto const exchange_eval = computePotentialDrivenMassExchange(
                 alpha_M_effective_eval, mu_LR_active_eval, mu_lR_active_eval);
             return -exchange_eval.rho_l_hat;
@@ -220,37 +184,19 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
     // alpha_M_effective = alpha_bar * rho_LR / mu (mu dependence is lagged).
     double const dalpha_M_effective_dpL = alpha_bar / mu * drho_LR_dpL;
 
-    // Direct macro derivative with density dependence. In the opt-in path this
-    // uses the Young-Laplace helper derivatives; otherwise it reduces to the
-    // legacy p/rho placeholder derivative.
-    double const dmu_LR_dpL = use_micro_macro_potential_role_mapping
-                                  ? dmu_lR_vdw_dpL
-                                  : (use_macro_potential_for_active_exchange
-                                         ? out.macro_potential.dmu_LR_dpLR +
-                                               out.macro_potential
-                                                   .dmu_LR_drho_LR *
-                                                   drho_LR_dpL
-                                         : 1.0 / rho_LR -
-                                               p_L_ip / (rho_LR * rho_LR) *
-                                                   drho_LR_dpL);
+    double const dmu_LR_dpL = use_macro_potential_for_active_exchange
+                                  ? out.macro_potential.dmu_LR_dpLR +
+                                        out.macro_potential.dmu_LR_drho_LR *
+                                            drho_LR_dpL
+                                  : 1.0 / rho_LR -
+                                        p_L_ip / (rho_LR * rho_LR) * drho_LR_dpL;
 
-    // Microscale derivative contribution. In the legacy placeholder path
-    // mu_lR = p_L_m/rho_LR with lagged p_L_m. In the vdW path the helper
-    // derivative w.r.t. rho_LR can be used (currently zero in the reduced
-    // algebraic form).
-    double const dmu_lR_exchange_input_dpL = use_micro_macro_potential_role_mapping
-                                               ? (out.macro_potential.dmu_LR_dpLR +
-                                                  out.macro_potential
-                                                      .dmu_LR_drho_LR *
-                                                      drho_LR_dpL)
-                                               : (use_vdw_micro_potential_for_active_exchange
-                                                      ? (use_custom_dmu_lR_vdw_dpL
-                                                             ? dmu_lR_vdw_dpL
-                                                             : dmu_lR_vdw_drho_lR *
-                                                                   drho_LR_dpL)
-                                                      : -p_L_m /
-                                                            (rho_LR * rho_LR) *
-                                                            drho_LR_dpL);
+    double const dmu_lR_exchange_input_dpL =
+        use_vdw_micro_potential_for_active_exchange
+            ? (use_custom_dmu_lR_vdw_dpL
+                   ? dmu_lR_vdw_dpL
+                   : dmu_lR_vdw_drho_lR * drho_LR_dpL)
+            : -p_L_m / (rho_LR * rho_LR) * drho_LR_dpL;
 
     double const drho_l_hat_dpL_direct =
         out.exchange.drho_l_hat_dalpha_M * dalpha_M_effective_dpL +
@@ -277,7 +223,7 @@ struct CompatibilityMicroHydraulicOutputData
     VanDerWaalsMicroPotentialData micro_potential;
 };
 
-inline double vkMicroPotentialSignFactor(
+inline double microPotentialSignFactorFromParameters(
     PotentialExchangeParameters const& potential_exchange_params)
 {
     return microPotentialSignFactor(potential_exchange_params.micro_potential_convention);
@@ -296,7 +242,8 @@ computeCompatibilityMicroHydraulicOutput(
     auto const micro_potential = computeVanDerWaalsMicroPotential(
         n_l_safe, rho_LR, potential_exchange_params.micro_solid_volume_fraction_reference,
         potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
-        potential_exchange_params.specific_surface, vkMicroPotentialSignFactor(potential_exchange_params));
+        potential_exchange_params.specific_surface,
+        microPotentialSignFactorFromParameters(potential_exchange_params));
 
     return {
         .p_L_m = -rho_LR * micro_potential.mu_lR,
@@ -578,7 +525,8 @@ solveReferenceMassStoragePredictorState(
         auto const micro_potential = computeVanDerWaalsMicroPotential(
             n_l, micro_liquid_density.rho_lR, active_nS,
             potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
-            potential_exchange_params.specific_surface, vkMicroPotentialSignFactor(potential_exchange_params));
+            potential_exchange_params.specific_surface,
+            microPotentialSignFactorFromParameters(potential_exchange_params));
         double const mu_LR_active = macro_potential.mu_LR;
         double const mu_lR_active = micro_potential.mu_lR;
         auto const exchange = computePotentialDrivenMassExchange(
@@ -719,7 +667,7 @@ solveReferenceMassStorageCoupledState(
         auto const micro_potential = computeVanDerWaalsMicroPotential(
             n_l, rho_lR, active_nS, potential_exchange_params.micro_solid_density_reference,
             potential_exchange_params.hamaker_constant, potential_exchange_params.specific_surface,
-            vkMicroPotentialSignFactor(potential_exchange_params));
+            microPotentialSignFactorFromParameters(potential_exchange_params));
         double const mu_LR_active = macro_potential.mu_LR;
         double const mu_lR_active = micro_potential.mu_lR;
         auto const exchange = computePotentialDrivenMassExchange(
@@ -962,7 +910,7 @@ inline VanDerWaalsMicroPotentialData computeActiveMicroPotential(
     return computeVanDerWaalsMicroPotential(
         n_l, rho_lR_effective, active_nS, potential_exchange_params.micro_solid_density_reference,
         potential_exchange_params.hamaker_constant, potential_exchange_params.specific_surface,
-        vkMicroPotentialSignFactor(potential_exchange_params));
+        microPotentialSignFactorFromParameters(potential_exchange_params));
 }
 
 inline CompatibilityMicroHydraulicOutputData
@@ -1009,12 +957,8 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
                local_context.volumetric_strain_prev) /
                   dt_safe
             : 0.0;
-    bool const is_micro_macro_dsm_aligned =
-        potential_exchange_params.potential_role_mapping ==
-        PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     double const n_l_ceiling =
-        (use_microstate_storage_mode && std::isfinite(local_context.phi) &&
-         !is_micro_macro_dsm_aligned)
+        (use_microstate_storage_mode && std::isfinite(local_context.phi))
             ? std::max(n_l_floor, local_context.phi)
             : std::numeric_limits<double>::infinity();
 
@@ -1476,15 +1420,6 @@ inline void updatePorositySplitState(
 
     auto const mode =
         potential_exchange_parameters->local_nonlinear_solve_mode;
-    bool const is_micro_macro_dsm_aligned =
-        potential_exchange_parameters->potential_role_mapping ==
-        PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
-    if (mode == LocalNonlinearSolveMode::ScalarReferenceMassStorage &&
-        !is_micro_macro_dsm_aligned)
-    {
-        return;
-    }
-
     auto& micro_porosity = std::get<MicroPorosity>(state_current);
     auto& transport_porosity =
         std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(state_current)
@@ -1494,9 +1429,8 @@ inline void updatePorositySplitState(
                                 ->phi;
     auto const n_l = std::max(1e-16, *std::get<MicroWaterContent>(state_current));
 
-    if (is_micro_macro_dsm_aligned &&
-        (mode == LocalNonlinearSolveMode::ScalarReferenceStorage ||
-         mode == LocalNonlinearSolveMode::ScalarReferenceMassStorage))
+    if (mode == LocalNonlinearSolveMode::ScalarReferenceStorage ||
+        mode == LocalNonlinearSolveMode::ScalarReferenceMassStorage)
     {
         // Keep dsm_micromacro support split aligned with the bridge law:
         // phi_m := n_l while transport_porosity remains the process state.
@@ -1536,12 +1470,10 @@ inline void updateTotalPorosityState(
         return;
     }
 
-    if ((potential_exchange_parameters->local_nonlinear_solve_mode ==
-             LocalNonlinearSolveMode::ScalarReferenceStorage ||
-         potential_exchange_parameters->local_nonlinear_solve_mode ==
-             LocalNonlinearSolveMode::ScalarReferenceMassStorage) &&
-        potential_exchange_parameters->potential_role_mapping ==
-            PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles)
+    if (potential_exchange_parameters->local_nonlinear_solve_mode ==
+            LocalNonlinearSolveMode::ScalarReferenceStorage ||
+        potential_exchange_parameters->local_nonlinear_solve_mode ==
+            LocalNonlinearSolveMode::ScalarReferenceMassStorage)
     {
         // In scalar dsm_micromacro-storage mode, micro porosity is support-state only.
         // Keep the process porosity state on the medium-law carrier.
@@ -1667,21 +1599,12 @@ computeSwellingStressIncrement(
 {
     using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
 
-    bool const is_micro_macro_dsm_aligned =
-        potential_exchange_params.potential_role_mapping ==
-        PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
-
     KV delta_sigma_sw = KV::Zero();
     if (potential_exchange_params.micro_water_content_swelling_slope > 0.0)
     {
         delta_sigma_sw +=
             computeReferenceMicroPorositySwellingStressIncrement<
                 DisplacementDim>(phi_m_prev, phi_m, C_el, potential_exchange_params);
-    }
-
-    if (is_micro_macro_dsm_aligned)
-    {
-        return delta_sigma_sw;
     }
 
     if (potential_exchange_params.vdw_relaxation_stress_gain > 0.0)
@@ -2684,17 +2607,12 @@ void RichardsMechanicsLocalAssembler<
                 dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
             }
 
-            auto const role_mapping =
-                potential_exchange_params_ptr
-                    ? potential_exchange_params_ptr->potential_role_mapping
-                    : PotentialExchangeRoleMapping::CurrentOgs;
             auto const potential_exchange_result = computePotentialExchangeUpdate(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
                 pressure_tolerance, potential_exchange_enabled,
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
                 dmu_lR_vdw_drho_lR,
                 /*use_custom_dmu_lR_vdw_dpL=*/false, /*dmu_lR_vdw_dpL=*/0.0,
-                role_mapping,
                 /*use_fd_jacobian_for_direct_macro_derivative=*/false,
                 /*fd_jacobian_perturbation=*/1e-8);
             rhs.template segment<pressure_size>(pressure_index).noalias() +=
@@ -3513,16 +3431,12 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 }
             }
 
-            auto const role_mapping =
-                potential_exchange_params_ptr
-                    ? potential_exchange_params_ptr->potential_role_mapping
-                    : PotentialExchangeRoleMapping::CurrentOgs;
             auto const potential_exchange_result = computePotentialExchangeUpdate(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
                 pressure_tolerance, potential_exchange_enabled,
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
                 dmu_lR_vdw_drho_lR, use_custom_dmu_lR_vdw_dpL,
-                dmu_lR_vdw_dpL, role_mapping,
+                dmu_lR_vdw_dpL,
                 use_fd_jacobian_for_direct_macro_derivative,
                 fd_jacobian_perturbation);
             // Phase 2C: activate potential-driven exchange source in the macro

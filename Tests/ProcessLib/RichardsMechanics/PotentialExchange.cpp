@@ -169,15 +169,7 @@ TEST(RichardsMechanics, PotentialDrivenMassExchangeDataAndDerivatives)
     EXPECT_DOUBLE_EQ(ex.drho_l_hat_dalpha_M, mu_LR - mu_lR);
 }
 
-TEST(RichardsMechanics, PotentialExchangeRoleMappingToString)
-{
-    EXPECT_STREQ(toString(PotentialExchangeRoleMapping::CurrentOgs),
-                 "current_ogs");
-    EXPECT_STREQ(toString(PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles),
-                 "micro_macro_potential_role_mapping_mode");
-}
-
-TEST(RichardsMechanics, PotentialExchangeRoleMappingDirectExchangeAlgebra)
+TEST(RichardsMechanics, PotentialExchangeDirectExchangeAlgebra)
 {
     double const alpha_bar = 2.5e-10;
     double const mu_LR = 0.0;
