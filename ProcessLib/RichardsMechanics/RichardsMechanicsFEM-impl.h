@@ -1603,7 +1603,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
         if (pressure_coupled_solid.is_active)
         {
-            // Bridge-side notebook exchange can contribute a macro liquid
+            // Bridge-side DSM micro-macro exchange can contribute a macro liquid
             // source term even when RM does not own a native micro-pressure
             // carrier state. The current bridge exposes only the source value;
             // a consistent Jacobian term can be added later once the

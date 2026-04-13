@@ -216,7 +216,7 @@ add_test(
     NAME unit-RichardsMechanicsDSM-bridge-core
     COMMAND
         $<TARGET_FILE:testrunner>
-        --gtest_filter=MaterialLib_RichardsMechanicsNotebookBridgeMFront.OneStepPressureResponse:MaterialLib_RichardsMechanicsNotebookBridgeMFront.FactoryPathPressureCoupledBlocks:MaterialLib_RichardsMechanicsNotebookBridgeMFront.MicrostateHistoryResponse:MaterialLib_RichardsMechanicsNotebookBridgeMFront.ZeroDtPressureCoupledInitialAssemblyResponse
+        --gtest_filter=MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront.OneStepPressureResponse:MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront.FactoryPathPressureCoupledBlocks:MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront.MicrostateHistoryResponse:MaterialLib_RichardsMechanicsDSMMicroMacroBridgeMFront.ZeroDtPressureCoupledInitialAssemblyResponse
 )
 set_tests_properties(
     unit-RichardsMechanicsDSM-bridge-core
@@ -229,7 +229,7 @@ add_test(
     NAME unit-RichardsMechanicsDSM-bridge-mcc
     COMMAND
         $<TARGET_FILE:testrunner>
-        --gtest_filter=MaterialLib_RMBridgeMFront_NotebookMCC.SwellingFeedbackChangesStressButKeepsCarrierSaturation:MaterialLib_RMBridgeMFront_NotebookMCC.MicroOnlySwellingKeepsMacroExchangeOffAndPreservesCarrierSaturation:MaterialLib_RMBridgeMFront_NotebookMCC.NativeAlignedStageOneStressGapIsMicroSupportStress:MaterialLib_RMBridgeMFront_NotebookMCC.PressureCoupledResponseExposesMacroExchangeSource
+        --gtest_filter=MaterialLib_RMBridgeMFront_DSMMicroMacroMCC.SwellingFeedbackChangesStressButKeepsCarrierSaturation:MaterialLib_RMBridgeMFront_DSMMicroMacroMCC.MicroOnlySwellingKeepsMacroExchangeOffAndPreservesCarrierSaturation:MaterialLib_RMBridgeMFront_DSMMicroMacroMCC.NativeAlignedStageOneStressGapIsMicroSupportStress:MaterialLib_RMBridgeMFront_DSMMicroMacroMCC.PressureCoupledResponseExposesMacroExchangeSource
 )
 set_tests_properties(
     unit-RichardsMechanicsDSM-bridge-mcc
