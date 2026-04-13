@@ -125,7 +125,7 @@ PotentialExchangeRoleMapping parsePotentialExchangeRoleMapping(
     }
     if (mapping == "micro_macro_potential_role_mapping_mode")
     {
-        return PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+        return PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     }
 
     OGS_FATAL(

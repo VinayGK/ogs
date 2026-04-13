@@ -40,7 +40,7 @@ enum class MicroSolidVolumeFractionMode
 enum class PotentialExchangeRoleMapping
 {
     CurrentOgs,
-    MathematicaReferenceRoles
+    DsmMicromacroReferenceRoles
 };
 
 inline constexpr char const* toString(
@@ -109,7 +109,7 @@ inline constexpr char const* toString(
     {
         case PotentialExchangeRoleMapping::CurrentOgs:
             return "current_ogs";
-        case PotentialExchangeRoleMapping::MathematicaReferenceRoles:
+        case PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles:
             return "micro_macro_potential_role_mapping_mode";
     }
     return "unknown";

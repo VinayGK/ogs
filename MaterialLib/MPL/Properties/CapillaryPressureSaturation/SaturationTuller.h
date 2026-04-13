@@ -12,7 +12,8 @@ class Phase;
 class Component;
 
 /**
- * \brief Tuller/Young-Laplace-inspired saturation model used in the VK notebook
+ * \brief Tuller/Young-Laplace-inspired saturation model used in the DSM
+ *        micro-macro reference branch
  * macro retention law.
  *
  * The implemented saturation relation is (for capillary pressure p_c):
@@ -31,7 +32,7 @@ class Component;
  * \f]
  *
  * The parameters \f$A_n\f$, \f$F_\gamma\f$, \f$L\f$, \f$\sigma\f$ correspond
- * to the VK notebook names `AreaFactorTuller`, `PoreAreaShapefactorTuller`,
+ * to the DSM parameter names `AreaFactorTuller`, `PoreAreaShapefactorTuller`,
  * `CharacteristicPoreSize`, and `SurfaceTension`.
  */
 class SaturationTuller final : public Property
@@ -73,4 +74,3 @@ private:
     double const pressure_tolerance_;
 };
 }  // namespace MaterialPropertyLib
-

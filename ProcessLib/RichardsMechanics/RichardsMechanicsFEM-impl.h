@@ -122,7 +122,7 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
     out.use_vdw_micro_potential_for_active_exchange =
         use_vdw_micro_potential_for_active_exchange;
     bool const use_micro_macro_potential_role_mapping =
-        role_mapping == PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+        role_mapping == PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     out.use_micro_macro_potential_role_mapping = use_micro_macro_potential_role_mapping;
     out.use_fd_jacobian_for_direct_macro_derivative =
         use_fd_jacobian_for_direct_macro_derivative;
@@ -1011,7 +1011,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
             : 0.0;
     bool const is_micro_macro_dsm_aligned =
         potential_exchange_params.potential_role_mapping ==
-        PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+        PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     double const n_l_ceiling =
         (use_microstate_storage_mode && std::isfinite(local_context.phi) &&
          !is_micro_macro_dsm_aligned)
@@ -1478,7 +1478,7 @@ inline void updatePorositySplitState(
         potential_exchange_parameters->local_nonlinear_solve_mode;
     bool const is_micro_macro_dsm_aligned =
         potential_exchange_parameters->potential_role_mapping ==
-        PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+        PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     if (mode == LocalNonlinearSolveMode::ScalarReferenceMassStorage &&
         !is_micro_macro_dsm_aligned)
     {
@@ -1541,7 +1541,7 @@ inline void updateTotalPorosityState(
          potential_exchange_parameters->local_nonlinear_solve_mode ==
              LocalNonlinearSolveMode::ScalarReferenceMassStorage) &&
         potential_exchange_parameters->potential_role_mapping ==
-            PotentialExchangeRoleMapping::MathematicaReferenceRoles)
+            PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles)
     {
         // In scalar dsm_micromacro-storage mode, micro porosity is support-state only.
         // Keep the process porosity state on the medium-law carrier.
@@ -1669,7 +1669,7 @@ computeSwellingStressIncrement(
 
     bool const is_micro_macro_dsm_aligned =
         potential_exchange_params.potential_role_mapping ==
-        PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+        PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
 
     KV delta_sigma_sw = KV::Zero();
     if (potential_exchange_params.micro_water_content_swelling_slope > 0.0)

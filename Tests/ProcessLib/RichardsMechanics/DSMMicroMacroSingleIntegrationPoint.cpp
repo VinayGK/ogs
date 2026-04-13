@@ -20,7 +20,7 @@ using namespace ProcessLib::RichardsMechanics;
 
 namespace
 {
-struct MathematicaReferenceSinglePointData
+struct DsmMicromacroReferenceSinglePointData
 {
     double n_l = 0.0;
     VanDerWaalsMicroPotentialData micro_potential;
@@ -265,7 +265,7 @@ ReducedMicroLiquidDensityData solveReferenceReducedMicroLiquidDensity(
             .drho_l_dn_l = rho_lR + n_l_safe * drho_lR_dnl};
 }
 
-MathematicaReferenceSinglePointData solveMathematicaReferenceSinglePoint(
+DsmMicromacroReferenceSinglePointData solveDsmMicromacroReferenceSinglePoint(
     double const p_L, double const n_l_prev, double const dt,
     double const rho_LR, double const alpha_bar, double const mu,
     double const phi, PotentialExchangeParameters const& potential_exchange_params,
@@ -446,10 +446,10 @@ double referenceDnLDpL(double const p_L, double const n_l_prev, double const dt,
                        double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
-    auto const plus = solveMathematicaReferenceSinglePoint(
+    auto const plus = solveDsmMicromacroReferenceSinglePoint(
         p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
-    auto const minus = solveMathematicaReferenceSinglePoint(
+    auto const minus = solveDsmMicromacroReferenceSinglePoint(
         p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     return (plus.n_l - minus.n_l) / (2.0 * h);
@@ -464,10 +464,10 @@ double referenceDrhoLHatDpL(double const p_L, double const n_l_prev,
                             double const volumetric_strain_prev = 0.0)
 {
     double const h = 1e-8 * std::max(1.0, std::abs(p_L));
-    auto const plus = solveMathematicaReferenceSinglePoint(
+    auto const plus = solveDsmMicromacroReferenceSinglePoint(
         p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
-    auto const minus = solveMathematicaReferenceSinglePoint(
+    auto const minus = solveDsmMicromacroReferenceSinglePoint(
         p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     return ((-plus.exchange.rho_l_hat) - (-minus.exchange.rho_l_hat)) /
@@ -526,7 +526,7 @@ double referenceCoupledRhoLHat(
     auto potential_exchange_params_eval = potential_exchange_params;
     potential_exchange_params_eval.pressure_tolerance =
         state.pressure_tolerance;
-    auto const reference = solveMathematicaReferenceSinglePoint(
+    auto const reference = solveDsmMicromacroReferenceSinglePoint(
         p_L_eval, state.n_l_prev, state.dt, rho_LR_eval, state.alpha_bar,
         state.mu, state.phi, potential_exchange_params_eval,
         state.volumetric_strain,
@@ -638,7 +638,7 @@ TEST(RichardsMechanics, DSMMicroMacroSingleIntegrationPointReferencePath)
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveMathematicaReferenceSinglePoint(
+    auto const reference = solveDsmMicromacroReferenceSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
 
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
@@ -783,7 +783,7 @@ TEST(RichardsMechanics, DSMMicroMacroBranchSensitivityNearMacroPotentialTransiti
             potential_exchange_params);
         ASSERT_TRUE(ogs_update.converged);
 
-        auto const reference = solveMathematicaReferenceSinglePoint(
+        auto const reference = solveDsmMicromacroReferenceSinglePoint(
             p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
         auto const compatibility_output =
             computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR,
@@ -886,7 +886,7 @@ TEST(RichardsMechanics, DSMMicroMacroNegativeAttractiveMicroPotentialAdmitsWetti
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveMathematicaReferenceSinglePoint(
+    auto const reference = solveDsmMicromacroReferenceSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
     auto const compatibility_output =
         computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
@@ -1003,7 +1003,7 @@ TEST(RichardsMechanics, DSMMicroMacroAlignedSwellingIgnoresExploratoryGains)
 
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
-    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.micro_water_content_swelling_slope = 0.1;
@@ -1178,7 +1178,7 @@ TEST(RichardsMechanics, DSMMicroMacroScalarStorageLocalSolveReferencePath)
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveMathematicaReferenceSinglePoint(
+    auto const reference = solveDsmMicromacroReferenceSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
@@ -1216,7 +1216,7 @@ TEST(RichardsMechanics, DSMMicroMacroScalarMassStorageLocalSolveReferencePath)
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
     potential_exchange_params.potential_role_mapping =
-        PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+        PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.initial_micro_water_content = 0.03;
@@ -1241,7 +1241,7 @@ TEST(RichardsMechanics, DSMMicroMacroScalarMassStorageLocalSolveReferencePath)
         potential_exchange_params);
     ASSERT_TRUE(ogs_update.converged);
 
-    auto const reference = solveMathematicaReferenceSinglePoint(
+    auto const reference = solveDsmMicromacroReferenceSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
         volumetric_strain, volumetric_strain_prev);
     EXPECT_NEAR(ogs_update.n_l, reference.n_l,
@@ -1369,7 +1369,7 @@ TEST(RichardsMechanics, DSMMicroMacroOverlapTransferBaselineHistory)
     potential_exchange_params.micro_liquid_density_b = 1.0;
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
-    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.macro_porosity_update_mode = MacroPorosityUpdateMode::AlgebraicSplit;
@@ -1470,7 +1470,7 @@ TEST(RichardsMechanics, DSMMicroMacroStrainCoupledOverlapBaselineHistory)
     potential_exchange_params.micro_liquid_density_b = 1.0;
     potential_exchange_params.micro_potential_convention =
         MicroPotentialConvention::NegativeAttractive;
-    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::MathematicaReferenceRoles;
+    potential_exchange_params.potential_role_mapping = PotentialExchangeRoleMapping::DsmMicromacroReferenceRoles;
     potential_exchange_params.local_nonlinear_solve_mode =
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.macro_porosity_update_mode = MacroPorosityUpdateMode::AlgebraicSplit;

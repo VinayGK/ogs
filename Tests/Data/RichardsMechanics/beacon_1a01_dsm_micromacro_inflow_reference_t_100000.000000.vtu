@@ -13,9 +13,9 @@
         <DataArray type="Float64" Name="saturation" format="appended" RangeMin="1"                    RangeMax="1"                    offset="396"                 />
         <DataArray type="Float64" Name="sigma" NumberOfComponents="4" format="appended" RangeMin="6165.9711491"         RangeMax="6172.0071664"         offset="476"                 />
         <DataArray type="Float64" Name="swelling_stress" NumberOfComponents="4" format="appended" RangeMin="6165.9711491"         RangeMax="6172.0071664"         offset="592"                 />
-        <DataArray type="Float64" Name="vk_micro_exchange_source" format="appended" RangeMin="1.0832074307e-05"     RangeMax="1.0835688437e-05"     offset="700"                 />
-        <DataArray type="Float64" Name="vk_micro_porosity" format="appended" RangeMin="0.011281573037"       RangeMax="0.0112828276"         offset="784"                 />
-        <DataArray type="Float64" Name="vk_micro_water_content" format="appended" RangeMin="0.011281573037"       RangeMax="0.0112828276"         offset="868"                 />
+        <DataArray type="Float64" Name="micro_exchange_source" format="appended" RangeMin="1.0832074307e-05"     RangeMax="1.0835688437e-05"     offset="700"                 />
+        <DataArray type="Float64" Name="micro_porosity" format="appended" RangeMin="0.011281573037"       RangeMax="0.0112828276"         offset="784"                 />
+        <DataArray type="Float64" Name="micro_water_content" format="appended" RangeMin="0.011281573037"       RangeMax="0.0112828276"         offset="868"                 />
       </PointData>
       <CellData>
       </CellData>
