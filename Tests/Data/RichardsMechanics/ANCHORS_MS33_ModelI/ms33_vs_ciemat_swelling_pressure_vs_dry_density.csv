@@ -103,6 +103,6 @@ CIEMAT/Villar Eq(7),curve,1.850000,1850.000,31.642463495,Lloret et al. 2007 Eq.(
 CIEMAT/Villar Eq(7),reference_point,1.400000,1400.000,1.503807161,reference densities 1.40/1.60/1.80 g/cm^3
 CIEMAT/Villar Eq(7),reference_point,1.600000,1600.000,5.824073902,reference densities 1.40/1.60/1.80 g/cm^3
 CIEMAT/Villar Eq(7),reference_point,1.800000,1800.000,22.555975054,reference densities 1.40/1.60/1.80 g/cm^3
-OGS MS33 reduced Model-I,simulation_point,1.400000,1400.000,1.341594426,final mean total stress at 120 d (constant-volume scaffold)
-OGS MS33 reduced Model-I,simulation_point,1.600000,1600.000,1.341594426,final mean total stress at 120 d (constant-volume scaffold)
-OGS MS33 reduced Model-I,simulation_point,1.800000,1800.000,1.341594426,final mean total stress at 120 d (constant-volume scaffold)
+OGS MS33 reduced Model-I,simulation_point,1.400000,1400.000,1.341594426,final mean total stress at 120 d (constant-volume reduced model)
+OGS MS33 reduced Model-I,simulation_point,1.600000,1600.000,1.341594426,final mean total stress at 120 d (constant-volume reduced model)
+OGS MS33 reduced Model-I,simulation_point,1.800000,1800.000,1.341594426,final mean total stress at 120 d (constant-volume reduced model)

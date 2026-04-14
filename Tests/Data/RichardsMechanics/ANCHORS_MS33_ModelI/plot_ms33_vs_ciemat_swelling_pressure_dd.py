@@ -41,7 +41,7 @@ def load_ms33_points() -> list[tuple[float, float]]:
     for case_data in payload["cases"].values():
         rho_d_kg_m3 = float(case_data["rho_dry"])
         qd_g_cm3 = rho_d_kg_m3 / 1000.0
-        # In the reduced Model-I scaffold this is the isotropic confined response proxy.
+        # In the reduced Model-I setup this is the isotropic confined response proxy.
         ps_mpa = float(case_data["final"]["mean_total_stress_MPa"])
         rows.append((qd_g_cm3, ps_mpa))
     return sorted(rows, key=lambda item: item[0])
@@ -97,7 +97,7 @@ def write_overlay_csv(ms33_points: list[tuple[float, float]]) -> None:
                     f"{qd:.6f}",
                     f"{qd * 1000.0:.3f}",
                     f"{ps:.9f}",
-                    "final mean total stress at 120 d (constant-volume scaffold)",
+                    "final mean total stress at 120 d (constant-volume reduced model)",
                 ]
             )
 

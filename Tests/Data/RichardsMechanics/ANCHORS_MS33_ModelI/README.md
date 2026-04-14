@@ -79,8 +79,7 @@ Key result from the updated native dsm_micromacro branch calibration run:
 
 Native vs MFront comparison notes (same dsm_micromacro-derived equations target):
 - native dense run now uses `scalar_micro_macro_mass_storage_mode` with
-  `potential_role_mapping=micro_macro_potential_role_mapping_mode`, EOS-driven `rho_lR` carry-over,
-  and robust multiplier bracketing in log-space.
+  EOS-driven `rho_lR` carry-over and robust multiplier bracketing in log-space.
 - calibrated native and calibrated MFront curves are now close on the dense
   grid (mean absolute pressure difference about `0.135 MPa`, max about
   `0.467 MPa`).
