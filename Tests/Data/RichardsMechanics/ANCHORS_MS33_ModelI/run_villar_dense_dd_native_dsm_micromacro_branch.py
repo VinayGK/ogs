@@ -95,6 +95,10 @@ class Case:
         )
 
     @property
+    def initial_volume_ratio(self) -> float:
+        return 1.0 / (1.0 - self.phi0)
+
+    @property
     def villar_target_swelling_mpa(self) -> float:
         return math.exp(6.77 * self.dry_density_g_cm3 - 9.07)
 
@@ -219,15 +223,25 @@ def write_native_dsm_micromacro_project(case: Case, project_path: Path) -> dict:
                 <micro_liquid_density_b>{MICRO_LIQUID_DENSITY_B:.16g}</micro_liquid_density_b>
                 <initial_micro_water_content>{n_l0:.16g}</initial_micro_water_content>
                 <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
-                <potential_role_mapping>micro_macro_potential_role_mapping_mode</potential_role_mapping>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>{MICRO_SWELLING_SLOPE:.16g}</micro_water_content_swelling_slope>
             </potential_exchange>
             <constitutive_relation>
-                <type>LinearElasticIsotropic</type>
-                <youngs_modulus>YoungModulus</youngs_modulus>
-                <poissons_ratio>PoissonRatio</poissons_ratio>
+                <type>MFront</type>
+                <behaviour>ModCamClay_semiExpl_constE</behaviour>
+                <material_properties>
+                    <material_property name="YoungModulus" parameter="YoungModulus"/>
+                    <material_property name="PoissonRatio" parameter="PoissonRatio"/>
+                    <material_property name="CriticalStateLineSlope" parameter="CriticalStateLineSlope"/>
+                    <material_property name="SwellingLineSlope" parameter="SwellingLineSlope"/>
+                    <material_property name="VirginConsolidationLineSlope" parameter="VirginConsolidationLineSlope"/>
+                    <material_property name="CharacteristicPreConsolidationPressure" parameter="InitialPreConsolidationPressure"/>
+                </material_properties>
+                <initial_values>
+                    <state_variable name="PreConsolidationPressure" parameter="InitialPreConsolidationPressure"/>
+                    <state_variable name="VolumeRatio" parameter="InitialVolumeRatio"/>
+                </initial_values>
             </constitutive_relation>
             <process_variables>
                 <pressure>pressure</pressure>
@@ -364,6 +378,11 @@ def write_native_dsm_micromacro_project(case: Case, project_path: Path) -> dict:
         <parameter><name>sigma0</name><type>Function</type><expression>0</expression><expression>0</expression><expression>0</expression><expression>0</expression></parameter>
         <parameter><name>YoungModulus</name><type>Constant</type><value>52e6</value></parameter>
         <parameter><name>PoissonRatio</name><type>Constant</type><value>0.3</value></parameter>
+        <parameter><name>CriticalStateLineSlope</name><type>Constant</type><value>1.2</value></parameter>
+        <parameter><name>SwellingLineSlope</name><type>Constant</type><value>6.6e-3</value></parameter>
+        <parameter><name>VirginConsolidationLineSlope</name><type>Constant</type><value>7.7e-2</value></parameter>
+        <parameter><name>InitialPreConsolidationPressure</name><type>Constant</type><value>1e10</value></parameter>
+        <parameter><name>InitialVolumeRatio</name><type>Constant</type><value>{case.initial_volume_ratio:.16g}</value></parameter>
         <parameter><name>phi0</name><type>Constant</type><value>{case.phi0:.16g}</value></parameter>
         <parameter><name>IntrinsicPermeability0</name><type>Constant</type><value>{case.intrinsic_permeability:.16g}</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>

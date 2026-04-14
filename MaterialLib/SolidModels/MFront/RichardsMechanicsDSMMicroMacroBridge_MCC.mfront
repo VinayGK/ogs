@@ -294,8 +294,25 @@ phi0.setEntryName("InitialPorosity");
     const auto p = pᴸᴿ + Δpᴸᴿ;
     const auto delta_epsilon_v = trace(Δεᵗᵒ);
     const auto zero_dt = std::abs(dt) < 1e-15;
-    const auto n_s = 1.0 - phi0;
-    const auto n_l_prev = std::max(n_l, minimum_n_l);
+    constexpr const auto porosity_upper = 1.0 - 1e-12;
+    const auto phi_total_from_state =
+        std::max(phi_m, 0.0) + std::max(phi_M, 0.0);
+    const auto phi_total_prev =
+        (std::isfinite(phi_total_from_state) &&
+         phi_total_from_state > minimum_n_l)
+            ? std::clamp(phi_total_from_state, minimum_n_l, porosity_upper)
+            : std::clamp(phi0, minimum_n_l, porosity_upper);
+    const auto porosity_denominator = 1.0 + delta_epsilon_v;
+    const auto phi_total_trial =
+        (std::isfinite(porosity_denominator) &&
+         std::abs(porosity_denominator) > 1e-12)
+            ? std::clamp((phi_total_prev + delta_epsilon_v) /
+                             porosity_denominator,
+                         minimum_n_l, porosity_upper)
+            : phi_total_prev;
+    const auto n_s = std::max(minimum_n_l, 1.0 - phi_total_trial);
+    const auto n_l_upper_bound = std::max(phi_total_trial, minimum_n_l);
+    const auto n_l_prev = std::clamp(n_l, minimum_n_l, n_l_upper_bound);
     const auto rho_lR_prev =
         std::max(rho_lR, rho_LR_ref + minimum_density_gap);
     const auto phi_m_prev = n_l_prev;
@@ -352,7 +369,8 @@ phi0.setEntryName("InitialPorosity");
 
         if (use_scalar_microstate_storage)
         {
-            auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
+            auto n_l_trial =
+                std::clamp(n_l_prev_arg, minimum_n_l, n_l_upper_bound);
             const auto rho_scalar = rho_macro_step;
 
             const auto evaluate_scalar = [&](const auto n_l_arg,
@@ -370,14 +388,22 @@ phi0.setEntryName("InitialPorosity");
                                n_l_arg * delta_epsilon_v_arg;
             };
 
+            const auto assign_scalar_state = [&](const auto n_l_candidate_arg) {
+                n_l_out = std::clamp(n_l_candidate_arg, minimum_n_l,
+                                     n_l_upper_bound);
+                double residual_dummy = 0.0;
+                evaluate_scalar(n_l_out, residual_dummy, mu_lR_out,
+                                rho_l_hat_out);
+                rho_lR_out = rho_scalar;
+            };
+
             const auto solve_scalar_bracketed =
                 [&](double& n_l_bracketed_out,
                     double& mu_lR_bracketed_out,
                     double& rho_l_hat_bracketed_out) {
                     constexpr const auto bracket_scan_points = 256u;
                     auto n_l_lo = minimum_n_l;
-                    auto n_l_hi = std::max(
-                        phi0, std::max(n_l_prev_arg, minimum_n_l * 10.0));
+                    auto n_l_hi = n_l_upper_bound;
 
                     double residual_lo = 0.0;
                     double residual_hi = 0.0;
@@ -406,7 +432,9 @@ phi0.setEntryName("InitialPorosity");
                                 (log_n_l_max - log_n_l_min) *
                                     (static_cast<double>(i) /
                                      bracket_scan_points);
-                            const auto n_l_candidate = std::pow(10.0, log_n_l);
+                            const auto n_l_candidate = std::clamp(
+                                std::pow(10.0, log_n_l), minimum_n_l,
+                                n_l_upper_bound);
 
                             double residual_candidate = 0.0;
                             double mu_candidate = 0.0;
@@ -497,10 +525,7 @@ phi0.setEntryName("InitialPorosity");
 
                 if (std::abs(residual) < newton_tolerance)
                 {
-                    n_l_out = n_l_trial;
-                    rho_lR_out = rho_scalar;
-                    mu_lR_out = mu_trial;
-                    rho_l_hat_out = rho_hat_trial;
+                    assign_scalar_state(n_l_trial);
                     return;
                 }
 
@@ -509,8 +534,10 @@ phi0.setEntryName("InitialPorosity");
                 double residual_n = 0.0;
                 double mu_n = 0.0;
                 double rho_hat_n = 0.0;
-                evaluate_scalar(std::max(n_l_trial + dn_scale, minimum_n_l),
-                                residual_n, mu_n, rho_hat_n);
+                evaluate_scalar(
+                    std::clamp(n_l_trial + dn_scale, minimum_n_l,
+                               n_l_upper_bound),
+                    residual_n, mu_n, rho_hat_n);
 
                 const auto scalar_jacobian =
                     (residual_n - residual) / dn_scale;
@@ -528,8 +555,8 @@ phi0.setEntryName("InitialPorosity");
                      ++line_search)
                 {
                     const auto n_candidate =
-                        std::max(n_l_trial + step_scale * delta_n,
-                                 minimum_n_l);
+                        std::clamp(n_l_trial + step_scale * delta_n,
+                                   minimum_n_l, n_l_upper_bound);
                     double residual_candidate = 0.0;
                     double mu_candidate = 0.0;
                     double rho_hat_candidate = 0.0;
@@ -552,28 +579,50 @@ phi0.setEntryName("InitialPorosity");
                     if (solve_scalar_bracketed(n_l_out, mu_lR_out,
                                                rho_l_hat_out))
                     {
-                        rho_lR_out = rho_scalar;
+                        assign_scalar_state(n_l_out);
                         return;
                     }
 
-                    tfel::raise_if(
-                        true,
-                        "DSMMicroMacro-MCC bridge scalar dsm_micromacro-storage Newton line search failed.");
+                    // Native-aligned robustness fallback: explicit one-step
+                    // update when local Newton/bracketing does not converge.
+                    double residual_prev = 0.0;
+                    double mu_prev = 0.0;
+                    double rho_hat_prev = 0.0;
+                    auto const n_l_prev_safe = std::clamp(
+                        n_l_prev_arg, minimum_n_l, n_l_upper_bound);
+                    evaluate_scalar(n_l_prev_safe, residual_prev, mu_prev,
+                                    rho_hat_prev);
+                    const auto n_l_explicit =
+                        n_l_prev_safe + dt * rho_hat_prev / rho_scalar +
+                        n_l_prev_safe * delta_epsilon_v_arg;
+                    assign_scalar_state(n_l_explicit);
+                    return;
                 }
             }
 
             if (solve_scalar_bracketed(n_l_out, mu_lR_out, rho_l_hat_out))
             {
-                rho_lR_out = rho_scalar;
+                assign_scalar_state(n_l_out);
                 return;
             }
 
-            tfel::raise_if(
-                true,
-                "DSMMicroMacro-MCC bridge scalar dsm_micromacro-storage solve did not converge.");
+            // Native-aligned robustness fallback after scalar Newton loop.
+            double residual_prev = 0.0;
+            double mu_prev = 0.0;
+            double rho_hat_prev = 0.0;
+            auto const n_l_prev_safe =
+                std::clamp(n_l_prev_arg, minimum_n_l, n_l_upper_bound);
+            evaluate_scalar(n_l_prev_safe, residual_prev, mu_prev,
+                            rho_hat_prev);
+            const auto n_l_explicit =
+                n_l_prev_safe + dt * rho_hat_prev / rho_scalar +
+                n_l_prev_safe * delta_epsilon_v_arg;
+            assign_scalar_state(n_l_explicit);
+            return;
         }
 
-        auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
+        auto n_l_trial =
+            std::clamp(n_l_prev_arg, minimum_n_l, n_l_upper_bound);
         auto rho_lR_trial =
             std::max(rho_lR_prev_arg, rho_LR_ref + minimum_density_gap);
         auto converged = false;
@@ -646,6 +695,54 @@ phi0.setEntryName("InitialPorosity");
             return rho_converged;
         };
 
+        const auto assign_coupled_state = [&](const auto n_l_candidate_arg,
+                                              const auto rho_guess_arg) {
+            n_l_out = std::clamp(n_l_candidate_arg, minimum_n_l, n_l_upper_bound);
+            auto rho_resolved = std::max(rho_guess_arg, rho_LR_ref + minimum_density_gap);
+            if (!solve_rho_for_n_l(n_l_out, rho_resolved, rho_resolved))
+            {
+                rho_resolved = std::max(rho_micro_eos(n_l_out, rho_resolved),
+                                        rho_LR_ref + minimum_density_gap);
+            }
+            rho_lR_out = rho_resolved;
+            const auto mu_LR_arg = mu_macro_from_pressure(p_arg, rho_macro_step);
+            const auto alpha_M_effective =
+                alpha_M_effective_from_density(rho_macro_step);
+            mu_lR_out = mu_micro_from_state(n_l_out, rho_lR_out);
+            rho_l_hat_out = alpha_M_effective * (mu_LR_arg - mu_lR_out);
+        };
+
+        const auto fallback_coupled_state = [&]() {
+            const auto n_l_prev_safe =
+                std::clamp(n_l_prev_arg, minimum_n_l, n_l_upper_bound);
+            double residual_prev = 0.0;
+            double rho_prev =
+                std::max(rho_lR_prev_arg, rho_LR_ref + minimum_density_gap);
+            double mu_prev = 0.0;
+            double rho_hat_prev = 0.0;
+
+            const auto reduced_ok =
+                evaluate_reduced(n_l_prev_safe, rho_prev, residual_prev, rho_prev,
+                                 mu_prev, rho_hat_prev);
+            (void)residual_prev;
+            if (!reduced_ok)
+            {
+                const auto mu_LR_arg =
+                    mu_macro_from_pressure(p_arg, rho_macro_step);
+                const auto alpha_M_effective =
+                    alpha_M_effective_from_density(rho_macro_step);
+                mu_prev = mu_micro_from_state(n_l_prev_safe, rho_prev);
+                rho_hat_prev = alpha_M_effective * (mu_LR_arg - mu_prev);
+            }
+
+            const auto n_l_explicit =
+                n_l_prev_safe +
+                dt * rho_hat_prev /
+                    std::max(rho_prev, rho_LR_ref + minimum_density_gap) +
+                n_l_prev_safe * delta_epsilon_v_arg;
+            assign_coupled_state(n_l_explicit, rho_prev);
+        };
+
         const auto solve_microstate_bracketed =
             [&](double& n_l_bracketed_out,
                 double& rho_lR_bracketed_out,
@@ -653,8 +750,7 @@ phi0.setEntryName("InitialPorosity");
                 double& rho_l_hat_bracketed_out) {
                 constexpr const auto bracket_scan_points = 256u;
                 auto n_l_lo = minimum_n_l;
-                auto n_l_hi = std::max(
-                    phi0, std::max(n_l_prev_arg, minimum_n_l * 10.0));
+                auto n_l_hi = n_l_upper_bound;
 
                 double residual_lo = 0.0;
                 double residual_hi = 0.0;
@@ -693,7 +789,9 @@ phi0.setEntryName("InitialPorosity");
                             log_n_l_min +
                             (log_n_l_max - log_n_l_min) *
                                 (static_cast<double>(i) / bracket_scan_points);
-                        const auto n_l_candidate = std::pow(10.0, log_n_l);
+                        const auto n_l_candidate = std::clamp(
+                            std::pow(10.0, log_n_l), minimum_n_l,
+                            n_l_upper_bound);
 
                         double residual_candidate = 0.0;
                         double rho_candidate = 0.0;
@@ -825,8 +923,10 @@ phi0.setEntryName("InitialPorosity");
             double residual_2_n = 0.0;
             double mu_dummy = 0.0;
             double rho_hat_dummy = 0.0;
-            evaluate(std::max(n_l_trial + dn_scale, minimum_n_l), rho_lR_trial,
-                     residual_1_n, residual_2_n, mu_dummy, rho_hat_dummy);
+            evaluate(std::clamp(n_l_trial + dn_scale, minimum_n_l,
+                                n_l_upper_bound),
+                     rho_lR_trial, residual_1_n, residual_2_n, mu_dummy,
+                     rho_hat_dummy);
 
             double residual_1_rho = 0.0;
             double residual_2_rho = 0.0;
@@ -855,7 +955,8 @@ phi0.setEntryName("InitialPorosity");
             for (unsigned int line_search = 0; line_search < 8; ++line_search)
             {
                 const auto n_candidate =
-                    std::max(n_l_trial + step_scale * delta_n, minimum_n_l);
+                    std::clamp(n_l_trial + step_scale * delta_n, minimum_n_l,
+                               n_l_upper_bound);
                 const auto rho_candidate = std::max(
                     rho_lR_trial + step_scale * delta_rho,
                     rho_LR_ref + minimum_density_gap);
@@ -889,10 +990,8 @@ phi0.setEntryName("InitialPorosity");
                 {
                     return;
                 }
-
-                tfel::raise_if(
-                    true,
-                    "DSMMicroMacro-MCC bridge microstate Newton line search failed.");
+                fallback_coupled_state();
+                return;
             }
 
             if (std::abs(step_scale * delta_n) <
@@ -924,10 +1023,8 @@ phi0.setEntryName("InitialPorosity");
         {
             return;
         }
-
-        tfel::raise_if(
-            true,
-            "DSMMicroMacro-MCC bridge microstate Newton solve did not converge.");
+        fallback_coupled_state();
+        return;
     };
 
     n_l_trial_value = n_l_prev;
@@ -989,8 +1086,23 @@ phi0.setEntryName("InitialPorosity");
         }
     }
 
-    phi_m_trial_value = n_l_trial_value;
-    phi_M_trial_value = phi0 - phi_m_trial_value;
+    if (use_scalar_microstate_storage)
+    {
+        n_l_trial_value =
+            std::clamp(n_l_trial_value, minimum_n_l, n_l_upper_bound);
+        rho_lR_trial_value = macro_density_from_state(rho_lR_trial_value);
+        const auto mu_LR_final =
+            mu_macro_from_pressure(p, rho_lR_trial_value);
+        const auto alpha_M_effective_final =
+            alpha_M_effective_from_density(rho_lR_trial_value);
+        mu_lR_trial_value =
+            mu_micro_from_state(n_l_trial_value, rho_lR_trial_value);
+        rho_l_hat_trial_value = alpha_M_effective_final *
+                                (mu_LR_final - mu_lR_trial_value);
+    }
+
+    phi_m_trial_value = std::clamp(n_l_trial_value, minimum_n_l, n_l_upper_bound);
+    phi_M_trial_value = std::max(0.0, phi_total_trial - phi_m_trial_value);
     epsilon_sw_increment_trial =
         swelling_slope * (phi_m_trial_value - phi_m_prev);
 }

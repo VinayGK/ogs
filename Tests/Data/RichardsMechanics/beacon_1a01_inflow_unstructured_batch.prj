@@ -34,7 +34,6 @@
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_solid_volume_fraction_mode>reference</micro_solid_volume_fraction_mode>
-                <potential_role_mapping>micro_macro_potential_role_mapping_mode</potential_role_mapping>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
             </potential_exchange>
             <constitutive_relation>

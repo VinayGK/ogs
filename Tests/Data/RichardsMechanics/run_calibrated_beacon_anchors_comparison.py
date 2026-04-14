@@ -91,6 +91,51 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only merge existing ANCHORS calibration rows.",
     )
+    parser.add_argument(
+        "--beacon-curve-mode",
+        choices=["implementation_specific", "native", "mfront"],
+        default="implementation_specific",
+        help=(
+            "Curve used for BEACON multiplier interpolation. "
+            "'implementation_specific' keeps native and MFront curves separate; "
+            "'native' or 'mfront' forces a common curve for both implementations."
+        ),
+    )
+    parser.add_argument(
+        "--assert-thresholds",
+        action="store_true",
+        help="Fail with exit code 2 if equivalence thresholds are exceeded.",
+    )
+    parser.add_argument(
+        "--beacon-max-abs-delta-swelling-pressure-mpa",
+        type=float,
+        default=1e-4,
+        help="Absolute threshold for |native-mfront| final swelling pressure in BEACON rows.",
+    )
+    parser.add_argument(
+        "--beacon-max-abs-delta-axial-sigma-kpa",
+        type=float,
+        default=0.1,
+        help="Absolute threshold for |native-mfront| axial total stress in BEACON rows.",
+    )
+    parser.add_argument(
+        "--beacon-max-abs-delta-radial-sigma-kpa",
+        type=float,
+        default=0.02,
+        help="Absolute threshold for |native-mfront| radial total stress in BEACON rows.",
+    )
+    parser.add_argument(
+        "--anchors-max-abs-delta-swelling-pressure-mpa",
+        type=float,
+        default=2e-3,
+        help="Absolute threshold for |native-mfront| ANCHORS swelling-pressure deltas.",
+    )
+    parser.add_argument(
+        "--anchors-max-abs-multiplier-ratio-minus-one",
+        type=float,
+        default=2e-3,
+        help="Absolute threshold for |native/mfront multiplier ratio - 1| in ANCHORS rows.",
+    )
     return parser.parse_args()
 
 
@@ -449,10 +494,20 @@ def run_beacon_rows(
     mfront_ogs: Path,
     native_curve: tuple[np.ndarray, np.ndarray],
     mfront_curve: tuple[np.ndarray, np.ndarray],
+    curve_mode: str = "implementation_specific",
 ) -> list[dict[str, object]]:
     """Execute BEACON cases with calibrated multipliers and collect metrics."""
-    dd_native, mult_native = native_curve
-    dd_mfront, mult_mfront = mfront_curve
+    if curve_mode == "native":
+        dd_native, mult_native = native_curve
+        dd_mfront, mult_mfront = native_curve
+    elif curve_mode == "mfront":
+        dd_native, mult_native = mfront_curve
+        dd_mfront, mult_mfront = mfront_curve
+    elif curve_mode == "implementation_specific":
+        dd_native, mult_native = native_curve
+        dd_mfront, mult_mfront = mfront_curve
+    else:
+        raise ValueError(f"Unsupported curve_mode '{curve_mode}'.")
 
     rows: list[dict[str, object]] = []
     tmpdir = Path(tempfile.mkdtemp(prefix="calibrated-beacon-runs-"))
@@ -606,6 +661,68 @@ def pairwise_deltas(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return out
 
 
+def _as_float(value: object) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return math.nan
+
+
+def _is_finite(value: float) -> bool:
+    return math.isfinite(value)
+
+
+def collect_threshold_failures(
+    deltas: list[dict[str, object]], args: argparse.Namespace
+) -> list[str]:
+    """Check configured equivalence thresholds and return violation messages."""
+    failures: list[str] = []
+    for row in deltas:
+        group = str(row.get("benchmark_group", ""))
+        case_id = str(row.get("case_id", ""))
+
+        d_psw = abs(_as_float(row.get("delta_swelling_pressure_mpa_native_minus_mfront")))
+        d_ax = abs(_as_float(row.get("delta_axial_sigma_kpa_native_minus_mfront")))
+        d_rad = abs(_as_float(row.get("delta_radial_sigma_kpa_native_minus_mfront")))
+        ratio_dev = abs(_as_float(row.get("native_to_mfront_multiplier_ratio")) - 1.0)
+
+        if group == "BEACON_report":
+            if (not _is_finite(d_psw)) or (
+                d_psw > args.beacon_max_abs_delta_swelling_pressure_mpa
+            ):
+                failures.append(
+                    f"[BEACON {case_id}] |ΔPsw|={d_psw:.6g} MPa > "
+                    f"{args.beacon_max_abs_delta_swelling_pressure_mpa:.6g} MPa"
+                )
+            if (not _is_finite(d_ax)) or (d_ax > args.beacon_max_abs_delta_axial_sigma_kpa):
+                failures.append(
+                    f"[BEACON {case_id}] |Δsigma_ax|={d_ax:.6g} kPa > "
+                    f"{args.beacon_max_abs_delta_axial_sigma_kpa:.6g} kPa"
+                )
+            if (not _is_finite(d_rad)) or (d_rad > args.beacon_max_abs_delta_radial_sigma_kpa):
+                failures.append(
+                    f"[BEACON {case_id}] |Δsigma_rad|={d_rad:.6g} kPa > "
+                    f"{args.beacon_max_abs_delta_radial_sigma_kpa:.6g} kPa"
+                )
+
+        if group == "ANCHORS_MS33_ModelI":
+            if (not _is_finite(d_psw)) or (
+                d_psw > args.anchors_max_abs_delta_swelling_pressure_mpa
+            ):
+                failures.append(
+                    f"[ANCHORS {case_id}] |ΔPsw|={d_psw:.6g} MPa > "
+                    f"{args.anchors_max_abs_delta_swelling_pressure_mpa:.6g} MPa"
+                )
+            if (not _is_finite(ratio_dev)) or (
+                ratio_dev > args.anchors_max_abs_multiplier_ratio_minus_one
+            ):
+                failures.append(
+                    f"[ANCHORS {case_id}] |native/mfront multiplier ratio - 1|="
+                    f"{ratio_dev:.6g} > {args.anchors_max_abs_multiplier_ratio_minus_one:.6g}"
+                )
+    return failures
+
+
 def write_rows_csv(rows: list[dict[str, object]], path: Path) -> None:
     """Write a list of heterogeneous row dictionaries as a CSV table."""
     keys = sorted({k for row in rows for k in row.keys()})
@@ -648,6 +765,7 @@ def main() -> None:
             mfront_ogs=args.mfront_ogs.resolve(),
             native_curve=native_curve,
             mfront_curve=mfront_curve,
+            curve_mode=args.beacon_curve_mode,
         )
         rows.extend(beacon_rows)
 
@@ -658,10 +776,24 @@ def main() -> None:
     write_rows_csv(rows, args.out_csv)
     write_rows_csv(deltas, args.out_deltas_csv)
 
+    threshold_failures: list[str] = []
+    if args.assert_thresholds:
+        threshold_failures = collect_threshold_failures(deltas, args)
+
     summary = {
         "reference_hamaker_J": HAMAKER_REFERENCE_J,
         "row_count": len(rows),
         "pairwise_delta_count": len(deltas),
+        "beacon_curve_mode": args.beacon_curve_mode,
+        "thresholds": {
+            "asserted": bool(args.assert_thresholds),
+            "beacon_max_abs_delta_swelling_pressure_mpa": args.beacon_max_abs_delta_swelling_pressure_mpa,
+            "beacon_max_abs_delta_axial_sigma_kpa": args.beacon_max_abs_delta_axial_sigma_kpa,
+            "beacon_max_abs_delta_radial_sigma_kpa": args.beacon_max_abs_delta_radial_sigma_kpa,
+            "anchors_max_abs_delta_swelling_pressure_mpa": args.anchors_max_abs_delta_swelling_pressure_mpa,
+            "anchors_max_abs_multiplier_ratio_minus_one": args.anchors_max_abs_multiplier_ratio_minus_one,
+        },
+        "threshold_failures": threshold_failures,
         "sources": {
             "anchors_mfront_calibration_csv": str(MFRONT_CALIBRATION_CSV),
             "anchors_native_calibration_csv": str(NATIVE_CALIBRATION_CSV),
@@ -690,6 +822,10 @@ def main() -> None:
                 "Biot coefficient is enforced as 1.0 in generated BEACON run copies "
                 "for both native and MFront implementations."
             ),
+            (
+                "BEACON curve mode can be switched to native or mfront to isolate "
+                "implementation drift from calibration-curve differences."
+            ),
         ],
         "rows": rows,
         "pairwise_deltas": deltas,
@@ -700,6 +836,12 @@ def main() -> None:
     print(f"Wrote rows CSV: {args.out_csv}")
     print(f"Wrote summary JSON: {args.out_json}")
     print(f"Wrote pairwise deltas CSV: {args.out_deltas_csv}")
+
+    if threshold_failures:
+        print("Equivalence threshold violations detected:")
+        for failure in threshold_failures:
+            print(f"  - {failure}")
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
