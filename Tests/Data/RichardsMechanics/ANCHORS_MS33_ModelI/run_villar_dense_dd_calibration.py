@@ -310,8 +310,8 @@ def write_mfront_project(
                 </property>
                 <property>
                     <name>bishops_effective_stress</name>
-                    <type>BishopsSaturationCutoff</type>
-                    <cutoff_value>1</cutoff_value>
+                    <type>BishopsPowerLaw</type>
+                    <exponent>1</exponent>
                 </property>
             </properties>
         </medium>
@@ -542,8 +542,8 @@ def write_native_project(case: Case, project_path: Path) -> None:
                 </property>
                 <property>
                     <name>bishops_effective_stress</name>
-                    <type>BishopsSaturationCutoff</type>
-                    <cutoff_value>1</cutoff_value>
+                    <type>BishopsPowerLaw</type>
+                    <exponent>1</exponent>
                 </property>
             </properties>
         </medium>

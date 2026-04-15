@@ -330,8 +330,8 @@ def write_native_dsm_micromacro_project(case: Case, project_path: Path) -> dict:
                 </property>
                 <property>
                     <name>bishops_effective_stress</name>
-                    <type>BishopsSaturationCutoff</type>
-                    <cutoff_value>1</cutoff_value>
+                    <type>BishopsPowerLaw</type>
+                    <exponent>1</exponent>
                 </property>
             </properties>
         </medium>

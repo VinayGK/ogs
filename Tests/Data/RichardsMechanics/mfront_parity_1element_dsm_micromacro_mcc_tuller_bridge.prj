@@ -149,8 +149,8 @@
                 </property>
                 <property>
                     <name>bishops_effective_stress</name>
-                    <type>BishopsSaturationCutoff</type>
-                    <cutoff_value>1</cutoff_value>
+                    <type>BishopsPowerLaw</type>
+                    <exponent>1</exponent>
                 </property>
                 <property>
                     <name>biot_coefficient</name>
