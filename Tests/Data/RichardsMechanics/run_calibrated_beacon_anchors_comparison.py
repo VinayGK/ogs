@@ -223,6 +223,15 @@ def set_nonlinear_max_iter(root: ET.Element, value: int) -> None:
         node.text = str(value)
 
 
+def set_time_stepping_value(root: ET.Element, key: str, value: float) -> None:
+    """Set one time-stepping scalar entry on copied benchmark projects."""
+    nodes = root.findall(f"./time_loop/processes/process/time_stepping/{key}")
+    if not nodes:
+        raise RuntimeError(f"Could not find time_stepping/{key} in project.")
+    for node in nodes:
+        node.text = f"{value:.16g}"
+
+
 def relax_first_component_abstol(root: ET.Element, value: float) -> None:
     """Relax first PerComponentDeltaX absolute tolerance in copied decks."""
     nodes = root.findall(".//convergence_criterion/abstols")
@@ -260,6 +269,7 @@ def write_project_copy(
     prefix: str,
     hamaker_j: float,
     implementation: str,
+    case_id: str,
 ) -> None:
     """Clone a project and patch its output prefix and vdW parameter."""
     root = ET.parse(source).getroot()
@@ -270,6 +280,14 @@ def write_project_copy(
     # require more global Newton iterations on early inflow steps.
     set_nonlinear_max_iter(root, 60)
     relax_first_component_abstol(root, 5e-7)
+    if case_id == "1a01":
+        # The DD-calibrated Hamaker values make BEACON 1a01 startup stiff in
+        # both native and MFront DSM shells. A very small startup dt avoids
+        # the first-step jump into an infeasible local constitutive state.
+        set_nonlinear_max_iter(root, 80)
+        set_time_stepping_value(root, "initial_dt", 1e-8)
+        set_time_stepping_value(root, "minimum_dt", 1e-12)
+        set_time_stepping_value(root, "maximum_dt", 2e3)
     if implementation == "native":
         set_native_hamaker(root, hamaker_j)
     elif implementation == "mfront":
@@ -534,6 +552,7 @@ def run_beacon_rows(
                 prefix=native_prefix,
                 hamaker_j=native_hamaker,
                 implementation="native",
+                case_id=case.case_id,
             )
             write_project_copy(
                 source=case.mfront_project,
@@ -541,6 +560,7 @@ def run_beacon_rows(
                 prefix=mfront_prefix,
                 hamaker_j=mfront_hamaker,
                 implementation="mfront",
+                case_id=case.case_id,
             )
 
             native_status = "success"
