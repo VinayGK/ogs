@@ -69,7 +69,7 @@
                 <property><name>relative_permeability</name><type>Constant</type><value>1</value></property>
                 <property><name>saturation</name><type>SaturationVanGenuchten</type><residual_liquid_saturation>0.0</residual_liquid_saturation><residual_gas_saturation>0</residual_gas_saturation><exponent>0.5</exponent><p_b>1e6</p_b></property>
                 <property><name>saturation_micro</name><type>SaturationVanGenuchten</type><residual_liquid_saturation>0</residual_liquid_saturation><residual_gas_saturation>0</residual_gas_saturation><exponent>0.5</exponent><p_b>1e7</p_b></property>
-                <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
+                <property><name>bishops_effective_stress</name><type>BishopsPowerLaw</type><exponent>1</exponent></property>
             </properties>
         </medium>
         <medium id="1">
@@ -86,7 +86,7 @@
                 <property><name>relative_permeability</name><type>Constant</type><value>1</value></property>
                 <property><name>saturation</name><type>SaturationVanGenuchten</type><residual_liquid_saturation>0.0</residual_liquid_saturation><residual_gas_saturation>0</residual_gas_saturation><exponent>0.5</exponent><p_b>5e5</p_b></property>
                 <property><name>saturation_micro</name><type>SaturationVanGenuchten</type><residual_liquid_saturation>0</residual_liquid_saturation><residual_gas_saturation>0</residual_gas_saturation><exponent>0.5</exponent><p_b>5e6</p_b></property>
-                <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
+                <property><name>bishops_effective_stress</name><type>BishopsPowerLaw</type><exponent>1</exponent></property>
             </properties>
         </medium>
     </media>
