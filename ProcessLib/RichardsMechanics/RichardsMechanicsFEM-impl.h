@@ -263,12 +263,48 @@ struct TransportPorosityUpdateData
 
 struct PotentialExchangeLocalSolveContext
 {
-    double phi = std::numeric_limits<double>::infinity();
+    double phi = 1.0;
     double phi_M_prev = 0.0;
     double phi_m_prev = 0.0;
     double volumetric_strain = 0.0;
     double volumetric_strain_prev = 0.0;
 };
+
+inline double boundedMicroWaterContentCeiling(
+    PotentialExchangeLocalSolveContext const& local_context,
+    double const n_l_floor)
+{
+    constexpr double porosity_upper = 1.0 - 1e-12;
+    auto const compute_total_porosity_bound = [&]()
+    {
+        double const phi_prev_sum = std::clamp(
+            std::max(0.0, local_context.phi_M_prev) +
+                std::max(0.0, local_context.phi_m_prev),
+            0.0, porosity_upper);
+        if (std::isfinite(local_context.phi))
+        {
+            return std::clamp(std::max(0.0, local_context.phi), 0.0,
+                              porosity_upper);
+        }
+
+        double const delta_eps_v =
+            local_context.volumetric_strain - local_context.volumetric_strain_prev;
+        double const denominator = 1.0 + delta_eps_v;
+        if (std::isfinite(denominator) && std::abs(denominator) > 1e-12)
+        {
+            double const phi_from_kinematics =
+                (phi_prev_sum + delta_eps_v) / denominator;
+            if (std::isfinite(phi_from_kinematics))
+            {
+                return std::clamp(phi_from_kinematics, 0.0, porosity_upper);
+            }
+        }
+
+        return phi_prev_sum;
+    };
+
+    return std::max(n_l_floor, compute_total_porosity_bound());
+}
 
 inline TransportPorosityUpdateData computeTransportPorosityUpdate(
     double const phi, double const phi_M_prev, double const phi_m_prev,
@@ -276,9 +312,29 @@ inline TransportPorosityUpdateData computeTransportPorosityUpdate(
     double const volumetric_strain_prev,
     MacroPorosityUpdateMode const macro_porosity_update_mode)
 {
-    double const phi_safe = std::max(0.0, phi);
-    double const phi_M_prev_safe = std::max(0.0, phi_M_prev);
-    double const phi_m_prev_safe = std::max(0.0, phi_m_prev);
+    constexpr double porosity_upper = 1.0 - 1e-12;
+    double const phi_prev_sum = std::clamp(
+        std::max(0.0, phi_M_prev) + std::max(0.0, phi_m_prev), 0.0,
+        porosity_upper);
+    double const delta_eps_v = volumetric_strain - volumetric_strain_prev;
+    double const denominator = 1.0 + delta_eps_v;
+    double phi_safe = phi_prev_sum;
+    if (std::isfinite(phi))
+    {
+        phi_safe = std::clamp(std::max(0.0, phi), 0.0, porosity_upper);
+    }
+    else if (std::isfinite(denominator) && std::abs(denominator) > 1e-12)
+    {
+        double const phi_from_kinematics =
+            (phi_prev_sum + delta_eps_v) / denominator;
+        if (std::isfinite(phi_from_kinematics))
+        {
+            phi_safe = std::clamp(phi_from_kinematics, 0.0, porosity_upper);
+        }
+    }
+    double const phi_M_prev_safe = std::min(std::max(0.0, phi_M_prev), phi_safe);
+    double const phi_m_prev_safe =
+        std::min(std::max(0.0, phi_m_prev), std::max(0.0, phi_safe - phi_M_prev_safe));
 
     if (macro_porosity_update_mode ==
         MacroPorosityUpdateMode::AlgebraicSplit)
@@ -292,9 +348,7 @@ inline TransportPorosityUpdateData computeTransportPorosityUpdate(
         };
     }
 
-    double const phi_m = std::clamp(n_l, 0.0, 1.0);
-    double const delta_eps_v = volumetric_strain - volumetric_strain_prev;
-    double const denominator = 1.0 + delta_eps_v;
+    double const phi_m = std::clamp(n_l, 0.0, phi_safe);
 
     if (!(std::isfinite(denominator) && std::abs(denominator) > 1e-12))
     {
@@ -316,8 +370,8 @@ inline TransportPorosityUpdateData computeTransportPorosityUpdate(
         (phi_M_prev_safe + (1.0 - phi_m) * delta_eps_v -
          (phi_m - phi_m_prev_safe)) /
         denominator;
-    double const phi_M =
-        std::clamp(phi_M_candidate, 0.0, std::max(0.0, 1.0 - phi_m));
+    double const phi_M = std::clamp(
+        phi_M_candidate, 0.0, std::max(0.0, phi_safe - phi_m));
 
     return {
         .phi_M = phi_M,
@@ -355,8 +409,11 @@ inline double computePreviousMicroSolidVolumeFraction(
         return std::max(1e-16, potential_exchange_params.micro_solid_volume_fraction_reference);
     }
 
-    return std::max(1e-16, 1.0 - local_context.phi_M_prev -
-                               local_context.phi_m_prev);
+    double const total_prev_porosity = std::clamp(
+        std::max(0.0, local_context.phi_M_prev) +
+            std::max(0.0, local_context.phi_m_prev),
+        0.0, 1.0 - 1e-12);
+    return std::max(1e-16, 1.0 - total_prev_porosity);
 }
 
 struct ReducedMicroLiquidDensityData
@@ -514,7 +571,8 @@ solveReferenceMassStoragePredictorState(
                local_context.volumetric_strain_prev) /
                   dt_safe
             : 0.0;
-    double const n_l_ceiling = std::numeric_limits<double>::infinity();
+    double const n_l_ceiling =
+        boundedMicroWaterContentCeiling(local_context, n_l_floor);
 
     auto evaluate = [&](double const n_l)
     {
@@ -658,7 +716,8 @@ solveReferenceMassStorageCoupledState(
                local_context.volumetric_strain_prev) /
                   dt_safe
             : 0.0;
-    double const n_l_ceiling = std::numeric_limits<double>::infinity();
+    double const n_l_ceiling =
+        boundedMicroWaterContentCeiling(local_context, n_l_floor);
 
     auto evaluate = [&](double const n_l, double const rho_lR)
     {
@@ -958,9 +1017,9 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
                   dt_safe
             : 0.0;
     double const n_l_ceiling =
-        (use_microstate_storage_mode && std::isfinite(local_context.phi))
-            ? std::max(n_l_floor, local_context.phi)
-            : std::numeric_limits<double>::infinity();
+        use_microstate_storage_mode
+            ? boundedMicroWaterContentCeiling(local_context, n_l_floor)
+            : std::max(n_l_floor, 1.0);
 
     auto eval_at = [&](double const n_l)
     {
