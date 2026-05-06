@@ -7,6 +7,7 @@
 #include <cmath>
 #include <Eigen/LU>
 #include <cassert>
+#include <limits>
 #include <mutex>
 
 #include "BaseLib/Logging.h"
@@ -263,7 +264,7 @@ struct TransportPorosityUpdateData
 
 struct PotentialExchangeLocalSolveContext
 {
-    double phi = 1.0;
+    double phi = std::numeric_limits<double>::infinity();
     double phi_M_prev = 0.0;
     double phi_m_prev = 0.0;
     double volumetric_strain = 0.0;

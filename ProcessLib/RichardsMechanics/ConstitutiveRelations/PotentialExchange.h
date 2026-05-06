@@ -21,7 +21,7 @@ struct YoungLaplaceMacroPotentialData
 // mu_LR = 0            for pLR > -ptol
 // mu_LR = pLR / rho_LR otherwise
 inline YoungLaplaceMacroPotentialData computeYoungLaplaceMacroPotential(
-    double const p_LR, double const rho_LR, double const pressure_tolerance = 0.0)
+    double const p_LR, double const rho_LR, double const pressure_tolerance = 1.0)
 {
     if (!(rho_LR > 0.0))
     {
@@ -61,15 +61,15 @@ struct VanDerWaalsMicroPotentialData
     double domega_l_drho_SR = 0.0;
 
     double dmu_lR_dnl = 0.0;
-    double dmu_lR_drho_lR = 0.0;   // exactly zero in the reduced algebraic form.
+    double dmu_lR_drho_lR = 0.0;
     double dmu_lR_dnS = 0.0;
     double dmu_lR_drho_SR = 0.0;
 };
 
 // DSM dsm_micromacro microscale vdW potential helper:
 // omega_l = n_l * rho_lR / (nS * rho_SR)
-// mu_lR = (A * rho_lR^3 / (6*pi)) * (Sa / omega_l)^3
-//       = (A * Sa^3 / (6*pi)) * (nS^3 * rho_SR^3) / n_l^3
+// mu_lR = (A * rho_lR^3 / (6*pi)) * Sa^3
+//          / (omega_l^3 + omega_min_vdw^3)
 inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     double const n_l, double const rho_lR, double const nS, double const rho_SR,
     double const hamaker_constant, double const specific_surface,
@@ -123,16 +123,32 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     out.domega_l_dnS = -out.omega_l / nS;
     out.domega_l_drho_SR = -out.omega_l / rho_SR;
 
+    constexpr double h_min_vdw = 5e-11;
+    double const omega_min_vdw = h_min_vdw * specific_surface;
+    double const omega_min_vdw3 =
+        omega_min_vdw * omega_min_vdw * omega_min_vdw;
+    double const omega2 = out.omega_l * out.omega_l;
+    double const omega3 = omega2 * out.omega_l;
+    double const denominator = omega3 + omega_min_vdw3;
     double const prefactor = hamaker_constant * specific_surface *
-                                 specific_surface * specific_surface /
+                                 specific_surface * specific_surface *
+                                 rho_lR * rho_lR * rho_lR /
                              (6.0 * pi);
-    out.mu_lR = potential_sign_factor * prefactor * (nS * nS * nS) *
-                (rho_SR * rho_SR * rho_SR) / (n_l * n_l * n_l);
 
-    out.dmu_lR_dnl = -3.0 * out.mu_lR / n_l;
-    out.dmu_lR_drho_lR = 0.0;
-    out.dmu_lR_dnS = 3.0 * out.mu_lR / nS;
-    out.dmu_lR_drho_SR = 3.0 * out.mu_lR / rho_SR;
+    out.mu_lR = potential_sign_factor * prefactor / denominator;
+
+    double const ddenominator_dnl = 3.0 * omega2 * out.domega_l_dnl;
+    double const ddenominator_drho_lR =
+        3.0 * omega2 * out.domega_l_drho_lR;
+    double const ddenominator_dnS = 3.0 * omega2 * out.domega_l_dnS;
+    double const ddenominator_drho_SR =
+        3.0 * omega2 * out.domega_l_drho_SR;
+
+    out.dmu_lR_dnl = -out.mu_lR * ddenominator_dnl / denominator;
+    out.dmu_lR_drho_lR =
+        out.mu_lR * (3.0 / rho_lR - ddenominator_drho_lR / denominator);
+    out.dmu_lR_dnS = -out.mu_lR * ddenominator_dnS / denominator;
+    out.dmu_lR_drho_SR = -out.mu_lR * ddenominator_drho_SR / denominator;
 
     return out;
 }
@@ -153,6 +169,21 @@ struct PotentialDrivenMassExchangeData
 inline PotentialDrivenMassExchangeData computePotentialDrivenMassExchange(
     double const alpha_M, double const mu_LR, double const mu_lR)
 {
+    if (!(alpha_M >= 0.0))
+    {
+        OGS_FATAL(
+            "computePotentialDrivenMassExchange requires alpha_M >= 0, got "
+            "{:g}.",
+            alpha_M);
+    }
+    if (!std::isfinite(mu_LR) || !std::isfinite(mu_lR))
+    {
+        OGS_FATAL(
+            "computePotentialDrivenMassExchange requires finite mu_LR and "
+            "mu_lR, got mu_LR={:g}, mu_lR={:g}.",
+            mu_LR, mu_lR);
+    }
+
     PotentialDrivenMassExchangeData out;
     out.rho_l_hat = alpha_M * (mu_LR - mu_lR);
     out.rho_L_hat = -out.rho_l_hat;

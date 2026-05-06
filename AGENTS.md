@@ -54,6 +54,6 @@ Every process must have:
   - `Tests/Data/RichardsMechanics/beacon_1c_reference_t_1000.000000.vtu`
 - DSM source-audit guardrail: keep
   `ProcessLib/RichardsMechanics/ConstitutiveRelations/PotentialExchange.h`
-  on the audited algebraic van der Waals micro-potential form. Do not
-  reintroduce the local `h_min` denominator regularisation or a nonzero
-  `dmu_lR_drho_lR` unless a matching derivation and reference update are made.
+  aligned with the MFront vdW regularisation: use
+  `omega3 + omega_min_vdw3` with `h_min_vdw = 5e-11`, and keep the analytic
+  derivatives consistent with that denominator.
