@@ -35,3 +35,25 @@ Every process must have:
 - Integration tests: `Tests/Data/{ProcessName}/` (`.prj` files with reference outputs)
 - Always run ctests from release build.
 - Check `.clang-format`, `.clang-tidy` for linting rules
+
+## DSM native transition checkpoint
+
+- Active native DSM source tree:
+  `/Users/vinaykumar/git/ogs-native-dsm-transition`
+- Verified build tree:
+  `/Users/vinaykumar/git/build/release-native-transition2`
+- As of 2026-05-06, the focused DSM native gate is green:
+  `ctest -j 18 --output-on-failure -R "ogs-RichardsMechanics(/DoubleStructureBenchmark/double_porosity_swelling_RM|_.*dsm_micromacro)"`
+  passed `32/32`.
+- The failing DSM native checks were stale `vtkdiff` references, not solver
+  failures and not a tolerance-only issue. Serial and OpenMP regenerated VTUs
+  were byte-identical for the failing reference cases.
+- The refreshed reference files are:
+  - `Tests/Data/RichardsMechanics/beacon_1a01_reference_t_1000.000000.vtu`
+  - `Tests/Data/RichardsMechanics/beacon_1a01_dsm_micromacro_inflow_reference_t_100000.000000.vtu`
+  - `Tests/Data/RichardsMechanics/beacon_1c_reference_t_1000.000000.vtu`
+- DSM source-audit guardrail: keep
+  `ProcessLib/RichardsMechanics/ConstitutiveRelations/PotentialExchange.h`
+  on the audited algebraic van der Waals micro-potential form. Do not
+  reintroduce the local `h_min` denominator regularisation or a nonzero
+  `dmu_lR_drho_lR` unless a matching derivation and reference update are made.
