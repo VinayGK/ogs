@@ -70,19 +70,20 @@ struct VanDerWaalsMicroPotentialData
 // omega_l = n_l * rho_lR / (nS * rho_SR)
 // mu_lR_vdW = (A * Sa^3 / (6*pi)) * (nS^3 * rho_SR^3) / n_l^3
 //
-// Optional lumped augmentation (activated when
-// vdw_augmentation_coefficient > 0):
-// mu_lR_aug = kappa * (nS * rho_SR / n_l)^m
-//   kappa = vdw_augmentation_coefficient  [J/kg]  lumped surface-force amplitude
-//   m = vdw_augmentation_exponent         [-]      power-law decay exponent
+// Optional lumped exponential augmentation (activated when
+// vdw_augmentation_prefactor > 0):
+// h = n_l / (nS * rho_SR * Sa)               mean water film thickness [m]
+// mu_lR_aug = K * exp(-h / lambda)
+//   K      = vdw_augmentation_prefactor    [J/kg]  lumped surface-force amplitude
+//   lambda = vdw_augmentation_decay_length [m]     characteristic film thickness
 // Total: mu_lR = sign * (mu_lR_vdW + mu_lR_aug)
-// Setting kappa = 0 (default) reduces exactly to the original vdW-only form.
+// Setting K = 0 (default) reduces exactly to the original vdW-only form.
 inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     double const n_l, double const rho_lR, double const nS, double const rho_SR,
     double const hamaker_constant, double const specific_surface,
     double const potential_sign_factor = 1.0,
-    double const vdw_augmentation_coefficient = 0.0,
-    double const vdw_augmentation_exponent = 0.0)
+    double const vdw_augmentation_prefactor = 0.0,
+    double const vdw_augmentation_decay_length = 0.0)
 {
     if (!(n_l > 0.0))
     {
@@ -120,21 +121,21 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
             "got {:g}.",
             specific_surface);
     }
-    if (!(vdw_augmentation_coefficient >= 0.0))
+    if (!(vdw_augmentation_prefactor >= 0.0))
     {
         OGS_FATAL(
             "computeVanDerWaalsMicroPotential requires "
-            "vdw_augmentation_coefficient >= 0, got {:g}.",
-            vdw_augmentation_coefficient);
+            "vdw_augmentation_prefactor >= 0, got {:g}.",
+            vdw_augmentation_prefactor);
     }
-    if (vdw_augmentation_coefficient > 0.0 &&
-        !(vdw_augmentation_exponent > 0.0))
+    if (vdw_augmentation_prefactor > 0.0 &&
+        !(vdw_augmentation_decay_length > 0.0))
     {
         OGS_FATAL(
             "computeVanDerWaalsMicroPotential requires "
-            "vdw_augmentation_exponent > 0 when "
-            "vdw_augmentation_coefficient > 0, got {:g}.",
-            vdw_augmentation_exponent);
+            "vdw_augmentation_decay_length > 0 when "
+            "vdw_augmentation_prefactor > 0, got {:g}.",
+            vdw_augmentation_decay_length);
     }
 
     constexpr double pi = 3.141592653589793238462643383279502884;
@@ -159,21 +160,22 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     out.dmu_lR_dnS = 3.0 * out.mu_lR / nS;
     out.dmu_lR_drho_SR = 3.0 * out.mu_lR / rho_SR;
 
-    // Lumped additional force augmentation:
-    // mu_lR_aug = sign * kappa * (nS*rho_SR/n_l)^m.
-    if (vdw_augmentation_coefficient > 0.0)
+    // Lumped exponential force augmentation:
+    // h = n_l / (nS * rho_SR * Sa)  [mean water film thickness, m]
+    // mu_lR_aug = sign * K * exp(-h / lambda)
+    if (vdw_augmentation_prefactor > 0.0)
     {
-        double const q = nS * rho_SR / n_l;
-        double const q_m = std::pow(q, vdw_augmentation_exponent);
-
-        double const mu_aug = potential_sign_factor *
-                              vdw_augmentation_coefficient * q_m;
+        double const xi = n_l / (vdw_augmentation_decay_length * nS *
+                                 rho_SR * specific_surface);
+        double const mu_aug =
+            potential_sign_factor * vdw_augmentation_prefactor *
+            std::exp(-xi);
 
         out.mu_lR += mu_aug;
-        out.dmu_lR_dnl += -vdw_augmentation_exponent * mu_aug / n_l;
-        out.dmu_lR_drho_lR = 0.0;
-        out.dmu_lR_dnS += vdw_augmentation_exponent * mu_aug / nS;
-        out.dmu_lR_drho_SR += vdw_augmentation_exponent * mu_aug / rho_SR;
+        out.dmu_lR_dnl += -mu_aug * xi / n_l;
+        out.dmu_lR_drho_lR = 0.0;  // h independent of rho_lR
+        out.dmu_lR_dnS += mu_aug * xi / nS;
+        out.dmu_lR_drho_SR += mu_aug * xi / rho_SR;
     }
 
     return out;

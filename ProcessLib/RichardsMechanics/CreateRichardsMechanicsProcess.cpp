@@ -472,26 +472,26 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context, vdw_relaxation_stress_gain);
     }
 
-    auto const vdw_augmentation_coefficient = config.getConfigParameter<double>(
-        "vdw_augmentation_coefficient",
-        defaults ? defaults->vdw_augmentation_coefficient : 0.0);
-    if (!(vdw_augmentation_coefficient >= 0.0))
+    auto const vdw_augmentation_prefactor = config.getConfigParameter<double>(
+        "vdw_augmentation_prefactor",
+        defaults ? defaults->vdw_augmentation_prefactor : 0.0);
+    if (!(vdw_augmentation_prefactor >= 0.0))
     {
         OGS_FATAL(
-            "RichardsMechanics: {} vdw_augmentation_coefficient must be >= 0, got {:g}.",
-            context, vdw_augmentation_coefficient);
+            "RichardsMechanics: {} vdw_augmentation_prefactor must be >= 0, got {:g}.",
+            context, vdw_augmentation_prefactor);
     }
 
-    auto const vdw_augmentation_exponent = config.getConfigParameter<double>(
-        "vdw_augmentation_exponent",
-        defaults ? defaults->vdw_augmentation_exponent : 0.0);
-    if (vdw_augmentation_coefficient > 0.0 &&
-        !(vdw_augmentation_exponent > 0.0))
+    auto const vdw_augmentation_decay_length = config.getConfigParameter<double>(
+        "vdw_augmentation_decay_length",
+        defaults ? defaults->vdw_augmentation_decay_length : 0.0);
+    if (vdw_augmentation_prefactor > 0.0 &&
+        !(vdw_augmentation_decay_length > 0.0))
     {
         OGS_FATAL(
-            "RichardsMechanics: {} vdw_augmentation_exponent must be > 0 when "
-            "vdw_augmentation_coefficient > 0, got {:g}.",
-            context, vdw_augmentation_exponent);
+            "RichardsMechanics: {} vdw_augmentation_decay_length must be > 0 when "
+            "vdw_augmentation_prefactor > 0, got {:g}.",
+            context, vdw_augmentation_decay_length);
     }
 
     auto const micro_water_content_stress_gain =
@@ -538,8 +538,8 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         local_jacobian_perturbation,
         local_jacobian_relative_tolerance,
         vdw_relaxation_stress_gain,
-        vdw_augmentation_coefficient,
-        vdw_augmentation_exponent,
+        vdw_augmentation_prefactor,
+        vdw_augmentation_decay_length,
         micro_water_content_stress_gain,
         micro_water_content_swelling_slope};
 }

@@ -244,8 +244,8 @@ computeCompatibilityMicroHydraulicOutput(
         potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
         potential_exchange_params.specific_surface,
         microPotentialSignFactorFromParameters(potential_exchange_params),
-            potential_exchange_params.vdw_augmentation_coefficient,
-            potential_exchange_params.vdw_augmentation_exponent);
+            potential_exchange_params.vdw_augmentation_prefactor,
+            potential_exchange_params.vdw_augmentation_decay_length);
 
     return {
         .p_L_m = -rho_LR * micro_potential.mu_lR,
@@ -587,8 +587,8 @@ solveReferenceMassStoragePredictorState(
             potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
             potential_exchange_params.specific_surface,
             microPotentialSignFactorFromParameters(potential_exchange_params),
-            potential_exchange_params.vdw_augmentation_coefficient,
-            potential_exchange_params.vdw_augmentation_exponent);
+            potential_exchange_params.vdw_augmentation_prefactor,
+            potential_exchange_params.vdw_augmentation_decay_length);
         double const mu_LR_active = macro_potential.mu_LR;
         double const mu_lR_active = micro_potential.mu_lR;
         auto const exchange = computePotentialDrivenMassExchange(
@@ -731,8 +731,8 @@ solveReferenceMassStorageCoupledState(
             n_l, rho_lR, active_nS, potential_exchange_params.micro_solid_density_reference,
             potential_exchange_params.hamaker_constant, potential_exchange_params.specific_surface,
             microPotentialSignFactorFromParameters(potential_exchange_params),
-            potential_exchange_params.vdw_augmentation_coefficient,
-            potential_exchange_params.vdw_augmentation_exponent);
+            potential_exchange_params.vdw_augmentation_prefactor,
+            potential_exchange_params.vdw_augmentation_decay_length);
         double const mu_LR_active = macro_potential.mu_LR;
         double const mu_lR_active = micro_potential.mu_lR;
         auto const exchange = computePotentialDrivenMassExchange(
@@ -976,8 +976,8 @@ inline VanDerWaalsMicroPotentialData computeActiveMicroPotential(
         n_l, rho_lR_effective, active_nS, potential_exchange_params.micro_solid_density_reference,
         potential_exchange_params.hamaker_constant, potential_exchange_params.specific_surface,
         microPotentialSignFactorFromParameters(potential_exchange_params),
-            potential_exchange_params.vdw_augmentation_coefficient,
-            potential_exchange_params.vdw_augmentation_exponent);
+            potential_exchange_params.vdw_augmentation_prefactor,
+            potential_exchange_params.vdw_augmentation_decay_length);
 }
 
 inline CompatibilityMicroHydraulicOutputData

@@ -141,13 +141,13 @@ struct PotentialExchangeParameters
     // current committed behavior.
     double vdw_relaxation_stress_gain = 0.0;
 
-    // Lumped additional force augmentation to the vdW micro-potential.
-    // mu_lR_aug = sign * vdw_augmentation_coefficient *
-    //            (nS*rho_SR/n_l)^vdw_augmentation_exponent
-    // Zero coefficient (default) disables augmentation and preserves
+    // Lumped exponential force augmentation to the vdW micro-potential.
+    // h = n_l / (nS * rho_SR * Sa)   [mean water film thickness, m]
+    // mu_lR_aug = sign * K * exp(-h / lambda)
+    // Zero prefactor (default) disables augmentation and preserves
     // existing behaviour.
-    double vdw_augmentation_coefficient = 0.0;
-    double vdw_augmentation_exponent = 0.0;
+    double vdw_augmentation_prefactor = 0.0;     // K      [J/kg], must be >= 0
+    double vdw_augmentation_decay_length = 0.0;  // lambda [m],    must be > 0 if K > 0
 
     // Optional DSM-only mechanical gain on positive microscale water-content
     // increments. This is intended for the dsm_micromacro-consistent fully saturated
