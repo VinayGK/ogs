@@ -141,6 +141,14 @@ struct PotentialExchangeParameters
     // current committed behavior.
     double vdw_relaxation_stress_gain = 0.0;
 
+    // Lumped additional force augmentation to the vdW micro-potential.
+    // mu_lR_aug = sign * vdw_augmentation_coefficient *
+    //            (nS*rho_SR/n_l)^vdw_augmentation_exponent
+    // Zero coefficient (default) disables augmentation and preserves
+    // existing behaviour.
+    double vdw_augmentation_coefficient = 0.0;
+    double vdw_augmentation_exponent = 0.0;
+
     // Optional DSM-only mechanical gain on positive microscale water-content
     // increments. This is intended for the dsm_micromacro-consistent fully saturated
     // microscale interpretation, where swelling is driven by n_l growth rather
