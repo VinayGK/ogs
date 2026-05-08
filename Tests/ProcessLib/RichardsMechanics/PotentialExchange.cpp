@@ -152,12 +152,12 @@ TEST(RichardsMechanics, PotentialExchangeVanDerWaalsMicroPotentialNegativeAttrac
 
 TEST(RichardsMechanics, PotentialExchangeVdWAugmentationOnlyPositiveConvention)
 {
-    double const n_l = 0.03;
+    double const n_l = 1.2;
     double const rho_lR = 1000.0;
-    double const nS = 0.6;
-    double const rho_SR = 2700.0;
+    double const nS = 0.2;
+    double const rho_SR = 2.0;
     double const Sa = 1000.0;
-    double const kappa = 1.5e-4;
+    double const kappa = 0.6;
     double const m = 5.0;
     double const A_tiny = std::numeric_limits<double>::min();
 
@@ -205,13 +205,13 @@ TEST(RichardsMechanics, PotentialExchangeVdWAugmentationOnlyPositiveConvention)
 
 TEST(RichardsMechanics, PotentialExchangeVdWAugmentationCombinedNegativeAttractive)
 {
-    double const n_l = 0.03;
+    double const n_l = 1.2;
     double const rho_lR = 1000.0;
-    double const nS = 0.6;
-    double const rho_SR = 2700.0;
-    double const A = 6.0e-20;
-    double const Sa = 1000.0;
-    double const kappa = 2.0e-4;
+    double const nS = 0.2;
+    double const rho_SR = 2.0;
+    double const A = 1.0e-2;
+    double const Sa = 2.0;
+    double const kappa = 0.4;
     double const m = 4.0;
 
     constexpr double pi = 3.141592653589793238462643383279502884;
