@@ -1,0 +1,69 @@
+{
+  "hamaker_literature_J": 5.1e-21,
+  "specific_surface": 523.0,
+  "n_density_points": 4,
+  "mean_rel_error_percent": 1.2098581370582955,
+  "max_rel_error_percent": 1.806598777775721,
+  "results": [
+    {
+      "dry_density_kg_m3": 1375.0,
+      "dry_density_g_cm3": 1.375,
+      "phi0": 0.5053956834532374,
+      "n_s_ref": 0.4946043165467626,
+      "k0_m2": 1.3417602554646005e-20,
+      "target_villar_MPa": 1.2696610816332123,
+      "calibrated_MPa": 1.2467234000505327,
+      "vdw_multiplier": 54149.5037697899,
+      "hamaker_literature_J": 5.1e-21,
+      "hamaker_effective_J": 2.761624692259285e-16,
+      "specific_surface": 523.0,
+      "n_l0": 0.0010054234412665362,
+      "delta_MPa": -0.022937681582679614
+    },
+    {
+      "dry_density_kg_m3": 1400.0,
+      "dry_density_g_cm3": 1.4,
+      "phi0": 0.49640287769784175,
+      "n_s_ref": 0.5035971223021583,
+      "k0_m2": 1.2264011098493141e-20,
+      "target_villar_MPa": 1.5038071611701085,
+      "calibrated_MPa": 1.4964724208047362,
+      "vdw_multiplier": 97254.28140622663,
+      "hamaker_literature_J": 5.1e-21,
+      "hamaker_effective_J": 4.959968351717558e-16,
+      "specific_surface": 523.0,
+      "n_l0": 0.001023703867471382,
+      "delta_MPa": -0.007334740365372294
+    },
+    {
+      "dry_density_kg_m3": 1425.0,
+      "dry_density_g_cm3": 1.425,
+      "phi0": 0.487410071942446,
+      "n_s_ref": 0.512589928057554,
+      "k0_m2": 1.1205713227338159e-20,
+      "target_villar_MPa": 1.78113357233691,
+      "calibrated_MPa": 1.7956802368105849,
+      "vdw_multiplier": 174719.45277457967,
+      "hamaker_literature_J": 5.1e-21,
+      "hamaker_effective_J": 8.910692091503562e-16,
+      "specific_surface": 523.0,
+      "n_l0": 0.001041984293676228,
+      "delta_MPa": 0.01454666447367492
+    },
+    {
+      "dry_density_kg_m3": 1450.0,
+      "dry_density_g_cm3": 1.45,
+      "phi0": 0.4784172661870504,
+      "n_s_ref": 0.5215827338129496,
+      "k0_m2": 1.02345856648015e-20,
+      "target_villar_MPa": 2.1096034680651288,
+      "calibrated_MPa": 2.0731414868105524,
+      "vdw_multiplier": 36256674.22826585,
+      "hamaker_literature_J": 5.1e-21,
+      "hamaker_effective_J": 1.8490903856415583e-13,
+      "specific_surface": 523.0,
+      "n_l0": 0.0010602647198810742,
+      "delta_MPa": -0.03646198125457634
+    }
+  ]
+}
