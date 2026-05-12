@@ -47,7 +47,6 @@ Top face (inflow): p = 0 Pa (atmospheric). All displacement BCs: zero.
             </micro_porosity>
             <potential_exchange>
                 <enabled>true</enabled>
-                <mode>full_potential</mode>
                 <pressure_tolerance>1e-12</pressure_tolerance>
                 <!-- Hamaker constant from BEACON-specific mfront calibration:
                      A_eff = 1.9607e-15 J ≈ 384 × A_lit

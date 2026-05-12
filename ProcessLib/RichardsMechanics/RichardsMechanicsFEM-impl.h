@@ -33,9 +33,7 @@ inline bool isPotentialExchangeEnabled(
     PotentialExchangeParameters const* const potential_exchange_parameters)
 {
     return potential_exchange_parameters &&
-           potential_exchange_parameters->enabled &&
-           potential_exchange_parameters->mode ==
-               PotentialExchangeMode::FullPotential;
+           potential_exchange_parameters->enabled;
 }
 
 inline bool isPotentialExchangeEnabled(
@@ -359,7 +357,7 @@ inline TransportPorosityUpdateData computeTransportPorosityUpdate(
         std::call_once(once, []
         {
             WARN(
-                "[RM Phase6I] additive_macro_porosity_rate_mode porosity update encountered a near-singular denominator and fell back to algebraic_split at least once.");
+                "DSM: additive_macro_porosity_rate_mode porosity update encountered a near-singular denominator and fell back to algebraic_split at least once.");
         });
         return {
             .phi_M = std::max(0.0, phi_safe - phi_m),
@@ -497,7 +495,7 @@ inline ReducedMicroLiquidDensityData computeReducedMicroLiquidDensity(
         std::call_once(once, []
         {
             WARN(
-                "[RM Phase6K] reduced microscale liquid-density EOS did not converge at least once; using the last Newton iterate.");
+                "DSM: reduced microscale liquid-density EOS did not converge at least once; using the last Newton iterate.");
         });
     }
 
@@ -1207,7 +1205,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
         std::call_once(once, []
         {
             WARN(
-                "[RM Phase2C] local implicit n_l solve did not converge at least once; falling back to explicit n_l update for robustness.");
+                "DSM: local implicit n_l solve did not converge at least once; falling back to explicit n_l update for robustness.");
         });
         return out;
     }
@@ -1298,113 +1296,6 @@ inline double computeImplicitNlDpL(
         -dt_safe * (drho_l_hat_dpL_fixed_n / rho_LR -
                     exchange.rho_l_hat / (rho_LR * rho_LR) * drho_LR_dpL);
     return -dr_dp_l / dr_dn_l;
-}
-
-struct LocalJacobianDiagnosticData
-{
-    double fd_dn_l_dpL = 0.0;
-    double fd_drho_L_hat_dpL = 0.0;
-    double perturbation = 0.0;
-};
-
-inline LocalJacobianDiagnosticData computeLocalJacobianDiagnosticData(
-    double const n_l_prev, double const p_L_ip, double const dt,
-    double const rho_LR, double const drho_LR_dpL, double const alpha_bar,
-    double const mu, double const pressure_tolerance,
-    PotentialExchangeLocalSolveContext const& local_context,
-    PotentialExchangeParameters const& potential_exchange_params)
-{
-    constexpr double rho_floor = 1e-16;
-    double const perturbation =
-        potential_exchange_params.local_jacobian_perturbation * std::max(1.0, std::abs(p_L_ip));
-    if (!(perturbation > 0.0) || !std::isfinite(perturbation))
-    {
-        OGS_FATAL(
-            "DSM local Jacobian diagnostic requires finite h > 0, got {:g} "
-            "(from local_jacobian_perturbation={:g}, p_L_ip={:g}).",
-            perturbation, potential_exchange_params.local_jacobian_perturbation, p_L_ip);
-    }
-
-    auto const eval_at = [&](double const p_L_eval, double const rho_LR_eval)
-    {
-        auto const macro_potential_eval = computeYoungLaplaceMacroPotential(
-            p_L_eval, rho_LR_eval, pressure_tolerance);
-        auto const n_l_update_eval = solveImplicitMicroWaterContent(
-            n_l_prev, dt, rho_LR_eval, alpha_bar, mu, macro_potential_eval,
-            local_context, potential_exchange_params);
-        return std::pair{n_l_update_eval.n_l, -n_l_update_eval.exchange.rho_l_hat};
-    };
-
-    double const rho_plus =
-        std::max(rho_floor, rho_LR + drho_LR_dpL * perturbation);
-    auto const [n_l_plus, rho_L_hat_plus] =
-        eval_at(p_L_ip + perturbation, rho_plus);
-
-    double const rho_minus = rho_LR - drho_LR_dpL * perturbation;
-    if (rho_minus > rho_floor)
-    {
-        auto const [n_l_minus, rho_L_hat_minus] =
-            eval_at(p_L_ip - perturbation, rho_minus);
-        return {
-            .fd_dn_l_dpL = (n_l_plus - n_l_minus) / (2.0 * perturbation),
-            .fd_drho_L_hat_dpL =
-                (rho_L_hat_plus - rho_L_hat_minus) / (2.0 * perturbation),
-            .perturbation = perturbation,
-        };
-    }
-
-    auto const [n_l_center, rho_L_hat_center] = eval_at(p_L_ip, rho_LR);
-    return {
-        .fd_dn_l_dpL = (n_l_plus - n_l_center) / perturbation,
-        .fd_drho_L_hat_dpL =
-            (rho_L_hat_plus - rho_L_hat_center) / perturbation,
-        .perturbation = perturbation,
-    };
-}
-
-inline void maybeLogLocalJacobianDiagnostic(
-    double const p_L_ip, double const n_l_prev, double const n_l,
-    double const analytic_dn_l_dpL, double const analytic_drho_L_hat_dpL,
-    LocalJacobianDiagnosticData const& fd_data,
-    PotentialExchangeParameters const& potential_exchange_params)
-{
-    static std::once_flag once;
-    std::call_once(once, [=]()
-    {
-        auto const relative_error = [](double const analytic, double const fd)
-        {
-            double const scale =
-                std::max({1.0, std::abs(analytic), std::abs(fd)});
-            return std::abs(analytic - fd) / scale;
-        };
-
-        double const rel_dn_l =
-            relative_error(analytic_dn_l_dpL, fd_data.fd_dn_l_dpL);
-        double const rel_drho = relative_error(
-            analytic_drho_L_hat_dpL, fd_data.fd_drho_L_hat_dpL);
-        bool const mismatch =
-            rel_dn_l > potential_exchange_params.local_jacobian_relative_tolerance ||
-            rel_drho > potential_exchange_params.local_jacobian_relative_tolerance;
-
-        auto const* const level_prefix = mismatch ? "[RM Phase3D]" : "[RM Phase3D]";
-        if (mismatch)
-        {
-            WARN(
-                "{} local Jacobian diagnostic: pL_ip={} Pa, n_l_prev={}, n_l={}, h={}, analytic dn_l/dpL={}, FD dn_l/dpL={}, rel_err_nl={}, analytic drho_L_hat/dpL={}, FD drho_L_hat/dpL={}, rel_err_exchange={}, tolerance={}.",
-                level_prefix, p_L_ip, n_l_prev, n_l, fd_data.perturbation,
-                analytic_dn_l_dpL, fd_data.fd_dn_l_dpL, rel_dn_l,
-                analytic_drho_L_hat_dpL, fd_data.fd_drho_L_hat_dpL, rel_drho,
-                potential_exchange_params.local_jacobian_relative_tolerance);
-            return;
-        }
-
-        INFO(
-            "{} local Jacobian diagnostic: pL_ip={} Pa, n_l_prev={}, n_l={}, h={}, analytic dn_l/dpL={}, FD dn_l/dpL={}, rel_err_nl={}, analytic drho_L_hat/dpL={}, FD drho_L_hat/dpL={}, rel_err_exchange={}, tolerance={}.",
-            level_prefix, p_L_ip, n_l_prev, n_l, fd_data.perturbation,
-            analytic_dn_l_dpL, fd_data.fd_dn_l_dpL, rel_dn_l,
-            analytic_drho_L_hat_dpL, fd_data.fd_drho_L_hat_dpL, rel_drho,
-            potential_exchange_params.local_jacobian_relative_tolerance);
-    });
 }
 
 template <int DisplacementDim>
@@ -1569,64 +1460,6 @@ inline void updateTotalPorosityState(
 
 template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
-computeVdWRelaxationStressIncrement(
-    double const p_L_m_prev, double const p_L_m,
-    PotentialExchangeParameters const& potential_exchange_params)
-{
-    using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
-
-    KV delta_sigma_vdw = KV::Zero();
-    if (potential_exchange_params.micro_potential_convention !=
-            MicroPotentialConvention::NegativeAttractive ||
-        !(potential_exchange_params.vdw_relaxation_stress_gain > 0.0))
-    {
-        return delta_sigma_vdw;
-    }
-
-    double const delta_p_relaxation = std::max(0.0, p_L_m_prev - p_L_m);
-    if (!(delta_p_relaxation > 0.0))
-    {
-        return delta_sigma_vdw;
-    }
-
-    auto const& identity2 = MathLib::KelvinVector::Invariants<
-        MathLib::KelvinVector::kelvin_vector_dimensions(
-            DisplacementDim)>::identity2;
-    delta_sigma_vdw.noalias() -=
-        potential_exchange_params.vdw_relaxation_stress_gain * delta_p_relaxation * identity2;
-    return delta_sigma_vdw;
-}
-
-template <int DisplacementDim>
-inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
-computeMicroWaterContentStressIncrement(
-    double const n_l_prev, double const n_l,
-    PotentialExchangeParameters const& potential_exchange_params)
-{
-    using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
-
-    KV delta_sigma_nl = KV::Zero();
-    if (!(potential_exchange_params.micro_water_content_stress_gain > 0.0))
-    {
-        return delta_sigma_nl;
-    }
-
-    double const delta_n_l = std::max(0.0, n_l - n_l_prev);
-    if (!(delta_n_l > 0.0))
-    {
-        return delta_sigma_nl;
-    }
-
-    auto const& identity2 = MathLib::KelvinVector::Invariants<
-        MathLib::KelvinVector::kelvin_vector_dimensions(
-            DisplacementDim)>::identity2;
-    delta_sigma_nl.noalias() -=
-        potential_exchange_params.micro_water_content_stress_gain * delta_n_l * identity2;
-    return delta_sigma_nl;
-}
-
-template <int DisplacementDim>
-inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeReferenceMicroPorositySwellingStressIncrement(
     double const phi_m_prev, double const phi_m,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
@@ -1660,36 +1493,12 @@ computeReferenceMicroPorositySwellingStressIncrement(
 template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeSwellingStressIncrement(
-    double const phi_m_prev, double const phi_m, double const n_l_prev,
-    double const n_l, double const p_L_m_prev, double const p_L_m,
+    double const phi_m_prev, double const phi_m,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
 {
-    using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
-
-    KV delta_sigma_sw = KV::Zero();
-    if (potential_exchange_params.micro_water_content_swelling_slope > 0.0)
-    {
-        delta_sigma_sw +=
-            computeReferenceMicroPorositySwellingStressIncrement<
-                DisplacementDim>(phi_m_prev, phi_m, C_el, potential_exchange_params);
-    }
-
-    if (potential_exchange_params.vdw_relaxation_stress_gain > 0.0)
-    {
-        delta_sigma_sw +=
-            computeVdWRelaxationStressIncrement<DisplacementDim>(
-                p_L_m_prev, p_L_m, potential_exchange_params);
-    }
-
-    if (potential_exchange_params.micro_water_content_stress_gain > 0.0)
-    {
-        delta_sigma_sw +=
-            computeMicroWaterContentStressIncrement<DisplacementDim>(
-                n_l_prev, n_l, potential_exchange_params);
-    }
-
-    return delta_sigma_sw;
+    return computeReferenceMicroPorositySwellingStressIncrement<DisplacementDim>(
+        phi_m_prev, phi_m, C_el, potential_exchange_params);
 }
 
 template <int DisplacementDim>
@@ -1714,10 +1523,6 @@ inline void updateSwellingState(
     (void)t;
     (void)dt;
 
-    auto const p_L_m_prev = **std::get<PrevState<MicroPressure>>(state_previous);
-    auto const p_L_m = *std::get<MicroPressure>(state_current);
-    auto const n_l_prev = **std::get<PrevState<MicroWaterContent>>(state_previous);
-    auto const n_l = *std::get<MicroWaterContent>(state_current);
     auto const phi_m_prev = **std::get<PrevState<MicroPorosity>>(state_previous);
     auto const phi_m = *std::get<MicroPorosity>(state_current);
 
@@ -1733,7 +1538,7 @@ inline void updateSwellingState(
     sigma_sw = *sigma_sw_prev;
     sigma_sw.sigma_sw +=
         computeSwellingStressIncrement<DisplacementDim>(
-            phi_m_prev, phi_m, n_l_prev, n_l, p_L_m_prev, p_L_m, C_el, potential_exchange_params);
+            phi_m_prev, phi_m, C_el, potential_exchange_params);
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(
@@ -3470,32 +3275,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                      micro_potential.dmu_lR_drho_lR *
                                          drho_LR_dpL;
                     use_custom_dmu_lR_vdw_dpL = true;
-
-                    auto const n_l_prev =
-                        std::max(1e-16,
-                                 **std::get<PrevState<MicroWaterContent>>(
-                                     this->prev_states_[ip]));
-                    if (potential_exchange_params_ptr->check_local_jacobian)
-                    {
-                        auto const fd_data =
-                            computeLocalJacobianDiagnosticData(
-                                n_l_prev, p_L_ip, dt, rho_LR, drho_LR_dpL,
-                                alpha_bar, mu, pressure_tolerance,
-                                local_solve_context,
-                                *potential_exchange_params_ptr);
-                        auto const analytic_drho_L_hat_dpL =
-                            -exchange.drho_l_hat_dalpha_M *
-                                (alpha_bar / mu * drho_LR_dpL) -
-                            exchange.drho_l_hat_dmu_LR *
-                                (macro_potential.dmu_LR_dpLR +
-                                 macro_potential.dmu_LR_drho_LR *
-                                     drho_LR_dpL) -
-                            exchange.drho_l_hat_dmu_lR * dmu_lR_vdw_dpL;
-                        maybeLogLocalJacobianDiagnostic(
-                            p_L_ip, n_l_prev, n_l, dn_l_dpL,
-                            analytic_drho_L_hat_dpL, fd_data,
-                            *potential_exchange_params_ptr);
-                    }
                 }
             }
 
@@ -3507,8 +3286,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 dmu_lR_vdw_dpL,
                 use_fd_jacobian_for_direct_macro_derivative,
                 fd_jacobian_perturbation);
-            // Phase 2C: activate potential-driven exchange source in the macro
-            // balance.
             local_rhs.template segment<pressure_size>(pressure_index)
                 .noalias() += N_p.transpose() * potential_exchange_result.exchange.rho_L_hat *
                               w;

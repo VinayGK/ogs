@@ -455,25 +455,6 @@ double referenceDnLDpL(double const p_L, double const n_l_prev, double const dt,
     return (plus.n_l - minus.n_l) / (2.0 * h);
 }
 
-double referenceDrhoLHatDpL(double const p_L, double const n_l_prev,
-                            double const dt, double const rho_LR,
-                            double const alpha_bar, double const mu,
-                            double const phi,
-                            PotentialExchangeParameters const& potential_exchange_params,
-                            double const volumetric_strain = 0.0,
-                            double const volumetric_strain_prev = 0.0)
-{
-    double const h = 1e-8 * std::max(1.0, std::abs(p_L));
-    auto const plus = solveDsmMicromacroReferenceSinglePoint(
-        p_L + h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
-        volumetric_strain, volumetric_strain_prev);
-    auto const minus = solveDsmMicromacroReferenceSinglePoint(
-        p_L - h, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params,
-        volumetric_strain, volumetric_strain_prev);
-    return ((-plus.exchange.rho_l_hat) - (-minus.exchange.rho_l_hat)) /
-           (2.0 * h);
-}
-
 enum class CoupledExchangeReferenceMode
 {
     pressure_proxy,
@@ -693,22 +674,6 @@ TEST(RichardsMechanics, DSMMicroMacroSingleIntegrationPointReferencePath)
     EXPECT_NEAR(analytic_dn_l_dpL, reference_dn_l_dpL,
                 comparisonTolerance(analytic_dn_l_dpL, reference_dn_l_dpL,
                                     5e-5, 1e-18));
-
-    auto const fd_diagnostic = computeLocalJacobianDiagnosticData(
-        n_l_prev, p_L, dt, rho_LR, drho_LR_dpL, alpha_bar, mu,
-        potential_exchange_params.pressure_tolerance,
-        {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
-        potential_exchange_params);
-    EXPECT_NEAR(fd_diagnostic.fd_dn_l_dpL, reference_dn_l_dpL,
-                comparisonTolerance(fd_diagnostic.fd_dn_l_dpL,
-                                    reference_dn_l_dpL, 5e-5, 1e-18));
-
-    double const reference_drho_L_hat_dpL = referenceDrhoLHatDpL(
-        p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
-    EXPECT_NEAR(fd_diagnostic.fd_drho_L_hat_dpL, reference_drho_L_hat_dpL,
-                comparisonTolerance(fd_diagnostic.fd_drho_L_hat_dpL,
-                                    reference_drho_L_hat_dpL,
-                                    5e-5, 1e-18));
 }
 
 TEST(RichardsMechanics, DSMMicroMacroBranchSensitivityNearMacroPotentialTransition)
@@ -910,60 +875,6 @@ TEST(RichardsMechanics, DSMMicroMacroNegativeAttractiveMicroPotentialAdmitsWetti
                                     reference.S_L_m));
 }
 
-TEST(RichardsMechanics, DSMMicroMacroVdWRelaxationStressIncrement)
-{
-    PotentialExchangeParameters potential_exchange_params;
-    potential_exchange_params.enabled = true;
-    potential_exchange_params.micro_potential_convention =
-        MicroPotentialConvention::NegativeAttractive;
-    potential_exchange_params.vdw_relaxation_stress_gain = 10.0;
-
-    auto const& identity2 = MathLib::KelvinVector::Invariants<
-        MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
-
-    auto const compressive_increment =
-        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, potential_exchange_params);
-    EXPECT_NEAR((compressive_increment + 20.0 * identity2).norm(), 0.0, 1e-14);
-
-    auto const no_relaxation_increment =
-        computeVdWRelaxationStressIncrement<2>(3.0, 5.0, potential_exchange_params);
-    EXPECT_NEAR(no_relaxation_increment.norm(), 0.0, 1e-14);
-
-    potential_exchange_params.vdw_relaxation_stress_gain = 0.0;
-    auto const zero_gain_increment =
-        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, potential_exchange_params);
-    EXPECT_NEAR(zero_gain_increment.norm(), 0.0, 1e-14);
-
-    potential_exchange_params.vdw_relaxation_stress_gain = 10.0;
-    potential_exchange_params.micro_potential_convention = MicroPotentialConvention::PositiveReduced;
-    auto const unsupported_convention_increment =
-        computeVdWRelaxationStressIncrement<2>(5.0, 3.0, potential_exchange_params);
-    EXPECT_NEAR(unsupported_convention_increment.norm(), 0.0, 1e-14);
-}
-
-TEST(RichardsMechanics, DSMMicroMacroMicroWaterContentStressIncrement)
-{
-    PotentialExchangeParameters potential_exchange_params;
-    potential_exchange_params.enabled = true;
-    potential_exchange_params.micro_water_content_stress_gain = 10.0;
-
-    auto const& identity2 = MathLib::KelvinVector::Invariants<
-        MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
-
-    auto const compressive_increment =
-        computeMicroWaterContentStressIncrement<2>(0.2, 0.3, potential_exchange_params);
-    EXPECT_NEAR((compressive_increment + 1.0 * identity2).norm(), 0.0, 1e-14);
-
-    auto const no_growth_increment =
-        computeMicroWaterContentStressIncrement<2>(0.3, 0.2, potential_exchange_params);
-    EXPECT_NEAR(no_growth_increment.norm(), 0.0, 1e-14);
-
-    potential_exchange_params.micro_water_content_stress_gain = 0.0;
-    auto const zero_gain_increment =
-        computeMicroWaterContentStressIncrement<2>(0.2, 0.3, potential_exchange_params);
-    EXPECT_NEAR(zero_gain_increment.norm(), 0.0, 1e-14);
-}
-
 TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
 {
     using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
@@ -995,37 +906,6 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
     EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
 }
 
-TEST(RichardsMechanics, DSMMicroMacroAlignedSwellingIgnoresExploratoryGains)
-{
-    using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
-    using KV = MathLib::KelvinVector::KelvinVectorType<2>;
-
-    PotentialExchangeParameters potential_exchange_params;
-    potential_exchange_params.enabled = true;
-    potential_exchange_params.local_nonlinear_solve_mode =
-        LocalNonlinearSolveMode::ScalarReferenceMassStorage;
-    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
-    potential_exchange_params.vdw_relaxation_stress_gain = 100.0;
-    potential_exchange_params.micro_water_content_stress_gain = 100.0;
-
-    KM C_el = KM::Identity();
-    double const phi_m_prev = 0.2;
-    double const phi_m = 0.3;
-    double const n_l_prev = 0.2;
-    double const n_l = 0.3;
-    double const p_L_m_prev = 5.0;
-    double const p_L_m = 3.0;
-
-    KV const expected =
-        computeReferenceMicroPorositySwellingStressIncrement<2>(
-            phi_m_prev, phi_m, C_el, potential_exchange_params);
-    KV const actual =
-        computeSwellingStressIncrement<2>(
-            phi_m_prev, phi_m, n_l_prev, n_l, p_L_m_prev, p_L_m, C_el, potential_exchange_params);
-
-    EXPECT_NEAR((actual - expected).norm(), 0.0, 1e-14);
-}
-
 TEST(RichardsMechanics, DSMMicroMacroTransportPorositySplitRecomposesTotalPorosity)
 {
     auto const split = computeTransportPorosityUpdate(
@@ -1055,21 +935,30 @@ TEST(RichardsMechanics, DSMMicroMacroAdditiveMacroPorosityRateUpdate)
     double const volumetric_strain_prev = 0.0;
     double const volumetric_strain = 1.0e-3;
 
+    // Pass NaN as phi so computeTransportPorosityUpdate uses the kinematic
+    // estimate phi_safe = (phi_prev + delta_eps_v) / (1 + delta_eps_v).
+    // Passing the previous total porosity (0.4) directly would clamp phi_safe
+    // at 0.4, making the ReferenceAdditiveRate formula unresolvable.
+    double const phi_nan = std::numeric_limits<double>::quiet_NaN();
     auto const split = computeTransportPorosityUpdate(
-        0.4, phi_M_prev, phi_m_prev, phi_m, volumetric_strain,
+        phi_nan, phi_M_prev, phi_m_prev, phi_m, volumetric_strain,
         volumetric_strain_prev,
         MacroPorosityUpdateMode::ReferenceAdditiveRate);
 
     double const delta_eps_v = volumetric_strain - volumetric_strain_prev;
+    double const phi_prev_sum = phi_M_prev + phi_m_prev;
+    double const denominator = 1.0 + delta_eps_v;
+    double const phi_safe_kinematic = (phi_prev_sum + delta_eps_v) / denominator;
     double const expected_phi_M =
         (phi_M_prev + (1.0 - phi_m) * delta_eps_v - (phi_m - phi_m_prev)) /
-        (1.0 + delta_eps_v);
+        denominator;
 
     EXPECT_NEAR(split.phi_m, phi_m, 1e-14);
     EXPECT_NEAR(split.phi_m_prev, phi_m_prev, 1e-14);
     EXPECT_NEAR(split.phi_M_prev, phi_M_prev, 1e-14);
     EXPECT_NEAR(split.phi_M, expected_phi_M, 1e-14);
     EXPECT_NEAR(split.phi_M + split.phi_m, expected_phi_M + phi_m, 1e-14);
+    EXPECT_NEAR(split.phi_M + split.phi_m, phi_safe_kinematic, 1e-12);
     EXPECT_GT(split.phi_M + split.phi_m, phi_M_prev + phi_m_prev);
 }
 

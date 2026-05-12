@@ -200,7 +200,6 @@ def write_project(
             </micro_porosity>
             <potential_exchange>
                 <enabled>true</enabled>
-                <mode>full_potential</mode>
                 <pressure_tolerance>{PRESSURE_TOLERANCE_PA:.16g}</pressure_tolerance>
                 <hamaker_constant>{hamaker_eff:.16g}</hamaker_constant>
                 <specific_surface>{SPECIFIC_SURFACE:.16g}</specific_surface>

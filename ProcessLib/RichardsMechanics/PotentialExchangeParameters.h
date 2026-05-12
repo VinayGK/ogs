@@ -7,11 +7,6 @@
 
 namespace ProcessLib::RichardsMechanics
 {
-enum class PotentialExchangeMode
-{
-    FullPotential
-};
-
 enum class MicroPotentialConvention
 {
     PositiveReduced,
@@ -99,7 +94,6 @@ inline constexpr char const* toString(
 struct PotentialExchangeParameters
 {
     bool enabled = false;
-    PotentialExchangeMode mode = PotentialExchangeMode::FullPotential;
 
     // Young-Laplace macro potential branch tolerance.
     double pressure_tolerance = 0.0;
@@ -130,16 +124,9 @@ struct PotentialExchangeParameters
     bool use_fd_jacobian_for_exchange = false;
     double fd_jacobian_perturbation = 1e-8;
 
-    // Optional diagnostic self-check for the local implicit n_l chain rule.
-    // If enabled, the code compares analytic and FD local derivatives once.
-    bool check_local_jacobian = false;
+    // Finite-difference step for the implicit n_l(p_L) chain-rule derivative
+    // used in ScalarReferenceMassStorage mode.
     double local_jacobian_perturbation = 1e-8;
-    double local_jacobian_relative_tolerance = 1e-3;
-
-    // Optional DSM-only mechanical gain on relaxation of the vdW-derived
-    // compatibility pressure p_L_m = -rho_LR * mu_lR. Zero preserves the
-    // current committed behavior.
-    double vdw_relaxation_stress_gain = 0.0;
 
     // Lumped exponential force augmentation to the vdW micro-potential.
     // h = n_l / (nS * rho_SR * Sa)   [mean water film thickness, m]
@@ -149,18 +136,11 @@ struct PotentialExchangeParameters
     double vdw_augmentation_prefactor = 0.0;     // K      [J/kg], must be >= 0
     double vdw_augmentation_decay_length = 0.0;  // lambda [m],    must be > 0 if K > 0
 
-    // Optional DSM-only mechanical gain on positive microscale water-content
-    // increments. This is intended for the dsm_micromacro-consistent fully saturated
-    // microscale interpretation, where swelling is driven by n_l growth rather
-    // than by a change in saturation.
-    double micro_water_content_stress_gain = 0.0;
-
-    // Optional DSM-only dsm_micromacro-style reversible swelling-strain slope driven
-    // by signed microscale water-content increments Delta n_l. If enabled, the
-    // DSM branch uses Delta eps_sw = slope * Delta n_l and converts that
-    // isotropic swelling-strain increment into a stress increment via the
-    // elastic stiffness, instead of using the legacy saturation-driven
-    // swelling_stress_rate path.
+    // Reversible swelling-strain slope driven by signed micro-porosity
+    // increments Delta phi_m. If non-zero, the DSM branch computes
+    // Delta eps_sw = slope * Delta phi_m and converts that isotropic
+    // swelling-strain increment into a stress increment via the elastic
+    // stiffness.
     double micro_water_content_swelling_slope = 0.0;
 };
 }  // namespace ProcessLib::RichardsMechanics

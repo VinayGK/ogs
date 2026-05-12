@@ -3,16 +3,13 @@
     <add sel="/*/processes/process[1]">
         <potential_exchange>
             <enabled>true</enabled>
-            <mode>full_potential</mode>
             <pressure_tolerance>0.0</pressure_tolerance>
             <hamaker_constant>1e-30</hamaker_constant>
             <specific_surface>1.0</specific_surface>
             <micro_solid_density_reference>2650</micro_solid_density_reference>
             <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
             <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
-            <check_local_jacobian>true</check_local_jacobian>
             <local_jacobian_perturbation>1e-8</local_jacobian_perturbation>
-            <local_jacobian_relative_tolerance>1e-3</local_jacobian_relative_tolerance>
         </potential_exchange>
     </add>
     <replace msel="/*/processes/process[1]/micro_porosity/mass_exchange_coefficient/text()">

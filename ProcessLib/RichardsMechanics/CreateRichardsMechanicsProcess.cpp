@@ -25,16 +25,6 @@ namespace RichardsMechanics
 {
 namespace
 {
-char const* toString(PotentialExchangeMode const mode)
-{
-    switch (mode)
-    {
-        case PotentialExchangeMode::FullPotential:
-            return "full_potential";
-    }
-    return "unknown";
-}
-
 MicroPotentialConvention parseMicroPotentialConvention(
     std::string const& convention)
 {
@@ -113,19 +103,6 @@ MicroSolidVolumeFractionMode parseMicroSolidVolumeFractionMode(
         "RichardsMechanics: unsupported potential_exchange "
         "micro_solid_volume_fraction_mode '{}'. Currently supported: "
         "'reference', 'current_porosity_split'.",
-        mode);
-}
-
-PotentialExchangeMode parsePotentialExchangeMode(std::string const& mode)
-{
-    if (mode == "full_potential")
-    {
-        return PotentialExchangeMode::FullPotential;
-    }
-
-    OGS_FATAL(
-        "RichardsMechanics: unsupported potential_exchange mode '{}'. "
-        "Currently supported: 'full_potential'.",
         mode);
 }
 
@@ -227,10 +204,6 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
     auto const enabled =
         config.getConfigParameter<bool>("enabled",
                                         defaults ? defaults->enabled : false);
-
-    auto const mode = parsePotentialExchangeMode(
-        config.getConfigParameter<std::string>(
-            "mode", defaults ? toString(defaults->mode) : "full_potential"));
 
     auto const pressure_tolerance = config.getConfigParameter<double>(
         "pressure_tolerance",
@@ -437,10 +410,6 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context, fd_jacobian_perturbation);
     }
 
-    auto const check_local_jacobian = config.getConfigParameter<bool>(
-        "check_local_jacobian",
-        defaults ? defaults->check_local_jacobian : false);
-
     auto const local_jacobian_perturbation = config.getConfigParameter<double>(
         "local_jacobian_perturbation",
         defaults ? defaults->local_jacobian_perturbation : 1e-8);
@@ -449,27 +418,6 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         OGS_FATAL(
             "RichardsMechanics: {} local_jacobian_perturbation must be > 0, got {:g}.",
             context, local_jacobian_perturbation);
-    }
-
-    auto const local_jacobian_relative_tolerance =
-        config.getConfigParameter<double>(
-            "local_jacobian_relative_tolerance",
-            defaults ? defaults->local_jacobian_relative_tolerance : 1e-3);
-    if (!(local_jacobian_relative_tolerance >= 0.0))
-    {
-        OGS_FATAL(
-            "RichardsMechanics: {} local_jacobian_relative_tolerance must be >= 0, got {:g}.",
-            context, local_jacobian_relative_tolerance);
-    }
-
-    auto const vdw_relaxation_stress_gain = config.getConfigParameter<double>(
-        "vdw_relaxation_stress_gain",
-        defaults ? defaults->vdw_relaxation_stress_gain : 0.0);
-    if (!(vdw_relaxation_stress_gain >= 0.0))
-    {
-        OGS_FATAL(
-            "RichardsMechanics: {} vdw_relaxation_stress_gain must be >= 0, got {:g}.",
-            context, vdw_relaxation_stress_gain);
     }
 
     auto const vdw_augmentation_prefactor = config.getConfigParameter<double>(
@@ -494,17 +442,6 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context, vdw_augmentation_decay_length);
     }
 
-    auto const micro_water_content_stress_gain =
-        config.getConfigParameter<double>(
-            "micro_water_content_stress_gain",
-            defaults ? defaults->micro_water_content_stress_gain : 0.0);
-    if (!(micro_water_content_stress_gain >= 0.0))
-    {
-        OGS_FATAL(
-            "RichardsMechanics: {} micro_water_content_stress_gain must be >= 0, got {:g}.",
-            context, micro_water_content_stress_gain);
-    }
-
     auto const micro_water_content_swelling_slope =
         config.getConfigParameter<double>(
             "micro_water_content_swelling_slope",
@@ -518,7 +455,6 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
 
     return PotentialExchangeParameters{
         enabled,
-        mode,
         pressure_tolerance,
         hamaker_constant,
         specific_surface,
@@ -534,13 +470,9 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         initial_micro_water_content,
         use_fd_jacobian_for_exchange,
         fd_jacobian_perturbation,
-        check_local_jacobian,
         local_jacobian_perturbation,
-        local_jacobian_relative_tolerance,
-        vdw_relaxation_stress_gain,
         vdw_augmentation_prefactor,
         vdw_augmentation_decay_length,
-        micro_water_content_stress_gain,
         micro_water_content_swelling_slope};
 }
 

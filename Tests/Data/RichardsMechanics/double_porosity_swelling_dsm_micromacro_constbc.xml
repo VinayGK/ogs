@@ -3,7 +3,6 @@
     <add sel="/*/processes/process[1]">
         <potential_exchange>
             <enabled>true</enabled>
-            <mode>full_potential</mode>
             <pressure_tolerance>0.0</pressure_tolerance>
             <hamaker_constant>1e-30</hamaker_constant>
             <specific_surface>1.0</specific_surface>

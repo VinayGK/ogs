@@ -49,7 +49,6 @@ Geometry and setup: identical to calibrated_inflow.prj
             </micro_porosity>
             <potential_exchange>
                 <enabled>true</enabled>
-                <mode>full_potential</mode>
                 <pressure_tolerance>1e-12</pressure_tolerance>
                 <!-- Literature Hamaker constant: A_lit = 5.1e-21 J.
                      In the augmented model, A_lit is used for the vdW base term

@@ -17,7 +17,6 @@
             </micro_porosity>
             <potential_exchange>
                 <enabled>true</enabled>
-                <mode>full_potential</mode>
                 <pressure_tolerance>0.0</pressure_tolerance>
                 <hamaker_constant>6e-20</hamaker_constant>
                 <specific_surface>4000</specific_surface>

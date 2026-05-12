@@ -22,7 +22,6 @@
                  content and using literature-scale clay values. -->
             <potential_exchange>
                 <enabled>true</enabled>
-                <mode>full_potential</mode>
                 <pressure_tolerance>0.0</pressure_tolerance>
                 <hamaker_constant>5.1e-21</hamaker_constant>
                 <specific_surface>523</specific_surface>
