@@ -337,42 +337,30 @@ inline TransportPorosityUpdateData computeTransportPorosityUpdate(
     double const phi_m_prev_safe =
         std::min(std::max(0.0, phi_m_prev), std::max(0.0, phi_safe - phi_M_prev_safe));
 
+    // Hierarchical split:
+    //   phi = phi_M + (1 - phi_M) * n_l
+    //   phi_M = (phi - n_l) / (1 - n_l)
+    //   phi_m = (1 - phi_M) * n_l
+    //
+    // Keep the legacy "additive_macro_porosity_rate_mode" keyword as a config
+    // alias, but use the hierarchical split law here as requested.
     if (macro_porosity_update_mode ==
-        MacroPorosityUpdateMode::AlgebraicSplit)
-    {
-        double const phi_m = std::clamp(n_l, 0.0, phi_safe);
-        return {
-            .phi_M = phi_safe - phi_m,
-            .phi_M_prev = phi_M_prev_safe,
-            .phi_m = phi_m,
-            .phi_m_prev = phi_m_prev_safe,
-        };
-    }
-
-    double const phi_m = std::clamp(n_l, 0.0, phi_safe);
-
-    if (!(std::isfinite(denominator) && std::abs(denominator) > 1e-12))
+        MacroPorosityUpdateMode::ReferenceAdditiveRate)
     {
         static std::once_flag once;
         std::call_once(once, []
         {
-            WARN(
-                "DSM: additive_macro_porosity_rate_mode porosity update encountered a near-singular denominator and fell back to algebraic_split at least once.");
+            INFO(
+                "DSM: macro_porosity_update_mode='additive_macro_porosity_rate_mode' now evaluates the hierarchical porosity split.");
         });
-        return {
-            .phi_M = std::max(0.0, phi_safe - phi_m),
-            .phi_M_prev = phi_M_prev_safe,
-            .phi_m = phi_m,
-            .phi_m_prev = phi_m_prev_safe,
-        };
     }
 
-    double const phi_M_candidate =
-        (phi_M_prev_safe + (1.0 - phi_m) * delta_eps_v -
-         (phi_m - phi_m_prev_safe)) /
-        denominator;
-    double const phi_M = std::clamp(
-        phi_M_candidate, 0.0, std::max(0.0, phi_safe - phi_m));
+    double const n_l_safe = std::clamp(std::max(0.0, n_l), 0.0, phi_safe);
+    double const one_minus_n_l = std::max(1e-12, 1.0 - n_l_safe);
+    double const phi_M_candidate = (phi_safe - n_l_safe) / one_minus_n_l;
+    double const phi_M = std::clamp(phi_M_candidate, 0.0, phi_safe);
+    double const phi_m = std::clamp(
+        (1.0 - phi_M) * n_l_safe, 0.0, std::max(0.0, phi_safe - phi_M));
 
     return {
         .phi_M = phi_M,
@@ -1377,8 +1365,6 @@ inline void updatePorositySplitState(
         return;
     }
 
-    auto const mode =
-        potential_exchange_parameters->local_nonlinear_solve_mode;
     auto& micro_porosity = std::get<MicroPorosity>(state_current);
     auto& transport_porosity =
         std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(state_current)
@@ -1387,21 +1373,6 @@ inline void updatePorositySplitState(
         ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(state_previous)
                                 ->phi;
     auto const n_l = std::max(1e-16, *std::get<MicroWaterContent>(state_current));
-
-    if (mode == LocalNonlinearSolveMode::ScalarReferenceStorage ||
-        mode == LocalNonlinearSolveMode::ScalarReferenceMassStorage)
-    {
-        // Keep dsm_micromacro support split aligned with the bridge law:
-        // phi_m := n_l while transport_porosity remains the process state.
-        // The dsm_micromacro support split (phi_m, phi_M) can step outside the
-        // algebraic porosity bounds and should not collapse transport porosity.
-        *micro_porosity = n_l;
-        transport_porosity = phi_M_prev;
-        variables.transport_porosity = transport_porosity;
-        variables_prev.transport_porosity = phi_M_prev;
-        return;
-    }
-
     auto const phi_m_prev = **std::get<PrevState<MicroPorosity>>(state_previous);
 
     auto const transport_porosity_update =
@@ -1910,23 +1881,54 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     std::get<ProcessLib::ThermoRichardsMechanics::
                                  TransportPorosityData>(this->current_states_[ip])
                         .phi;
-                n_l_initial = std::max(1e-12, porosity - transport_porosity);
+                double const porosity_safe = std::clamp(
+                    std::max(0.0, porosity), 0.0, 1.0 - 1e-12);
+                double const transport_porosity_safe = std::clamp(
+                    std::max(0.0, transport_porosity), 0.0, porosity_safe);
+                double const one_minus_phi_M =
+                    std::max(1e-12, 1.0 - transport_porosity_safe);
+                n_l_initial =
+                    std::clamp((porosity_safe - transport_porosity_safe) /
+                                   one_minus_phi_M,
+                               1e-12, porosity_safe);
 
                 n_l_initial =
-                    potential_exchange_params_ptr->initial_micro_water_content
-                        .value_or(n_l_initial);
+                    std::clamp(
+                        potential_exchange_params_ptr->initial_micro_water_content
+                            .value_or(n_l_initial),
+                        1e-12, porosity_safe);
                 rho_lR_initial = std::max(
                     1e-16,
                     potential_exchange_params_ptr
                         ->micro_liquid_density_reference);
             }
 
+            double phi_m_initial = std::max(1e-16, n_l_initial);
+            if (isPotentialExchangeEnabled(potential_exchange_params_ptr))
+            {
+                auto const porosity_init_for_split =
+                    std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(
+                        this->current_states_[ip])
+                        .phi;
+                auto const transport_porosity_init_for_split =
+                    std::get<ProcessLib::ThermoRichardsMechanics::
+                                 TransportPorosityData>(this->current_states_[ip])
+                        .phi;
+                double const porosity_safe_for_split = std::clamp(
+                    std::max(0.0, porosity_init_for_split), 0.0, 1.0 - 1e-12);
+                double const transport_safe_for_split = std::clamp(
+                    std::max(0.0, transport_porosity_init_for_split), 0.0,
+                    porosity_safe_for_split);
+                phi_m_initial = std::clamp(
+                    (1.0 - transport_safe_for_split) * n_l_initial, 1e-16,
+                    porosity_safe_for_split);
+            }
             *n_l = n_l_initial;
             **n_l_prev = n_l_initial;
             *rho_lR = rho_lR_initial;
             **rho_lR_prev = rho_lR_initial;
-            *phi_m = n_l_initial;
-            **phi_m_prev = n_l_initial;
+            *phi_m = phi_m_initial;
+            **phi_m_prev = phi_m_initial;
 
             if (isPotentialExchangeEnabled(potential_exchange_params_ptr))
             {
@@ -1947,7 +1949,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         n_l_initial, rho_LR_initial,
                         {.phi = porosity,
                          .phi_M_prev = transport_porosity_init,
-                         .phi_m_prev = n_l_initial,
+                         .phi_m_prev = phi_m_initial,
                          .volumetric_strain = 0.0,
                          .volumetric_strain_prev = 0.0},
                         *potential_exchange_params_ptr);
@@ -1975,7 +1977,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     this->prev_states_[ip]);
                 auto const transport_porosity_update =
                     computeTransportPorosityUpdate(
-                        porosity, transport_porosity, n_l_initial, n_l_initial,
+                        porosity, transport_porosity, phi_m_initial, n_l_initial,
                         /*volumetric_strain=*/0.0,
                         /*volumetric_strain_prev=*/0.0,
                         potential_exchange_params_ptr
@@ -2464,12 +2466,12 @@ void RichardsMechanicsLocalAssembler<
                                            TransportPorosityData>>(
                         this->prev_states_[ip])
                         ->phi;
-                auto const n_l_prev = **std::get<PrevState<MicroWaterContent>>(
-                    this->prev_states_[ip]);
+                auto const phi_m_prev =
+                    **std::get<PrevState<MicroPorosity>>(this->prev_states_[ip]);
                 PotentialExchangeLocalSolveContext const local_solve_context{
                     .phi = phi,
                     .phi_M_prev = transport_porosity_prev,
-                    .phi_m_prev = n_l_prev,
+                    .phi_m_prev = phi_m_prev,
                     .volumetric_strain = variables.volumetric_strain,
                     .volumetric_strain_prev = variables_prev.volumetric_strain};
                 auto const micro_potential = computeActiveMicroPotential(
@@ -2710,14 +2712,14 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
     auto const transport_porosity_prev_value = std::get<PrevState<
         ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(state_previous)
                                                     ->phi;
-    auto const n_l_prev_value =
-        **std::get<PrevState<MicroWaterContent>>(state_previous);
+    auto const phi_m_prev_value =
+        **std::get<PrevState<MicroPorosity>>(state_previous);
 
     updateMicroscaleHydraulicState<DisplacementDim>(
         state_current, state_previous, p_cap_ip, rho_LR, mu, dt, variables, variables_prev,
         {.phi = phi,
          .phi_M_prev = transport_porosity_prev_value,
-         .phi_m_prev = n_l_prev_value,
+         .phi_m_prev = phi_m_prev_value,
          .volumetric_strain = variables.volumetric_strain,
          .volumetric_strain_prev = variables_prev.volumetric_strain},
         micro_porosity_parameters, potential_exchange_parameters);
@@ -3236,10 +3238,12 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         ->phi;
                 auto const n_l_prev = **std::get<PrevState<MicroWaterContent>>(
                     this->prev_states_[ip]);
+                auto const phi_m_prev =
+                    **std::get<PrevState<MicroPorosity>>(this->prev_states_[ip]);
                 PotentialExchangeLocalSolveContext const local_solve_context{
                     .phi = phi,
                     .phi_M_prev = transport_porosity_prev,
-                    .phi_m_prev = n_l_prev,
+                    .phi_m_prev = phi_m_prev,
                     .volumetric_strain = variables.volumetric_strain,
                     .volumetric_strain_prev = variables_prev.volumetric_strain};
                 auto const micro_potential = computeActiveMicroPotential(
@@ -3587,8 +3591,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             ProcessLib::ThermoRichardsMechanics::TransportPorosityData>>(
             this->prev_states_[ip])
                                                         ->phi;
-        auto const n_l_prev_value =
-            **std::get<PrevState<MicroWaterContent>>(
+        auto const phi_m_prev_value =
+            **std::get<PrevState<MicroPorosity>>(
                 this->prev_states_[ip]);
 
         updateMicroscaleHydraulicState<DisplacementDim>(
@@ -3596,7 +3600,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             rho_LR, mu, dt, variables, variables_prev,
             {.phi = phi,
              .phi_M_prev = transport_porosity_prev_value,
-             .phi_m_prev = n_l_prev_value,
+             .phi_m_prev = phi_m_prev_value,
              .volumetric_strain = variables.volumetric_strain,
              .volumetric_strain_prev = variables_prev.volumetric_strain},
             this->process_data_.micro_porosity_parameters,
