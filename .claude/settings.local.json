@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/vinaykumar/git/ogs worktree list)",
+      "Bash(git -C /Users/vinaykumar/git/ogs branch --show-current)",
+      "Bash(git -C /Users/vinaykumar/git/ogs log --oneline -5)",
+      "Bash(git -C /Users/vinaykumar/git/ogs status)",
+      "Bash(cmake --build . --target RichardsMechanicsLib RichardsMechanicsProcessTests -j8)",
+      "Bash(cmake --build /Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release --target RichardsMechanicsLib RichardsMechanicsProcessTests -j8)",
+      "Bash(cmake -S /Users/vinaykumar/git/ogs -B /Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release)",
+      "Bash(rm /Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release/CMakeCache.txt && cmake -S /Users/vinaykumar/git/ogs -B /Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release 2>&1 | tail -30)",
+      "Bash(cmake --build /Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release --target RichardsMechanicsProcessTests -j8)",
+      "Bash(cmake --build /Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release --target help)",
+      "Bash(cmake --build /Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release --target RichardsMechanics -j8)",
+      "Bash(cmake --build /Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release --target testrunner -j8)",
+      "Bash(cmake --build /Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release --target ogs -j8)",
+      "Bash(ctest -R \"RichardsMechanics\" --output-on-failure -j4)",
+      "Bash(/usr/bin/sed -i '' '/<mode>full_potential<\\\\/mode>/d' /Users/vinaykumar/git/ogs/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/run_villar_dense_dd_native_purevdw_calibration.py /Users/vinaykumar/git/ogs/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/run_villar_dense_dd_native_augmented_calibration.py)",
+      "Bash(ctest -R \"beacon_1a01_dsm_micromacro|beacon_1b_dsm_micromacro|beacon_1c_dsm_micromacro|double_porosity_swelling_dsm_micromacro\" --output-on-failure)",
+      "Bash(ctest -R \"beacon_1c_dsm_micromacro_reference-time-vtkdiff\" --output-on-failure)",
+      "Bash(ctest -R \"beacon_1c_dsm_micromacro_reference\" --output-on-failure)",
+      "Bash(ctest -R \"RichardsMechanics\" -j4)",
+      "Bash(ctest -R \"RichardsMechanics\" -j2)",
+      "Bash(grep -v \"^$\")",
+      "Bash(ls /Users/vinaykumar/ogs-models/decovalex/)",
+      "Bash(unzip -o Basis_Gas_Test.zip -d basis_gas_test)",
+      "Bash(ninja -j8 RichardsMechanics testrunner ogs)",
+      "Bash(ctest -N -R DSMMicroMacro)",
+      "Bash(bin/testrunner --gtest_list_tests)",
+      "Bash(OMP_NUM_THREADS=1 bin/testrunner --gtest_filter=\"RichardsMechanics.DSMMicroMacro*\")",
+      "Bash(OMP_NUM_THREADS=1 ctest -R \"RichardsMechanics|DSM\" -E \"omp\" --output-on-failure -j4)",
+      "Bash(cp /Users/vinaykumar/git/build/vtk96-release-omp-mfront/Tests/Data/RichardsMechanics/beacon_1c_dsm_micromacro_smoke_t_1000.000000.vtu \\\\ *)",
+      "Bash(OMP_NUM_THREADS=1 ctest -R \"beacon_1c_dsm_micromacro\" --output-on-failure)",
+      "Bash(ls /Users/vinaykumar/tex/cc2024/VK_B35_Pinion_May_2026/)",
+      "Bash(xelatex -interaction=nonstopmode nagel_porosity_split.tex)",
+      "Bash(pdflatex -interaction=nonstopmode nagel_porosity_split.tex)"
+    ]
+  }
+}

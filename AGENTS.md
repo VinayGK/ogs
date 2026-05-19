@@ -170,14 +170,6 @@ the opposite of physical reality.
 
 ### Suggested fix (not yet implemented)
 
-**Primary fix — replace the swelling stress formula in
-`computeReferenceMicroPorositySwellingStressIncrement`**:
-Change from the elastic eigenstrain `K_bulk × slope × Δn_l` to the disjoining-pressure
-coupling `Π(ξ) × n_S × ρ_SR × Sa × f_geom`. This removes the φ₀ cap entirely; P_sw
-is then set by the exchange equilibrium `K × exp(−ξ_eq) = p_L_eq`, which naturally
-grows with density through the n_S dependence of ξ_eq. No change to the constitutive
-model is strictly required.
-
 **Secondary concern — MFront numerical stability**: `semiExpl` integration fails
 (status -1) for K > ~260 J/kg because rapid exchange drives the trial stress far past
 p_c0 in a single day-step. This is an independent issue — a more implicit MFront
@@ -187,6 +179,126 @@ formula is used.
 **Documentation**: The problem and fix are described in the beamer presentation
 `~/tex/cc2024/VK_B35_Pinion_May_2026/nagel_porosity_split.tex`, section
 "Open problem: swelling-pressure density dependence" (last 3 slides before Questions).
+
+---
+
+### Agent implementation instructions: disjoining-pressure swelling stress
+
+**Goal**: Replace the elastic eigenstrain formula in
+`computeReferenceMicroPorositySwellingStressIncrement` with the physically correct
+disjoining-pressure formula. This removes the φ₀ cap and gives P_sw that grows with
+dry density.
+
+**File**: `ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h`
+
+**Physics**: The correct swelling stress increment is:
+
+```
+δσ_sw = n_S × [Π(ξ_curr) − Π(ξ_prev)] × I
+
+where  Π(ξ) = ρ_LR × K × exp(−ξ)          [Pa]
+       ξ     = n_l / (λ × n_S × ρ_SR × Sa) [dimensionless]
+       n_S   = 1 − φ_M  (aggregate fraction)
+       K     = potential_exchange_params.vdw_augmentation_prefactor
+       λ     = potential_exchange_params.vdw_augmentation_decay_length
+       ρ_SR  = potential_exchange_params.micro_solid_density_reference
+       Sa    = potential_exchange_params.specific_surface
+```
+
+Only activate this path when `vdw_augmentation_prefactor > 0`; fall through to the
+existing eigenstrain path otherwise (preserves backward compatibility).
+
+**Step 1 — Extend function signature** (~line 1434):
+
+Add `double const n_S` and `double const rho_LR` after `n_l` in
+`computeReferenceMicroPorositySwellingStressIncrement`:
+
+```cpp
+computeReferenceMicroPorositySwellingStressIncrement(
+    double const n_l_prev, double const n_l,
+    double const n_S, double const rho_LR,
+    MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
+    PotentialExchangeParameters const& potential_exchange_params)
+```
+
+**Step 2 — Insert disjoining-pressure branch** inside the function, after the
+`delta_n_l` finiteness guard (~line 1455) and before the existing eigenstrain block:
+
+```cpp
+if (potential_exchange_params.vdw_augmentation_prefactor > 0.0 &&
+    potential_exchange_params.vdw_augmentation_decay_length > 0.0 &&
+    n_S > 0.0)
+{
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(
+            DisplacementDim)>::identity2;
+    double const denom =
+        potential_exchange_params.vdw_augmentation_decay_length * n_S *
+        potential_exchange_params.micro_solid_density_reference *
+        potential_exchange_params.specific_surface;
+    double const xi_curr = n_l / denom;
+    double const xi_prev = n_l_prev / denom;
+    double const K = potential_exchange_params.vdw_augmentation_prefactor;
+    double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
+    double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
+    // Compressive sign: more water (n_l up) → smaller ξ → larger Π → swelling.
+    // sigma_sw is accumulated as a compressive eigenstress (matches eigenstrain sign).
+    delta_sigma_sw.noalias() -= n_S * (Pi_curr - Pi_prev) * identity2;
+    return delta_sigma_sw;
+}
+```
+
+The early return means the eigenstrain block below only executes when augmentation is
+off.
+
+**Step 3 — Update `computeSwellingStressIncrement`** (~line 1469), the thin wrapper:
+
+```cpp
+template <int DisplacementDim>
+inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
+computeSwellingStressIncrement(
+    double const n_l_prev, double const n_l,
+    double const n_S, double const rho_LR,
+    MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
+    PotentialExchangeParameters const& potential_exchange_params)
+{
+    return computeReferenceMicroPorositySwellingStressIncrement<DisplacementDim>(
+        n_l_prev, n_l, n_S, rho_LR, C_el, potential_exchange_params);
+}
+```
+
+**Step 4 — Update `updateSwellingState`** (~line 1478):
+
+After extracting `n_l` and `n_l_prev` from state (~line 1500), add:
+
+```cpp
+auto const phi_M =
+    std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(
+        state_current).phi;
+double const n_S = std::max(1e-16, 1.0 - phi_M);
+double const rho_LR = *std::get<MicroLiquidDensity>(state_current);
+```
+
+Then update the call (~line 1514):
+
+```cpp
+sigma_sw.sigma_sw +=
+    computeSwellingStressIncrement<DisplacementDim>(
+        n_l_prev, n_l, n_S, rho_LR, C_el, potential_exchange_params);
+```
+
+**Step 5 — Build and test**:
+- Build: `cmake --build /Users/vinaykumar/git/build/release-omp-mfront --target ogs -j`
+- Gate test: `ctest -j 18 --output-on-failure -R "ogs-RichardsMechanics(/DoubleStructureBenchmark/double_porosity_swelling_RM|_.*dsm_micromacro)"`
+  (32/32 must pass; these use `micro_water_content_swelling_slope` but K=0 augmentation
+  falls through to the eigenstrain path, so they must be unaffected)
+- Calibration check: run
+  `python3 Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/run_villar_dense_dd_native_augmented_calibration.py`
+  Expected: swelling pressure now grows with ρ_d rather than saturating at ~2 MPa.
+  If sign is inverted (P_sw negative), flip the `−=` to `+=` in Step 2.
+
+**Sign note**: `MicroLiquidDensity` is a `StrongType<double, ...>`; dereference with
+`*std::get<MicroLiquidDensity>(state_current)` to obtain the `double` value.
 
 ### Agent implementation protocol (model correction)
 
