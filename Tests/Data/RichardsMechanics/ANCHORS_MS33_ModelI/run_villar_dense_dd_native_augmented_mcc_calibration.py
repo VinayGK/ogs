@@ -419,34 +419,39 @@ def write_project(
     prj_path.write_text(xml)
 
 
-def run_ogs(ogs_bin: Path, lib_path: Path, prj: Path) -> None:
+def run_ogs(ogs_bin: Path, lib_path: Path, prj: Path) -> bool:
+    """Run OGS. Returns True on success, False if OGS exits non-zero."""
     env = os.environ.copy()
     if lib_path.exists():
         env["DYLD_LIBRARY_PATH"] = str(lib_path)
     env["OMP_NUM_THREADS"] = str(OMP_THREADS)
     env["OGS_ASM_THREADS"] = str(OMP_THREADS)
-    subprocess.run(
+    result = subprocess.run(
         [str(ogs_bin), str(prj)],
         cwd=ROOT,
-        check=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
         env=env,
     )
+    return result.returncode == 0
 
 
 def run_trial(
     ogs_bin: Path, lib_path: Path, case: Case, K: float, lam: float, n_l0: float, idx: int
 ) -> dict:
+    """Returns dict with keys K, pressure_mpa, converged."""
     tag = f"_anchors_mcc_dd{int(case.dry_density)}_{idx:03d}"
     prj = ROOT / f"{tag}.prj"
     write_project(case, prj, K, lam, n_l0)
     try:
-        run_ogs(ogs_bin, lib_path, prj)
-        p_mpa = read_mean_pressure_mpa(last_vtu(tag))
+        ok = run_ogs(ogs_bin, lib_path, prj)
+        if ok:
+            p_mpa = read_mean_pressure_mpa(last_vtu(tag))
+        else:
+            p_mpa = 0.0
     finally:
         cleanup(tag, prj)
-    return {"K": K, "pressure_mpa": p_mpa}
+    return {"K": K, "pressure_mpa": p_mpa, "converged": ok}
 
 
 def calibrate_K(
@@ -472,8 +477,18 @@ def calibrate_K(
     deficit = max(target - r_lo["pressure_mpa"], 1e-12)
     K_hi = deficit * RHO_LR_REF * 10.0
 
-    r_hi = run_trial(ogs_bin, lib_path, case, K_hi, lam, n_l0, run_id)
-    run_id += 1
+    # Find a K_hi that both converges and brackets the target from above.
+    # If OGS diverges (MCC integrator overloaded), halve K_hi until it converges.
+    MAX_SHRINK = 30
+    for _ in range(MAX_SHRINK):
+        r_hi = run_trial(ogs_bin, lib_path, case, K_hi, lam, n_l0, run_id)
+        run_id += 1
+        if r_hi["converged"]:
+            break
+        K_hi *= 0.5
+    else:
+        return best  # no converging K_hi found
+
     if rel_err(r_hi["pressure_mpa"]) < rel_err(best["pressure_mpa"]):
         best = r_hi
 
@@ -484,6 +499,9 @@ def calibrate_K(
         K_hi = K_hi * 5.0
         r_hi = run_trial(ogs_bin, lib_path, case, K_hi, lam, n_l0, run_id)
         run_id += 1
+        # If expansion diverges, treat it as "K too large" — stop expanding
+        if not r_hi["converged"]:
+            break
         if rel_err(r_hi["pressure_mpa"]) < rel_err(best["pressure_mpa"]):
             best = r_hi
 
@@ -496,6 +514,10 @@ def calibrate_K(
             break
         r_mid = run_trial(ogs_bin, lib_path, case, K_mid, lam, n_l0, run_id)
         run_id += 1
+        # Diverged mid-point: shrink upper bracket
+        if not r_mid["converged"]:
+            K_hi = K_mid
+            continue
         if rel_err(r_mid["pressure_mpa"]) < rel_err(best["pressure_mpa"]):
             best = r_mid
         if rel_err(r_mid["pressure_mpa"]) < rel_tol:
@@ -546,12 +568,14 @@ def main() -> None:
         target = case.villar_target_mpa
         xi0 = n_l0 / (lam * case.n_s * RHO_SOLID * SPECIFIC_SURFACE)
         result = calibrate_K(args.ogs_bin, lib_path, case, lam, n_l0, target, args.rel_tol)
+        converged = result.get("converged", True)
         print(
             f"dd={case.dry_density:.0f} kg/m³: "
             f"target={target:.4f} MPa  "
             f"calibrated={result['pressure_mpa']:.4f} MPa  "
             f"K={result['K']:.4e} J/kg  "
             f"v0={case.volume_ratio_v0:.4f}"
+            + ("" if converged else "  [diverged]")
         )
         rows.append(
             {
@@ -563,6 +587,7 @@ def main() -> None:
                 "target_villar_MPa": target,
                 "calibrated_MPa": result["pressure_mpa"],
                 "K_calibrated_J_kg": result["K"],
+                "converged": converged,
                 "lambda_m": lam,
                 "xi0": xi0,
                 "n_l0": n_l0,

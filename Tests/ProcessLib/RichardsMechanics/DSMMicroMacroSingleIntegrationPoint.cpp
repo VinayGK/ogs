@@ -889,20 +889,20 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
 
     auto const loading_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, C_el, potential_exchange_params);
+            0.2, 0.3, 0.7, 1000.0, C_el, potential_exchange_params);
     auto const expected_loading = -(0.1 * (0.3 - 0.2) / 3.0) * identity2;
     EXPECT_NEAR((loading_increment - expected_loading).norm(), 0.0, 1e-14);
 
     auto const unloading_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.3, 0.2, C_el, potential_exchange_params);
+            0.3, 0.2, 0.7, 1000.0, C_el, potential_exchange_params);
     auto const expected_unloading = -(0.1 * (0.2 - 0.3) / 3.0) * identity2;
     EXPECT_NEAR((unloading_increment - expected_unloading).norm(), 0.0, 1e-14);
 
     potential_exchange_params.micro_water_content_swelling_slope = 0.0;
     auto const disabled_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, C_el, potential_exchange_params);
+            0.2, 0.3, 0.7, 1000.0, C_el, potential_exchange_params);
     EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
 }
 

@@ -152,3 +152,26 @@ split, *never* A_eff. This matches the mfront calibration reference
 (`n_l0_from_micro_suction(case.phi0, HAMAKER_LITERATURE)`). Using A_eff
 gives a grossly wrong initial state (n_l0 ≈ 0.087 at ρ_d=1500 with Villar
 A_eff) and leaves no swelling headroom.
+
+## 2026-05-19 agent note: Villar calibration rerun (successful)
+
+Calibration command that worked in this environment:
+
+```bash
+python3 Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/run_villar_dense_dd_native_augmented_calibration.py \
+  --ogs-bin /Users/vinaykumar/git/build/release-omp-mfront/bin/ogs \
+  --lib-path /Users/vinaykumar/git/build/release-omp-mfront/lib
+```
+
+Reason for explicit `--ogs-bin/--lib-path`:
+- Default `dsm_native-release` binary currently aborts here due missing
+  `libvtkIOXML-9.5.1.dylib`.
+
+Result artifacts updated:
+- `Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/villar_dense_dd_native_augmented_lam1en06_calibration.csv`
+- `Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/villar_dense_dd_native_augmented_lam1en06_summary.json`
+
+Fit quality from summary JSON:
+- mean relative error: `0.9635 %`
+- max relative error: `1.8122 %`
+- density range: `1400..1800 kg/m^3` (step `25`)

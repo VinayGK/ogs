@@ -3,8 +3,8 @@
   "hamaker_literature_J": 5.1e-21,
   "specific_surface": 523.0,
   "n_density_points": 17,
-  "mean_rel_error_percent": 56.86159544518322,
-  "max_rel_error_percent": 93.25289888373722,
+  "mean_rel_error_percent": 0.9634982953480691,
+  "max_rel_error_percent": 1.8121526658298894,
   "results": [
     {
       "dry_density_kg_m3": 1400.0,
@@ -12,14 +12,14 @@
       "phi0": 0.49640287769784175,
       "n_s_ref": 0.5035971223021583,
       "target_villar_MPa": 1.5038071611701085,
-      "calibrated_MPa": 1.504983142476657,
-      "K_calibrated_J_kg": 964.0711155618746,
+      "calibrated_MPa": 1.4907611113939863,
+      "K_calibrated_J_kg": 5444.166299643527,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398555,
       "n_l0": 0.001023703867471382,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": 0.0011759813065486124
+      "delta_MPa": -0.013046049776122226
     },
     {
       "dry_density_kg_m3": 1425.0,
@@ -27,14 +27,14 @@
       "phi0": 0.487410071942446,
       "n_s_ref": 0.512589928057554,
       "target_villar_MPa": 1.78113357233691,
-      "calibrated_MPa": 1.7579450328220496,
-      "K_calibrated_J_kg": 1080.2014773728672,
+      "calibrated_MPa": 1.754030216211525,
+      "K_calibrated_J_kg": 6481.208864237204,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398551,
       "n_l0": 0.001041984293676228,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -0.02318853951486033
+      "delta_MPa": -0.027103356125384837
     },
     {
       "dry_density_kg_m3": 1450.0,
@@ -42,14 +42,14 @@
       "phi0": 0.4784172661870504,
       "n_s_ref": 0.5215827338129496,
       "target_villar_MPa": 2.1096034680651288,
-      "calibrated_MPa": 2.0685470063577345,
-      "K_calibrated_J_kg": 514003.17591252684,
+      "calibrated_MPa": 2.147832703550111,
+      "K_calibrated_J_kg": 8031.299623633233,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398555,
       "n_l0": 0.0010602647198810742,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -0.0410564617073943
+      "delta_MPa": 0.03822923548498203
     },
     {
       "dry_density_kg_m3": 1475.0,
@@ -57,14 +57,14 @@
       "phi0": 0.46942446043165464,
       "n_s_ref": 0.5305755395683454,
       "target_villar_MPa": 2.4986485357374417,
-      "calibrated_MPa": 2.029498966237464,
-      "K_calibrated_J_kg": 24442.80343952591,
+      "calibrated_MPa": 2.5214167863616335,
+      "K_calibrated_J_kg": 9547.970093564807,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398551,
       "n_l0": 0.0010785451460859203,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -0.46914956949997766
+      "delta_MPa": 0.022768250624191744
     },
     {
       "dry_density_kg_m3": 1500.0,
@@ -72,14 +72,14 @@
       "phi0": 0.460431654676259,
       "n_s_ref": 0.539568345323741,
       "target_villar_MPa": 2.959439818739489,
-      "calibrated_MPa": 1.990450926117196,
-      "K_calibrated_J_kg": 29042.962867545248,
+      "calibrated_MPa": 2.957484236063987,
+      "K_calibrated_J_kg": 11344.90737013486,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398551,
       "n_l0": 0.0010968255722907663,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -0.9689888926222927
+      "delta_MPa": -0.001955582675501777
     },
     {
       "dry_density_kg_m3": 1525.0,
@@ -87,14 +87,14 @@
       "phi0": 0.4514388489208633,
       "n_s_ref": 0.5485611510791367,
       "target_villar_MPa": 3.505208481894766,
-      "calibrated_MPa": 1.9514028859969266,
-      "K_calibrated_J_kg": 34492.91657022856,
+      "calibrated_MPa": 3.4668514806256208,
+      "K_calibrated_J_kg": 13473.795535245532,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398553,
       "n_l0": 0.0011151059984956127,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -1.5538055958978394
+      "delta_MPa": -0.03835700126914521
     },
     {
       "dry_density_kg_m3": 1550.0,
@@ -102,14 +102,14 @@
       "phi0": 0.44244604316546765,
       "n_s_ref": 0.5575539568345323,
       "target_villar_MPa": 4.151625731244024,
-      "calibrated_MPa": 1.9123548458766586,
-      "K_calibrated_J_kg": 204746.8811172061,
+      "calibrated_MPa": 4.222695356319319,
+      "K_calibrated_J_kg": 16635.684090772997,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398551,
       "n_l0": 0.0011333864247004585,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -2.239270885367365
+      "delta_MPa": 0.07106962507529513
     },
     {
       "dry_density_kg_m3": 1575.0,
@@ -117,14 +117,14 @@
       "phi0": 0.4334532374100719,
       "n_s_ref": 0.5665467625899281,
       "target_villar_MPa": 4.917252797188951,
-      "calibrated_MPa": 1.8733068057563889,
-      "K_calibrated_J_kg": 48597.95375996967,
+      "calibrated_MPa": 4.94224905474141,
+      "K_calibrated_J_kg": 19742.918714987678,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398553,
       "n_l0": 0.001151666850905305,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -3.0439459914325617
+      "delta_MPa": 0.024996257552459156
     },
     {
       "dry_density_kg_m3": 1600.0,
@@ -132,14 +132,14 @@
       "phi0": 0.4244604316546763,
       "n_s_ref": 0.5755395683453237,
       "target_villar_MPa": 5.824073901819978,
-      "calibrated_MPa": 1.83425876563612,
-      "K_calibrated_J_kg": 57658.491042134665,
+      "calibrated_MPa": 5.778854935178342,
+      "K_calibrated_J_kg": 23423.761985867208,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398553,
       "n_l0": 0.0011699472771101508,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -3.989815136183858
+      "delta_MPa": -0.04521896664163627
     },
     {
       "dry_density_kg_m3": 1625.0,
@@ -147,14 +147,14 @@
       "phi0": 0.41546762589928055,
       "n_s_ref": 0.5845323741007195,
       "target_villar_MPa": 6.898127514056516,
-      "calibrated_MPa": 1.7952107255158505,
-      "K_calibrated_J_kg": 68391.37241257181,
+      "calibrated_MPa": 7.007069095695367,
+      "K_calibrated_J_kg": 28852.610236553737,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398553,
       "n_l0": 0.001188227703314997,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -5.102916788540666
+      "delta_MPa": 0.1089415816388506
     },
     {
       "dry_density_kg_m3": 1650.0,
@@ -162,14 +162,14 @@
       "phi0": 0.4064748201438849,
       "n_s_ref": 0.5935251798561151,
       "target_villar_MPa": 8.170254018465311,
-      "calibrated_MPa": 1.756162685395583,
-      "K_calibrated_J_kg": 81105.00138183315,
+      "calibrated_MPa": 8.196944007003802,
+      "K_calibrated_J_kg": 34216.172457960856,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398555,
       "n_l0": 0.0012065081295198432,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -6.414091333069728
+      "delta_MPa": 0.02668998853849125
     },
     {
       "dry_density_kg_m3": 1675.0,
@@ -177,14 +177,14 @@
       "phi0": 0.3974820143884892,
       "n_s_ref": 0.6025179856115108,
       "target_villar_MPa": 9.676981266325395,
-      "calibrated_MPa": 1.7171146452753134,
-      "K_calibrated_J_kg": 96164.65613849103,
+      "calibrated_MPa": 9.540454105265182,
+      "K_calibrated_J_kg": 40569.4643084259,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398551,
       "n_l0": 0.001224788555724689,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -7.9598666210500815
+      "delta_MPa": -0.13652716106021323
     },
     {
       "dry_density_kg_m3": 1700.0,
@@ -192,14 +192,14 @@
       "phi0": 0.38848920863309355,
       "n_s_ref": 0.6115107913669064,
       "target_villar_MPa": 11.461573436660695,
-      "calibrated_MPa": 1.6780666051550446,
-      "K_calibrated_J_kg": 114002.97815895244,
+      "calibrated_MPa": 11.51901653254124,
+      "K_calibrated_J_kg": 49876.30294454169,
       "lambda_m": 1e-06,
       "xi0": 0.001398120551039855,
       "n_l0": 0.001243068981929535,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -9.783506831505651
+      "delta_MPa": 0.057443095880545414
     },
     {
       "dry_density_kg_m3": 1725.0,
@@ -207,14 +207,14 @@
       "phi0": 0.3794964028776978,
       "n_s_ref": 0.6205035971223022,
       "target_villar_MPa": 13.575273324245082,
-      "calibrated_MPa": 1.6390185650347757,
-      "K_calibrated_J_kg": 135132.39508702903,
+      "calibrated_MPa": 13.444968467734245,
+      "K_calibrated_J_kg": 59120.422850575196,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398553,
       "n_l0": 0.0012613494081343815,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -11.936254759210305
+      "delta_MPa": -0.13030485651083623
     },
     {
       "dry_density_kg_m3": 1750.0,
@@ -222,14 +222,14 @@
       "phi0": 0.3705035971223022,
       "n_s_ref": 0.6294964028776978,
       "target_villar_MPa": 16.078773725647544,
-      "calibrated_MPa": 1.5999705249145062,
-      "K_calibrated_J_kg": 160159.83459393715,
+      "calibrated_MPa": 16.261298490414358,
+      "K_calibrated_J_kg": 72572.42505037776,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398551,
       "n_l0": 0.0012796298343392273,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -14.478803200733038
+      "delta_MPa": 0.18252476476681423
     },
     {
       "dry_density_kg_m3": 1775.0,
@@ -237,14 +237,14 @@
       "phi0": 0.36151079136690645,
       "n_s_ref": 0.6384892086330936,
       "target_villar_MPa": 19.043960172709813,
-      "calibrated_MPa": 1.560922484794236,
-      "K_calibrated_J_kg": 189804.1517126491,
+      "calibrated_MPa": 18.856488429270602,
+      "K_calibrated_J_kg": 86005.00624479412,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398553,
       "n_l0": 0.0012979102605440737,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -17.483037687915576
+      "delta_MPa": -0.18747174343921102
     },
     {
       "dry_density_kg_m3": 1800.0,
@@ -252,14 +252,14 @@
       "phi0": 0.3525179856115108,
       "n_s_ref": 0.6474820143884892,
       "target_villar_MPa": 22.555975054319816,
-      "calibrated_MPa": 1.5218744446739685,
-      "K_calibrated_J_kg": 224916.77005522765,
+      "calibrated_MPa": 22.6038921411043,
+      "K_calibrated_J_kg": 105429.73596338797,
       "lambda_m": 1e-06,
       "xi0": 0.0013981205510398553,
       "n_l0": 0.0013161906867489197,
       "hamaker_literature_J": 5.1e-21,
       "specific_surface": 523.0,
-      "delta_MPa": -21.034100609645847
+      "delta_MPa": 0.04791708678448359
     }
   ]
 }

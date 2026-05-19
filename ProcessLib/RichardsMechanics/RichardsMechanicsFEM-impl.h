@@ -1433,6 +1433,7 @@ template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeReferenceMicroPorositySwellingStressIncrement(
     double const n_l_prev, double const n_l,
+    double const n_S, double const rho_LR,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
 {
@@ -1454,6 +1455,28 @@ computeReferenceMicroPorositySwellingStressIncrement(
         return delta_sigma_sw;
     }
 
+    if (potential_exchange_params.vdw_augmentation_prefactor > 0.0 &&
+        potential_exchange_params.vdw_augmentation_decay_length > 0.0 &&
+        n_S > 0.0)
+    {
+        auto const& identity2 = MathLib::KelvinVector::Invariants<
+            MathLib::KelvinVector::kelvin_vector_dimensions(
+                DisplacementDim)>::identity2;
+        double const denom =
+            potential_exchange_params.vdw_augmentation_decay_length * n_S *
+            potential_exchange_params.micro_solid_density_reference *
+            potential_exchange_params.specific_surface;
+        double const xi_curr = n_l / denom;
+        double const xi_prev = n_l_prev / denom;
+        double const K = potential_exchange_params.vdw_augmentation_prefactor;
+        double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
+        double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
+        // Compressive sign: more water (n_l up) -> larger xi -> smaller Pi ->
+        // negative increment -> sigma_sw accumulates as a compressive eigenstress.
+        delta_sigma_sw.noalias() += n_S * (Pi_curr - Pi_prev) * identity2;
+        return delta_sigma_sw;
+    }
+
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(
             DisplacementDim)>::identity2;
@@ -1468,11 +1491,12 @@ template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeSwellingStressIncrement(
     double const n_l_prev, double const n_l,
+    double const n_S, double const rho_LR,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
 {
     return computeReferenceMicroPorositySwellingStressIncrement<DisplacementDim>(
-        n_l_prev, n_l, C_el, potential_exchange_params);
+        n_l_prev, n_l, n_S, rho_LR, C_el, potential_exchange_params);
 }
 
 template <int DisplacementDim>
@@ -1499,6 +1523,11 @@ inline void updateSwellingState(
 
     auto const n_l_prev = **std::get<PrevState<MicroWaterContent>>(state_previous);
     auto const n_l = *std::get<MicroWaterContent>(state_current);
+    auto const phi_M =
+        std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(
+            state_current).phi;
+    double const n_S = std::max(1e-16, 1.0 - phi_M);
+    double const rho_LR = *std::get<MicroLiquidDensity>(state_current);
 
     auto& sigma_sw =
         std::get<ProcessLib::ThermoRichardsMechanics::
@@ -1512,7 +1541,7 @@ inline void updateSwellingState(
     sigma_sw = *sigma_sw_prev;
     sigma_sw.sigma_sw +=
         computeSwellingStressIncrement<DisplacementDim>(
-            n_l_prev, n_l, C_el, potential_exchange_params);
+            n_l_prev, n_l, n_S, rho_LR, C_el, potential_exchange_params);
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(
