@@ -50,10 +50,10 @@ physically by capturing thin-film surface forces that dominate at high compactio
 
 ## OGS binary
 
-Binary: `/Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release/bin/ogs`
-Library path: `/Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release/lib`
-Version: `vdw-baseline-2026-05-08`
-MFront: OFF (not available in this build)
+Binary: `/Users/vinaykumar/git/build/release-omp-mfront/bin/ogs`
+Library path: `/Users/vinaykumar/git/build/release-omp-mfront/lib`
+Version (from runtime banner): `OpenGeoSys-6 version 6.5.7-200-gb69be527`
+MFront: available in this build preset (`release-omp-mfront`)
 
 ## Important adaptation: LinearElastic vs MFront MCC
 
@@ -75,14 +75,14 @@ To get exactly 604 kPa with LinearElastic, A_eff would need a separate native-sp
 ## Workflow to run calibrations
 
 ```bash
-OGS=/Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release/bin/ogs
-DYLD_LIBRARY_PATH=/Users/vinaykumar/git/build/ogs-worktrees/build/dsm_native-release/lib
+OGS=/Users/vinaykumar/git/build/release-omp-mfront/bin/ogs
+DYLD_LIBRARY_PATH=/Users/vinaykumar/git/build/release-omp-mfront/lib
 export DYLD_LIBRARY_PATH
 
 cd Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI
 
-# Pure vdW calibration — restrict to ρ_d ≤ 1418 kg/m³ (LinearElastic cap)
-python3 run_villar_dense_dd_native_purevdw_calibration.py --ogs-bin $OGS --dd-min 1400 --dd-max 1418
+# Full pure vdW sweep (17 points)
+python3 run_villar_dense_dd_native_purevdw_calibration.py --ogs-bin $OGS
 
 # Augmented calibration at physical 1 nm decay (default; see lambda unit note below)
 python3 run_villar_dense_dd_native_augmented_calibration.py --ogs-bin $OGS --lam 1e-6
@@ -103,9 +103,45 @@ python3 compare_purevdw_vs_augmented.py
 - [x] Comparison script written
 - [x] Calibrated BEACON 1a01 project file written
 - [x] Augmented BEACON 1a01 project file written (placeholder K; update after calibration)
-- [ ] Pure vdW calibration run completed (17 points)
-- [ ] Augmented calibration run completed (17 points)
-- [ ] BEACON 1a01 calibrated inflow run and compared to 604 kPa target
+- [x] Pure vdW calibration run completed (17 points)
+- [x] Augmented calibration run completed (17 points)
+- [x] BEACON 1a01 calibrated inflow run and compared to 604 kPa target
+
+## 2026-05-19 run results
+
+### ANCHORS calibration outputs
+
+- Pure vdW (`villar_dense_dd_native_purevdw_calibration_summary.json`)
+  - points: 17 (`1400..1800 kg/m³`, `step=25`)
+  - mean relative error: 56.776%
+  - max relative error: 93.228%
+  - calibrated `m_vdW` range: `9.73e4 .. 4.23e8`
+- Augmented (`lambda=1e-6`, `villar_dense_dd_native_augmented_lam1en06_summary.json`)
+  - points: 17
+  - mean relative error: 56.783%
+  - max relative error: 93.228%
+  - calibrated `K` range: `9.61e2 .. 2.25e5 J/kg`
+- Comparison figures generated:
+  - `compare_purevdw_vs_augmented_overview.png`
+  - `compare_purevdw_vs_augmented_accuracy.png`
+  - `compare_purevdw_vs_augmented_param.png`
+
+Interpretation:
+- For this LinearElastic setup, augmented vdW did not reduce the high-density misfit;
+  both models saturate near `~1.53 MPa` at `rho_d=1800 kg/m³`, consistent with the
+  stiffness cap described above.
+
+### BEACON 1a01 calibrated inflow check
+
+- Run: `beacon_1a01_dsm_micromacro_calibrated_inflow.prj` (`t_end=1e5 s`)
+- Final file: `beacon_1a01_dsm_micromacro_calibrated_inflow_ts_88_t_100000.000000.vtu`
+- Mean stresses from `sigma` (compression positive after sign flip):
+  - radial: `890.388 kPa`
+  - axial: `890.388 kPa`
+  - hoop: `890.388 kPa`
+- Compared to targets:
+  - axial target `604 kPa`: `+286.388 kPa` (`+47.4%`)
+  - radial target `994 kPa`: `-103.612 kPa` (`-10.4%`)
 
 ## Physical parameters used (ANCHORS calibration cell)
 

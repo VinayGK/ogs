@@ -4,10 +4,14 @@ Keep this file short. It exists to reduce repeated setup and context gathering i
 
 ## Current session
 
-- Active task: RichardsMechanics transition work tied to `materialmodels/src/TPM/THMDSMRichardsVK_OGS_RM_transition.tex`.
-- Touch points: `ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h`, `Tests/ProcessLib/RichardsMechanics/NotebookSingleIntegrationPoint.cpp`, `Tests/Data/RichardsMechanics/beacon_1a01_notebook_roles.prj`, and the generated `Tests/Data/RichardsMechanics/beacon_1a01_notebook_stressprobe*` outputs.
-- Preferred build tree: `build/release-omp-mfront` when available; it is not present in this checkout right now.
-- Verification: run the smallest relevant `ctest` target from that build tree when it exists, and use `git diff` to keep the process file and test data changes aligned.
+- Active task: DSM_native BEACON/ANCHORS calibration follow-up and reproducible run-state capture on branch `dsm_native`.
+- Touch points: `WORKLOG.md`, `PROJECT_CONTEXT.md`, `review_dumps/*`, and `Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/*`.
+- Preferred build tree: `build/release-omp-mfront` (present in this checkout).
+- Verified executable: `/Users/vinaykumar/git/build/release-omp-mfront/bin/ogs` with libs in `/Users/vinaykumar/git/build/release-omp-mfront/lib`.
+- Verification completed in this session:
+  - full pure-vdW ANCHORS calibration (`1400..1800 kg/m³`, `step=25`, 17 points),
+  - full augmented-vdW ANCHORS calibration (`lambda=1e-6`, 17 points),
+  - BEACON calibrated inflow run (`beacon_1a01_dsm_micromacro_calibrated_inflow.prj`) and stress comparison vs 604 kPa target.
 
 ## Stable facts to record
 
