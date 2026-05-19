@@ -1432,7 +1432,7 @@ inline void updateTotalPorosityState(
 template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeReferenceMicroPorositySwellingStressIncrement(
-    double const phi_m_prev, double const phi_m,
+    double const n_l_prev, double const n_l,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
 {
@@ -1444,9 +1444,12 @@ computeReferenceMicroPorositySwellingStressIncrement(
         return delta_sigma_sw;
     }
 
-    double const delta_phi_m = phi_m - phi_m_prev;
-    if (!(std::isfinite(delta_phi_m) &&
-          std::abs(delta_phi_m) > std::numeric_limits<double>::epsilon()))
+    // Couple to the LOCAL micro water content n_l, not the REV-scale phi_m.
+    // In the hierarchical split phi_m = (1-phi_M)*n_l, so using n_l preserves
+    // the calibrated slope value across both flat and hierarchical models.
+    double const delta_n_l = n_l - n_l_prev;
+    if (!(std::isfinite(delta_n_l) &&
+          std::abs(delta_n_l) > std::numeric_limits<double>::epsilon()))
     {
         return delta_sigma_sw;
     }
@@ -1455,7 +1458,7 @@ computeReferenceMicroPorositySwellingStressIncrement(
         MathLib::KelvinVector::kelvin_vector_dimensions(
             DisplacementDim)>::identity2;
     double const delta_eps_sw =
-        potential_exchange_params.micro_water_content_swelling_slope * delta_phi_m;
+        potential_exchange_params.micro_water_content_swelling_slope * delta_n_l;
 
     delta_sigma_sw.noalias() -= C_el * ((delta_eps_sw / 3.0) * identity2);
     return delta_sigma_sw;
@@ -1464,12 +1467,12 @@ computeReferenceMicroPorositySwellingStressIncrement(
 template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeSwellingStressIncrement(
-    double const phi_m_prev, double const phi_m,
+    double const n_l_prev, double const n_l,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
 {
     return computeReferenceMicroPorositySwellingStressIncrement<DisplacementDim>(
-        phi_m_prev, phi_m, C_el, potential_exchange_params);
+        n_l_prev, n_l, C_el, potential_exchange_params);
 }
 
 template <int DisplacementDim>
@@ -1494,8 +1497,8 @@ inline void updateSwellingState(
     (void)t;
     (void)dt;
 
-    auto const phi_m_prev = **std::get<PrevState<MicroPorosity>>(state_previous);
-    auto const phi_m = *std::get<MicroPorosity>(state_current);
+    auto const n_l_prev = **std::get<PrevState<MicroWaterContent>>(state_previous);
+    auto const n_l = *std::get<MicroWaterContent>(state_current);
 
     auto& sigma_sw =
         std::get<ProcessLib::ThermoRichardsMechanics::
@@ -1509,7 +1512,7 @@ inline void updateSwellingState(
     sigma_sw = *sigma_sw_prev;
     sigma_sw.sigma_sw +=
         computeSwellingStressIncrement<DisplacementDim>(
-            phi_m_prev, phi_m, C_el, potential_exchange_params);
+            n_l_prev, n_l, C_el, potential_exchange_params);
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(

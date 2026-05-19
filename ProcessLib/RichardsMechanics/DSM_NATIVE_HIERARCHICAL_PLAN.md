@@ -31,6 +31,27 @@ Changes:
 - Macro/micro split remains bounded and consistent with total porosity.
 - Legacy project files using `additive_macro_porosity_rate_mode` run on this branch with hierarchical split behavior.
 
+## Swelling slope correction (2026-05-19)
+
+**Issue identified**: `computeReferenceMicroPorositySwellingStressIncrement` was using
+`delta_phi_m = phi_m - phi_m_prev` as the swelling driver. In the hierarchical split
+`phi_m = (1 - phi_M) * n_l`, so for a fixed-boundary confined test (phi = const):
+  `phi_m ≈ nS_ref * n_l`  (nS_ref ≈ 0.5 for typical density)
+This made the effective swelling slope ≈ 0.5× the calibrated value, reducing the
+achievable swelling pressure compared to the pre-hierarchical model for the same slope.
+
+**Fix**: Changed the swelling driver to `delta_n_l = n_l - n_l_prev` (the LOCAL micro
+water content, which is the `MicroWaterContent` state variable). Rationale:
+- The parameter is named `micro_water_content_swelling_slope` — it should couple to n_l.
+- Before the hierarchical split, `n_l ≡ phi_m`, so old calibrations are preserved exactly.
+- After the split, the slope now couples to the LOCAL change (film-thickness-proportional),
+  not the REV-scale porosity change.
+
+**Pressure cap note**: Even with this fix the LinearElastic model (E=52 MPa, ν=0.3)
+caps swelling at `P_sw_max = K_bulk × slope × phi0 ≈ 2 MPa`. Matching high-density
+Villar targets (up to 22.6 MPa) requires a pressure-dependent constitutive model
+(e.g. ModCamClay via MFront).
+
 ## Validation checklist
 
 1. Compile RM process.

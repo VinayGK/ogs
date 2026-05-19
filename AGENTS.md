@@ -76,3 +76,35 @@ Every process must have:
   Appendix B status rows in the same work cycle.
 - For Appendix B edits, preserve status taxonomy and validate:
   row count, per-status counts, and `N + M + K = total`.
+
+## 2026-05-19 — augmented-force Villar calibration on hierarchical porosity
+
+- Branch context: `dsm_native_hierarchical` (hierarchical porosity split active in RM DSM-native path).
+- Repro command:
+  `python3 Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/run_villar_dense_dd_native_augmented_calibration.py --ogs-bin /Users/vinaykumar/git/build/release-omp-mfront/bin/ogs --lib-path /Users/vinaykumar/git/build/release-omp-mfront/lib`
+- Result artefacts are written under
+  `Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/` with prefix
+  `villar_dense_dd_native_augmented_lam1en06_*`.
+- Run notes and outcomes are documented in:
+  `Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/VILLAR_AUGMENTED_HIERARCHICAL_RUN_2026-05-19.md`.
+
+### Swelling formula fix (same date)
+
+Pre-fix, `computeReferenceMicroPorositySwellingStressIncrement` used `delta_phi_m`
+as the swelling driver. In the hierarchical split `phi_m = (1-phi_M)*n_l`, so at
+typical density (phi_M ≈ phi0 ≈ 0.5) the effective slope was halved vs. the
+calibrated value. Fix: changed driver to `delta_n_l` (the `MicroWaterContent` state
+variable), consistent with the parameter name `micro_water_content_swelling_slope`
+and backward-compatible with all pre-hierarchical slope calibrations.
+
+Code location: `ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h`,
+`computeReferenceMicroPorositySwellingStressIncrement`.
+
+### Pressure-cap guardrail
+
+The LinearElastic skeleton (E=52 MPa, ν=0.3 → K_bulk ≈ 43 MPa) caps swelling at
+`P_sw_max = K_bulk × slope × phi0 ≈ 2 MPa` regardless of augmentation prefactor K.
+All Villar targets above ≈1450 kg/m³ require pressures well above this cap.
+High-density Villar matching requires a pressure-dependent constitutive model
+(ModCamClay via MFront, as used in the separate mfront calibration script).
+Treat residual large errors as a constitutive-model scope limit, not a solver failure.
