@@ -20,8 +20,8 @@ UNIT CONVENTION for lambda:
 
 Parameters:
   hamaker_constant = A_lit = 5.1e-21 J  (literature value, NOT an effective multiplier)
-  vdw_augmentation_prefactor (K): PLACEHOLDER — update after running
-    run_villar_dense_dd_native_augmented_calibration.py at rho_d=1668 kg/m3.
+  vdw_augmentation_prefactor (K): 3.8681e4 J/kg
+    calibrated by run_villar_dense_dd_native_augmented_calibration.py at rho_d=1668 kg/m3.
     Note: the native LinearElastic calibration caps at ~1.7 MPa (Villar target at
     rho_d=1668 is 9.2 MPa, achievable only with ModCamClay). Run the calibration
     at lower densities (dd-min 1300, dd-max 1420) to get a physically valid K.
@@ -77,10 +77,10 @@ Geometry and setup: identical to calibrated_inflow.prj
                 <!-- Augmented exponential surface-force term:
                      mu_lR_aug = sign * K * exp(-xi),  xi = h/lambda
                      h = n_l / (nS * rho_SR * Sa)  [film thickness, code units]
-                     K = PLACEHOLDER — calibrate with augmented_calibration.py
+                     K = 3.8681e4 J/kg (calibrated at rho_d=1668)
                      (run at lower densities where LinearElastic cap ~1.7 MPa is not
                      binding; for rho_d=1668, Villar target 9.2 MPa exceeds the cap). -->
-                <vdw_augmentation_prefactor>1.0e6</vdw_augmentation_prefactor>
+                <vdw_augmentation_prefactor>3.8681e4</vdw_augmentation_prefactor>
                 <!-- lambda = 1e-6 [code units] = physical 1 nm decay length
                      (Sa uses m²/g → lambda_code = lambda_physical × 1000) -->
                 <vdw_augmentation_decay_length>1e-6</vdw_augmentation_decay_length>
@@ -203,7 +203,7 @@ Geometry and setup: identical to calibrated_inflow.prj
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>beacon_1a01_dsm_micromacro_augmented_inflow</prefix>
+            <prefix>beacon_1a01_dsm_micromacro_augmented_inflow_villar1668_compare20260519</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
             <fixed_output_times>864000 2592000 5184000 7776000 1.0368e7</fixed_output_times>
             <variables>

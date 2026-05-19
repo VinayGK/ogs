@@ -14,8 +14,10 @@ See `materialmodels/src/TPM/THMDSMRichardsRM_BEACON_ANCHORS_benchmark_note.tex`.
 Experimental targets:
 | Case          | Observable                      | Target                          |
 |---------------|---------------------------------|---------------------------------|
-| BEACON 1a01   | Axial swelling pressure         | 604 kPa                         |
-| BEACON 1a01   | Radial swelling pressure        | 994 kPa                         |
+| BEACON 1a01   | Intermediate axial SP           | 8604 kPa                        |
+| BEACON 1a01   | Intermediate radial SP          | 9994 kPa                        |
+| BEACON 1a01   | Final axial SP                  | 2566 kPa                        |
+| BEACON 1a01   | Final radial SP                 | 3240 kPa                        |
 | BEACON 1a01   | Stage-1 dry density             | 1655 kg/m³                      |
 | BEACON 1b     | Dry density                     | 1520 kg/m³                      |
 | ANCHORS MS33  | SP vs dry density (Villar)      | P_s = exp(6.77ρ_d − 9.07) MPa  |
@@ -105,7 +107,7 @@ python3 compare_purevdw_vs_augmented.py
 - [x] Augmented BEACON 1a01 project file written (placeholder K; update after calibration)
 - [ ] Pure vdW calibration run completed (17 points)
 - [ ] Augmented calibration run completed (17 points)
-- [ ] BEACON 1a01 calibrated inflow run and compared to 604 kPa target
+- [x] BEACON 1a01 Villar-parameter run compared to corrected D5.1.1 targets
 
 ## Physical parameters used (ANCHORS calibration cell)
 
@@ -175,3 +177,43 @@ Fit quality from summary JSON:
 - mean relative error: `0.9635 %`
 - max relative error: `1.8122 %`
 - density range: `1400..1800 kg/m^3` (step `25`)
+
+## 2026-05-19 agent note: BEACON Villar rerun vs corrected targets
+
+Corrected BEACON 1a01 targets used for this comparison:
+- Intermediate axial: `8604 kPa`
+- Intermediate radial: `9994 kPa`
+- Final axial: `2566 kPa`
+- Final radial: `3240 kPa`
+
+Commands used:
+
+```bash
+# 1) Villar parameter at rho_d=1668
+python3 Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/run_villar_dense_dd_native_augmented_calibration.py \
+  --ogs-bin /Users/vinaykumar/git/build/release-omp-mfront/bin/ogs \
+  --lib-path /Users/vinaykumar/git/build/release-omp-mfront/lib \
+  --dd-min 1668 --dd-max 1668 --dd-step 1
+
+# 2) BEACON run with K=3.8681e4 J/kg (project copy with unique prefix)
+DYLD_LIBRARY_PATH=/Users/vinaykumar/git/build/release-omp-mfront/lib \
+  /Users/vinaykumar/git/build/release-omp-mfront/bin/ogs \
+  Tests/Data/RichardsMechanics/beacon_1a01_dsm_micromacro_augmented_inflow_villar1668_compare20260519.prj
+
+# 3) Extract and compare axial/radial sigma means vs targets
+python3 Tests/Data/RichardsMechanics/compare_beacon_1a01_vtu_targets.py \
+  --prefix beacon_1a01_dsm_micromacro_augmented_inflow_villar1668_compare20260519 \
+  --root Tests/Data/RichardsMechanics
+```
+
+Artifacts written for future reruns:
+- `Tests/Data/RichardsMechanics/beacon_1a01_dsm_micromacro_augmented_inflow_villar1668_compare20260519_targets_summary.json`
+- `Tests/Data/RichardsMechanics/beacon_1a01_dsm_micromacro_augmented_inflow_villar1668_compare20260519_timeseries.csv`
+
+Observed (domain-mean stresses from `sigma`):
+- Intermediate (10 days): axial `9013.255 kPa` (`+4.76%`), radial `9013.255 kPa` (`-9.81%`)
+- Final (120 days): axial `9013.255 kPa` (`+251.26%`), radial `9013.255 kPa` (`+178.19%`)
+
+Interpretation:
+- With current confined LinearElastic setup, axial/radial means are near-isotropic and plateau early.
+- The run does not reproduce the intermediate-to-final stress drop implied by `8604/9994 -> 2566/3240`.

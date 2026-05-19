@@ -2,7 +2,8 @@
 <!--
 BEACON 1a01 — Calibrated pure-vdW DSM inflow simulation
 ========================================================
-Experimental target: axial swelling pressure 604 kPa (BEACON D5.1.1)
+Legacy short-time fit target: axial swelling pressure 604 kPa at t=1e5 s.
+This file is not for the D5.1.1 intermediate/final target set (8604/9994 and 2566/3240 kPa).
 
 Parameters from the BEACON-specific mfront calibration
 (beacon_1a01_axial_fit_native_bridge_report.json):
