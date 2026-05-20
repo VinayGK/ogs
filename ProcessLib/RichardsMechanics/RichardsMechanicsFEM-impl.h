@@ -1639,6 +1639,9 @@ void updateSwellingStressAndVolumetricStrain(
         if (potential_exchange_enabled)
         {
             phi_M.phi = phi_M_prev->phi;
+            // Prevent propagation of a non-physical negative macro porosity
+            // from previous-step state into current assembly/output.
+            phi_M.phi = std::max(0.0, phi_M.phi);
             variables_prev.transport_porosity = phi_M_prev->phi;
             variables.transport_porosity = phi_M.phi;
 
@@ -2767,6 +2770,29 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         solid_phase, C_el, state_current, state_previous, variables, variables_prev, x_position,
         t, dt, potential_exchange_parameters);
 
+    // Gate 1 fix: enforce phi_M >= 0 in the constitutive state (same logic as
+    // in computeSecondaryVariableConcrete). Prevents negative transport_porosity
+    // from propagating into the Jacobian assembly and the output VTU.
+    if (isPotentialExchangeEnabled(potential_exchange_parameters))
+    {
+        auto& phi_M_cs =
+            std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(
+                state_current)
+                .phi;
+        auto& phi_m_cs = *std::get<MicroPorosity>(state_current);
+        double const phi_total_cs =
+            std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(
+                state_current)
+                .phi;
+        phi_m_cs = std::min(phi_m_cs, phi_total_cs);
+        phi_M_cs = phi_total_cs - phi_m_cs;  // >= 0
+        variables.transport_porosity = phi_M_cs;
+        variables_prev.transport_porosity =
+            std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                   TransportPorosityData>>(state_previous)
+                ->phi;
+    }
+
     if (medium->hasProperty(MPL::PropertyType::transport_porosity))
     {
         if (!medium->hasProperty(MPL::PropertyType::saturation_micro) &&
@@ -3647,6 +3673,31 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             solid_phase, C_el, this->current_states_[ip],
             this->prev_states_[ip], variables, variables_prev, x_position, t,
             dt, this->getPotentialExchangeParameters());
+
+        // Gate 1 fix: enforce phi_M >= 0 and phi_m <= phi for DSM potential-
+        // exchange mode (scalar_micro_macro_mass_storage_mode). When the
+        // micro water content n_l approaches the total porosity phi under
+        // confinement, the hierarchical split can produce phi_M < 0. Cap
+        // micro porosity at the total and set phi_M = phi - phi_m >= 0.
+        // This is the output-field clamp; the constitutive root cause (missing
+        // micro-swelling saturation) is tracked separately.
+        if (isPotentialExchangeEnabled(this->getPotentialExchangeParameters()))
+        {
+            auto& phi_M_out =
+                std::get<ProcessLib::ThermoRichardsMechanics::
+                             TransportPorosityData>(
+                    this->current_states_[ip])
+                    .phi;
+            auto& phi_m_out =
+                *std::get<MicroPorosity>(this->current_states_[ip]);
+            double const phi_total_out =
+                std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(
+                    this->current_states_[ip])
+                    .phi;
+            phi_m_out = std::min(phi_m_out, phi_total_out);
+            phi_M_out = phi_total_out - phi_m_out;  // >= 0
+            variables.transport_porosity = phi_M_out;
+        }
 
         if (medium->hasProperty(MPL::PropertyType::transport_porosity))
         {
