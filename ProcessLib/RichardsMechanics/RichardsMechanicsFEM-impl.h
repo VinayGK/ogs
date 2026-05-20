@@ -2770,10 +2770,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         solid_phase, C_el, state_current, state_previous, variables, variables_prev, x_position,
         t, dt, potential_exchange_parameters);
 
-    // Gate 1 fix: enforce phi_M >= 0 in the constitutive state (same logic as
-    // in computeSecondaryVariableConcrete). Prevents negative transport_porosity
-    // from propagating into the Jacobian assembly and the output VTU.
-    if (isPotentialExchangeEnabled(potential_exchange_parameters))
+    // Gate 1/2 fix for DSM micro-porosity mode: enforce phi_m <= phi_total and
+    // phi_M = phi_total - phi_m >= 0 in constitutive state.
+    if (micro_porosity_parameters.has_value())
     {
         auto& phi_M_cs =
             std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(
@@ -3674,14 +3673,14 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             this->prev_states_[ip], variables, variables_prev, x_position, t,
             dt, this->getPotentialExchangeParameters());
 
-        // Gate 1 fix: enforce phi_M >= 0 and phi_m <= phi for DSM potential-
-        // exchange mode (scalar_micro_macro_mass_storage_mode). When the
+        // Gate 1/2 fix for DSM micro-porosity mode: enforce phi_m <= phi_total
+        // and phi_M = phi_total - phi_m >= 0. When the
         // micro water content n_l approaches the total porosity phi under
         // confinement, the hierarchical split can produce phi_M < 0. Cap
         // micro porosity at the total and set phi_M = phi - phi_m >= 0.
         // This is the output-field clamp; the constitutive root cause (missing
         // micro-swelling saturation) is tracked separately.
-        if (isPotentialExchangeEnabled(this->getPotentialExchangeParameters()))
+        if (this->process_data_.micro_porosity_parameters.has_value())
         {
             auto& phi_M_out =
                 std::get<ProcessLib::ThermoRichardsMechanics::

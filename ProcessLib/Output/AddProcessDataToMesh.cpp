@@ -3,6 +3,7 @@
 
 #include "AddProcessDataToMesh.h"
 
+#include <algorithm>
 #include <span>
 
 #include "InfoLib/GitInfo.h"
@@ -71,6 +72,19 @@ static void addSecondaryVariableNodes(
 
     // Copy result
     nodal_values.copyValues(std::span{nodal_values_mesh});
+
+    // transport_porosity is physically bounded from below by zero.
+    // Its nodal output is obtained by extrapolation from integration points
+    // and can exhibit small negative undershoots at material interfaces.
+    // Clamp the reported nodal field to keep output consistent with the
+    // non-negative constitutive state used in assembly.
+    if (output_name == "transport_porosity")
+    {
+        for (double& value : nodal_values_mesh)
+        {
+            value = std::max(0.0, value);
+        }
+    }
 }
 
 static void addSecondaryVariableResiduals(
@@ -365,6 +379,46 @@ static void addSecondaryVariablesToMesh(
     }
 }
 
+static void reconcilePorositySplitNodeFields(MeshLib::Mesh& mesh)
+{
+    auto& props = mesh.getProperties();
+    if (!props.existsPropertyVector<double>("porosity") ||
+        !props.existsPropertyVector<double>("micro_porosity"))
+    {
+        return;
+    }
+
+    auto* const porosity =
+        props.getPropertyVector<double>("porosity", MeshLib::MeshItemType::Node, 1);
+    auto* const micro_porosity = props.getPropertyVector<double>(
+        "micro_porosity", MeshLib::MeshItemType::Node, 1);
+    auto* const transport_porosity = props.existsPropertyVector<double>(
+                                         "transport_porosity")
+                                         ? props.getPropertyVector<double>(
+                                               "transport_porosity",
+                                               MeshLib::MeshItemType::Node, 1)
+                                         : nullptr;
+
+    if (!porosity || !micro_porosity || porosity->size() != micro_porosity->size())
+    {
+        return;
+    }
+
+    // Keep the reported nodal split physically admissible and self-consistent:
+    //   0 <= micro_porosity <= porosity
+    // and, if available, enforce transport_porosity as the complement.
+    for (std::size_t i = 0; i < porosity->size(); ++i)
+    {
+        auto const phi_total = std::clamp((*porosity)[i], 0.0, 1.0);
+        auto const phi_micro = std::clamp((*micro_porosity)[i], 0.0, phi_total);
+        (*micro_porosity)[i] = phi_micro;
+        if (transport_porosity && i < transport_porosity->size())
+        {
+            (*transport_porosity)[i] = phi_total - phi_micro;
+        }
+    }
+}
+
 namespace ProcessLib
 {
 void addProcessDataToMesh(NumLib::Time const& t,
@@ -402,6 +456,7 @@ void addProcessDataToMesh(NumLib::Time const& t,
                                     names_of_already_output_variables, t, xs,
                                     output_mesh, output_mesh_dof_tables,
                                     process_output.output_residuals);
+        reconcilePorositySplitNodeFields(output_mesh);
     }
 
     if (integration_point_writers)
