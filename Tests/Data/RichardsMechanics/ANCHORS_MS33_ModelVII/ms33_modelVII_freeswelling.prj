@@ -72,7 +72,7 @@ to the Model I dd1600 VTU state at suction = 2 MPa (micro-macro exchange in equi
                      (consistent with IC = -1e8 Pa macro suction) -->
                 <initial_micro_water_content>1.1699e-3</initial_micro_water_content>
                 <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
-                <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
+                <!-- fd_jacobian_for_exchange omitted: default false (analytic Jacobian). -->
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <!-- micro_water_content_swelling_slope omitted: default 0.0 (Pi-only swelling;
                      set >0 to add phenomenological n_l coupling). -->

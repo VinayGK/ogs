@@ -52,7 +52,7 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                 <!-- n_l0 from vdW equilibrium at 99 MPa micro-suction -->
                 <initial_micro_water_content>1.3162e-3</initial_micro_water_content>
                 <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
-                <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
+                <!-- fd_jacobian_for_exchange omitted: default false (analytic Jacobian). -->
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <!-- Pi-model default: slope=0, swelling stress from disjoining pressure Pi=rho_lR*K*exp(-xi).
                      Set slope>0 to add or replace with phenomenological coupling. -->

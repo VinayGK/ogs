@@ -54,7 +54,7 @@ Official benchmark spec (MSXX §Model IV):
                      global parameter uses bentonite value; pellet zone n_s≈0.324 applies it locally) -->
                 <initial_micro_water_content>1.1699e-3</initial_micro_water_content>
                 <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
-                <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
+                <!-- fd_jacobian_for_exchange omitted: default false (analytic Jacobian). -->
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <!-- Swelling mechanical path: Pi-model (default).
                      slope = 0 → Pi-path only: delta_sigma_sw = nS*(Pi_curr-Pi_prev)*I
