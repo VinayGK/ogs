@@ -24,3 +24,16 @@
 - `K_opt(dd1600) = 16787.1049 J/kg`
 - `K_opt(dd1800) = 75877.7890 J/kg`
 - Saved in `ANCHORS_MS33_ModelIV/ms33_calibrate_K_results.txt` and propagated to Model I PRJs.
+
+## TODO — Model V salinity characterization (literature-based)
+- Current Model V runs are saline surrogates; they are not yet validated against chemistry-informed HM response.
+- Required next step: perform a focused literature review to quantify how salinity affects bentonite HM behavior (at minimum: swelling pressure reduction, permeability evolution, retention/capillary response, and stiffness/compressibility trends where supported).
+- After extracting defensible ranges/trends, parameterize salinity effects explicitly in the benchmark model and re-run Model V (LE and MCC variants) with documented provenance for each changed parameter.
+- Acceptance target: saline Model V must show physically justified deviation from freshwater reference (especially swelling pressure path), not only numerical convergence.
+
+## Mandatory spec-compliance policy (effective 2026-05-21)
+- All ANCHORS MS33 simulations must remain strictly benchmark-spec compliant at all times.
+- Any deviation from specified ICs, BCs, geometry, material parameters, loading path, or solver-relevant benchmark settings is not allowed in committed/run configurations.
+- No workaround edits (for convergence, convenience, or sensitivity exploration) may overwrite the spec baseline inputs.
+- Non-spec alternatives may only be proposed/discussed in chat as optional investigations and must be clearly labeled non-spec.
+- If a non-spec test is explicitly requested, it must be isolated in clearly named scratch files and must not replace or mutate spec baseline files.

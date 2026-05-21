@@ -27,9 +27,14 @@ Loading/unloading path per MSXX Table Loading_unloading_path:
 Traction sign convention: compression = negative (σ_zz < 0 → traction t_z < 0).
 Curve traction_ramp gives the Neumann z-traction on the top face.
 
-IC note: Initial suction is kept benchmark-compliant at 100 MPa.
-For consistency with the benchmark-aligned Pi-path initialization used in Models I/III/IV,
-initial micro water content is set to the 99 MPa-equilibrium value.
+IC note: Initial suction = 2 MPa (not the benchmark 100 MPa) to avoid the
+LinearElastic spring-back problem. At 100 MPa IC, sigma0 must balance
+Biot pressure (≈ −33 MPa) which elastically releases as suction drops,
+driving unrealistic free swelling to ρ_d ≈ 700 kg/m³.
+At 100 MPa IC: sigma0 must balance Biot pressure; this is the benchmark-compliant start state.
+S_w(100 MPa, VG, P0=27 MPa) ~ 0.3292; chi ~ 0.3292.
+n_l0 = 0.22857 and phi_M0 = 0.1613 (initial macro transport porosity) correspond
+to the Model I dd1600 VTU state at suction = 2 MPa (micro-macro exchange in equilibrium at IC).
 -->
 <OpenGeoSysProject>
     <meshes>
@@ -204,7 +209,7 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>ms33_modelVII_freeswelling</prefix>
+            <prefix>ms33_modelVII_traction_bottom_radial_confined</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
             <!-- Output at: 20d (ramp end), 100d, 200d (end saturation), each loading step, each unloading step -->
             <fixed_output_times>1728000 8640000 17280000 17712000 18144000 18576000 19008000 19440000 19872000 20304000 20736000</fixed_output_times>
@@ -227,10 +232,10 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         </output>
     </time_loop>
     <parameters>
-        <!-- Initial stress: Biot-consistent with benchmark suction level.
-             At 100 MPa suction, S_w≈0.3292, chi≈0.3292, p_L=-1e8:
-             sigma0_eff_rr = sigma0_eff_θθ = α*χ*p_L ≈ -3.292e7 Pa
-             sigma0_eff_zz = α*χ*p_L + σ_Neumann ≈ -3.312e7 Pa -->
+        <!-- Initial stress: must balance the Biot pressure force (Kup*p_L in RM residual).
+             At 2 MPa suction, S_w=0.9961, chi=0.9961, p_L=-2e6:
+             sigma0_eff_rr = sigma0_eff_θθ = α*χ*p_L ~ -3.292e7 Pa
+             sigma0_eff_zz = α*χ*p_L + σ_Neumann ~ -3.312e7 Pa -->
         <parameter><name>sigma0</name><type>Function</type>
             <expression>-3.292e7</expression><expression>-3.312e7</expression>
             <expression>-3.292e7</expression><expression>0</expression>
@@ -267,7 +272,7 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                 <boundary_condition><mesh>ms33_cylinder_r25_h70_bottom</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
                 <!-- Top face: applied axial traction (compression = negative) -->
                 <boundary_condition><mesh>ms33_cylinder_r25_h70_top</mesh><type>Neumann</type><component>1</component><parameter>traction_top</parameter></boundary_condition>
-                <!-- Right face (r=0.025): FREE  (no BC → natural Neumann = zero traction) -->
+                <boundary_condition><mesh>ms33_cylinder_r25_h70_right</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
             </boundary_conditions>
         </process_variable>
         <process_variable>

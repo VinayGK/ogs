@@ -27,9 +27,14 @@ Loading/unloading path per MSXX Table Loading_unloading_path:
 Traction sign convention: compression = negative (σ_zz < 0 → traction t_z < 0).
 Curve traction_ramp gives the Neumann z-traction on the top face.
 
-IC note: Initial suction is kept benchmark-compliant at 100 MPa.
-For consistency with the benchmark-aligned Pi-path initialization used in Models I/III/IV,
-initial micro water content is set to the 99 MPa-equilibrium value.
+IC note: Initial suction = 2 MPa (not the benchmark 100 MPa) to avoid the
+LinearElastic spring-back problem. At 100 MPa IC, sigma0 must balance
+Biot pressure (≈ −33 MPa) which elastically releases as suction drops,
+driving unrealistic free swelling to ρ_d ≈ 700 kg/m³.
+At 100 MPa IC: sigma0 must balance Biot pressure; this is the benchmark-compliant start state.
+S_w(100 MPa, VG, P0=27 MPa) ~ 0.3292; chi ~ 0.3292.
+n_l0 = 0.22857 and phi_M0 = 0.1613 (initial macro transport porosity) correspond
+to the Model I dd1600 VTU state at suction = 2 MPa (micro-macro exchange in equilibrium at IC).
 -->
 <OpenGeoSysProject>
     <meshes>
@@ -83,10 +88,21 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
                 <vdw_augmentation_decay_length>7.5e-7</vdw_augmentation_decay_length>
             </potential_exchange>
-            <constitutive_relation>
-                <type>LinearElasticIsotropic</type>
-                <youngs_modulus>E</youngs_modulus>
-                <poissons_ratio>nu</poissons_ratio>
+                        <constitutive_relation>
+                <type>MFront</type>
+                <behaviour>ModCamClay_semiExpl_constE</behaviour>
+                <material_properties>
+                    <material_property name="YoungModulus" parameter="E"/>
+                    <material_property name="PoissonRatio" parameter="nu"/>
+                    <material_property name="CriticalStateLineSlope" parameter="CriticalStateLineSlope"/>
+                    <material_property name="SwellingLineSlope" parameter="SwellingLineSlope"/>
+                    <material_property name="VirginConsolidationLineSlope" parameter="VirginConsolidationLineSlope"/>
+                    <material_property name="CharacteristicPreConsolidationPressure" parameter="InitialPreConsolidationPressure"/>
+                </material_properties>
+                <initial_values>
+                    <state_variable name="PreConsolidationPressure" parameter="InitialPreConsolidationPressure"/>
+                    <state_variable name="VolumeRatio" parameter="InitialVolumeRatio"/>
+                </initial_values>
             </constitutive_relation>
             <process_variables>
                 <pressure>pressure</pressure>
@@ -204,7 +220,7 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>ms33_modelVII_freeswelling</prefix>
+            <prefix>ms33_modelVII_freeswelling_mcc</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
             <!-- Output at: 20d (ramp end), 100d, 200d (end saturation), each loading step, each unloading step -->
             <fixed_output_times>1728000 8640000 17280000 17712000 18144000 18576000 19008000 19440000 19872000 20304000 20736000</fixed_output_times>
@@ -227,10 +243,10 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         </output>
     </time_loop>
     <parameters>
-        <!-- Initial stress: Biot-consistent with benchmark suction level.
-             At 100 MPa suction, S_w≈0.3292, chi≈0.3292, p_L=-1e8:
-             sigma0_eff_rr = sigma0_eff_θθ = α*χ*p_L ≈ -3.292e7 Pa
-             sigma0_eff_zz = α*χ*p_L + σ_Neumann ≈ -3.312e7 Pa -->
+        <!-- Initial stress: must balance the Biot pressure force (Kup*p_L in RM residual).
+             At 2 MPa suction, S_w=0.9961, chi=0.9961, p_L=-2e6:
+             sigma0_eff_rr = sigma0_eff_θθ = α*χ*p_L ~ -3.292e7 Pa
+             sigma0_eff_zz = α*χ*p_L + σ_Neumann ~ -3.312e7 Pa -->
         <parameter><name>sigma0</name><type>Function</type>
             <expression>-3.292e7</expression><expression>-3.312e7</expression>
             <expression>-3.292e7</expression><expression>0</expression>
@@ -253,6 +269,12 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         <!-- Neumann traction scale = 1 -->
         <parameter><name>traction_scale</name><type>Constant</type><value>1</value></parameter>
         <parameter><name>traction_top</name><type>CurveScaled</type><curve>traction_ramp</curve><parameter>traction_scale</parameter></parameter>
+    
+        <parameter><name>CriticalStateLineSlope</name><type>Constant</type><value>1.0</value></parameter>
+        <parameter><name>SwellingLineSlope</name><type>Constant</type><value>2.0e-2</value></parameter>
+        <parameter><name>VirginConsolidationLineSlope</name><type>Constant</type><value>2.9e-2</value></parameter>
+        <parameter><name>InitialPreConsolidationPressure</name><type>Constant</type><value>1e9</value></parameter>
+        <parameter><name>InitialVolumeRatio</name><type>Constant</type><value>1.7375</value></parameter>
     </parameters>
     <process_variables>
         <process_variable>
