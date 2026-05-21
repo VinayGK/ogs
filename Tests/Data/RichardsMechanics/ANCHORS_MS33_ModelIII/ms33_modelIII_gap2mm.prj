@@ -84,7 +84,8 @@ Boundary conditions (official spec):
                 <secondary_variable name="porosity"/>
                 <secondary_variable name="transport_porosity"/>
                 <secondary_variable name="dry_density_solid"/>
-                <secondary_variable name="micro_saturation"/>
+                <!-- micro_saturation removed: Pi-path model has no capillary micro-saturation;
+                     the adsorbed water content is tracked by micro_water_content (n_l) instead -->
                 <secondary_variable name="micro_pressure"/>
                 <secondary_variable name="micro_water_content"/>
                 <secondary_variable name="micro_porosity"/>
@@ -160,14 +161,9 @@ Boundary conditions (official spec):
                     <exponent>0.45</exponent>
                     <p_b>2.7e7</p_b>
                 </property>
-                <property>
-                    <name>saturation_micro</name>
-                    <type>SaturationVanGenuchten</type>
-                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
-                    <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <exponent>0.45</exponent>
-                    <p_b>2.7e8</p_b>
-                </property>
+                <!-- saturation_micro (VGM, p_b=2.7e8) removed: vestigial in Pi-path mode.
+                     micro_pressure = Pi = rho_lR*K*exp(-xi) (disjoining pressure).
+                     micro_water_content = n_l (adsorbed water per unit solid volume). -->
                 <property><name>bishops_effective_stress</name><type>BishopsPowerLaw</type><exponent>1</exponent></property>
             </properties>
         </medium>
@@ -225,14 +221,9 @@ Boundary conditions (official spec):
                     <exponent>0.45</exponent>
                     <p_b>2.7e7</p_b>
                 </property>
-                <property>
-                    <name>saturation_micro</name>
-                    <type>SaturationVanGenuchten</type>
-                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
-                    <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <exponent>0.45</exponent>
-                    <p_b>2.7e8</p_b>
-                </property>
+                <!-- saturation_micro (VGM, p_b=2.7e8) removed: vestigial in Pi-path mode.
+                     micro_pressure = Pi = rho_lR*K*exp(-xi) (disjoining pressure).
+                     micro_water_content = n_l (adsorbed water per unit solid volume). -->
                 <property><name>bishops_effective_stress</name><type>BishopsPowerLaw</type><exponent>1</exponent></property>
             </properties>
         </medium>
@@ -275,7 +266,7 @@ Boundary conditions (official spec):
                 <variable>transport_porosity</variable>
                 <variable>dry_density_solid</variable>
                 <variable>micro_pressure</variable>
-                <variable>micro_saturation</variable>
+                <!-- micro_saturation removed: not physical in Pi-path model -->
                 <variable>micro_water_content</variable>
                 <variable>micro_porosity</variable>
                 <variable>micro_exchange_source</variable>
