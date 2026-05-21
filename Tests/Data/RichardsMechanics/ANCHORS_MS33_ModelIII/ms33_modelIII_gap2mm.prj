@@ -4,7 +4,7 @@ EURAD-2 MS33 Theoretical Benchmarking — Model III
 Swelling pressure with 2 mm lateral technological gap
 BGR / DSM native hierarchical vdW-augmented model
 
-Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=23423.8 J/kg
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=16792.033 J/kg
 Geometry: 50mm diam × 70mm height axisymmetric cylinder, PLUS 2mm lateral gap
   Clay zone  (medium id=0): r=0 to 0.025m, z=0 to 0.070m  (MaterialID=0)
   Gap zone   (medium id=1): r=0.025 to 0.027m, z=0 to 0.070m  (MaterialID=1)
@@ -50,7 +50,9 @@ Boundary conditions (official spec):
                 <micro_solid_density_reference>2780.0</micro_solid_density_reference>
                 <!-- n_s reference for clay = 1 - phi0_clay = 0.575540 -->
                 <micro_solid_volume_fraction_reference>0.5755395683453237</micro_solid_volume_fraction_reference>
-                <micro_liquid_density_reference>1e-6</micro_liquid_density_reference>
+                <!-- rho_l0=100 → rho_lR = 100·exp(-1e-16·ω) + 1000 ≈ 1100 kg/m³
+                     (1W-hydration-state interlayer water; MD: Boek & Sprik 2003, Marry et al. 2008) -->
+                <micro_liquid_density_reference>100.0</micro_liquid_density_reference>
                 <micro_liquid_density_a>1e-16</micro_liquid_density_a>
                 <micro_liquid_density_b>1.0</micro_liquid_density_b>
                 <initial_micro_water_content>1.1699e-3</initial_micro_water_content>
@@ -62,9 +64,13 @@ Boundary conditions (official spec):
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
                 <use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>
                 <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
-                <!-- K calibrated to Villar swelling pressure at rho_d=1600 kg/m³ via Pi-path -->
-                <vdw_augmentation_prefactor>23423.8</vdw_augmentation_prefactor>
-                <vdw_augmentation_decay_length>1e-6</vdw_augmentation_decay_length>
+                <!-- K calibrated to Villar swelling pressure at rho_d=1600 kg/m³ via Pi-path
+                     (recalibrated with λ=0.75 nm, ρ_lR=1100 kg/m³) -->
+                <vdw_augmentation_prefactor>16792.0327</vdw_augmentation_prefactor>
+                <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
+                     (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
+                      Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
+                <vdw_augmentation_decay_length>7.5e-7</vdw_augmentation_decay_length>
             </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
@@ -137,11 +143,16 @@ Boundary conditions (official spec):
                 <property><name>reference_temperature</name><type>Constant</type><value>293.15</value></property>
                 <property>
                     <name>relative_permeability</name>
-                    <type>RelativePermeabilityVanGenuchten</type>
+                    <!-- Benchmark spec: k_r = S_e^3 (power law, A=1, n=3).
+                         RelativePermeabilityGeneralizedPower: k_r = enhancement_factor × S_eff^exponent.
+                         Replaces Mualem-VGM (RelativePermeabilityVanGenuchten) which gives
+                         k_r = sqrt(S_eff)·[1−(1−S_eff^(1/m))^m]², not S_e^3. -->
+                    <type>RelativePermeabilityGeneralizedPower</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <exponent>0.45</exponent>
-                    <minimum_relative_permeability_liquid>1e-12</minimum_relative_permeability_liquid>
+                    <min_relative_permeability>0.0</min_relative_permeability>
+                    <enhancement_factor>1.0</enhancement_factor>
+                    <exponent>3</exponent>
                 </property>
                 <property>
                     <name>saturation</name>

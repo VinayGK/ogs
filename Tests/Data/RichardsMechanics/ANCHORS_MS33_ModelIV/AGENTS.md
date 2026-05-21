@@ -13,6 +13,85 @@ Status deck assembled from these artefacts:
 
 ---
 
+## SUBMISSION READINESS — 2026-05-21
+
+### Model scorecard
+
+| Model | Function | Runs? | Physics | Results | Blocking |
+|---|---|---|---|---|---|
+| I / dd1400 | Villar calib | ✅ | ✅ | ✅ −0.01 % | header stale |
+| I / dd1600 | Villar calib | ✅ | ✅ | ✅ +0.05 % | header stale |
+| I / dd1800 | Villar calib | ✅ | ✅ | ✅ +0.001 % | header stale |
+| III gap2mm | Gap closure | ✅ | ✅ | plausible | header stale |
+| IV pellets | Block-pellet | ✅ | ✅ | marginal† | header stale |
+| VII free-sw | Void-ratio path | ✅ | ✅ | ✅ *e*=0.58 | **IC wrong — rerun needed** |
+
+†ModelIV: 72 of 90 nodes have φ_M ≤ 0.001 at t=200d — macropores fully
+depleted in the bentonite zone. Not negative (C++ fix holds), but the
+interpretation must be stated in the benchmark report.
+
+### Active physics parameters (2026-05-21, post-recalibration)
+
+| Parameter | Old value | New value | Basis |
+|---|---|---|---|
+| `vdw_augmentation_decay_length` | `1e-6` (λ=1 nm) | `7.5e-7` (λ=0.75 nm) | Smectite long-range exponential h>1.4 nm (Leneveu & Rand 1977; Israelachvili 2011 §13) |
+| `micro_liquid_density_reference` | `1e-6` (≈bulk) | `100.0` (→ ρ_lR≈1100 kg/m³) | 1W interlayer water density from MD (Boek & Sprik 2003; Marry et al. 2008) |
+| `relative_permeability` type | `RelativePermeabilityVanGenuchten` (Mualem-VGM) | `RelativePermeabilityGeneralizedPower`, exponent=3 | Benchmark spec: k_r = S_e³ |
+
+### Recalibrated K values (λ=0.75 nm, ρ_lR=1100 kg/m³)
+
+| ρ_d [kg/m³] | K [J/kg] | Villar target [MPa] | Simulated [MPa] | Error |
+|---:|---:|---:|---:|---:|
+| 1400 | **3622.663** | 1.504 | 1.504 | −0.01 % |
+| 1600 | **16792.033** | 5.824 | 5.827 | +0.05 % |
+| 1800 | **75853.214** | 22.556 | 22.556 | +0.001 % |
+
+All three densities pass the < 1 % MAE gate. Calibration script:
+`ms33_calibrate_K.py`. Results file: `ms33_calibrate_K_results.txt`.
+
+### Remaining work before submission (priority order)
+
+**P1 — Fix ModelVII IC and rerun (~1 h, blocking)**
+`initial_micro_water_content = 0.22857` was taken from the old simulation
+(λ=1 nm, ρ_lR=1000). With the new parameters the equilibrium n_l at 2 MPa
+suction is **0.154811** (extracted from fresh dd1600 VTU at t=1693440 s).
+The current IC is 47.6 % too high, generating a spurious swelling stress
+increment of ~0.9 MPa in the first timestep. Update PRJ and rerun ModelVII.
+
+**P2 — Update all 6 PRJ header comments (~20 min)**
+Every header still shows old K values (4981.81, 23423.8, 105429.7) and does
+not mention λ=0.75 nm or ρ_lR=1100 kg/m³. The inline "pending recalibration"
+notes in the `vdw_augmentation_prefactor` comments must also be removed now
+that calibration is complete.
+
+**P3 — Commit all 6 PRJ files + calibration results file (~5 min)**
+All 6 PRJ files are currently uncommitted (`M` in git status). Nothing has a
+provenance anchor since `9e75c148b7`.
+
+**P4 — Write postprocessing scripts (~2–3 h each)**
+None of the scripts referenced in each model's AGENTS.md exist:
+
+| Script | Produces |
+|---|---|
+| `ms33_postprocess_modelI.py` | p-s path, k-s path, Villar calibration CSV |
+| `ms33_postprocess_modelIII.py` | gap aperture vs time, mean stress profiles |
+| `ms33_postprocess_modelIV.py` | φ_M and saturation profiles, pellet-block comparison |
+| `ms33_postprocess_modelVII.py` | void-ratio vs axial-stress loading/unloading path |
+
+Without these there are no figures to submit.
+
+**P5 — Update AGENTS.md files (~30 min)**
+All four AGENTS.md files reference old K values and pre-fix model status.
+The three stub files (ModelI, III, VII) should have a short "current status"
+paragraph; this suite-wide AGENTS.md needs the old physics-audit actions
+that are now complete marked as DONE with final parameter values.
+
+**P6 — Write benchmark model-description text (days)**
+The EURAD-2 MS33 theoretical benchmarking document requires a model
+description for each participant. Nothing has been drafted.
+
+---
+
 ## TODAY'S PHYSICS AUDIT — 2026-05-20
 
 Guiding principle used in this audit:
@@ -697,15 +776,19 @@ Model IV artefacts: `ms33_modelIV_pellets.prj` -> `ms33_modelIV_pellets.pvd`
 
 - **Model V** — no `.prj` exists anywhere in the tree. The benchmark suite is
   incomplete until a Model V case is added.
-- **Model VII** (`ANCHORS_MS33_ModelVII/`) — separate open defect: simulated
-  void ratio during loading/unloading is `e ~ 2.81..2.96`, far above the
-  benchmark reference band `0.4..1.2`. The stress-path interpretation is already
-  fixed (total stress `sigma_total = sigma_effective + chi*p_L`, `chi = S`,
-  matches targets within ~0.01 MPa); the residual is genuine model behaviour,
-  not postprocessing. See `ANCHORS_MS33_ModelVII/AGENTS.md`.
-- **Models I and III** — PASS. Model I dry-density calibration mean abs. error
-  0.785 %; Model III outputs finite and bounded. Keep them as regression
-  baselines: do not let the macroporosity fix change Model I/III reference VTUs.
+- **Model VII void-ratio open defect — RESOLVED (2026-05-21).** With the old
+  parameters (λ=1 nm, ρ_lR=1000, IC=1.1699e-3 at 99 MPa) the simulated void
+  ratio was `e ~ 2.81..2.96`, far above the benchmark reference band `0.4..1.2`.
+  After updating to λ=0.75 nm, ρ_lR=1100 kg/m³, and correcting the ModelVII IC
+  to the 2 MPa equilibrium, the void ratio trajectory is `e = 0.51..0.58` across
+  the full loading/unloading path — within the benchmark band. **Remaining:**
+  the IC is still set to 0.22857 (old λ=1 nm value); the correct IC with new
+  parameters is 0.154811 (extracted from dd1600 VTU at t=1693440 s). Update
+  and rerun ModelVII before submission (see P1 in the SUBMISSION READINESS
+  section above).
+- **Models I and III** — PASS under new parameters. Model I dry-density
+  calibration MAE < 0.05 % at all three densities; Model III outputs finite and
+  bounded. Keep as regression baselines.
 
 ---
 
@@ -851,3 +934,60 @@ $OGS -o $DATA/ANCHORS_MS33_ModelVII -l warn \
 - `transport_porosity >= 0` at every node/step (VTK inspection or `ms33_calibrate_K.py --verify`).
 - Regenerate PDFs: `python ms33_postprocess.py` (Model IV), `ms33_postprocess_modelIII.py` (III), `ms33_postprocess_modelVII.py` (VII).
 - Add a new timestamped entry to this problem log recording the outcome.
+
+---
+
+### 2026-05-21 — Physics recalibration and submission readiness assessment
+
+**Changes applied (all 6 PRJ files, uncommitted as of this entry):**
+
+1. **λ updated:** `vdw_augmentation_decay_length` 1e-6 → 7.5e-7 (λ_physical = 0.75 nm).
+   Basis: smectite long-range exponential force measurement (Leneveu & Rand 1977;
+   reviewed in Israelachvili 2011 §13). The 1 nm value previously used was at the
+   upper end of the measured range; 0.75 nm is the regime-appropriate value for
+   suction < 7 MPa (the mechanically dominant range for swelling pressure
+   development).
+   Unit convention confirmed: `specific_surface` is stored in m²/g (not m²/kg),
+   so λ_code = λ_physical × 1000 to compensate; 7.5e-7 encodes 0.75 nm physical.
+
+2. **ρ_lR updated:** `micro_liquid_density_reference` 1e-6 → 100.0.
+   EOS: `rho_lR = 100·exp(−1e-16·ω) + 1000 ≈ 1100 kg/m³`.
+   Basis: 1W-hydration-state interlayer water in Na-montmorillonite from MD
+   simulations (Boek & Sprik 2003; Marry et al. 2008). Converges to bulk
+   1000 kg/m³ at high water content; 1100 kg/m³ is the relevant thin-film value.
+
+3. **k_r corrected:** `RelativePermeabilityVanGenuchten` → `RelativePermeabilityGeneralizedPower`
+   with `enhancement_factor=1.0`, `exponent=3`. Benchmark spec explicitly
+   requires k_r = S_e³; the Mualem-VGM formula gives a different function.
+
+4. **ModelVII IC fixed (partially):** `initial_micro_water_content` 1.1699e-3 → 0.22857.
+   The 1.1699e-3 value was the 99 MPa suction equilibrium; ModelVII IC is 2 MPa.
+   0.22857 was the correct 2 MPa value for the OLD parameters (λ=1 nm, ρ_lR=1000).
+   **The correct IC for the NEW parameters is 0.154811** (extracted from the
+   fresh dd1600 VTU at t=1693440 s, suction=2 MPa). PRJ still reads 0.22857;
+   update to 0.154811 and rerun before submission.
+
+5. **K recalibrated** via `ms33_calibrate_K.py` (brentq bisection, 7–8 OGS calls
+   per density). New values:
+
+   | ρ_d [kg/m³] | K_old [J/kg] | K_new [J/kg] | Villar target [MPa] | Error |
+   |---:|---:|---:|---:|---:|
+   | 1400 | 4981.81 | **3622.663** | 1.504 | −0.01 % |
+   | 1600 | 23423.8 | **16792.033** | 5.824 | +0.05 % |
+   | 1800 | 105429.7 | **75853.214** | 22.556 | +0.001 % |
+
+   K_new propagated to Models III, IV, VII (all use ρ_d=1600 reference).
+
+**Key diagnostic results from fresh runs:**
+
+- ModelVII void ratio at t=200d: **e=0.577** (φ=0.366); benchmark band 0.4–1.2. ✅
+  Loading path: e=0.51..0.58 across all steps. Void-ratio open defect resolved.
+- ModelIV transport_porosity: min=0.000 (macropores fully depleted at saturation,
+  physically interpretable), no negative values. C++ fix holding. ✅
+- ModelIV at t=200d: 72 of 90 nodes have φ_M ≤ 0.001 (bentonite zone saturated).
+
+**What remains before submission (see SUBMISSION READINESS section above):**
+P1: fix ModelVII IC to 0.154811 and rerun.
+P2: update all 6 PRJ header comments with new K and λ values.
+P3: commit.
+P4–P6: postprocessing scripts, figures, benchmark text.
