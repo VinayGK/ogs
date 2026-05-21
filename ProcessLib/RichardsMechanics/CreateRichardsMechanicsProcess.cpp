@@ -453,6 +453,19 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context, micro_water_content_swelling_slope);
     }
 
+    auto const use_micro_liquid_density_for_micro_pressure =
+        config.getConfigParameter<bool>(
+            "use_micro_liquid_density_for_micro_pressure",
+            defaults ? defaults->use_micro_liquid_density_for_micro_pressure
+                     : false);
+    auto const use_micro_liquid_density_for_pi = config.getConfigParameter<bool>(
+        "use_micro_liquid_density_for_pi",
+        defaults ? defaults->use_micro_liquid_density_for_pi : false);
+    auto const accumulate_swelling_contributions =
+        config.getConfigParameter<bool>(
+            "accumulate_swelling_contributions",
+            defaults ? defaults->accumulate_swelling_contributions : false);
+
     return PotentialExchangeParameters{
         enabled,
         pressure_tolerance,
@@ -473,7 +486,10 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         local_jacobian_perturbation,
         vdw_augmentation_prefactor,
         vdw_augmentation_decay_length,
-        micro_water_content_swelling_slope};
+        micro_water_content_swelling_slope,
+        use_micro_liquid_density_for_micro_pressure,
+        use_micro_liquid_density_for_pi,
+        accumulate_swelling_contributions};
 }
 
 template <int DisplacementDim>

@@ -54,8 +54,13 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                 <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
-                <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
-                <!-- Calibrated to Villar swelling pressure at rho_d=1400 kg/m³ -->
+                <!-- Pi-model default: slope=0, swelling stress from disjoining pressure Pi=rho_lR*K*exp(-xi).
+                     Set slope>0 to add or replace with phenomenological coupling. -->
+                <micro_water_content_swelling_slope>0</micro_water_content_swelling_slope>
+                <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
+                <use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>
+                <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
+                <!-- K calibrated to Villar swelling pressure at rho_d=1400 kg/m³ via Pi-path -->
                 <vdw_augmentation_prefactor>4981.81</vdw_augmentation_prefactor>
                 <!-- lambda=1e-6 code units = physical 1 nm decay length -->
                 <vdw_augmentation_decay_length>1e-6</vdw_augmentation_decay_length>

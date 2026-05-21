@@ -142,5 +142,11 @@ struct PotentialExchangeParameters
     // swelling-strain increment into a stress increment via the elastic
     // stiffness.
     double micro_water_content_swelling_slope = 0.0;
+
+    // Optional consistency switches for the hierarchical DSM branch.
+    // Defaults preserve legacy behavior.
+    bool use_micro_liquid_density_for_micro_pressure = false;
+    bool use_micro_liquid_density_for_pi = false;
+    bool accumulate_swelling_contributions = false;
 };
 }  // namespace ProcessLib::RichardsMechanics

@@ -86,6 +86,9 @@ struct PotentialExchangeUpdateData
 inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
     double const alpha_bar, double const mu, double const p_L_ip,
     double const p_L_m, double const rho_LR, double const beta_LR,
+    double const rho_lR_exchange_input = std::numeric_limits<double>::quiet_NaN(),
+    double const drho_lR_exchange_input_dpL =
+        std::numeric_limits<double>::quiet_NaN(),
     double const pressure_tolerance = 0.0,
     bool const use_macro_potential_for_active_exchange = false,
     bool const use_vdw_micro_potential_for_active_exchange = false,
@@ -118,18 +121,28 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
         use_fd_jacobian_for_direct_macro_derivative;
     out.fd_jacobian_perturbation = fd_jacobian_perturbation;
 
+    // rho_LR depends on liquid pressure in RM through beta_LR = (1/rho) drho/dp.
+    double const drho_LR_dpL = rho_LR * beta_LR;
+    bool const use_custom_micro_density_for_exchange =
+        std::isfinite(rho_lR_exchange_input) && rho_lR_exchange_input > 0.0;
+    double const rho_lR_exchange =
+        use_custom_micro_density_for_exchange ? rho_lR_exchange_input : rho_LR;
+    double const drho_lR_exchange_dpL =
+        use_custom_micro_density_for_exchange
+            ? (std::isfinite(drho_lR_exchange_input_dpL)
+                   ? drho_lR_exchange_input_dpL
+                   : 0.0)
+            : drho_LR_dpL;
+
     out.mu_lR_exchange_input = use_vdw_micro_potential_for_active_exchange
                                    ? mu_lR_vdw
-                                   : p_L_m / rho_LR;
+                                   : p_L_m / rho_lR_exchange;
     out.mu_LR_active = use_macro_potential_for_active_exchange
                            ? out.macro_potential.mu_LR
                            : p_L_ip / rho_LR;
 
     out.exchange = computePotentialDrivenMassExchange(
         out.alpha_M_effective, out.mu_LR_active, out.mu_lR_exchange_input);
-
-    // rho_LR depends on liquid pressure in RM through beta_LR = (1/rho) drho/dp.
-    double const drho_LR_dpL = rho_LR * beta_LR;
 
     if (use_fd_jacobian_for_direct_macro_derivative)
     {
@@ -143,9 +156,13 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
             double const mu_LR_active_eval = use_macro_potential_for_active_exchange
                                                  ? macro_potential_eval.mu_LR
                                                  : p_L_ip_eval / rho_LR_eval;
-            double const mu_lR_active_eval = use_vdw_micro_potential_for_active_exchange
-                                                 ? mu_lR_vdw
-                                                 : p_L_m / rho_LR_eval;
+            double const rho_lR_eval =
+                use_custom_micro_density_for_exchange ? rho_lR_exchange
+                                                      : rho_LR_eval;
+            double const mu_lR_active_eval =
+                use_vdw_micro_potential_for_active_exchange
+                    ? mu_lR_vdw
+                    : p_L_m / rho_lR_eval;
             auto const exchange_eval = computePotentialDrivenMassExchange(
                 alpha_M_effective_eval, mu_LR_active_eval, mu_lR_active_eval);
             return -exchange_eval.rho_l_hat;
@@ -195,7 +212,8 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
             ? (use_custom_dmu_lR_vdw_dpL
                    ? dmu_lR_vdw_dpL
                    : dmu_lR_vdw_drho_lR * drho_LR_dpL)
-            : -p_L_m / (rho_LR * rho_LR) * drho_LR_dpL;
+            : -p_L_m / (rho_lR_exchange * rho_lR_exchange) *
+                  drho_lR_exchange_dpL;
 
     double const drho_l_hat_dpL_direct =
         out.exchange.drho_l_hat_dalpha_M * dalpha_M_effective_dpL +
@@ -222,6 +240,13 @@ struct CompatibilityMicroHydraulicOutputData
     VanDerWaalsMicroPotentialData micro_potential;
 };
 
+struct PotentialExchangeLocalSolveContext;
+inline CompatibilityMicroHydraulicOutputData
+computeCompatibilityMicroHydraulicOutput(
+    double const n_l, double const rho_LR,
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params);
+
 inline double microPotentialSignFactorFromParameters(
     PotentialExchangeParameters const& potential_exchange_params)
 {
@@ -239,7 +264,8 @@ computeCompatibilityMicroHydraulicOutput(
                    potential_exchange_params.micro_solid_volume_fraction_reference));
 
     auto const micro_potential = computeVanDerWaalsMicroPotential(
-        n_l_safe, rho_LR, potential_exchange_params.micro_solid_volume_fraction_reference,
+        n_l_safe, rho_LR,
+        potential_exchange_params.micro_solid_volume_fraction_reference,
         potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
         potential_exchange_params.specific_surface,
         microPotentialSignFactorFromParameters(potential_exchange_params),
@@ -910,7 +936,8 @@ inline void applyReferenceMassStorageLocalState(
 
     auto const compatibility_output =
         computeCompatibilityMicroHydraulicOutput(
-            coupled_update.n_l, rho_LR, potential_exchange_params);
+            coupled_update.n_l, rho_LR, local_context,
+            potential_exchange_params);
 
     auto& n_l = std::get<MicroWaterContent>(state_current);
     *n_l = coupled_update.n_l;
@@ -978,11 +1005,17 @@ computeCompatibilityMicroHydraulicOutput(
         1e-16, potential_exchange_params.initial_micro_water_content.value_or(
                    potential_exchange_params.micro_solid_volume_fraction_reference));
 
-    auto const micro_potential =
-        computeActiveMicroPotential(n_l_safe, rho_LR, local_context, potential_exchange_params);
+    auto const micro_liquid_density = computeActiveMicroLiquidDensity(
+        n_l_safe, rho_LR, local_context, potential_exchange_params);
+    auto const micro_potential = computeActiveMicroPotential(
+        n_l_safe, rho_LR, local_context, potential_exchange_params);
+    double const p_L_m_density =
+        potential_exchange_params.use_micro_liquid_density_for_micro_pressure
+            ? micro_liquid_density.rho_lR
+            : rho_LR;
 
     return {
-        .p_L_m = -rho_LR * micro_potential.mu_lR,
+        .p_L_m = -p_L_m_density * micro_potential.mu_lR,
         .S_L_m = n_l_safe / n_l_ref,
         .n_l_ref = n_l_ref,
         .micro_potential = micro_potential,
@@ -1433,13 +1466,87 @@ template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeReferenceMicroPorositySwellingStressIncrement(
     double const n_l_prev, double const n_l,
-    double const n_S, double const rho_LR,
+    double const n_S, double const rho_lR, double const rho_lR_prev,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
 {
     using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
 
     KV delta_sigma_sw = KV::Zero();
+    double const delta_n_l = n_l - n_l_prev;
+    if (!(std::isfinite(delta_n_l) &&
+          std::abs(delta_n_l) > std::numeric_limits<double>::epsilon()))
+    {
+        return delta_sigma_sw;
+    }
+
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(
+            DisplacementDim)>::identity2;
+    bool const augmentation_enabled =
+        potential_exchange_params.vdw_augmentation_prefactor > 0.0 &&
+        potential_exchange_params.vdw_augmentation_decay_length > 0.0 && n_S > 0.0;
+    bool const slope_enabled =
+        potential_exchange_params.micro_water_content_swelling_slope > 0.0;
+
+    // Legacy path: keep historical semantics unless explicitly switched.
+    if (!potential_exchange_params.accumulate_swelling_contributions)
+    {
+        if (!slope_enabled)
+        {
+            return delta_sigma_sw;
+        }
+
+        if (augmentation_enabled)
+        {
+            double const denom =
+                potential_exchange_params.vdw_augmentation_decay_length * n_S *
+                potential_exchange_params.micro_solid_density_reference *
+                potential_exchange_params.specific_surface;
+            double const xi_curr = n_l / denom;
+            double const xi_prev = n_l_prev / denom;
+            double const K = potential_exchange_params.vdw_augmentation_prefactor;
+            double const rho_curr = rho_lR;
+            double const rho_prev =
+                potential_exchange_params.use_micro_liquid_density_for_pi
+                    ? rho_lR_prev
+                    : rho_lR;
+            double const Pi_curr = rho_curr * K * std::exp(-xi_curr);
+            double const Pi_prev = rho_prev * K * std::exp(-xi_prev);
+            delta_sigma_sw.noalias() += n_S * (Pi_curr - Pi_prev) * identity2;
+            return delta_sigma_sw;
+        }
+
+        double const delta_eps_sw =
+            potential_exchange_params.micro_water_content_swelling_slope *
+            delta_n_l;
+        delta_sigma_sw.noalias() -= C_el * ((delta_eps_sw / 3.0) * identity2);
+        return delta_sigma_sw;
+    }
+
+    if (potential_exchange_params.vdw_augmentation_prefactor > 0.0 &&
+        potential_exchange_params.vdw_augmentation_decay_length > 0.0 &&
+        n_S > 0.0)
+    {
+        double const denom =
+            potential_exchange_params.vdw_augmentation_decay_length * n_S *
+            potential_exchange_params.micro_solid_density_reference *
+            potential_exchange_params.specific_surface;
+        double const xi_curr = n_l / denom;
+        double const xi_prev = n_l_prev / denom;
+        double const K = potential_exchange_params.vdw_augmentation_prefactor;
+        double const rho_curr = rho_lR;
+        double const rho_prev =
+            potential_exchange_params.use_micro_liquid_density_for_pi
+                ? rho_lR_prev
+                : rho_lR;
+        double const Pi_curr = rho_curr * K * std::exp(-xi_curr);
+        double const Pi_prev = rho_prev * K * std::exp(-xi_prev);
+        // Compressive sign: more water (n_l up) -> larger xi -> smaller Pi ->
+        // negative increment -> sigma_sw accumulates as a compressive eigenstress.
+        delta_sigma_sw.noalias() += n_S * (Pi_curr - Pi_prev) * identity2;
+    }
+
     if (!(potential_exchange_params.micro_water_content_swelling_slope > 0.0))
     {
         return delta_sigma_sw;
@@ -1448,38 +1555,6 @@ computeReferenceMicroPorositySwellingStressIncrement(
     // Couple to the LOCAL micro water content n_l, not the REV-scale phi_m.
     // In the hierarchical split phi_m = (1-phi_M)*n_l, so using n_l preserves
     // the calibrated slope value across both flat and hierarchical models.
-    double const delta_n_l = n_l - n_l_prev;
-    if (!(std::isfinite(delta_n_l) &&
-          std::abs(delta_n_l) > std::numeric_limits<double>::epsilon()))
-    {
-        return delta_sigma_sw;
-    }
-
-    if (potential_exchange_params.vdw_augmentation_prefactor > 0.0 &&
-        potential_exchange_params.vdw_augmentation_decay_length > 0.0 &&
-        n_S > 0.0)
-    {
-        auto const& identity2 = MathLib::KelvinVector::Invariants<
-            MathLib::KelvinVector::kelvin_vector_dimensions(
-                DisplacementDim)>::identity2;
-        double const denom =
-            potential_exchange_params.vdw_augmentation_decay_length * n_S *
-            potential_exchange_params.micro_solid_density_reference *
-            potential_exchange_params.specific_surface;
-        double const xi_curr = n_l / denom;
-        double const xi_prev = n_l_prev / denom;
-        double const K = potential_exchange_params.vdw_augmentation_prefactor;
-        double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
-        double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
-        // Compressive sign: more water (n_l up) -> larger xi -> smaller Pi ->
-        // negative increment -> sigma_sw accumulates as a compressive eigenstress.
-        delta_sigma_sw.noalias() += n_S * (Pi_curr - Pi_prev) * identity2;
-        return delta_sigma_sw;
-    }
-
-    auto const& identity2 = MathLib::KelvinVector::Invariants<
-        MathLib::KelvinVector::kelvin_vector_dimensions(
-            DisplacementDim)>::identity2;
     double const delta_eps_sw =
         potential_exchange_params.micro_water_content_swelling_slope * delta_n_l;
 
@@ -1491,12 +1566,14 @@ template <int DisplacementDim>
 inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeSwellingStressIncrement(
     double const n_l_prev, double const n_l,
-    double const n_S, double const rho_LR,
+    double const n_S, double const rho_lR,
+    double const rho_lR_prev,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
 {
     return computeReferenceMicroPorositySwellingStressIncrement<DisplacementDim>(
-        n_l_prev, n_l, n_S, rho_LR, C_el, potential_exchange_params);
+        n_l_prev, n_l, n_S, rho_lR, rho_lR_prev, C_el,
+        potential_exchange_params);
 }
 
 template <int DisplacementDim>
@@ -1527,7 +1604,9 @@ inline void updateSwellingState(
         std::get<ProcessLib::ThermoRichardsMechanics::TransportPorosityData>(
             state_current).phi;
     double const n_S = std::max(1e-16, 1.0 - phi_M);
-    double const rho_LR = *std::get<MicroLiquidDensity>(state_current);
+    double const rho_lR = *std::get<MicroLiquidDensity>(state_current);
+    double const rho_lR_prev =
+        **std::get<PrevState<MicroLiquidDensity>>(state_previous);
 
     auto& sigma_sw =
         std::get<ProcessLib::ThermoRichardsMechanics::
@@ -1541,7 +1620,8 @@ inline void updateSwellingState(
     sigma_sw = *sigma_sw_prev;
     sigma_sw.sigma_sw +=
         computeSwellingStressIncrement<DisplacementDim>(
-            n_l_prev, n_l, n_S, rho_LR, C_el, potential_exchange_params);
+            n_l_prev, n_l, n_S, rho_lR, rho_lR_prev, C_el,
+            potential_exchange_params);
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(
@@ -2022,6 +2102,33 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 transport_porosity = transport_porosity_update.phi_M;
                 transport_porosity_prev->phi =
                     transport_porosity_update.phi_M_prev;
+
+                // Correct the micro liquid density initial state.
+                // micro_liquid_density_reference (used above, line ~2015) is a
+                // trivial EOS placeholder (e.g. 1e-6 kg/m³), NOT the physical
+                // initial density.  In the first time step the exchange solve
+                // updates rho_lR to ~rho_LR (~1000 kg/m³), so rho_lR_prev = 1e-6
+                // while rho_lR = 1000.  With use_micro_liquid_density_for_pi=true,
+                // Pi_prev = 1e-6 * K * exp(-xi_prev) ≈ 0 while
+                // Pi_curr = 1000 * K * exp(-xi_curr) >> 0, producing a ~10^6×
+                // tensile sigma_sw spike that permanently corrupts the accumulation.
+                // Fix: initialise rho_lR and rho_lR_prev from the actual EOS at
+                // the initial state so the first-step Pi difference is physical.
+                {
+                    PotentialExchangeLocalSolveContext const local_ctx_rho{
+                        .phi = porosity,
+                        .phi_M_prev = transport_porosity_update.phi_M_prev,
+                        .phi_m_prev = transport_porosity_update.phi_m_prev,
+                        .volumetric_strain = 0.0,
+                        .volumetric_strain_prev = 0.0};
+                    auto const rho_lR_data = computeActiveMicroLiquidDensity(
+                        n_l_initial, rho_LR_initial, local_ctx_rho,
+                        *potential_exchange_params_ptr);
+                    double const rho_lR_corrected =
+                        std::max(1e-16, rho_lR_data.rho_lR);
+                    *rho_lR = rho_lR_corrected;
+                    **rho_lR_prev = rho_lR_corrected;
+                }
             }
         }
 
@@ -2489,6 +2596,10 @@ void RichardsMechanicsLocalAssembler<
             bool use_vdw_micro_potential_for_active_exchange = false;
             double mu_lR_vdw = 0.0;
             double dmu_lR_vdw_drho_lR = 0.0;
+            double rho_lR_exchange_input =
+                std::numeric_limits<double>::quiet_NaN();
+            double drho_lR_exchange_input_dpL =
+                std::numeric_limits<double>::quiet_NaN();
 
             if (potential_exchange_enabled)
             {
@@ -2512,6 +2623,17 @@ void RichardsMechanicsLocalAssembler<
                 auto const micro_potential = computeActiveMicroPotential(
                     n_l, rho_LR, local_solve_context,
                     *potential_exchange_params_ptr);
+                if (potential_exchange_params_ptr
+                        ->use_micro_liquid_density_for_micro_pressure)
+                {
+                    auto const rho_lR_state =
+                        *std::get<MicroLiquidDensity>(this->current_states_[ip]);
+                    if (std::isfinite(rho_lR_state) && rho_lR_state > 0.0)
+                    {
+                        rho_lR_exchange_input = rho_lR_state;
+                        drho_lR_exchange_input_dpL = rho_lR_state * beta_LR;
+                    }
+                }
                 use_vdw_micro_potential_for_active_exchange = true;
                 mu_lR_vdw = micro_potential.mu_lR;
                 dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
@@ -2519,6 +2641,7 @@ void RichardsMechanicsLocalAssembler<
 
             auto const potential_exchange_result = computePotentialExchangeUpdate(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
+                rho_lR_exchange_input, drho_lR_exchange_input_dpL,
                 pressure_tolerance, potential_exchange_enabled,
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
                 dmu_lR_vdw_drho_lR,
@@ -2767,8 +2890,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
     std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(constitutive_data).phi =
         std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(state_current).phi;
     updateSwellingState<DisplacementDim>(
-        solid_phase, C_el, state_current, state_previous, variables, variables_prev, x_position,
-        t, dt, potential_exchange_parameters);
+        solid_phase, C_el, state_current, state_previous, variables,
+        variables_prev, x_position, t, dt,
+        potential_exchange_parameters);
 
     // Gate 1/2 fix for DSM micro-porosity mode: enforce phi_m <= phi_total and
     // phi_M = phi_total - phi_m >= 0 in constitutive state.
@@ -3278,6 +3402,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             bool use_vdw_micro_potential_for_active_exchange = false;
             double mu_lR_vdw = 0.0;
             double dmu_lR_vdw_drho_lR = 0.0;
+            double rho_lR_exchange_input =
+                std::numeric_limits<double>::quiet_NaN();
+            double drho_lR_exchange_input_dpL =
+                std::numeric_limits<double>::quiet_NaN();
             bool use_custom_dmu_lR_vdw_dpL = false;
             double dmu_lR_vdw_dpL = 0.0;
             bool use_fd_jacobian_for_direct_macro_derivative = false;
@@ -3306,6 +3434,17 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 auto const micro_potential = computeActiveMicroPotential(
                     n_l, rho_LR, local_solve_context,
                     *potential_exchange_params_ptr);
+                if (potential_exchange_params_ptr
+                        ->use_micro_liquid_density_for_micro_pressure)
+                {
+                    auto const rho_lR_state =
+                        *std::get<MicroLiquidDensity>(this->current_states_[ip]);
+                    if (std::isfinite(rho_lR_state) && rho_lR_state > 0.0)
+                    {
+                        rho_lR_exchange_input = rho_lR_state;
+                        drho_lR_exchange_input_dpL = rho_lR_state * beta_LR;
+                    }
+                }
                 use_vdw_micro_potential_for_active_exchange = true;
                 mu_lR_vdw = micro_potential.mu_lR;
                 dmu_lR_vdw_drho_lR = micro_potential.dmu_lR_drho_lR;
@@ -3341,6 +3480,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
             auto const potential_exchange_result = computePotentialExchangeUpdate(
                 alpha_bar, mu, p_L_ip, p_L_m, rho_LR, beta_LR,
+                rho_lR_exchange_input, drho_lR_exchange_input_dpL,
                 pressure_tolerance, potential_exchange_enabled,
                 use_vdw_micro_potential_for_active_exchange, mu_lR_vdw,
                 dmu_lR_vdw_drho_lR, use_custom_dmu_lR_vdw_dpL,

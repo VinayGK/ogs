@@ -421,20 +421,35 @@ DsmMicromacroReferenceSinglePointData solveDsmMicromacroReferenceSinglePoint(
     }
 
     auto const [micro_potential, exchange] = eval_exchange(n_l);
+    double rho_lR_output = rho_LR;
+    if (use_mass_storage &&
+        potential_exchange_params.use_micro_liquid_density_for_micro_pressure)
+    {
+        double const active_nS = referenceMicroSolidVolumeFraction(
+            n_l, phi, 0.0, n_l_prev, volumetric_strain, volumetric_strain_prev,
+            potential_exchange_params);
+        rho_lR_output =
+            solveReferenceReducedMicroLiquidDensity(
+                n_l, rho_LR, active_nS, potential_exchange_params)
+                .rho_lR;
+    }
     double const n_l_ref = std::max(
         1e-16, potential_exchange_params.initial_micro_water_content.value_or(
                    potential_exchange_params.micro_solid_volume_fraction_reference));
     double const phi_safe = std::max(0.0, phi);
-    double const phi_m = std::clamp(n_l, 0.0, phi_safe);
+    auto const split = computeTransportPorosityUpdate(
+        phi_safe, std::max(0.0, phi_safe - n_l_prev), std::max(0.0, n_l_prev),
+        n_l, volumetric_strain, volumetric_strain_prev,
+        potential_exchange_params.macro_porosity_update_mode);
 
     return {
         .n_l = n_l,
         .micro_potential = micro_potential,
         .exchange = exchange,
-        .p_L_m = -rho_LR * micro_potential.mu_lR,
+        .p_L_m = -rho_lR_output * micro_potential.mu_lR,
         .S_L_m = n_l / n_l_ref,
-        .phi_M = phi_safe - phi_m,
-        .phi_m = phi_m,
+        .phi_M = split.phi_M,
+        .phi_m = split.phi_m,
     };
 }
 
@@ -542,7 +557,9 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
     {
         auto const data = computePotentialExchangeUpdate(
             state.alpha_bar, state.mu, state.p_L, state.p_L_m, state.rho_LR,
-            beta_LR, state.pressure_tolerance, false, false, 0.0, 0.0,
+            beta_LR, std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN(),
+            state.pressure_tolerance, false, false, 0.0, 0.0,
             false, 0.0, false,
             potential_exchange_params.fd_jacobian_perturbation);
         return {
@@ -575,7 +592,9 @@ ProductionCoupledExchangeData productionCoupledExchangeData(
 
     auto const data = computePotentialExchangeUpdate(
         state.alpha_bar, state.mu, state.p_L, state.p_L_m, state.rho_LR,
-        beta_LR, state.pressure_tolerance, true, true,
+        beta_LR, std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::quiet_NaN(),
+        state.pressure_tolerance, true, true,
         n_l_update.micro_potential.mu_lR,
         n_l_update.micro_potential.dmu_lR_drho_lR, true, dmu_lR_vdw_dpL,
         false, potential_exchange_params.fd_jacobian_perturbation);
@@ -889,21 +908,55 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
 
     auto const loading_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, 0.7, 1000.0, C_el, potential_exchange_params);
+            0.2, 0.3, 0.7, 1000.0, 1000.0, C_el,
+            potential_exchange_params);
     auto const expected_loading = -(0.1 * (0.3 - 0.2) / 3.0) * identity2;
     EXPECT_NEAR((loading_increment - expected_loading).norm(), 0.0, 1e-14);
 
     auto const unloading_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.3, 0.2, 0.7, 1000.0, C_el, potential_exchange_params);
+            0.3, 0.2, 0.7, 1000.0, 1000.0, C_el,
+            potential_exchange_params);
     auto const expected_unloading = -(0.1 * (0.2 - 0.3) / 3.0) * identity2;
     EXPECT_NEAR((unloading_increment - expected_unloading).norm(), 0.0, 1e-14);
 
     potential_exchange_params.micro_water_content_swelling_slope = 0.0;
     auto const disabled_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, 0.7, 1000.0, C_el, potential_exchange_params);
+            0.2, 0.3, 0.7, 1000.0, 1000.0, C_el,
+            potential_exchange_params);
     EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
+
+    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
+    potential_exchange_params.vdw_augmentation_prefactor = 2.0;
+    potential_exchange_params.vdw_augmentation_decay_length = 1e-6;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.specific_surface = 1000.0;
+    potential_exchange_params.accumulate_swelling_contributions = true;
+    potential_exchange_params.use_micro_liquid_density_for_pi = true;
+    double const n_l_prev = 0.2;
+    double const n_l = 0.3;
+    double const n_S = 0.7;
+    double const rho_lR_curr = 1050.0;
+    double const rho_lR_prev = 1000.0;
+    auto const combined_increment =
+        computeReferenceMicroPorositySwellingStressIncrement<2>(
+            n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, C_el,
+            potential_exchange_params);
+
+    double const denom =
+        potential_exchange_params.vdw_augmentation_decay_length * n_S *
+        potential_exchange_params.micro_solid_density_reference *
+        potential_exchange_params.specific_surface;
+    double const xi_curr = n_l / denom;
+    double const xi_prev = n_l_prev / denom;
+    double const K = potential_exchange_params.vdw_augmentation_prefactor;
+    double const pi_curr = rho_lR_curr * K * std::exp(-xi_curr);
+    double const pi_prev = rho_lR_prev * K * std::exp(-xi_prev);
+    auto const expected_pi = n_S * (pi_curr - pi_prev) * identity2;
+    auto const expected_slope = -(0.1 * (n_l - n_l_prev) / 3.0) * identity2;
+    auto const expected_combined = expected_pi + expected_slope;
+    EXPECT_NEAR((combined_increment - expected_combined).norm(), 0.0, 1e-12);
 }
 
 TEST(RichardsMechanics, DSMMicroMacroTransportPorositySplitRecomposesTotalPorosity)
@@ -912,8 +965,10 @@ TEST(RichardsMechanics, DSMMicroMacroTransportPorositySplitRecomposesTotalPorosi
         0.4, 0.27, 0.08, 0.1, 0.0, 0.0,
         MacroPorosityUpdateMode::AlgebraicSplit);
 
-    EXPECT_NEAR(split.phi_m, 0.1, 1e-14);
-    EXPECT_NEAR(split.phi_M, 0.3, 1e-14);
+    // Hierarchical split: phi_M = (phi - n_l) / (1 - n_l), phi_m = (1 - phi_M) * n_l
+    // For phi=0.4, n_l=0.1: phi_M = 0.3/0.9 = 1/3, phi_m = (2/3)*0.1 = 1/15
+    EXPECT_NEAR(split.phi_m, 1.0 / 15.0, 1e-14);
+    EXPECT_NEAR(split.phi_M, 1.0 / 3.0, 1e-14);
     EXPECT_NEAR(split.phi_m_prev, 0.08, 1e-14);
     EXPECT_NEAR(split.phi_M_prev, 0.27, 1e-14);
     EXPECT_NEAR(split.phi_M + split.phi_m, 0.4, 1e-14);
@@ -949,15 +1004,19 @@ TEST(RichardsMechanics, DSMMicroMacroAdditiveMacroPorosityRateUpdate)
     double const phi_prev_sum = phi_M_prev + phi_m_prev;
     double const denominator = 1.0 + delta_eps_v;
     double const phi_safe_kinematic = (phi_prev_sum + delta_eps_v) / denominator;
-    double const expected_phi_M =
-        (phi_M_prev + (1.0 - phi_m) * delta_eps_v - (phi_m - phi_m_prev)) /
-        denominator;
 
-    EXPECT_NEAR(split.phi_m, phi_m, 1e-14);
+    // Hierarchical split: phi_M = (phi_safe - n_l) / (1 - n_l), phi_m = (1 - phi_M) * n_l
+    // n_l here is the phi_m argument passed to computeTransportPorosityUpdate.
+    double const n_l = phi_m;
+    double const expected_phi_M_hierarchical =
+        (phi_safe_kinematic - n_l) / (1.0 - n_l);
+    double const expected_phi_m_hierarchical =
+        (1.0 - expected_phi_M_hierarchical) * n_l;
+
+    EXPECT_NEAR(split.phi_m, expected_phi_m_hierarchical, 1e-12);
     EXPECT_NEAR(split.phi_m_prev, phi_m_prev, 1e-14);
     EXPECT_NEAR(split.phi_M_prev, phi_M_prev, 1e-14);
-    EXPECT_NEAR(split.phi_M, expected_phi_M, 1e-14);
-    EXPECT_NEAR(split.phi_M + split.phi_m, expected_phi_M + phi_m, 1e-14);
+    EXPECT_NEAR(split.phi_M, expected_phi_M_hierarchical, 1e-12);
     EXPECT_NEAR(split.phi_M + split.phi_m, phi_safe_kinematic, 1e-12);
     EXPECT_GT(split.phi_M + split.phi_m, phi_M_prev + phi_m_prev);
 }

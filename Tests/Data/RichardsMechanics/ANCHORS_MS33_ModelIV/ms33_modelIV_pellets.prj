@@ -56,7 +56,17 @@ Official benchmark spec (MSXX §Model IV):
                 <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
-                <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
+                <!-- Swelling mechanical path: Pi-model (default).
+                     slope = 0 → Pi-path only: delta_sigma_sw = nS*(Pi_curr-Pi_prev)*I
+                     where Pi = rho_lR * K * exp(-xi) (disjoining pressure, Pa).
+                     Calibration is through vdw_augmentation_prefactor (K) and
+                     vdw_augmentation_decay_length (lambda) below.
+                     To switch to slope-path: set slope > 0 and K = 0 (disables Pi block).
+                     To use both additively: set slope > 0 with K > 0. -->
+                <micro_water_content_swelling_slope>0</micro_water_content_swelling_slope>
+                <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
+                <use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>
+                <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
                 <!-- K for bentonite zone (Villar at 1600 kg/m³).
                      Pellet zone inherits same K but with n_s_pellet=0.324 → effective Pi
                      contribution automatically smaller (n_s enters delta_sigma_sw computation) -->
