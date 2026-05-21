@@ -411,7 +411,7 @@ inline double computeActiveMicroSolidVolumeFraction(
         n_l, local_context.volumetric_strain,
         local_context.volumetric_strain_prev,
         potential_exchange_params.macro_porosity_update_mode);
-    return std::max(1e-16, 1.0 - split.phi_M - split.phi_m);
+    return std::max(1e-16, 1.0 - split.phi_M);
 }
 
 inline double computePreviousMicroSolidVolumeFraction(
@@ -424,11 +424,9 @@ inline double computePreviousMicroSolidVolumeFraction(
         return std::max(1e-16, potential_exchange_params.micro_solid_volume_fraction_reference);
     }
 
-    double const total_prev_porosity = std::clamp(
-        std::max(0.0, local_context.phi_M_prev) +
-            std::max(0.0, local_context.phi_m_prev),
-        0.0, 1.0 - 1e-12);
-    return std::max(1e-16, 1.0 - total_prev_porosity);
+    double const phi_M_prev_safe =
+        std::clamp(std::max(0.0, local_context.phi_M_prev), 0.0, 1.0 - 1e-12);
+    return std::max(1e-16, 1.0 - phi_M_prev_safe);
 }
 
 struct ReducedMicroLiquidDensityData
@@ -606,7 +604,16 @@ solveReferenceMassStoragePredictorState(
         double const mu_lR_active = micro_potential.mu_lR;
         auto const exchange = computePotentialDrivenMassExchange(
             alpha_M_effective, mu_LR_active, mu_lR_active);
-        double const rho_l = n_l * micro_liquid_density.rho_lR;
+        // REV-scale liquid apparent density: rho_l = phi_m * rho_lR
+        // Hierarchical split: phi_m = (1-phi)/(1-n_l)*n_l.
+        // Previously this was n_l*rho_lR (aggregate scale — missing (1-phi_M)).
+        double const phi_h = std::isfinite(local_context.phi)
+            ? std::clamp(local_context.phi, 0.0, 1.0 - 1e-12)
+            : std::clamp(local_context.phi_M_prev + local_context.phi_m_prev,
+                         0.0, 1.0 - 1e-12);
+        double const one_minus_n_l_h = std::max(1e-12, 1.0 - n_l);
+        double const rho_l =
+            (1.0 - phi_h) / one_minus_n_l_h * n_l * micro_liquid_density.rho_lR;
         double const residual = rho_l - rho_l_prev -
                                 dt_safe * exchange.rho_l_hat -
                                 dt_safe * rho_l * volumetric_strain_rate;
@@ -649,9 +656,21 @@ solveReferenceMassStoragePredictorState(
 
         double const drho_l_hat_dn_l =
             exchange.drho_l_hat_dmu_lR * micro_potential.dmu_lR_dnl;
-        double const jacobian = micro_density.drho_l_dn_l -
+        // d(rho_l_REV)/dn_l where rho_l_REV = (1-phi)/(1-n_l)*n_l*rho_lR:
+        //   = (1-phi)/(1-n_l)^2 * rho_lR  +  (1-phi)/(1-n_l) * drho_lR_dnl
+        //   = (1-phi_M)/one_minus_n_l * rho_lR  +  (1-phi_M) * drho_lR_dnl
+        double const phi_jac = std::isfinite(local_context.phi)
+            ? std::clamp(local_context.phi, 0.0, 1.0 - 1e-12)
+            : std::clamp(local_context.phi_M_prev + local_context.phi_m_prev,
+                         0.0, 1.0 - 1e-12);
+        double const one_minus_n_l_jac = std::max(1e-12, 1.0 - n_l);
+        double const one_minus_phi_M_jac = (1.0 - phi_jac) / one_minus_n_l_jac;
+        double const drho_l_REV_dn_l =
+            one_minus_phi_M_jac / one_minus_n_l_jac * micro_density.rho_lR +
+            one_minus_phi_M_jac * micro_density.drho_lR_dnl;
+        double const jacobian = drho_l_REV_dn_l -
                                 dt_safe * drho_l_hat_dn_l -
-                                dt_safe * micro_density.drho_l_dn_l *
+                                dt_safe * drho_l_REV_dn_l *
                                     volumetric_strain_rate;
         if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
         {
@@ -750,7 +769,14 @@ solveReferenceMassStorageCoupledState(
         double const mu_lR_active = micro_potential.mu_lR;
         auto const exchange = computePotentialDrivenMassExchange(
             alpha_M_effective, mu_LR_active, mu_lR_active);
-        double const rho_l = n_l * rho_lR;
+        // REV-scale liquid apparent density: phi_m * rho_lR (hierarchical split).
+        // phi_m = (1-phi)/(1-n_l)*n_l. Previously n_l*rho_lR (aggregate scale).
+        double const phi_cs = std::isfinite(local_context.phi)
+            ? std::clamp(local_context.phi, 0.0, 1.0 - 1e-12)
+            : std::clamp(local_context.phi_M_prev + local_context.phi_m_prev,
+                         0.0, 1.0 - 1e-12);
+        double const one_minus_n_l_cs = std::max(1e-12, 1.0 - n_l);
+        double const rho_l = (1.0 - phi_cs) / one_minus_n_l_cs * n_l * rho_lR;
         double const mass_residual = rho_l - rho_l_prev -
                                      dt_safe * exchange.rho_l_hat -
                                      dt_safe * rho_l * volumetric_strain_rate;
@@ -1072,9 +1098,11 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
                   computePreviousMicroLiquidDensity(n_l_prev, rho_LR,
                                                       local_context, potential_exchange_params)}
             : std::nullopt;
+    // REV-scale previous liquid apparent density: phi_m_prev * rho_lR_prev.
+    // local_context.phi_m_prev = (1-phi_M_prev)*n_l_prev (hierarchical split).
     double const rho_l_prev =
         prev_micro_liquid_density
-            ? n_l_prev * prev_micro_liquid_density->rho_lR
+            ? local_context.phi_m_prev * prev_micro_liquid_density->rho_lR
             : 0.0;
 
     ImplicitMicroWaterContentUpdateData out;
@@ -1350,7 +1378,9 @@ inline void updateMicroscaleHydraulicState(
         auto const macro_potential = computeYoungLaplaceMacroPotential(
             -p_cap_ip, rho_LR, potential_exchange_params.pressure_tolerance);
         double const rho_lR_prev_value = std::max(1e-16, **rho_lR_prev);
-        double const rho_l_prev = n_l_prev_value * rho_lR_prev_value;
+        // REV-scale previous liquid apparent density: phi_m_prev * rho_lR_prev.
+        // local_context.phi_m_prev = (1-phi_M_prev)*n_l_prev (hierarchical split).
+        double const rho_l_prev = local_context.phi_m_prev * rho_lR_prev_value;
         auto const coupled_update = solveReferenceMassStorageCoupledState(
             n_l_prev_value, rho_l_prev, rho_lR_prev_value, dt,
             rho_LR, micro_porosity_parameters->mass_exchange_coefficient, mu,
