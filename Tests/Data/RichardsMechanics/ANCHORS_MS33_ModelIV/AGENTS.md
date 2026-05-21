@@ -22,7 +22,7 @@ Do **not** use the `dsm_native-release` worktree binary — VTK ABI mismatch
 |------|-------------|--------|
 | 1 | REV-scale n_l mass balance (φ_m·ρ_lR, not n_l·ρ_lR); cross-coupling implicit in storage diff | ✅ done — commit `0d7a9edd64` (2026-05-20) |
 | 2 | Thermodynamic swelling stress σ_sw = −φ_m·Π; K recalibration | ✅ done — commit `88d42c98fd` (2026-05-21) |
-| 3 | EOS argument unification: decouple ρ_lR(EOS) from Π; Gibbs–Duhem consistency | ⬜ open — see Action 6 below |
+| 3 | EOS argument unification: decouple ρ_lR(EOS) from Π; Gibbs–Duhem consistency | ✅ done — see Action 6 completion (2026-05-21) |
 | 4 | Comment cleanup: remove additive-approximation text from PRJ files and paper | ⬜ open |
 
 ---
@@ -128,11 +128,11 @@ All 6 models: 0 rejected time steps.
 
 ---
 
-## Action 6 (OPEN): Step 3 — EOS argument unification and Gibbs–Duhem fix
+## 2026-05-21 — Action 6: Step 3 — EOS argument unification and Gibbs–Duhem fix (COMPLETED)
 
-**Date open:** 2026-05-21  
-**Priority:** Medium — affects time-path accuracy and paper correctness; calibration  
-currently absorbs the inconsistency at equilibrium.
+**Status:** Completed on 2026-05-21 (commit: this EOS-fix commit).  
+**Scope:** Decouple swelling-pressure Pi path from `rho_lR(EOS)` and make Pi use
+bulk density `rho_LR`, then recalibrate `K` and rerun full MS33 suite.
 
 ### Background
 
@@ -272,11 +272,24 @@ negligible with current parameters.
 
 ### Verification gate (step 3)
 
-After code change + K recalibration:
-1. All 3 Model I densities: Villar error < 0.1% (< 0.015% expected)
-2. All 6 models: 0 rejected time steps
-3. Compile cleanly: `ninja -j8 ogs` in `/Users/vinaykumar/git/build/release-omp-mfront`
-4. Confirm `p_sw > 0` for all 6 models at final timestep
+**Implemented and verified on 2026-05-21:**
+1. Compile cleanly: `cmake --build /Users/vinaykumar/git/build/release-omp-mfront -j8` ✅
+2. K recalibration complete (Model I):
+   - dd1400: `K = 7656.5016`, `p_sw = 1.50378 MPa`, Villar err `-0.0020%`
+   - dd1600: `K = 29999.2513`, `p_sw = 5.82306 MPa`, Villar err `-0.0174%`
+   - dd1800: `K = 118585.8600`, `p_sw = 22.56225 MPa`, Villar err `+0.0278%`
+   - mean absolute Villar error: `0.0158%` ✅
+3. Full six-model MS33 suite rerun: all converged with `0` rejected steps ✅
+   - I dd1400: accepted/rejected = `308/0`
+   - I dd1600: accepted/rejected = `308/0`
+   - I dd1800: accepted/rejected = `308/0`
+   - III gap2mm: accepted/rejected = `299/0`
+   - IV pellets: accepted/rejected = `279/0`
+   - VII freeswelling: accepted/rejected = `458/0`
+4. Final-time swelling pressure sign check (`p_sw > 0`) ✅
+   - III: `5.493395 MPa`
+   - IV: `4.294508 MPa`
+   - VII: `4.746589 MPa`
 
 ---
 
@@ -313,7 +326,7 @@ Tests/Data/RichardsMechanics/
     ms33_modelVII_freeswelling.prj  line ~80–98
 ```
 
-Key parameters and current values (as of commit `88d42c98fd`):
+Key parameters and current values (as of Action 6 completion, 2026-05-21):
 
 | Parameter | Value | Role |
 |-----------|-------|------|

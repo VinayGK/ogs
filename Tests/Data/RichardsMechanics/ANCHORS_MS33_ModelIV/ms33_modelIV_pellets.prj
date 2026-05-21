@@ -70,7 +70,7 @@ Official benchmark spec (MSXX §Model IV):
                      Pellet zone inherits same K but with n_s_pellet=0.324 → effective Pi
                      contribution automatically smaller (n_s enters delta_sigma_sw computation).
                      Pending recalibration with λ=0.75 nm, ρ_lR=1100 kg/m³. -->
-                <vdw_augmentation_prefactor>27371.9007</vdw_augmentation_prefactor>
+                <vdw_augmentation_prefactor>29999.2513</vdw_augmentation_prefactor>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->

@@ -1,35 +1,43 @@
-# ANCHORS MS33 status after nS consistency change (2026-05-21)
+# ANCHORS MS33 status after EOS Pi-path fix (2026-05-21)
 
-## Code change
+## Code changes completed
 - `ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h`
-  - `computeActiveMicroSolidVolumeFraction`: use `n_S = 1 - phi_M` (instead of total-solid `1 - phi`).
-  - `computePreviousMicroSolidVolumeFraction`: use previous `phi_M` only.
+  - `computeReferenceMicroPorositySwellingStressIncrement`: Pi-path now uses
+    `rho_LR` (bulk liquid density) instead of `rho_lR` (micro-liquid EOS state).
+  - `computeSwellingStressIncrement`: propagated `rho_LR` argument.
+  - `updateSwellingState`: propagated `rho_LR` argument and call sites updated.
+- `Tests/ProcessLib/RichardsMechanics/DSMMicroMacroSingleIntegrationPoint.cpp`
+  - Updated for new function signature and Pi-path expectation.
 
-## What works
-- Model I (dd1400, dd1600, dd1800): converged, 308 accepted / 0 rejected each.
-- Model III (gap2mm): converged, 284 accepted / 0 rejected.
-  - Deformed-gap estimate from displacement at 200 d: ~1.689 mm (from 2.000 mm initial).
-- Model IV (pellets): converged, 268 accepted / 0 rejected.
-  - `transport_porosity` remains non-negative in output (`min = 0.0`).
-- Targeted RM regression checks passed:
-  - `RichardsMechanics_double_porosity_swelling_dsm_micromacro_constbc_reference`
-  - `RichardsMechanics_beacon_1c_*`
+## Recalibration (post-fix)
+- `K_opt(dd1400) = 7656.5016 J/kg`
+- `K_opt(dd1600) = 29999.2513 J/kg`
+- `K_opt(dd1800) = 118585.8600 J/kg`
+- Stored in `ANCHORS_MS33_ModelIV/ms33_calibrate_K_results.txt`.
+- Propagated to baseline PRJs:
+  - Model I dd1400/dd1600/dd1800
+  - Model III gap2mm
+  - Model IV pellets
+  - Model VII freeswelling
 
-## What does not work
-- Model VII (freeswelling): fails at first step due to nonlinear divergence; timestep cutbacks exhausted.
-- Failure mode appears hydraulic/micro-exchange dominated (pressure component diverges first), not MCC plasticity (suite currently uses `LinearElasticIsotropic`).
-
-## Calibration updates (after rerun)
-- `K_opt(dd1400) = 3624.0887 J/kg`
-- `K_opt(dd1600) = 16787.1049 J/kg`
-- `K_opt(dd1800) = 75877.7890 J/kg`
-- Saved in `ANCHORS_MS33_ModelIV/ms33_calibrate_K_results.txt` and propagated to Model I PRJs.
-
-## TODO — Model V salinity characterization (literature-based)
-- Current Model V runs are saline surrogates; they are not yet validated against chemistry-informed HM response.
-- Required next step: perform a focused literature review to quantify how salinity affects bentonite HM behavior (at minimum: swelling pressure reduction, permeability evolution, retention/capillary response, and stiffness/compressibility trends where supported).
-- After extracting defensible ranges/trends, parameterize salinity effects explicitly in the benchmark model and re-run Model V (LE and MCC variants) with documented provenance for each changed parameter.
-- Acceptance target: saline Model V must show physically justified deviation from freshwater reference (especially swelling pressure path), not only numerical convergence.
+## Verification results (spec-compliant rerun)
+- Build: `cmake --build /Users/vinaykumar/git/build/release-omp-mfront -j8` passed.
+- Model I Villar verification:
+  - dd1400: `p_sw=1.50378 MPa`, err `-0.0020%`
+  - dd1600: `p_sw=5.82306 MPa`, err `-0.0174%`
+  - dd1800: `p_sw=22.56225 MPa`, err `+0.0278%`
+  - mean absolute error: `0.0158%`
+- Full MS33 suite:
+  - I dd1400: `308 accepted / 0 rejected`
+  - I dd1600: `308 accepted / 0 rejected`
+  - I dd1800: `308 accepted / 0 rejected`
+  - III gap2mm: `299 accepted / 0 rejected`
+  - IV pellets: `279 accepted / 0 rejected`
+  - VII freeswelling: `458 accepted / 0 rejected`
+- Final-time swelling pressure sign check:
+  - III: `5.493395 MPa` (>0)
+  - IV: `4.294508 MPa` (>0)
+  - VII: `4.746589 MPa` (>0)
 
 ## Mandatory spec-compliance policy (effective 2026-05-21)
 - All ANCHORS MS33 simulations must remain strictly benchmark-spec compliant at all times.

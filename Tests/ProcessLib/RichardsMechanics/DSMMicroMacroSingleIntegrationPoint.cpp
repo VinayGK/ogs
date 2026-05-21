@@ -908,14 +908,14 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
 
     auto const loading_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, 0.7, 1000.0, 1000.0, C_el,
+            0.2, 0.3, 0.7, 1000.0, 1000.0, 1000.0, C_el,
             potential_exchange_params);
     auto const expected_loading = -(0.1 * (0.3 - 0.2) / 3.0) * identity2;
     EXPECT_NEAR((loading_increment - expected_loading).norm(), 0.0, 1e-14);
 
     auto const unloading_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.3, 0.2, 0.7, 1000.0, 1000.0, C_el,
+            0.3, 0.2, 0.7, 1000.0, 1000.0, 1000.0, C_el,
             potential_exchange_params);
     auto const expected_unloading = -(0.1 * (0.2 - 0.3) / 3.0) * identity2;
     EXPECT_NEAR((unloading_increment - expected_unloading).norm(), 0.0, 1e-14);
@@ -923,7 +923,7 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
     potential_exchange_params.micro_water_content_swelling_slope = 0.0;
     auto const disabled_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, 0.7, 1000.0, 1000.0, C_el,
+            0.2, 0.3, 0.7, 1000.0, 1000.0, 1000.0, C_el,
             potential_exchange_params);
     EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
 
@@ -937,11 +937,12 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
     double const n_l_prev = 0.2;
     double const n_l = 0.3;
     double const n_S = 0.7;
+    double const rho_LR = 1000.0;
     double const rho_lR_curr = 1050.0;
     double const rho_lR_prev = 1000.0;
     auto const combined_increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
-            n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, C_el,
+            n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, rho_LR, C_el,
             potential_exchange_params);
 
     double const denom =
@@ -951,9 +952,10 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
     double const xi_curr = n_l / denom;
     double const xi_prev = n_l_prev / denom;
     double const K = potential_exchange_params.vdw_augmentation_prefactor;
-    double const pi_curr = rho_lR_curr * K * std::exp(-xi_curr);
-    double const pi_prev = rho_lR_prev * K * std::exp(-xi_prev);
-    auto const expected_pi = n_S * (pi_curr - pi_prev) * identity2;
+    double const pi_curr = rho_LR * K * std::exp(-xi_curr);
+    double const pi_prev = rho_LR * K * std::exp(-xi_prev);
+    auto const expected_pi =
+        n_S * (n_l_prev * pi_prev - n_l * pi_curr) * identity2;
     auto const expected_slope = -(0.1 * (n_l - n_l_prev) / 3.0) * identity2;
     auto const expected_combined = expected_pi + expected_slope;
     EXPECT_NEAR((combined_increment - expected_combined).norm(), 0.0, 1e-12);

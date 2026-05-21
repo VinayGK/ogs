@@ -1497,6 +1497,7 @@ inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeReferenceMicroPorositySwellingStressIncrement(
     double const n_l_prev, double const n_l,
     double const n_S, double const rho_lR, double const rho_lR_prev,
+    double const rho_LR,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
 {
@@ -1518,6 +1519,8 @@ computeReferenceMicroPorositySwellingStressIncrement(
         potential_exchange_params.vdw_augmentation_decay_length > 0.0 && n_S > 0.0;
     bool const slope_enabled =
         potential_exchange_params.micro_water_content_swelling_slope > 0.0;
+    (void)rho_lR;
+    (void)rho_lR_prev;
 
     // Legacy path: keep historical semantics unless explicitly switched.
     if (!potential_exchange_params.accumulate_swelling_contributions)
@@ -1536,13 +1539,8 @@ computeReferenceMicroPorositySwellingStressIncrement(
             double const xi_curr = n_l / denom;
             double const xi_prev = n_l_prev / denom;
             double const K = potential_exchange_params.vdw_augmentation_prefactor;
-            double const rho_curr = rho_lR;
-            double const rho_prev =
-                potential_exchange_params.use_micro_liquid_density_for_pi
-                    ? rho_lR_prev
-                    : rho_lR;
-            double const Pi_curr = rho_curr * K * std::exp(-xi_curr);
-            double const Pi_prev = rho_prev * K * std::exp(-xi_prev);
+            double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
+            double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
             // Thermodynamic form: sigma_sw = -phi_m * Pi = -n_S * n_l * Pi
             // (compressive eigenstress, tension-positive convention).
             // Factor n_l (previously absorbed into K) now explicit.
@@ -1571,13 +1569,8 @@ computeReferenceMicroPorositySwellingStressIncrement(
         double const xi_curr = n_l / denom;
         double const xi_prev = n_l_prev / denom;
         double const K = potential_exchange_params.vdw_augmentation_prefactor;
-        double const rho_curr = rho_lR;
-        double const rho_prev =
-            potential_exchange_params.use_micro_liquid_density_for_pi
-                ? rho_lR_prev
-                : rho_lR;
-        double const Pi_curr = rho_curr * K * std::exp(-xi_curr);
-        double const Pi_prev = rho_prev * K * std::exp(-xi_prev);
+        double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
+        double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
         // Thermodynamic form: sigma_sw = -phi_m * Pi = -n_S * n_l * Pi
         // (compressive eigenstress, tension-positive convention).
         // n_l factor was previously absorbed into K; now explicit.
@@ -1607,18 +1600,19 @@ inline MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
 computeSwellingStressIncrement(
     double const n_l_prev, double const n_l,
     double const n_S, double const rho_lR,
-    double const rho_lR_prev,
+    double const rho_lR_prev, double const rho_LR,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params)
 {
     return computeReferenceMicroPorositySwellingStressIncrement<DisplacementDim>(
-        n_l_prev, n_l, n_S, rho_lR, rho_lR_prev, C_el,
+        n_l_prev, n_l, n_S, rho_lR, rho_lR_prev, rho_LR, C_el,
         potential_exchange_params);
 }
 
 template <int DisplacementDim>
 inline void updateSwellingState(
     MaterialPropertyLib::Phase const& solid_phase,
+    double const rho_LR,
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     StatefulData<DisplacementDim>& state_current,
     StatefulDataPrev<DisplacementDim> const& state_previous,
@@ -1660,7 +1654,7 @@ inline void updateSwellingState(
     sigma_sw = *sigma_sw_prev;
     sigma_sw.sigma_sw +=
         computeSwellingStressIncrement<DisplacementDim>(
-            n_l_prev, n_l, n_S, rho_lR, rho_lR_prev, C_el,
+            n_l_prev, n_l, n_S, rho_lR, rho_lR_prev, rho_LR, C_el,
             potential_exchange_params);
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
@@ -2930,7 +2924,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
     std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(constitutive_data).phi =
         std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(state_current).phi;
     updateSwellingState<DisplacementDim>(
-        solid_phase, C_el, state_current, state_previous, variables,
+        solid_phase, rho_LR, C_el, state_current, state_previous, variables,
         variables_prev, x_position, t, dt,
         potential_exchange_parameters);
 
@@ -3858,7 +3852,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             this->current_states_[ip], this->prev_states_[ip], phi, variables,
             variables_prev, this->getPotentialExchangeParameters());
         updateSwellingState<DisplacementDim>(
-            solid_phase, C_el, this->current_states_[ip],
+            solid_phase, rho_LR, C_el, this->current_states_[ip],
             this->prev_states_[ip], variables, variables_prev, x_position, t,
             dt, this->getPotentialExchangeParameters());
 
