@@ -23,7 +23,7 @@ Do **not** use the `dsm_native-release` worktree binary — VTK ABI mismatch
 | 1 | REV-scale n_l mass balance (φ_m·ρ_lR, not n_l·ρ_lR); cross-coupling implicit in storage diff | ✅ done — commit `0d7a9edd64` (2026-05-20) |
 | 2 | Thermodynamic swelling stress σ_sw = −φ_m·Π; K recalibration | ✅ done — commit `88d42c98fd` (2026-05-21) |
 | 3 | EOS argument unification: decouple ρ_lR(EOS) from Π; Gibbs–Duhem consistency | ✅ done — see Action 6 completion (2026-05-21) |
-| 4 | Comment cleanup: remove additive-approximation text from PRJ files and paper | ⬜ open |
+| 4 | Comment cleanup: remove additive-approximation text from PRJ files and paper | ✅ done — 2026-05-21 |
 
 ---
 
@@ -293,18 +293,20 @@ negligible with current parameters.
 
 ---
 
-## Action 7 (OPEN): Step 4 — comment cleanup
+## Action 7 (DONE): Step 4 — comment cleanup
 
-**Date open:** 2026-05-21
+**Date completed:** 2026-05-21
 
-Remove all remaining references to the additive-approximation model from:
-1. PRJ file header comments (search for "additive", "K_code", "old formula",
-   "absorb")
-2. Paper draft: `/Users/vinaykumar/tex/dsm-bgr-paper/draft/paper_DSM.tex` —
-   update EOS argument notation; document that Π uses bulk density; cite
-   Gibbs–Duhem argument
-3. Presentation: `nagel_porosity_split.tex` — steps 3/4 are already marked
-   open in the roadmap slides (FIX-5 added 2026-05-21)
+Updated all 6 PRJ files:
+- Header K values (lines ~8): dd1400 6963.70→7656.50, dd1600 27371.90→29999.25,
+  dd1800 107246.59→118585.86 J/kg
+- Inline K comments: replaced "recalibrated with thermodynamic σ_sw / ρ_lR=1100"
+  → "Π uses bulk ρ_LR (Gibbs–Duhem consistent); steps 2+3, 2026-05-21"
+- ModelIV Pi formula comment: corrected to step-2/3 formula
+  `nS*(n_l_prev*Pi_prev - n_l*Pi_curr)*I` with `Pi = rho_LR*K*exp(-xi)`
+- Removed "Pending recalibration" language from ModelIV
+Presentation `nagel_porosity_split.tex`:
+- Step 3 marked done in FIX-5, bottom-line roadmap, FIX-3 alertblock, formula-status slide
 
 ---
 

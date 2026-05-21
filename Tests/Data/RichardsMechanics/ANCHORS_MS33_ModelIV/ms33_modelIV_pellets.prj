@@ -8,7 +8,7 @@ Geometry: 50mm diam × 70mm height axisymmetric cylinder
   Bentonite block (medium id=0): r=0–0.025m, z=0.035–0.070m  (MaterialID=0)
   Pellet zone     (medium id=1): r=0–0.025m, z=0–0.035m      (MaterialID=1)
 
-Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=27371.9007 J/kg
+Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=29999.2513 J/kg
 Pellets:   rho_d=900  kg/m³, phi0=0.676259, K≈150 J/kg
   (Villar target at 0.9 g/cm³ ≈ 0.051 MPa; K extrapolated from calibration curve)
   Pellet k0 from Kozeny-Carman with k_ref=5.6e-21 m² at phi_ref=0.42
@@ -59,17 +59,16 @@ Official benchmark spec (MSXX §Model IV):
                 <!-- fd_jacobian_for_exchange omitted: default false (analytic Jacobian). -->
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <!-- Swelling mechanical path: Pi-model (default).
-                     slope = 0 → Pi-path only: delta_sigma_sw = nS*(Pi_curr-Pi_prev)*I
-                     where Pi = rho_lR * K * exp(-xi) (disjoining pressure, Pa).
+                     slope = 0 → Pi-path only: delta_sigma_sw = nS*(n_l_prev*Pi_prev - n_l*Pi_curr)*I
+                     where Pi = rho_LR * K * exp(-xi) (disjoining pressure, Pa; bulk density).
                      micro_water_content_swelling_slope omitted: default 0.0 (Pi-only swelling;
                      set >0 to add phenomenological n_l coupling). -->
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
                 <use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>
                 <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
-                <!-- K for bentonite zone (Villar at 1600 kg/m³).
-                     Pellet zone inherits same K but with n_s_pellet=0.324 → effective Pi
-                     contribution automatically smaller (n_s enters delta_sigma_sw computation).
-                     Pending recalibration with λ=0.75 nm, ρ_lR=1100 kg/m³. -->
+                <!-- K for bentonite zone (Villar at 1600 kg/m³); Π uses bulk ρ_LR (step 3).
+                     Pellet zone inherits same K; n_s_pellet=0.324 → smaller Pi contribution
+                     (n_s enters delta_sigma_sw computation). Calibrated 2026-05-21. -->
                 <vdw_augmentation_prefactor>29999.2513</vdw_augmentation_prefactor>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
