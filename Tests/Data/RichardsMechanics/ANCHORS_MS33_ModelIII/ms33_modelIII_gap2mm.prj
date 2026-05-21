@@ -62,7 +62,6 @@ Boundary conditions (official spec):
                 <!-- micro_water_content_swelling_slope omitted: default 0.0 (Pi-only swelling;
                      set >0 to add phenomenological n_l coupling). -->
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
-                <use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>
                 <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
                 <!-- K calibrated to Villar swelling pressure at rho_d=1600 kg/m³ via Pi-path;
                      Π uses bulk ρ_LR (Gibbs–Duhem consistent); steps 2+3, 2026-05-21 -->

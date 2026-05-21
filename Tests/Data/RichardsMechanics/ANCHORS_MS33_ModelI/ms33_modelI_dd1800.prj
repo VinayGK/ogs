@@ -61,7 +61,6 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                      Set slope>0 to add or replace with phenomenological coupling. -->
                 <!-- micro_water_content_swelling_slope omitted: default 0.0 (Pi-only swelling). -->
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
-                <use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>
                 <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
                 <!-- K calibrated to Villar swelling pressure at rho_d=1800 kg/m³ via Pi-path;
                      Π uses bulk ρ_LR (Gibbs–Duhem consistent); steps 2+3, 2026-05-21 -->
