@@ -41,3 +41,12 @@ nohup.out
 /wheelhouse
 .ipynb_checkpoints
 /Applications/Python/_version.py
+# AI assistant local files
+.claude/
+.codex/
+.continue/
+.cursor/
+.aider/
+AGENTS.md
+AGENTS_*.md
+CLAUDE.md
