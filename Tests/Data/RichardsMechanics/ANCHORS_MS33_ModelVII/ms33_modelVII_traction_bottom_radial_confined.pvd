@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<VTKFile type="Collection" version="0.1" byte_order="LittleEndian" compressor="vtkZLibDataCompressor">
+  <Collection>
+    <DataSet timestep="0" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_0_t_0.000000.vtu"/>
+    <DataSet timestep="1728000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_79_t_1728000.000000.vtu"/>
+    <DataSet timestep="8640000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_184_t_8640000.000000.vtu"/>
+    <DataSet timestep="17280000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_293_t_17280000.000000.vtu"/>
+    <DataSet timestep="17712000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_302_t_17712000.000000.vtu"/>
+    <DataSet timestep="18144000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_311_t_18144000.000000.vtu"/>
+    <DataSet timestep="18576000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_319_t_18576000.000000.vtu"/>
+    <DataSet timestep="19008000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_341_t_19008000.000000.vtu"/>
+    <DataSet timestep="19440000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_377_t_19440000.000000.vtu"/>
+    <DataSet timestep="19872000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_394_t_19872000.000000.vtu"/>
+    <DataSet timestep="20304000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_404_t_20304000.000000.vtu"/>
+    <DataSet timestep="20736000" group="" part="0" file="ms33_modelVII_traction_bottom_radial_confined_ts_415_t_20736000.000000.vtu"/>
+  </Collection>
+</VTKFile>
