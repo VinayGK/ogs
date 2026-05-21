@@ -59,11 +59,8 @@ Official benchmark spec (MSXX §Model IV):
                 <!-- Swelling mechanical path: Pi-model (default).
                      slope = 0 → Pi-path only: delta_sigma_sw = nS*(Pi_curr-Pi_prev)*I
                      where Pi = rho_lR * K * exp(-xi) (disjoining pressure, Pa).
-                     Calibration is through vdw_augmentation_prefactor (K) and
-                     vdw_augmentation_decay_length (lambda) below.
-                     To switch to slope-path: set slope > 0 and K = 0 (disables Pi block).
-                     To use both additively: set slope > 0 with K > 0. -->
-                <micro_water_content_swelling_slope>0</micro_water_content_swelling_slope>
+                     micro_water_content_swelling_slope omitted: default 0.0 (Pi-only swelling;
+                     set >0 to add phenomenological n_l coupling). -->
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
                 <use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>
                 <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
@@ -117,25 +114,16 @@ Official benchmark spec (MSXX §Model IV):
                     <type>Solid</type>
                     <properties>
                         <property><name>density</name><type>Constant</type><value>2780.0</value></property>
-                        <property>
-                            <name>swelling_stress_rate</name>
-                            <type>SaturationDependentSwelling</type>
-                            <swelling_pressures>0.0 0.0 0.0</swelling_pressures>
-                            <exponents>1 1 1</exponents>
-                            <lower_saturation_limit>0</lower_saturation_limit>
-                            <upper_saturation_limit>1</upper_saturation_limit>
-                        </property>
+                        <!-- swelling_stress_rate (SaturationDependentSwelling, pressures=0) removed:
+                             Pi-path swelling is driven by disjoining pressure Pi, not phenomenological S_L coupling.
+                             swelling_stress_active remains true via isPotentialExchangeEnabled. -->
                     </properties>
                 </phase>
             </phases>
             <properties>
-                <property>
-                    <name>transport_porosity</name>
-                    <type>TransportPorosityFromMassBalance</type>
-                    <initial_porosity>phi_tr0_clay</initial_porosity>
-                    <minimal_porosity>0</minimal_porosity>
-                    <maximal_porosity>1</maximal_porosity>
-                </property>
+                <!-- transport_porosity (TransportPorosityFromMassBalance) removed:
+                     phi_M is computed by the hierarchical split phi_M=(phi-n_l)/(1-n_l) in
+                     computeTransportPorosityUpdate. Sentinel no longer needed after C++ else-branch fix. -->
                 <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
                 <property>
                     <name>permeability</name>
@@ -187,25 +175,16 @@ Official benchmark spec (MSXX §Model IV):
                     <type>Solid</type>
                     <properties>
                         <property><name>density</name><type>Constant</type><value>2780.0</value></property>
-                        <property>
-                            <name>swelling_stress_rate</name>
-                            <type>SaturationDependentSwelling</type>
-                            <swelling_pressures>0.0 0.0 0.0</swelling_pressures>
-                            <exponents>1 1 1</exponents>
-                            <lower_saturation_limit>0</lower_saturation_limit>
-                            <upper_saturation_limit>1</upper_saturation_limit>
-                        </property>
+                        <!-- swelling_stress_rate (SaturationDependentSwelling, pressures=0) removed:
+                             Pi-path swelling is driven by disjoining pressure Pi, not phenomenological S_L coupling.
+                             swelling_stress_active remains true via isPotentialExchangeEnabled. -->
                     </properties>
                 </phase>
             </phases>
             <properties>
-                <property>
-                    <name>transport_porosity</name>
-                    <type>TransportPorosityFromMassBalance</type>
-                    <initial_porosity>phi_tr0_pellet</initial_porosity>
-                    <minimal_porosity>0</minimal_porosity>
-                    <maximal_porosity>1</maximal_porosity>
-                </property>
+                <!-- transport_porosity (TransportPorosityFromMassBalance) removed:
+                     phi_M is computed by the hierarchical split phi_M=(phi-n_l)/(1-n_l) in
+                     computeTransportPorosityUpdate. Sentinel no longer needed after C++ else-branch fix. -->
                 <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
                 <property>
                     <name>permeability</name>
@@ -298,12 +277,14 @@ Official benchmark spec (MSXX §Model IV):
         <parameter><name>nu</name><type>Constant</type><value>0.3</value></parameter>
         <!-- Bentonite parameters: rho_d=1600, phi0=0.424460 -->
         <parameter><name>phi0_clay</name><type>Constant</type><value>0.4244604316546763</value></parameter>
-        <parameter><name>phi_tr0_clay</name><type>Constant</type><value>0.4231225444326</value></parameter>
+        <!-- phi_tr0_clay removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
+             Initial phi_M is computed from phi0_clay and initial_micro_water_content by the hierarchical split. -->
         <!-- k0_clay from Kozeny-Carman at phi0=0.4245 -->
         <parameter><name>k0_clay</name><type>Constant</type><value>5.8703e-21</value></parameter>
         <!-- Pellet parameters: rho_d=900, phi0 = 1-900/2780 = 0.676259 -->
         <parameter><name>phi0_pellet</name><type>Constant</type><value>0.6762589928057554</value></parameter>
-        <parameter><name>phi_tr0_pellet</name><type>Constant</type><value>0.6756000</value></parameter>
+        <!-- phi_tr0_pellet removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
+             Initial phi_M for pellet zone is computed from phi0_pellet and initial_micro_water_content. -->
         <!-- k0_pellet from Kozeny-Carman: k_ref=5.6e-21 at phi_ref=0.42 → k0=7.478e-20 -->
         <parameter><name>k0_pellet</name><type>Constant</type><value>7.478e-20</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>

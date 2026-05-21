@@ -33,8 +33,8 @@ Biot pressure (≈ −33 MPa) which elastically releases as suction drops,
 driving unrealistic free swelling to ρ_d ≈ 700 kg/m³.
 At 2 MPa IC: sigma0 ≈ −2 MPa, spring-back Δe ≈ 0.034 (acceptable).
 S_w(2 MPa, VG, P0=27 MPa) = 0.9961; chi = 0.9961.
-n_l0 = 0.22857 and phi_tr0 = 0.1613 correspond to the Model I dd1600 VTU
-state at suction = 2 MPa (micro-macro exchange in equilibrium at IC).
+n_l0 = 0.22857 and phi_M0 = 0.1613 (initial macro transport porosity) correspond
+to the Model I dd1600 VTU state at suction = 2 MPa (micro-macro exchange in equilibrium at IC).
 -->
 <OpenGeoSysProject>
     <meshes>
@@ -74,9 +74,8 @@ state at suction = 2 MPa (micro-macro exchange in equilibrium at IC).
                 <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
-                <!-- Pi-model default: slope=0, swelling stress from disjoining pressure Pi=rho_lR*K*exp(-xi).
-                     Set slope>0 to add or replace with phenomenological coupling. -->
-                <micro_water_content_swelling_slope>0</micro_water_content_swelling_slope>
+                <!-- micro_water_content_swelling_slope omitted: default 0.0 (Pi-only swelling;
+                     set >0 to add phenomenological n_l coupling). -->
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
                 <use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>
                 <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
@@ -127,25 +126,16 @@ state at suction = 2 MPa (micro-macro exchange in equilibrium at IC).
                     <type>Solid</type>
                     <properties>
                         <property><name>density</name><type>Constant</type><value>2780.0</value></property>
-                        <property>
-                            <name>swelling_stress_rate</name>
-                            <type>SaturationDependentSwelling</type>
-                            <swelling_pressures>0.0 0.0 0.0</swelling_pressures>
-                            <exponents>1 1 1</exponents>
-                            <lower_saturation_limit>0</lower_saturation_limit>
-                            <upper_saturation_limit>1</upper_saturation_limit>
-                        </property>
+                        <!-- swelling_stress_rate (SaturationDependentSwelling, pressures=0) removed:
+                             Pi-path swelling is driven by disjoining pressure Pi, not phenomenological S_L coupling.
+                             swelling_stress_active remains true via isPotentialExchangeEnabled. -->
                     </properties>
                 </phase>
             </phases>
             <properties>
-                <property>
-                    <name>transport_porosity</name>
-                    <type>TransportPorosityFromMassBalance</type>
-                    <initial_porosity>phi_tr0</initial_porosity>
-                    <minimal_porosity>0</minimal_porosity>
-                    <maximal_porosity>1</maximal_porosity>
-                </property>
+                <!-- transport_porosity (TransportPorosityFromMassBalance) removed:
+                     phi_M is computed by the hierarchical split phi_M=(phi-n_l)/(1-n_l) in
+                     computeTransportPorosityUpdate. Sentinel no longer needed after C++ else-branch fix. -->
                 <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
                 <property>
                     <name>permeability</name>
@@ -244,8 +234,8 @@ state at suction = 2 MPa (micro-macro exchange in equilibrium at IC).
         <parameter><name>nu</name><type>Constant</type><value>0.3</value></parameter>
         <!-- phi0 = 1 - 1600/2780 = 0.424460 -->
         <parameter><name>phi0</name><type>Constant</type><value>0.4244604316546763</value></parameter>
-        <!-- phi_tr0 = phi0 - 2*n_s*n_l0 = 0.4245 - 2*0.5755*1.1699e-3 = 0.4231225 -->
-        <parameter><name>phi_tr0</name><type>Constant</type><value>0.4231225444326</value></parameter>
+        <!-- phi_tr0 removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
+             Initial phi_M is computed from phi0 and initial_micro_water_content by the hierarchical split. -->
         <!-- k0 at phi0=0.4245 from Kozeny-Carman -->
         <parameter><name>k0</name><type>Constant</type><value>5.8703e-21</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>

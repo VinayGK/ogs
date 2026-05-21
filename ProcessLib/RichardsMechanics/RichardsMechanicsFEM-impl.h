@@ -2938,10 +2938,19 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                             x_position, t, dt);
             variables.transport_porosity = transport_porosity;
         }
+        // Pi-path and legacy-DSM modes: phi_M already set by updatePorositySplitState /
+        // updateSwellingStressAndVolumetricStrain; no property evaluation needed.
     }
     else
     {
-        variables.transport_porosity = phi;
+        // No transport_porosity medium property. In Pi-path / DSM mode
+        // variables.transport_porosity is already phi_M from updatePorositySplitState.
+        // Only fall back to total porosity for plain RM (no micro-porosity split).
+        if (!isPotentialExchangeEnabled(potential_exchange_parameters) &&
+            !medium->hasProperty(MPL::PropertyType::saturation_micro))
+        {
+            variables.transport_porosity = phi;
+        }
     }
 
     // Set mechanical variables for the intrinsic permeability model
@@ -3863,10 +3872,20 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                                 x_position, t, dt);
                 variables.transport_porosity = transport_porosity;
             }
+            // Pi-path and legacy-DSM modes: phi_M already set by the porosity
+            // split / Gate fix above; no property evaluation needed.
         }
         else
         {
-            variables.transport_porosity = phi;
+            // No transport_porosity medium property. In Pi-path / DSM mode
+            // variables.transport_porosity is already phi_M from the Gate fix above.
+            // Only fall back to total porosity for plain RM (no micro-porosity split).
+            if (!isPotentialExchangeEnabled(
+                    this->getPotentialExchangeParameters()) &&
+                !medium->hasProperty(MPL::PropertyType::saturation_micro))
+            {
+                variables.transport_porosity = phi;
+            }
         }
 
         auto const& sigma_eff =
