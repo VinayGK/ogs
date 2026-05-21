@@ -1543,7 +1543,13 @@ computeReferenceMicroPorositySwellingStressIncrement(
                     : rho_lR;
             double const Pi_curr = rho_curr * K * std::exp(-xi_curr);
             double const Pi_prev = rho_prev * K * std::exp(-xi_prev);
-            delta_sigma_sw.noalias() += n_S * (Pi_curr - Pi_prev) * identity2;
+            // Thermodynamic form: sigma_sw = -phi_m * Pi = -n_S * n_l * Pi
+            // (compressive eigenstress, tension-positive convention).
+            // Factor n_l (previously absorbed into K) now explicit.
+            // Sign: n_l*Pi increases during hydration (n_l<<C=lambda*nS*rho_SR*Sa),
+            // so n_l_prev*Pi_prev - n_l*Pi_curr < 0 -> compressive increment.
+            delta_sigma_sw.noalias() +=
+                n_S * (n_l_prev * Pi_prev - n_l * Pi_curr) * identity2;
             return delta_sigma_sw;
         }
 
@@ -1572,9 +1578,13 @@ computeReferenceMicroPorositySwellingStressIncrement(
                 : rho_lR;
         double const Pi_curr = rho_curr * K * std::exp(-xi_curr);
         double const Pi_prev = rho_prev * K * std::exp(-xi_prev);
-        // Compressive sign: more water (n_l up) -> larger xi -> smaller Pi ->
-        // negative increment -> sigma_sw accumulates as a compressive eigenstress.
-        delta_sigma_sw.noalias() += n_S * (Pi_curr - Pi_prev) * identity2;
+        // Thermodynamic form: sigma_sw = -phi_m * Pi = -n_S * n_l * Pi
+        // (compressive eigenstress, tension-positive convention).
+        // n_l factor was previously absorbed into K; now explicit.
+        // Sign: n_l*Pi increases during hydration (n_l<<C=lambda*nS*rho_SR*Sa),
+        // so n_l_prev*Pi_prev - n_l*Pi_curr < 0 -> compressive increment.
+        delta_sigma_sw.noalias() +=
+            n_S * (n_l_prev * Pi_prev - n_l * Pi_curr) * identity2;
     }
 
     if (!(potential_exchange_params.micro_water_content_swelling_slope > 0.0))

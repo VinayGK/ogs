@@ -8,7 +8,7 @@ Geometry: 50mm diam × 70mm height axisymmetric cylinder
   Bentonite block (medium id=0): r=0–0.025m, z=0.035–0.070m  (MaterialID=0)
   Pellet zone     (medium id=1): r=0–0.025m, z=0–0.035m      (MaterialID=1)
 
-Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=16792.033 J/kg
+Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=27371.9007 J/kg
 Pellets:   rho_d=900  kg/m³, phi0=0.676259, K≈150 J/kg
   (Villar target at 0.9 g/cm³ ≈ 0.051 MPa; K extrapolated from calibration curve)
   Pellet k0 from Kozeny-Carman with k_ref=5.6e-21 m² at phi_ref=0.42
@@ -70,7 +70,7 @@ Official benchmark spec (MSXX §Model IV):
                      Pellet zone inherits same K but with n_s_pellet=0.324 → effective Pi
                      contribution automatically smaller (n_s enters delta_sigma_sw computation).
                      Pending recalibration with λ=0.75 nm, ρ_lR=1100 kg/m³. -->
-                <vdw_augmentation_prefactor>16792.0327</vdw_augmentation_prefactor>
+                <vdw_augmentation_prefactor>27371.9007</vdw_augmentation_prefactor>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
