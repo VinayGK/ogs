@@ -25,6 +25,48 @@ Do **not** use the `dsm_native-release` worktree binary — VTK ABI mismatch
 | 3 | EOS argument unification: decouple ρ_lR(EOS) from Π; Gibbs–Duhem consistency | ✅ done — see Action 6 completion (2026-05-21) |
 | 4 | Comment cleanup: remove additive-approximation text from PRJ files and paper | ✅ done — 2026-05-21 |
 | 5 | Fix vdW base dimensional error: /ρ_lR added, A=2.2e-20 J (literature), K recalibrated | ✅ done — 2026-05-22 |
+| 6 | DSM consistency hardening: viscosity guards, micro-pressure density default, test updates, LE rerun verification | ✅ done — commit `66b782afa1` (2026-05-22) |
+
+---
+
+## 2026-05-22 14:10 CEST — Action 7: DSM consistency hardening + full LE rerun verification
+
+**Commit:** `66b782afa1`
+
+**What was done:**
+
+1. **Potential-exchange derivative tests updated**  
+   `Tests/ProcessLib/RichardsMechanics/PotentialExchange.cpp` now checks
+   finite-difference consistency for `dmu_lR/drho_lR` (non-zero after vdW
+   dimensional correction), instead of legacy zero-derivative expectations.
+
+2. **Positive-viscosity guard applied across DSM exchange paths**  
+   In `RichardsMechanicsFEM-impl.h`, added shared
+   `requirePositiveViscosity(...)` and applied it to:
+   - predictor/coupled micro mass-storage solves,
+   - implicit `n_l` solve,
+   - implicit `dn_l/dp_L` helper,
+   - local exchange Jacobian assembly paths using `alpha_bar * rho_LR / mu`.
+
+3. **Micro-pressure density default corrected**  
+   `use_micro_liquid_density_for_micro_pressure` default switched to `true`
+   (confined micro-liquid density basis) in:
+   - `PotentialExchangeParameters.h`,
+   - `CreateRichardsMechanicsProcess.cpp`.
+   If explicitly set `false`, a runtime warning is issued.
+
+4. **Build + rerun verification**  
+   Rebuilt `release-omp-mfront` (`--parallel 18`) and reran canonical LE set:
+   - Model I dd1400/dd1600/dd1800: 308/0 each
+   - Model III: 331/0
+   - Model IV: 313/0
+   - Model V LE: 308/0
+   - Model VII: 433/0
+   Total LE accepted steps: 2309, rejected: 0.
+
+5. **Artefacts committed**  
+   Source changes, tests, and regenerated run outputs/logs were committed in
+   `66b782afa1`.
 
 ---
 
