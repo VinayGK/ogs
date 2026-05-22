@@ -253,32 +253,15 @@ inline double microPotentialSignFactorFromParameters(
     return microPotentialSignFactor(potential_exchange_params.micro_potential_convention);
 }
 
-inline CompatibilityMicroHydraulicOutputData
-computeCompatibilityMicroHydraulicOutput(
-    double const n_l, double const rho_LR,
-    PotentialExchangeParameters const& potential_exchange_params)
-{
-    double const n_l_safe = std::max(1e-16, n_l);
-    double const n_l_ref = std::max(
-        1e-16, potential_exchange_params.initial_micro_water_content.value_or(
-                   potential_exchange_params.micro_solid_volume_fraction_reference));
-
-    auto const micro_potential = computeVanDerWaalsMicroPotential(
-        n_l_safe, rho_LR,
-        potential_exchange_params.micro_solid_volume_fraction_reference,
-        potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
-        potential_exchange_params.specific_surface,
-        microPotentialSignFactorFromParameters(potential_exchange_params),
-            potential_exchange_params.vdw_augmentation_prefactor,
-            potential_exchange_params.vdw_augmentation_decay_length);
-
-    return {
-        .p_L_m = -rho_LR * micro_potential.mu_lR,
-        .S_L_m = n_l_safe / n_l_ref,
-        .n_l_ref = n_l_ref,
-        .micro_potential = micro_potential,
-    };
-}
+// NOTE: the only active overload of computeCompatibilityMicroHydraulicOutput is
+// the 4-argument version below (with local_context, defined after
+// computeActiveMicroPotential). The local_context overload derives the micro
+// liquid density (rho_lR ~ 1100 kg/m³) from the EOS and uses it in both the
+// vdW potential formula and in p_L_m = -rho_lR * mu_lR when
+// use_micro_liquid_density_for_micro_pressure = true (set in all MS33 PRJs).
+// A 3-argument overload without local_context existed here previously but was
+// dead code and used bulk rho_LR (~1000 kg/m³) in the vdW denominator —
+// a ~10% error — so it was removed (2026-05-22).
 
 struct TransportPorosityUpdateData
 {
@@ -1031,14 +1014,20 @@ computeCompatibilityMicroHydraulicOutput(
         1e-16, potential_exchange_params.initial_micro_water_content.value_or(
                    potential_exchange_params.micro_solid_volume_fraction_reference));
 
+    // micro_liquid_density.rho_lR: EOS-derived confined water density (~1100 kg/m³).
+    // This is the physically correct density for the vdW specific free energy
+    // denominator (energy/area × area/REV / mass/REV) and for p_L_m = -rho*mu_lR.
+    // computeActiveMicroPotential internally uses micro density for the vdW formula
+    // when local_nonlinear_solve_mode == ScalarReferenceMassStorage (all MS33 cases).
+    // use_micro_liquid_density_for_micro_pressure should be true in all PRJ files.
     auto const micro_liquid_density = computeActiveMicroLiquidDensity(
         n_l_safe, rho_LR, local_context, potential_exchange_params);
     auto const micro_potential = computeActiveMicroPotential(
         n_l_safe, rho_LR, local_context, potential_exchange_params);
     double const p_L_m_density =
         potential_exchange_params.use_micro_liquid_density_for_micro_pressure
-            ? micro_liquid_density.rho_lR
-            : rho_LR;
+            ? micro_liquid_density.rho_lR   // correct: confined water density
+            : rho_LR;                        // fallback: bulk density (~10% error)
 
     return {
         .p_L_m = -p_L_m_density * micro_potential.mu_lR,

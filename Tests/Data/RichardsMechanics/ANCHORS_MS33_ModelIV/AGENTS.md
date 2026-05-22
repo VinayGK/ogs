@@ -433,6 +433,29 @@ Exchange: ρ̂_l = α_M_eff·(μ_LR − μ_lR)                   [kg/(m³·s)]
 
 Proof: `p_L_m = −ρ·μ_lR` (impl.h lines 276, 1044) → μ_lR MUST be [J/kg].
 
+### Which ρ_lR enters the vdW denominator
+
+The formula is the **specific free energy** of the water film:
+
+```
+μ_lR_vdW = (surface energy/area) × (solid surface area / REV volume)
+                                  / (water mass / REV volume)
+          = E [J/m²] × nS·ρ_SR·Sa [m⁻¹]  /  n_l·ρ_lR [kg/m³]
+```
+
+The ρ_lR in the denominator is the **density of the confined water in the micro
+pore** — the micro EOS density (~1100 kg/m³), not the bulk liquid density (~1000 kg/m³).
+
+**Active code path** (`computeCompatibilityMicroHydraulicOutput` with local_context,
+all MS33 call sites): uses micro density correctly via `computeActiveMicroPotential`
+→ `computeReducedMicroLiquidDensity` (for `ScalarReferenceMassStorage` mode).
+`p_L_m = −ρ_lR·μ_lR` also uses micro density when
+`use_micro_liquid_density_for_micro_pressure = true` (set in all MS33 PRJs).
+
+A 3-argument overload without `local_context` previously existed at impl.h line ~257
+and used bulk ρ_LR in the vdW formula — ~10% error. It was dead code (never called)
+and was removed on 2026-05-22.
+
 ### Consequence for adding new physical potentials
 
 K is now calibrated to Villar swelling pressure AFTER the vdW base is
