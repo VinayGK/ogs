@@ -65,6 +65,14 @@ inline double getPotentialPressureTolerance(
                                          : nullptr);
 }
 
+inline void requirePositiveViscosity(char const* caller, double const mu)
+{
+    if (!(std::isfinite(mu) && mu > 0.0))
+    {
+        OGS_FATAL("{} requires finite mu > 0, got {:g}.", caller, mu);
+    }
+}
+
 struct PotentialExchangeUpdateData
 {
     YoungLaplaceMacroPotentialData macro_potential;
@@ -99,12 +107,7 @@ inline PotentialExchangeUpdateData computePotentialExchangeUpdate(
     bool const use_fd_jacobian_for_direct_macro_derivative = false,
     double const fd_jacobian_perturbation = 1e-8)
 {
-    if (!(mu > 0.0))
-    {
-        OGS_FATAL(
-            "computePotentialExchangeUpdate requires mu > 0, got {:g}.",
-            mu);
-    }
+    requirePositiveViscosity("computePotentialExchangeUpdate", mu);
 
     PotentialExchangeUpdateData out;
 
@@ -557,6 +560,7 @@ solveReferenceMassStoragePredictorState(
     PotentialExchangeLocalSolveContext const& local_context,
     PotentialExchangeParameters const& potential_exchange_params)
 {
+    requirePositiveViscosity("solveReferenceMassStoragePredictorState", mu);
     constexpr double n_l_floor = 1e-16;
     constexpr double rho_floor = 1e-16;
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
@@ -725,6 +729,7 @@ solveReferenceMassStorageCoupledState(
     PotentialExchangeLocalSolveContext const& local_context,
     PotentialExchangeParameters const& potential_exchange_params)
 {
+    requirePositiveViscosity("solveReferenceMassStorageCoupledState", mu);
     constexpr double n_l_floor = 1e-16;
     constexpr double rho_floor = 1e-16;
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
@@ -1044,6 +1049,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
     PotentialExchangeLocalSolveContext const& local_context,
     PotentialExchangeParameters const& potential_exchange_params)
 {
+    requirePositiveViscosity("solveImplicitMicroWaterContent", mu);
     constexpr double n_l_floor = 1e-16;
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
     double const alpha_M_effective = alpha_bar * rho_LR / mu;
@@ -1262,6 +1268,7 @@ inline double computeImplicitNlDpL(
     PotentialExchangeLocalSolveContext const& local_context,
     PotentialExchangeParameters const& potential_exchange_params)
 {
+    requirePositiveViscosity("computeImplicitNlDpL", mu);
     double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
     if (dt_safe <= 0.0)
     {
@@ -3491,6 +3498,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 // in dmu_lR/dp_L for the active exchange Jacobian term.
                 if (!use_fd_jacobian_for_direct_macro_derivative)
                 {
+                    requirePositiveViscosity(
+                        "RichardsMechanics local exchange Jacobian assembly",
+                        mu);
                     double const drho_LR_dpL = rho_LR * beta_LR;
                     auto const macro_potential = computeYoungLaplaceMacroPotential(
                         p_L_ip, rho_LR, pressure_tolerance);
@@ -3539,6 +3549,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             if (!use_vdw_micro_potential_for_active_exchange &&
                 p_cap_ip != p_cap_prev_ip)
             {
+                requirePositiveViscosity(
+                    "RichardsMechanics local secant exchange Jacobian assembly",
+                    mu);
                 auto const p_L_m_prev = **std::get<PrevState<MicroPressure>>(
                     this->prev_states_[ip]);
                 local_Jac

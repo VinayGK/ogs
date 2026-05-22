@@ -457,7 +457,13 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         config.getConfigParameter<bool>(
             "use_micro_liquid_density_for_micro_pressure",
             defaults ? defaults->use_micro_liquid_density_for_micro_pressure
-                     : false);
+                     : true);
+    if (!use_micro_liquid_density_for_micro_pressure)
+    {
+        WARN(
+            "RichardsMechanics: {} use_micro_liquid_density_for_micro_pressure=false selected; micro pressure will use bulk rho_LR instead of confined rho_lR.",
+            context);
+    }
     auto const accumulate_swelling_contributions =
         config.getConfigParameter<bool>(
             "accumulate_swelling_contributions",

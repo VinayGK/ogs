@@ -144,8 +144,8 @@ struct PotentialExchangeParameters
     double micro_water_content_swelling_slope = 0.0;
 
     // Optional consistency switches for the hierarchical DSM branch.
-    // Defaults preserve legacy behavior.
-    bool use_micro_liquid_density_for_micro_pressure = false;
+    // Default micro-pressure density is the confined micro-liquid density.
+    bool use_micro_liquid_density_for_micro_pressure = true;
     bool accumulate_swelling_contributions = false;
 };
 }  // namespace ProcessLib::RichardsMechanics
