@@ -2131,9 +2131,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 // trivial EOS placeholder (e.g. 1e-6 kg/m³), NOT the physical
                 // initial density.  In the first time step the exchange solve
                 // updates rho_lR to ~rho_LR (~1000 kg/m³), so rho_lR_prev = 1e-6
-                // while rho_lR = 1000.  With use_micro_liquid_density_for_pi=true,
+                // while rho_lR = 1000.  When micro density enters the Pi-path
+                // swelling stress (Pi = rho_lR * mu_lR), the density mismatch
                 // Pi_prev = 1e-6 * K * exp(-xi_prev) ≈ 0 while
-                // Pi_curr = 1000 * K * exp(-xi_curr) >> 0, producing a ~10^6×
+                // Pi_curr = 1000 * K * exp(-xi_curr) >> 0 produces a ~10^6×
                 // tensile sigma_sw spike that permanently corrupts the accumulation.
                 // Fix: initialise rho_lR and rho_lR_prev from the actual EOS at
                 // the initial state so the first-step Pi difference is physical.

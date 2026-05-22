@@ -163,16 +163,15 @@ For thermodynamic consistency: `dμ = (1/ρ_lR) · dΠ`. Substituting:
 `(1/ρ_lR) · ∂Π/∂ρ_lR = K · exp(−ξ) ≠ 0 = ∂μ_aug/∂ρ_lR`.
 The relation is violated in the ρ_lR direction.
 
-**Current parametrisation (MS33 PRJ files):**
+**Parametrisation (MS33 PRJ files, before fix):**
 ```xml
 <micro_liquid_density_reference>100.0</micro_liquid_density_reference>
 <micro_liquid_density_a>1e-16</micro_liquid_density_a>
 <micro_liquid_density_b>1.0</micro_liquid_density_b>
-<use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>
 ```
 With `a = 1e-16 ≈ 0`, the density EOS reduces to `ρ_lR ≈ ρ_LR + 100 ≈ 1100 kg/m³`
-(constant). So Π currently uses a constant 1100 kg/m³ prefactor. The Gibbs–Duhem
-violation is numerically small (~10%) but conceptually wrong.
+(constant). So Π used a constant 1100 kg/m³ prefactor. The Gibbs–Duhem
+violation was numerically small (~10%) but conceptually wrong.
 
 ### The fix
 
@@ -185,55 +184,24 @@ The density EOS (ρ_lR) is retained for the **mass balance** storage term
 `ρ_l = φ_m · ρ_lR`, where structured water density is physically meaningful.
 It is removed from the **swelling stress** calculation.
 
-**Code change required:**
+**Code change (DONE — commit 2026-05-21):**
 
 In `computeReferenceMicroPorositySwellingStressIncrement`
-(`RichardsMechanicsFEM-impl.h`, lines 1497–1603), the function signature and
-body need one change:
+(`RichardsMechanicsFEM-impl.h`, lines 1531–1562), both code paths use:
+```cpp
+double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
+double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
+```
+ρ_lR (micro EOS density) is no longer used in the Pi-path. Gibbs–Duhem is
+satisfied exactly since ρ_LR is constant in the MS33 setup.
 
-1. **Add `rho_LR` (bulk macro density) as a parameter** (currently not passed):
-   ```cpp
-   // Old signature:
-   computeReferenceMicroPorositySwellingStressIncrement(
-       double const n_l_prev, double const n_l,
-       double const n_S, double const rho_lR, double const rho_lR_prev, ...)
-
-   // New signature — add rho_LR:
-   computeReferenceMicroPorositySwellingStressIncrement(
-       double const n_l_prev, double const n_l,
-       double const n_S, double const rho_lR, double const rho_lR_prev,
-       double const rho_LR, ...)   // ← add this
-   ```
-
-2. **Replace state-varying ρ_lR with ρ_LR in Π** (both code paths, lines ~1544
-   and ~1579):
-   ```cpp
-   // Old (both legacy and active paths):
-   double const rho_curr = rho_lR;
-   double const rho_prev =
-       potential_exchange_params.use_micro_liquid_density_for_pi
-           ? rho_lR_prev : rho_lR;
-   double const Pi_curr = rho_curr * K * std::exp(-xi_curr);
-   double const Pi_prev = rho_prev * K * std::exp(-xi_prev);
-
-   // New:
-   double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
-   double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
-   ```
-   The `use_micro_liquid_density_for_pi` flag becomes redundant for the Pi-path
-   augmentation and can be left in place for the vdW term if needed.
-
-3. **Update all call sites** of `computeReferenceMicroPorositySwellingStressIncrement`
-   and the wrapper `computeSwellingStressIncrement` to pass `rho_LR`. The call
-   site in the assembly loop already has `rho_LR` available (it is used in the
-   storage term assembly on the same integration point).
-
-4. **Update `updateSwellingState`** (line ~1620) which calls
-   `computeSwellingStressIncrement` — pass `rho_LR` through there too.
-
-**No PRJ changes needed for the code fix.** The `use_micro_liquid_density_for_pi`
-flag is rendered inert for the Pi-path by the code change and can be cleaned up
-separately (step 4).
+**`use_micro_liquid_density_for_pi` flag removed (2026-05-22):**
+The flag was stored in `PotentialExchangeParameters` and parsed from PRJ, but
+was never branched on in the implementation — dead code. Removed from:
+- `PotentialExchangeParameters.h`
+- `CreateRichardsMechanicsProcess.cpp`
+- `DSMMicroMacroSingleIntegrationPoint.cpp` (unit test)
+- All MS33 PRJ files that had `<use_micro_liquid_density_for_pi>true</use_micro_liquid_density_for_pi>`
 
 ### K recalibration after the fix
 

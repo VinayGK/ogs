@@ -146,7 +146,6 @@ struct PotentialExchangeParameters
     // Optional consistency switches for the hierarchical DSM branch.
     // Defaults preserve legacy behavior.
     bool use_micro_liquid_density_for_micro_pressure = false;
-    bool use_micro_liquid_density_for_pi = false;
     bool accumulate_swelling_contributions = false;
 };
 }  // namespace ProcessLib::RichardsMechanics

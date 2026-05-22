@@ -655,8 +655,10 @@ TEST(RichardsMechanics, DSMMicroMacroSingleIntegrationPointReferencePath)
                                     reference.exchange.rho_L_hat,
                                     1e-10, 1e-18));
 
-    auto const compatibility_output =
-        computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
+    auto const compatibility_output = computeCompatibilityMicroHydraulicOutput(
+        ogs_update.n_l, rho_LR,
+        {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
+        potential_exchange_params);
     EXPECT_NEAR(compatibility_output.p_L_m, reference.p_L_m,
                 comparisonTolerance(compatibility_output.p_L_m,
                                     reference.p_L_m, 1e-10, 1e-12));
@@ -768,9 +770,10 @@ TEST(RichardsMechanics, DSMMicroMacroBranchSensitivityNearMacroPotentialTransiti
 
         auto const reference = solveDsmMicromacroReferenceSinglePoint(
             p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
-        auto const compatibility_output =
-            computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR,
-                                                       potential_exchange_params);
+        auto const compatibility_output = computeCompatibilityMicroHydraulicOutput(
+            ogs_update.n_l, rho_LR,
+            {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
+            potential_exchange_params);
 
         EXPECT_NEAR(ogs_update.n_l, reference.n_l,
                     comparisonTolerance(ogs_update.n_l, reference.n_l));
@@ -871,8 +874,10 @@ TEST(RichardsMechanics, DSMMicroMacroNegativeAttractiveMicroPotentialAdmitsWetti
 
     auto const reference = solveDsmMicromacroReferenceSinglePoint(
         p_L, n_l_prev, dt, rho_LR, alpha_bar, mu, phi, potential_exchange_params);
-    auto const compatibility_output =
-        computeCompatibilityMicroHydraulicOutput(ogs_update.n_l, rho_LR, potential_exchange_params);
+    auto const compatibility_output = computeCompatibilityMicroHydraulicOutput(
+        ogs_update.n_l, rho_LR,
+        {.phi = phi, .volumetric_strain = 0.0, .volumetric_strain_prev = 0.0},
+        potential_exchange_params);
 
     EXPECT_LT(ogs_update.micro_potential.mu_lR, 0.0);
     EXPECT_GT(ogs_update.exchange.rho_l_hat, 0.0);
@@ -933,7 +938,6 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
     potential_exchange_params.micro_solid_density_reference = 2650.0;
     potential_exchange_params.specific_surface = 1000.0;
     potential_exchange_params.accumulate_swelling_contributions = true;
-    potential_exchange_params.use_micro_liquid_density_for_pi = true;
     double const n_l_prev = 0.2;
     double const n_l = 0.3;
     double const n_S = 0.7;
@@ -1046,12 +1050,21 @@ TEST(RichardsMechanics, DSMMicroMacroCurrentPorositySplitMicroSolidFractionMode)
 
     auto const active_nS =
         computeActiveMicroSolidVolumeFraction(n_l, local_context, potential_exchange_params);
-    EXPECT_NEAR(active_nS, 0.75, 1e-12);
+    // nS = 1 - phi_M_active (micro-aggregate fraction, not pure solid).
+    // phi_M_active = (phi - n_l) / (1 - n_l) = (0.25 - 0.1) / 0.9 = 1/6
+    // active_nS = 1 - 1/6 = 5/6  (see commit 0d7a9edd64: "use nS=1-phi_M")
+    EXPECT_NEAR(active_nS, 5.0 / 6.0, 1e-12);
 
     auto const active_output = computeCompatibilityMicroHydraulicOutput(
         n_l, rho_LR, local_context, potential_exchange_params);
-    auto const reference_output =
-        computeCompatibilityMicroHydraulicOutput(n_l, rho_LR, potential_exchange_params);
+    // Reference output: nS = micro_solid_volume_fraction_reference (ignores
+    // CurrentPorositySplit mode). Use a params copy with Reference mode to
+    // reproduce the old 3-argument overload behaviour (removed 2026-05-22).
+    auto reference_params = potential_exchange_params;
+    reference_params.micro_solid_volume_fraction_mode =
+        MicroSolidVolumeFractionMode::Reference;
+    auto const reference_output = computeCompatibilityMicroHydraulicOutput(
+        n_l, rho_LR, local_context, reference_params);
 
     double const expected_ratio =
         std::pow(active_nS / potential_exchange_params.micro_solid_volume_fraction_reference, 3.0);
