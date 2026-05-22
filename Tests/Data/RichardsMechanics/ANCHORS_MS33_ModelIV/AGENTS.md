@@ -26,6 +26,8 @@ Do **not** use the `dsm_native-release` worktree binary — VTK ABI mismatch
 | 4 | Comment cleanup: remove additive-approximation text from PRJ files and paper | ✅ done — 2026-05-21 |
 | 5 | Fix vdW base dimensional error: /ρ_lR added, A=2.2e-20 J (literature), K recalibrated | ✅ done — 2026-05-22 |
 | 6 | DSM consistency hardening: viscosity guards, micro-pressure density default, test updates, LE rerun verification | ✅ done — commit `66b782afa1` (2026-05-22) |
+| 7 | Dead code removal: 3-arg overload + `use_micro_liquid_density_for_pi` flag | ⚠️ partial — commits `4d47efff55`, `ce9178fa96` (2026-05-22); 5 unit tests still failing — see Action 9 |
+| 8 | Fix 5 failing DSM unit tests: update reference functions and CSV baselines after step 5 vdW fix | ⬜ open — see Action 9 |
 
 ---
 
@@ -67,6 +69,87 @@ Do **not** use the `dsm_native-release` worktree binary — VTK ABI mismatch
 5. **Artefacts committed**  
    Source changes, tests, and regenerated run outputs/logs were committed in
    `66b782afa1`.
+
+---
+
+## 2026-05-22 — Action 8: Dead-code removal (commits `4d47efff55`, `ce9178fa96`)
+
+**Commits:** `4d47efff55` (remove dead 3-arg overload), `ce9178fa96` (remove `use_micro_liquid_density_for_pi` flag)
+
+**What was done:**
+
+1. **Removed dead 3-argument overload** of `computeCompatibilityMicroHydraulicOutput`
+   (impl.h, previously at line ~257). That overload had no `local_context`, used bulk
+   `rho_LR` in the vdW denominator (~10% error), and was never called from production
+   code. All 3 production call sites already used the 4-argument overload.
+
+2. **Removed dead `use_micro_liquid_density_for_pi` flag** from:
+   - `PotentialExchangeParameters.h` (field declaration)
+   - `CreateRichardsMechanicsProcess.cpp` (parsing + initialiser list)
+   - Unit test `DSMMicroMacroSingleIntegrationPoint.cpp` (assignment `= true`)
+   - 8 PRJ files in `ANCHORS_MS33_MCC_SUITE`, `ModelV_LE`, `ModelV_MCC`
+   The flag was never branched on in impl.h — the Pi-path swelling stress already
+   used `rho_LR` unconditionally since commit `c4888b6db4`.
+
+3. **Unit test call-site fixes** — 3 calls to the removed 3-arg overload updated
+   to 4-arg with inline `local_context`; wrong expected `active_nS` value fixed
+   (`0.75` → `5/6`, matching `nS = 1 − φ_M` definition from commit `0d7a9edd64`).
+
+**⚠️ CAUTION — Action 6 section in this file was partially overwritten:**
+The original "Code change required" block in the Action 6 section (detailing the
+step-by-step instructions for the Gibbs–Duhem fix) was replaced with a shorter
+summary. **Before modifying Action 6 further, recover the original instructions
+from git:**
+```bash
+git show 4d47efff55:Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIV/AGENTS.md \
+  | sed -n '185,240p'
+```
+Investigate whether the deleted instructions are still needed or are superseded
+by the already-committed code changes, then restore or annotate accordingly.
+
+**⚠️ OPEN: 5 unit tests still failing — see Action 9.**
+
+---
+
+## 2026-05-22 — Action 9: OPEN — Fix 5 failing DSM unit tests
+
+**Status:** ⬜ OPEN as of 2026-05-22
+
+**Failing tests** (run `bin/testrunner --gtest_filter="*DSM*"` in build dir):
+```
+FAILED  RichardsMechanics.DSMMicroMacroScalarStorageLocalSolveReferencePath
+FAILED  RichardsMechanics.DSMMicroMacroScalarMassStorageLocalSolveReferencePath
+FAILED  RichardsMechanics.DSMMicroMacroMassStorageCoupledSolveResiduals
+FAILED  RichardsMechanics.DSMMicroMacroOverlapTransferBaselineHistory
+FAILED  RichardsMechanics.DSMMicroMacroStrainCoupledOverlapBaselineHistory
+```
+
+**Root cause (to be verified before fixing):**
+The step 5 vdW fix (commit `0d579e8aeb`) changed the `computeVanDerWaalsMicroPotential`
+formula (added `/rho_lR`, units changed Pa→J/kg). The following were NOT updated
+at that time and are now inconsistent with the implementation:
+
+1. `solveDsmMicromacroReferenceSinglePoint` — standalone reference function
+   in `DSMMicroMacroSingleIntegrationPoint.cpp`. It calls
+   `computeVanDerWaalsMicroPotential` directly; if the function is the same as
+   impl.h then root cause lies elsewhere — investigate whether the disagreement
+   is in `solveReferenceMassStorageCoupledState` residual formulation or
+   elsewhere in the reference path.
+
+2. `DSMMicroMacroOverlapTransferBaseline.csv` and
+   `DSMMicroMacroStrainCoupledOverlapBaseline.csv` in
+   `Tests/Data/RichardsMechanics/` — generated before step 5; values are stale.
+
+**Investigation required before fixing:**
+- Trace `DSMMicroMacroScalarMassStorageLocalSolveReferencePath` failure:
+  `ogs_update.n_l = 0.00398` vs `reference.n_l = 0.03004` — factor ~7.5 difference.
+  Both paths call `computeVanDerWaalsMicroPotential` from the same header;
+  the disagreement suggests a difference in context (nS, rho_lR, or n_l initial
+  guess) between the OGS implicit solve and the reference bisection.
+- Once test 2 root cause is understood, fix tests 3–5 accordingly.
+- Regenerate CSV baselines only after tests 2–3 pass.
+
+**Do NOT commit partial fixes.** All 5 tests must pass before committing.
 
 ---
 
