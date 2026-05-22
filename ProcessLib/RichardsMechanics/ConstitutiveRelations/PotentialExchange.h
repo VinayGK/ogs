@@ -68,16 +68,30 @@ struct VanDerWaalsMicroPotentialData
 
 // DSM dsm_micromacro microscale vdW potential helper:
 // omega_l = n_l * rho_lR / (nS * rho_SR)
-// mu_lR_vdW = (A * Sa^3 / (6*pi)) * (nS^3 * rho_SR^3) / n_l^3
+// mu_lR_vdW = (A * Sa^3 / (6*pi)) * (nS^3 * rho_SR^3) / (n_l^3 * rho_lR)   [J/kg]
+//
+//   A      = hamaker_constant   [J]    Hamaker constant for clay-water-clay
+//                                      Literature: montmorillonite-water-montmorillonite
+//                                      A = 2.2e-20 J (Israelachvili & Adams 1978, SFA mica proxy)
+//                                      Range: 1–5e-20 J (smectite, DLVO literature)
+//                                      DO NOT calibrate A — it is a material constant.
+//
+// Dimensional derivation:
+//   Film thickness h = n_l / (nS * rho_SR * Sa)                         [m]
+//   Surface energy/area: E = -A/(12*pi*h^2)                             [J/m^2]
+//   Specific free energy: mu_lR_vdW = E * (nS*rho_SR*Sa) / (nS*rho_lR)  [J/kg]
+//   = -A*Sa^3*nS^3*rho_SR^3 / (12*pi*n_l^3*rho_lR) (adsorption sign)
+//   Disjoining pressure Pi=-dE/dh gives factor 2: A*Sa^3*nS^3*rho_SR^3 / (6*pi*n_l^3*rho_lR)
+//   Consistent with p_L_m = -rho_lR * mu_lR  [Pa]  (impl.h lines 276, 1044)
 //
 // Optional lumped exponential augmentation (activated when
 // vdw_augmentation_prefactor > 0):
 // h = n_l / (nS * rho_SR * Sa)               mean water film thickness [m]
 // mu_lR_aug = K * exp(-h / lambda)
-//   K      = vdw_augmentation_prefactor    [J/kg]  lumped surface-force amplitude
-//   lambda = vdw_augmentation_decay_length [m]     characteristic film thickness
-// Total: mu_lR = sign * (mu_lR_vdW + mu_lR_aug)
-// Setting K = 0 (default) reduces exactly to the original vdW-only form.
+//   K      = vdw_augmentation_prefactor    [J/kg]  augmentation amplitude (calibrate to Villar)
+//   lambda = vdw_augmentation_decay_length [m]     characteristic film thickness (calibrate)
+// Total: mu_lR = sign * (mu_lR_vdW + mu_lR_aug)   — ADDITIVE, augmentation never replaces vdW
+// Setting K = 0 (default) reduces exactly to the pure vdW form.
 inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     double const n_l, double const rho_lR, double const nS, double const rho_SR,
     double const hamaker_constant, double const specific_surface,
@@ -152,11 +166,13 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     double const prefactor = hamaker_constant * specific_surface *
                                  specific_surface * specific_surface /
                              (6.0 * pi);
+    // Units: [J]*[m^2/kg]^3 * [kg/m^3]^3 / ([m^3] * [kg/m^3]) = J/kg  ✓
+    // (dividing by rho_lR converts from Pa to J/kg — dimensionally required)
     out.mu_lR = potential_sign_factor * prefactor * (nS * nS * nS) *
-                (rho_SR * rho_SR * rho_SR) / (n_l * n_l * n_l);
+                (rho_SR * rho_SR * rho_SR) / (n_l * n_l * n_l * rho_lR);
 
     out.dmu_lR_dnl = -3.0 * out.mu_lR / n_l;
-    out.dmu_lR_drho_lR = 0.0;
+    out.dmu_lR_drho_lR = -out.mu_lR / rho_lR;  // non-zero after /rho_lR fix
     out.dmu_lR_dnS = 3.0 * out.mu_lR / nS;
     out.dmu_lR_drho_SR = 3.0 * out.mu_lR / rho_SR;
 
@@ -173,7 +189,8 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
 
         out.mu_lR += mu_aug;
         out.dmu_lR_dnl += -mu_aug * xi / n_l;
-        out.dmu_lR_drho_lR = 0.0;  // h independent of rho_lR
+        // xi = n_l / (lambda * nS * rho_SR * Sa) — independent of rho_lR,
+        // so mu_aug has no rho_lR dependence; dmu_lR_drho_lR from vdW term only
         out.dmu_lR_dnS += mu_aug * xi / nS;
         out.dmu_lR_drho_SR += mu_aug * xi / rho_SR;
     }

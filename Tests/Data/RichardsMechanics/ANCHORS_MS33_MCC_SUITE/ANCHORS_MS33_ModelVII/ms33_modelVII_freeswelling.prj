@@ -60,7 +60,7 @@ to the Model I dd1600 VTU state at suction = 2 MPa (micro-macro exchange in equi
             <potential_exchange>
                 <enabled>true</enabled>
                 <pressure_tolerance>1e-12</pressure_tolerance>
-                <hamaker_constant>5.1e-21</hamaker_constant>
+                <hamaker_constant>2.2e-20</hamaker_constant>
                 <specific_surface>523.0</specific_surface>
                 <micro_solid_density_reference>2780.0</micro_solid_density_reference>
                 <!-- n_s = 1 - phi0 = 0.575540 -->
