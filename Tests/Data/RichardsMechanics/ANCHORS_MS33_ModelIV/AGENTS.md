@@ -26,7 +26,7 @@ Do **not** use the `dsm_native-release` worktree binary — VTK ABI mismatch
 | 4 | Comment cleanup: remove additive-approximation text from PRJ files and paper | ✅ done — 2026-05-21 |
 | 5 | Fix vdW base dimensional error: /ρ_lR added, A=2.2e-20 J (literature), K recalibrated | ✅ done — 2026-05-22 |
 | 6 | DSM consistency hardening: viscosity guards, micro-pressure density default, test updates, LE rerun verification | ✅ done — commit `66b782afa1` (2026-05-22) |
-| 7 | Dead code removal: 3-arg overload + `use_micro_liquid_density_for_pi` flag | ⚠️ partial — commits `4d47efff55`, `ce9178fa96` (2026-05-22); 5 unit tests still failing — see Action 9 |
+| 7 | Dead code removal: 3-arg overload + `use_micro_liquid_density_for_pi` flag | ✅ done — commits `4d47efff55`, `ce9178fa96` (2026-05-22); unit tests fixed in step 8 |
 | 8 | Fix 5 failing DSM unit tests: update reference functions and CSV baselines after step 5 vdW fix | ✅ done — local helper refactor + stability checks (2026-05-22) |
 
 ---
@@ -107,7 +107,7 @@ git show 4d47efff55:Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIV/AGENTS.md 
 Investigate whether the deleted instructions are still needed or are superseded
 by the already-committed code changes, then restore or annotate accordingly.
 
-**⚠️ OPEN: 5 unit tests still failing — see Action 9.**
+**✅ Unit tests fixed — see Action 9 (COMPLETED, commit `3ac6b7de1f`, 2026-05-22).**
 
 ---
 
