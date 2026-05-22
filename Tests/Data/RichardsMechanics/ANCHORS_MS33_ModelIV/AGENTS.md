@@ -24,6 +24,7 @@ Do **not** use the `dsm_native-release` worktree binary — VTK ABI mismatch
 | 2 | Thermodynamic swelling stress σ_sw = −φ_m·Π; K recalibration | ✅ done — commit `88d42c98fd` (2026-05-21) |
 | 3 | EOS argument unification: decouple ρ_lR(EOS) from Π; Gibbs–Duhem consistency | ✅ done — see Action 6 completion (2026-05-21) |
 | 4 | Comment cleanup: remove additive-approximation text from PRJ files and paper | ✅ done — 2026-05-21 |
+| 5 | Fix vdW base dimensional error: add /ρ_lR to formula in `computeVanDerWaalsMicroPotential`; refit A from isotherm; recalibrate K via Villar | ⬜ open — identified 2026-05-21 |
 
 ---
 
@@ -424,6 +425,75 @@ until:
 2. A is refit to adsorption isotherm data in J/kg units
 3. K is refit for only the genuine residual beyond vdW
 Only then can a new term with independent physical origin be added cleanly.
+
+---
+
+## Action 8 (OPEN): Step 5 — fix vdW base dimensional error
+
+**Date identified:** 2026-05-21
+
+### Root cause
+
+`computeVanDerWaalsMicroPotential` (PotentialExchange.h, line ~155) computes:
+```cpp
+out.mu_lR = potential_sign_factor * prefactor * nS³ * rho_SR³ / n_l³;
+// prefactor = A * Sa³ / (6π)
+// Units: [J] * [m²/kg]³ * [kg/m³]³ = J/m³ = Pa   ← WRONG
+```
+
+The code REQUIRES `mu_lR` in J/kg (proved by line 276/1044 of impl.h:
+`p_L_m = -rho_density [kg/m³] * mu_lR` must give Pa → mu_lR must be J/kg).
+
+The correct formula divides by ρ_lR:
+```
+μ_lR_vdW = A·Sa³·nS³·ρ_SR³ / (6π·n_l³·ρ_lR)   [J/kg]
+```
+
+### Required code change
+
+**File:** `PotentialExchange.h`, `computeVanDerWaalsMicroPotential`, line ~155.
+
+```cpp
+// FROM (Pa, wrong):
+out.mu_lR = potential_sign_factor * prefactor * (nS * nS * nS) *
+            (rho_SR * rho_SR * rho_SR) / (n_l * n_l * n_l);
+out.dmu_lR_dnl     = -3.0 * out.mu_lR / n_l;
+out.dmu_lR_drho_lR = 0.0;
+
+// TO (J/kg, correct):
+out.mu_lR = potential_sign_factor * prefactor * (nS * nS * nS) *
+            (rho_SR * rho_SR * rho_SR) / (n_l * n_l * n_l * rho_lR);
+out.dmu_lR_dnl     = -3.0 * out.mu_lR / n_l;
+out.dmu_lR_drho_lR = -out.mu_lR / rho_lR;   // was 0.0; now non-zero
+out.dmu_lR_dnS     = 3.0 * out.mu_lR / nS;  // unchanged
+out.dmu_lR_drho_SR = 3.0 * out.mu_lR / rho_SR; // unchanged
+```
+
+### Call site: which rho_lR to pass
+
+The function is currently called with different densities:
+- `computeMicroStateFromNl` (impl.h line ~267): passes `rho_LR` (bulk, ~1000 kg/m³)
+- Local solve (impl.h line ~597): passes `micro_liquid_density.rho_lR` (~1100 kg/m³)
+
+After the fix, the choice matters. For dimensional consistency the argument should be
+the density of the water in the micro film (i.e., `rho_lR` from the micro EOS).
+Both call sites should pass `micro_liquid_density.rho_lR` (not bulk `rho_LR`).
+
+### Expected impact on MS33 calibration
+
+At current parameters (n_l = 1.17e-3, A = 5.1e-21 J, S_a = 523 m²/kg):
+- Current vdW [Pa]: ~1.587e5 (numerically ~ |μ_LR| at 100 MPa, by coincidence)
+- After fix vdW [J/kg]: 1.587e5 / ρ_lR ≈ 144 J/kg (negligible vs μ_LR = 1e5 J/kg)
+- K must increase ~×3 to maintain suction equilibrium at initial n_l
+- Villar calibration will reset K from scratch; full recalibration required
+
+### Verification gate (step 5)
+
+1. `p_L_m = -rho * mu_lR` gives physically correct micro pressure (Pa)
+2. At p_L = -100 MPa, equilibrium n_l_eq from vdW+aug matches expectation
+3. Villar errors < 0.1% after Hamaker A and K recalibration
+4. All 6 MS33 models: 0 rejected steps
+5. Adsorption isotherm: equilibrium n_l(p_c) curve matches measured data for MX-80
 
 ---
 
