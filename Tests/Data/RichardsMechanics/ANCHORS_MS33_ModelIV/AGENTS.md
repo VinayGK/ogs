@@ -95,17 +95,18 @@ Do **not** use the `dsm_native-release` worktree binary — VTK ABI mismatch
    to 4-arg with inline `local_context`; wrong expected `active_nS` value fixed
    (`0.75` → `5/6`, matching `nS = 1 − φ_M` definition from commit `0d7a9edd64`).
 
-**⚠️ CAUTION — Action 6 section in this file was partially overwritten:**
-The original "Code change required" block in the Action 6 section (detailing the
-step-by-step instructions for the Gibbs–Duhem fix) was replaced with a shorter
-summary. **Before modifying Action 6 further, recover the original instructions
-from git:**
+**ℹ️ Historical note — Action 6 "Code change required" block (resolved 2026-05-22):**
+The original "Code change required" block in the Action 6 section described the
+step-by-step instructions for the Gibbs–Duhem fix (add `rho_LR` parameter, replace
+`rho_lR` with `rho_LR` in Pi-path, update call sites). Those instructions are now
+**fully superseded** by the completed implementation in commit `c4888b6db4` (the
+Gibbs–Duhem fix) and the subsequent dead-code removal of `use_micro_liquid_density_for_pi`
+in commit `ce9178fa96`. The original instructions are recoverable via:
 ```bash
 git show 4d47efff55:Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIV/AGENTS.md \
-  | sed -n '185,240p'
+  | sed -n '185,260p'
 ```
-Investigate whether the deleted instructions are still needed or are superseded
-by the already-committed code changes, then restore or annotate accordingly.
+No further action needed.
 
 **✅ Unit tests fixed — see Action 9 (COMPLETED, commit `3ac6b7de1f`, 2026-05-22).**
 
