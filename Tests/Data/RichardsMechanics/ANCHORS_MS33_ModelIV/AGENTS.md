@@ -371,6 +371,62 @@ sed -i '' "s|<vdw_augmentation_prefactor>[^<]*</vdw_augmentation_prefactor>|<vdw
 
 ---
 
+## STRICT INVARIANT: vdW base potential must never be removed or replaced
+
+**File:** `ProcessLib/RichardsMechanics/ConstitutiveRelations/PotentialExchange.h`
+**Function:** `computeVanDerWaalsMicroPotential` (lines ~152–178)
+
+### What the code does (correct, must stay this way)
+
+```cpp
+// 1. Hamaker vdW base potential — SET first
+double const prefactor = hamaker_constant * Sa³ / (6π);
+out.mu_lR = potential_sign_factor * prefactor * nS³ * rho_SR³ / n_l³;
+
+// 2. Exponential augmentation — ADDED on top
+if (vdw_augmentation_prefactor > 0.0) {
+    double const mu_aug = potential_sign_factor * K * std::exp(-xi);
+    out.mu_lR += mu_aug;   // ← += not =, MUST stay additive
+}
+```
+
+### What must NEVER happen
+
+**NEVER** change `out.mu_lR += mu_aug` to `out.mu_lR = mu_aug`.
+Doing so would silently discard the Hamaker vdW base potential and make
+`K` carry ALL surface physics — the augmentation would no longer augment
+anything. This would invalidate the physical interpretation of both A and K,
+and is undetectable from calibration results alone (K would simply absorb
+a larger mismatch).
+
+### Known dimensional issue (do not silently fix)
+
+The vdW base term has units **Pa** (not J/kg):
+`A·S_a³·(n_S·ρ_SR)³/n_l³ → [J·m⁶/kg³ · kg³/m⁹] = J/m³ = Pa`
+
+The augmentation `K·exp(-ξ)` has units **J/kg**.
+The macro potential `μ_LR = p_L/ρ_LR` has units **J/kg**.
+
+These are dimensionally inconsistent. **Do not silently fix this by dividing
+the vdW term by ρ_lR** — that would change the equilibrium n_l and require
+full recalibration of both A and K from adsorption isotherm data.
+Any fix to the dimensional issue is a physics change, not a cleanup, and must
+be treated as a new calibration step with its own V&V gate.
+
+### Consequence for adding new physical potentials
+
+Because K currently absorbs the dimensional mismatch between the Pa-scale vdW
+term and the J/kg-scale exchange driving force, K is NOT a clean measure of
+"everything beyond vdW". Adding a new physical term (osmotic, double-layer,
+structural hydration) by a further `out.mu_lR += new_term` is meaningless
+until:
+1. The vdW dimensional issue is resolved (divide A·S_a³·...·/n_l³ by ρ_lR)
+2. A is refit to adsorption isotherm data in J/kg units
+3. K is refit for only the genuine residual beyond vdW
+Only then can a new term with independent physical origin be added cleanly.
+
+---
+
 ## Related memory files
 
 - `~/.claude/projects/-Users-vinaykumar-git-ogs/memory/project_ms33_benchmark_prj_status.md`
