@@ -46,7 +46,6 @@
             <!-- vdW potential exchange with hierarchical split and J/kg units -->
             <potential_exchange>
                 <enabled>true</enabled>
-                <mode>full_potential</mode>
                 <pressure_tolerance>1e-12</pressure_tolerance>
                 <hamaker_constant>2.2e-20</hamaker_constant>
                 <specific_surface>5.23e5</specific_surface>
@@ -57,7 +56,12 @@
                 <macro_porosity_update_mode>algebraic_split</macro_porosity_update_mode>
                 <!-- current_porosity_split = evolving active_nS = 1-phi_M -->
                 <micro_solid_volume_fraction_mode>current_porosity_split</micro_solid_volume_fraction_mode>
-                <local_nonlinear_solve_mode>full_potential</local_nonlinear_solve_mode>
+                <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
+                <!-- Micro liquid EOS: rho_lR = rho_l0 * exp(-a * omega^b) + rho_LR_ref
+                     For parity with mfront bridge, set tiny amplitude so rho_lR ≈ rho_LR_ref = 1000. -->
+                <micro_liquid_density_reference>1.0</micro_liquid_density_reference>
+                <micro_liquid_density_a>50.0</micro_liquid_density_a>
+                <micro_liquid_density_b>1.0</micro_liquid_density_b>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>

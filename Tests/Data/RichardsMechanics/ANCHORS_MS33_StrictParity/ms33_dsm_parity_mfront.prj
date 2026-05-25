@@ -48,6 +48,7 @@
                     <material_property name="PoissonRatio" parameter="PoissonRatio"/>
                     <material_property name="SwellingSlope" parameter="SwellingSlope"/>
                     <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
+                    <material_property name="FluidViscosity" parameter="FluidViscosity"/>
                     <material_property name="ReferenceLiquidDensityMacro" parameter="ReferenceLiquidDensityMacro"/>
                     <material_property name="ReferenceLiquidDensityMicro" parameter="ReferenceLiquidDensityMicro"/>
                     <material_property name="MicroLiquidDensityA" parameter="MicroLiquidDensityA"/>
@@ -259,10 +260,16 @@
             <value>0.1</value>
         </parameter>
         <parameter>
-            <!-- J/kg domain: kg*s/m^5 — matches native mass_exchange_coefficient -->
+            <!-- J/kg domain: kg*s/m^5 — same as native mass_exchange_coefficient -->
             <name>MassExchangeCoefficient</name>
             <type>Constant</type>
             <value>1e-10</value>
+        </parameter>
+        <parameter>
+            <!-- Fluid dynamic viscosity [Pa*s] — used for alpha_eff = alpha*rho_LR/mu -->
+            <name>FluidViscosity</name>
+            <type>Constant</type>
+            <value>1e-3</value>
         </parameter>
         <parameter>
             <name>ReferenceLiquidDensityMacro</name>

@@ -37,6 +37,8 @@ nu.setGlossaryName("PoissonRatio");
 swelling_slope.setEntryName("SwellingSlope");
 @MaterialProperty real mass_exchange_coefficient;
 mass_exchange_coefficient.setEntryName("MassExchangeCoefficient");
+@MaterialProperty real fluid_viscosity;
+fluid_viscosity.setEntryName("FluidViscosity");
 @MaterialProperty real rho_LR_ref;
 rho_LR_ref.setEntryName("ReferenceLiquidDensityMacro");
 @MaterialProperty real rho_l0;
@@ -127,7 +129,12 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   const auto n_l_prev = n_l;
   const auto rho_lR_prev = rho_lR;
   const auto phi_m_prev = phi_m_from_nl(n_l_prev);
-  const auto previous_mass = n_l_prev * rho_lR_prev;
+  // REV-scale micro liquid mass density: phi_m * rho_lR  [kg/m³_REV]
+  // Matches native ScalarReferenceMassStorage: rho_l = phi_m * rho_lR (not n_l * rho_lR).
+  const auto previous_mass = phi_m_prev * rho_lR_prev;
+  // Effective exchange coefficient: alpha * rho_LR / mu  — matches native alpha_M_effective.
+  const auto alpha_eff = mass_exchange_coefficient * rho_LR_ref /
+                          std::max(fluid_viscosity, 1e-20);
 
   const auto saturation_from_pressure = [&](const auto p_arg) {
     if (p_arg < -pressure_tolerance)
@@ -160,17 +167,32 @@ rho_l_hat_value.setEntryName("rho_l_hat");
     return rho_l0 * std::exp(-density_a * std::pow(omega, density_b)) + rho_LR_ref;
   };
 
-  // vdW micro potential [J/kg] — matches native PotentialExchange.h (commit 0d579e8aeb):
-  //   mu_lR = A * Sa^3 * nS^3 * rho_SR^3 / (6*pi * n_l^3 * rho_lR)
-  // Written via omega: mu_lR = A * rho_lR^2 * Sa^3 / (6*pi * omega^3)
-  //   (rho_lR^3 from omega^-3 cancels leaving rho_lR^2 / rho_lR = rho_lR^1 net;
-  //    equivalently divide prefactor by rho_lR rather than multiply by rho_lR^3)
+  // vdW micro potential [J/kg], negative_attractive convention — matches native
+  // PotentialExchange.h (commit 0d579e8aeb, micro_potential_convention = negative_attractive):
+  //
+  //   mu_lR = -A * Sa^3 * nS^3 * rho_SR^3 / (6*pi * n_l^3 * rho_lR)   [J/kg, negative]
+  //
+  // SIGN: negative_attractive means the vdW binding reduces micro chemical potential
+  // below free water (mu_lR < 0).  Exchange:
+  //   rho_l_hat = alpha * (mu_LR - mu_lR)
+  //   mu_LR < 0 at suction; mu_lR < 0 (vdW binding).
+  //   When |mu_lR| > |mu_LR| (vdW > suction): mu_LR - mu_lR > 0 → micro fills.
+  //   When |mu_lR| < |mu_LR| (suction > vdW): mu_LR - mu_lR < 0 → micro drains.
+  //   Equilibrium: mu_LR = mu_lR  (both negative, magnitudes equal).
+  //
+  // MAGNITUDE: direct nS-form avoids rho_lR power-counting ambiguity via omega.
+  //   omega = n_l*rho_lR/(nS*rho_SR); (Sa/omega)^3 = Sa^3*(nS*rho_SR)^3/(n_l*rho_lR)^3
+  //   Correct: A*rho_lR^2/(6pi) * (Sa/omega)^3  — not A/(6pi*rho_lR) * (Sa/omega)^3.
+  //   Using nS-form directly to eliminate ambiguity:
   const auto mu_micro_from_state = [&](const auto n_l_arg, const auto rho_lR_arg) {
     const auto rho_lR_safe = std::max(rho_lR_arg, rho_LR_ref + minimum_density_gap);
-    const auto omega = std::max(omega_from_state(n_l_arg, rho_lR_safe), minimum_n_l);
-    // J/kg: factor is A / (6*pi * rho_lR) not A * rho_lR^3 / (6*pi)
-    return (hamaker_constant / (6.0 * pi * rho_lR_safe)) *
-           std::pow(specific_surface / omega, 3.0);
+    const auto nS = active_nS_from_nl(n_l_arg);
+    const auto n_l_safe = std::max(n_l_arg, minimum_n_l);
+    // negative_attractive: sign = -1
+    return -(hamaker_constant * specific_surface * specific_surface * specific_surface /
+             (6.0 * pi)) *
+            (nS * nS * nS * rho_SR * rho_SR * rho_SR) /
+            (n_l_safe * n_l_safe * n_l_safe * rho_lR_safe);
   };
 
   const auto solve_microstate = [&](const auto p_arg,
@@ -183,7 +205,7 @@ rho_l_hat_value.setEntryName("rho_l_hat");
                                     double& rho_l_hat_out) {
     const auto rho_macro_step =
         std::max(rho_lR_prev_arg, rho_LR_ref + minimum_density_gap);
-    auto n_l_trial = std::max(n_l_prev_arg, minimum_n_l);
+    auto n_l_trial = std::clamp(n_l_prev_arg, minimum_n_l, phi0);
     auto rho_lR_trial = std::max(rho_lR_prev_arg, rho_LR_ref + minimum_density_gap);
     auto converged = false;
 
@@ -195,9 +217,12 @@ rho_l_hat_value.setEntryName("rho_l_hat");
       double& rho_l_hat_arg) {
       const auto mu_LR_arg = mu_macro_from_pressure(p_arg, rho_macro_step);
       mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
-      rho_l_hat_arg = mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
-      residual_1 = n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
-                   n_l_arg * rho_lR_arg * delta_epsilon_v_arg;
+      // Exchange [kg/m³_REV/s]: alpha_eff = alpha * rho_LR / mu — matches native.
+      rho_l_hat_arg = alpha_eff * (mu_LR_arg - mu_lR_arg);
+      // REV-scale mass balance: phi_m * rho_lR (not n_l * rho_lR) — matches native.
+      const auto phi_m_local = phi_m_from_nl(n_l_arg);
+      residual_1 = phi_m_local * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
+                   phi_m_local * rho_lR_arg * delta_epsilon_v_arg;
       residual_2 = rho_lR_arg - rho_micro_eos(n_l_arg, rho_lR_arg);
     };
 
@@ -236,10 +261,11 @@ rho_l_hat_value.setEntryName("rho_l_hat");
           solve_rho_for_n_l(n_l_arg, rho_initial_guess, rho_lR_arg);
       const auto mu_LR_arg = mu_macro_from_pressure(p_arg, rho_macro_step);
       mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
-      rho_l_hat_arg = mass_exchange_coefficient * (mu_LR_arg - mu_lR_arg);
+      rho_l_hat_arg = alpha_eff * (mu_LR_arg - mu_lR_arg);
+      const auto phi_m_red = phi_m_from_nl(n_l_arg);
       residual_1 =
-          n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
-          n_l_arg * rho_lR_arg * delta_epsilon_v_arg;
+          phi_m_red * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
+          phi_m_red * rho_lR_arg * delta_epsilon_v_arg;
       return rho_converged;
     };
 
@@ -437,8 +463,10 @@ rho_l_hat_value.setEntryName("rho_l_hat");
       auto accepted = false;
       while (damping > 1e-6)
       {
+        // Clamp to [minimum_n_l, phi0]: n_l cannot exceed total porosity.
+        // Matches native ceiling = phi (≈ phi0 in small-strain).
         const auto n_l_candidate =
-            std::max(n_l_trial + damping * delta_n_l, minimum_n_l);
+            std::clamp(n_l_trial + damping * delta_n_l, minimum_n_l, phi0);
         const auto rho_candidate =
             std::max(rho_lR_trial + damping * delta_rho,
                      rho_LR_ref + minimum_density_gap);
@@ -470,6 +498,28 @@ rho_l_hat_value.setEntryName("rho_l_hat");
           converged = true;
           break;
         }
+        // Bracketed solver failed: check if physics demands n_l > phi0
+        // (saturation-clamped state). Evaluate residual at ceiling n_l = phi0.
+        // If residual <= 0, all feasible n_l produce negative residual, meaning
+        // micro pore space cannot absorb enough mass — clamp to phi0.
+        // This matches native behavior: n_l = clamp(n_l, floor, phi_ceiling).
+        {
+          double res_ceil = 0.0;
+          double rho_ceil = 0.0;
+          double mu_ceil = 0.0;
+          double rho_hat_ceil = 0.0;
+          evaluate_reduced(phi0, rho_lR_prev_arg, res_ceil, rho_ceil, mu_ceil,
+                           rho_hat_ceil);
+          if (res_ceil <= 0.0)
+          {
+            n_l_out = phi0;
+            rho_lR_out = rho_ceil;
+            mu_lR_out = mu_ceil;
+            rho_l_hat_out = rho_hat_ceil;
+            converged = true;
+            break;
+          }
+        }
         tfel::raise_if(true,
                        "DSMMicroMacro bridge microstate Newton line search failed.");
       }
@@ -481,6 +531,24 @@ rho_l_hat_value.setEntryName("rho_l_hat");
                                      rho_l_hat_out))
       {
         return;
+      }
+
+      // Final fallback: saturation clamp identical to line-search fallback above.
+      {
+        double res_ceil = 0.0;
+        double rho_ceil = 0.0;
+        double mu_ceil = 0.0;
+        double rho_hat_ceil = 0.0;
+        evaluate_reduced(phi0, rho_lR_prev_arg, res_ceil, rho_ceil, mu_ceil,
+                         rho_hat_ceil);
+        if (res_ceil <= 0.0)
+        {
+          n_l_out = phi0;
+          rho_lR_out = rho_ceil;
+          mu_lR_out = mu_ceil;
+          rho_l_hat_out = rho_hat_ceil;
+          return;
+        }
       }
 
       tfel::raise_if(true,
@@ -610,13 +678,18 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   const auto active_nS_updated = 1.0 - phi_M_updated;  // = (1-phi0)/(1-n_l)
   phi_m = n_l * active_nS_updated;
   phi_M = phi_M_updated;
-  // omega with evolving active_nS:
-  const auto omega = std::max(n_l * rho_lR / (active_nS_updated * rho_SR), minimum_n_l);
-  // vdW potential [J/kg]: divide by rho_lR (dimensional fix, matches native commit 0d579e8aeb)
+  // vdW potential [J/kg], negative_attractive convention (mu_lR < 0):
+  //   mu_lR = -A * Sa^3 * nS^3 * rho_SR^3 / (6*pi * n_l^3 * rho_lR)
   const auto rho_lR_safe = std::max(rho_lR, rho_LR_ref + 1e-12);
-  mu_lR_value = (hamaker_constant / (6.0 * pi * rho_lR_safe)) *
-                std::pow(specific_surface / omega, 3.0);
-  const auto rho_macro = rho_lR_safe;
-  const auto mu_LR = p_LR > -pressure_tolerance ? 0.0 : p_LR / rho_macro;
-  rho_l_hat_value = mass_exchange_coefficient * (mu_LR - mu_lR_value);
+  const auto n_l_safe_aux = std::max(n_l, minimum_n_l);
+  mu_lR_value = -(hamaker_constant * specific_surface * specific_surface * specific_surface /
+                  (6.0 * pi)) *
+                (active_nS_updated * active_nS_updated * active_nS_updated *
+                 rho_SR * rho_SR * rho_SR) /
+                (n_l_safe_aux * n_l_safe_aux * n_l_safe_aux * rho_lR_safe);
+  // rho_l_hat_value is already set correctly in @Integrator from the converged
+  // solve_microstate result (using end-of-step pressure). Do NOT recompute here:
+  // @UpdateAuxiliaryStateVariables receives p_LR as the beginning-of-step value
+  // in the OGS-MFront coupling, which would give the wrong exchange rate.
+  // Leave rho_l_hat_value unchanged (already set by @Integrator line 584).
 }

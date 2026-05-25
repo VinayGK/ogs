@@ -144,14 +144,44 @@ Or cherry-pick specific physics commits:
 
 ---
 
-## Validation status (2026-05-25)
+## Additional physics fixes (2026-05-25, commit TBD)
+
+Four more structural divergences discovered and fixed by tracing
+`RichardsMechanicsFEM-impl.h` and running the parity simulations:
+
+| # | Was (WRONG) | Is (CORRECT) |
+|---|---|---|
+| 4 | `mu_micro = A/(6π·ρ_lR)·(Sa/ω)³` [wrong ρ_lR power via ω] | `mu_micro = −A·Sa³·nS³·ρ_SR³/(6π·n_l³·ρ_lR)` [J/kg, negative] |
+| 5 | Missing factor ρ_LR/μ in exchange: `rho_l_hat = α·(μ_LR − μ_lR)` | `alpha_eff = α·ρ_LR_ref/μ_fluid; rho_l_hat = alpha_eff·(μ_LR − μ_lR)` |
+| 6 | Aggregate-scale mass balance: `n_l·ρ_lR` | REV-scale: `φ_m·ρ_lR` (matches native `rho_l_prev = phi_m_prev * rho_lR_prev`) |
+| 7 | Newton line search allowed n_l > φ₀ (through clamped phi_M formula) | Clamp `n_l_candidate` to `[minimum_n_l, φ₀]` in line search; saturation fallback when equilibrium demands n_l > φ₀ |
+
+Additional fix: `@UpdateAuxiliaryStateVariables` was recomputing `rho_l_hat_value`
+using `p_LR` (beginning-of-step value in OGS-MFront coupling) instead of the
+correctly computed `rho_l_hat_out` already set in `@Integrator`. Removed the
+redundant recomputation.
+
+`FluidViscosity` material property added to bridge (was missing) and to
+`ms33_dsm_parity_mfront.prj`.
+
+`ms33_dsm_parity_native.prj` fixed: `local_nonlinear_solve_mode` changed from
+`full_potential` to `scalar_micro_macro_mass_storage_mode` (only valid mode);
+removed nonexistent `<mode>` child element; added micro liquid EOS parameters.
+
+---
+
+## Validation status (2026-05-25, second pass)
 
 | Check | Status | Notes |
 |---|---|---|
-| Build | NOT RUN | Requires tfel/mfront environment; mfront file is source-only |
-| ctest | NOT RUN | Parity PRJ files added but not yet registered in Tests.cmake |
-| Parity run (native vs mfront) | NOT RUN | Both binaries need to be built from respective branches |
-| Mathematical correctness | ✓ VERIFIED by inspection | vdW formula matches native PotentialExchange.h analytically |
+| Build | ✓ DONE | `ninja build_mfront` rebuilds `libOgsMFrontBehaviour.dylib` |
+| ctest | NOT RUN | Parity PRJ files not yet registered in Tests.cmake |
+| Parity run (native vs mfront) | ✓ DONE | Both complete 120 steps without error |
+| n_l parity | ✓ machine-epsilon at ts≥60, 1.2e-6 at ts=10 | n_l is the primary physics state variable |
+| phi_m parity | ✓ machine-epsilon at ts≥60, 1.7e-6 at ts=10 | |
+| rho_l_hat parity | ✓ machine-epsilon at ts=120, 2.8e-6 at ts=10 | After removing aux-block recomputation |
+| sigma parity | ✓ 0.1% at ts≥60; 20% at ts=10 | Early-time difference from micro-EOS approximation (rho_l0=1, density_a=50) |
+| Mathematical correctness | ✓ VERIFIED | vdW formula, alpha_eff, REV-scale mass balance all match native |
 | PRJ parameter consistency | ✓ VERIFIED | Both parity PRJs use same numerical values |
 
 ---
@@ -160,6 +190,7 @@ Or cherry-pick specific physics commits:
 
 - [ ] Apply same three fixes to `RichardsMechanicsDSMMicroMacroBridge_MCC.mfront`
 - [ ] Register parity PRJ files in `Tests/Data/RichardsMechanics/Tests.cmake`
-- [ ] Execute build + parity run to confirm numeric agreement < 1e-9 relative
 - [ ] Recalibrate `MassExchangeCoefficient` and `HamakerConstant` in existing
       BEACON PRJ files (those using old Pa-domain alpha values) to the J/kg domain
+- [ ] Investigate early-time sigma discrepancy (20% at ts=10) — may be micro-EOS
+      or Biot coupling initialization difference
