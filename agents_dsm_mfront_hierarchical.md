@@ -1,68 +1,165 @@
-# DSM MFront Hierarchical Port Log
+# DSM MFront Hierarchical — Patch Recipe and Engineering Log
 
 ## Objective
-Create `dsm_mfront_hierarchical` as an increment over `dsm_mfront` that reproduces the hierarchical DSM capability of `dsm_native_hierarchical` in an MFront-idiomatic way.
+`dsm_mfront_hierarchical` implements the hierarchical DSM porosity split and J/kg
+vdW potential via `RichardsMechanicsDSMMicroMacroBridge.mfront`, so that the physics
+match the native `dsm_native_hierarchical` C++ implementation.
 
 ## Branch set
 - `master`
-- `dsm_native`
-- `dsm_native_hierarchical`
-- `dsm_mfront`
-- `dsm_mfront_hierarchical`
+- `dsm_native` — naive/additive porosity, naive vdW (Pa units)
+- `dsm_native_hierarchical` — hierarchical split, J/kg vdW (commit 0d579e8aeb)
+- `dsm_mfront` — mfront bridge, naive porosity, Pa-units vdW
+- `dsm_mfront_hierarchical` — **this branch**: hierarchical split, J/kg vdW in bridge
 
-## Core semantic requirement
-Reproduce `dsm_native_hierarchical` functionality via MFront-side implementation in the same architectural style by which `dsm_mfront` implements `dsm_native`.
+## PATCH_RECIPE MAINTENANCE RULE
+Any change to code, tests, or benchmarks that affects DSM constitutive physics
+must be reflected here as a new section with: what changed, why, diff summary,
+and validation outcome.
 
-## Native patch-recipe usage statement
-`DSM_NATIVE_HIERARCHICAL_PATCH_RECIPE.md` from `dsm_native_hierarchical` was used as analytical input for semantic deltas and sequencing, not replayed mechanically into MFront code.
+---
 
-## Initial repo state
-- Active branch at start: `dsm_native_hierarchical`.
-- `dsm_mfront_hierarchical` already existed with one scaffold commit.
-- Unexpected untracked files were present; stashed before work.
+## Physics divergences identified and fixed (2026-05-25, commit de589d8fc0)
 
-## Delta mapping
-- `dsm_native -> dsm_native_hierarchical`:
-  - hierarchical porosity split (`phi = phi_M + (1-phi_M) n_l`)
-  - REV-consistent micro mass storage (`phi_m * rho_lR`)
-  - swelling and potential-exchange consistency refinements.
-- `dsm_native -> dsm_mfront`:
-  - same DSM semantics expressed primarily via `RichardsMechanicsDSMMicroMacroBridge_MCC.mfront` and bridge plumbing.
-- Target `dsm_mfront -> dsm_mfront_hierarchical`:
-  - implement hierarchical split and REV mass terms in the MFront bridge where prior assumptions used flat `phi_m == n_l` semantics.
+### Root-cause analysis
+Comparison of `RichardsMechanicsDSMMicroMacroBridge.mfront` (this branch) against
+`ProcessLib/RichardsMechanics/ConstitutiveRelations/PotentialExchange.h`
+(dsm_native_hierarchical) revealed three independent divergences:
 
-## Chronological engineering log
-1. Stash workspace noise to ensure clean baseline.
-   - Command: `git stash push -u -m "codex-temp-pre-dsm_mfront_hierarchical-2026-05-25"`
-   - Result: clean working tree.
-2. Analyze branch deltas and native patch recipe.
-   - Commands: `git diff`, `git show dsm_native_hierarchical:...PATCH_RECIPE.md`, targeted `rg`.
-   - Result: mapped native hierarchical semantics to MFront bridge loci.
-3. Port step: hierarchical REV micro-porosity mapping in MFront bridge.
-   - File: `MaterialLib/SolidModels/MFront/RichardsMechanicsDSMMicroMacroBridge_MCC.mfront`
-   - Changes:
-     - Introduced `phi_m_from_n_l(...)` under fixed `phi_total_trial`.
-     - Replaced previous-mass baseline from `n_l_prev * rho_lR_prev` to `phi_m_prev * rho_lR_prev`.
-     - Replaced residual mass terms from `n_l * rho_lR` to `phi_m(n_l) * rho_lR`.
-     - Replaced trial-state assignment `phi_m_trial_value = n_l_trial_value` with hierarchical mapping and consistent `phi_M_trial_value`.
-   - Reversibility note: isolated in one file and one logical commit.
+| # | Location | Was (WRONG) | Is (CORRECT) |
+|---|---|---|---|
+| 1 | `phi_m_prev`, `phi_m_trial`, `phi_M_trial`, `@UpdateAuxiliaryStateVariables` | `phi_m = n_l`, `phi_M = phi0 - n_l` (naive/additive) | `phi_M = (phi0-n_l)/(1-n_l)`, `phi_m = n_l*(1-phi_M)` (hierarchical) |
+| 2 | `omega_from_state` lambda and `@UpdateAuxiliaryStateVariables` | `n_s = 1.0 - phi0` (constant initial solid fraction) | `active_nS = (1-phi0)/(1-n_l)` (evolving from hierarchical split) |
+| 3 | `mu_micro_from_state` lambda and `@UpdateAuxiliaryStateVariables` | `(A * rho_lR^3 / 6pi) * (Sa/omega)^3` — **Pa** (wrong units) | `A / (6pi * rho_lR) * (Sa/omega)^3` — **J/kg** (correct, matches native commit 0d579e8aeb) |
+
+Divergence 3 is the dimensional fix. The formula in omega notation:
+- wrong:   `mu = A * rho_lR^3 / (6pi) * (Sa/omega)^3 = A*Sa^3*nS^3*rho_SR^3/(6pi*n_l^3)` [Pa]
+- correct: `mu = A / (6pi * rho_lR) * (Sa/omega)^3 = A*Sa^3*nS^3*rho_SR^3/(6pi*n_l^3*rho_lR)` [J/kg]
+
+### What was changed in `RichardsMechanicsDSMMicroMacroBridge.mfront`
+
+**@Integrator block — porosity helpers (new, replaces `n_s = 1.0 - phi0`):**
+```mfront
+const auto phi_M_from_nl = [&](double nl) {
+  const auto nl_safe = std::max(minimum_n_l, nl);
+  return std::clamp((phi0 - nl_safe) / (1.0 - nl_safe), 0.0, phi0);
+};
+const auto phi_m_from_nl = [&](double nl) {
+  return nl * (1.0 - phi_M_from_nl(nl));
+};
+const auto active_nS_from_nl = [&](double nl) {
+  return 1.0 - phi_M_from_nl(nl);   // = (1-phi0)/(1-nl)
+};
+const auto phi_m_prev = phi_m_from_nl(n_l_prev);   // was: n_l_prev
+```
+
+**omega_from_state lambda (uses evolving nS):**
+```mfront
+// was: n_l_arg * rho_lR_arg / (n_s * rho_SR)
+const auto nS = active_nS_from_nl(n_l_arg);
+return n_l_arg * rho_lR_arg / (nS * rho_SR);
+```
+
+**mu_micro_from_state lambda (J/kg fix):**
+```mfront
+// was: (hamaker * rho_lR_arg^3 / (6pi)) * (Sa/omega)^3   [Pa]
+// now: (hamaker / (6pi * rho_lR_arg)) * (Sa/omega)^3     [J/kg]
+return (hamaker_constant / (6.0 * pi * rho_lR_safe)) *
+       std::pow(specific_surface / omega, 3.0);
+```
+
+**Post-solver phi_m/phi_M assignment:**
+```mfront
+// was: const auto phi_m_trial = n_l_trial;
+//      const auto phi_M_trial = phi0 - phi_m_trial;
+const auto phi_m_trial = phi_m_from_nl(n_l_trial);
+const auto phi_M_trial = phi_M_from_nl(n_l_trial);
+```
+
+**@UpdateAuxiliaryStateVariables (same three fixes applied):**
+```mfront
+const auto phi_M_updated = std::clamp(
+    (phi0 - std::max(minimum_n_l, n_l)) / (1.0 - std::max(minimum_n_l, n_l)),
+    0.0, phi0);
+const auto active_nS_updated = 1.0 - phi_M_updated;
+phi_m = n_l * active_nS_updated;          // was: n_l
+phi_M = phi_M_updated;                    // was: phi0 - n_l
+const auto omega = std::max(n_l * rho_lR / (active_nS_updated * rho_SR), minimum_n_l);
+mu_lR_value = (hamaker_constant / (6.0 * pi * rho_lR_safe)) *
+              std::pow(specific_surface / omega, 3.0);   // [J/kg]
+```
+
+### Exchange coefficient unit convention after fix
+
+| Domain | mu units | mass_exchange_coefficient units | Relation |
+|---|---|---|---|
+| Before fix (mfront) | Pa | s/m | `rho_hat [kg/m³/s] = alpha [s/m] * delta_p [Pa]` |
+| After fix (mfront, native) | J/kg = m²/s² | kg·s/m⁵ | `rho_hat [kg/m³/s] = alpha [kg·s/m⁵] * delta_mu [J/kg]` |
+
+Existing calibrated `MassExchangeCoefficient` values (e.g. `1e-13`) were in old
+Pa-domain units. In J/kg domain the equivalent value is `old * rho_lR ≈ old * 1000`.
+The parity PRJ files use `1e-10 kg·s/m⁵` (new domain).
+
+---
+
+## Parity PRJ files added (2026-05-25, commit de589d8fc0)
+
+Location: `Tests/Data/RichardsMechanics/ANCHORS_MS33_StrictParity/`
+
+| File | Runs on | Physics path |
+|---|---|---|
+| `ms33_dsm_parity_native.prj` | `dsm_native_hierarchical` binary | `<potential_exchange>` with `algebraic_split` + `current_porosity_split` |
+| `ms33_dsm_parity_mfront.prj` | `dsm_mfront_hierarchical` binary | `RichardsMechanicsDSMMicroMacroBridge` |
+
+Both files use identical physical parameters. See `README_DSM_PARITY.md` in that
+directory for the parameter table, run instructions, and residual differences.
+
+---
+
+## Earlier partial port (2026-05-25, commit e279020d03) — NOW SUPERSEDED
+
+The commit `e279020d03` applied a hierarchical porosity mapping to
+`RichardsMechanicsDSMMicroMacroBridge_MCC.mfront` (the MCC variant) but
+**not** to `RichardsMechanicsDSMMicroMacroBridge.mfront` (the main bridge).
+It also did not fix the J/kg dimensional error or the evolving-nS issue.
+
+This pass (commit de589d8fc0) fixes the main bridge comprehensively. The MCC
+variant (`_MCC.mfront`) should receive the same three fixes in a follow-up.
+
+---
 
 ## Replay instructions from clean `master`
-1. `git checkout master`
-2. `git checkout dsm_mfront`
-3. `git checkout -b dsm_mfront_hierarchical`
-4. Replay patches:
-   - `git format-patch dsm_mfront..dsm_mfront_hierarchical -o /tmp/dsm_mfront_hierarchical_patches`
-   - `git am /tmp/dsm_mfront_hierarchical_patches/*.patch`
 
-## Patch-series generation
-- `git format-patch dsm_mfront..dsm_mfront_hierarchical -o /tmp/dsm_mfront_hierarchical_patches`
+```bash
+git checkout master
+git checkout -b dsm_mfront_hierarchical
+# Replay all commits:
+git format-patch dsm_mfront..dsm_mfront_hierarchical -o /tmp/dsm_mfront_hier_patches
+git am /tmp/dsm_mfront_hier_patches/*.patch
+```
 
-## Validation matrix
-- Build: not yet executed in this pass.
-- ctests: not yet executed in this pass.
-- Benchmarks/models: not yet executed in this pass.
-- Parity assessment: partial semantic port applied (micro-mass/porosity mapping); full parity pending broader run matrix.
-- Known deviations/limitations:
-  - Remaining hierarchical parity points may still exist in MFront bridge and/or RM plumbing.
-  - Full benchmark and model replay pending.
+Or cherry-pick specific physics commits:
+- `e279020d03` — MCC variant partial hierarchical port
+- `de589d8fc0` — main bridge: all three divergences fixed + parity PRJ files
+
+---
+
+## Validation status (2026-05-25)
+
+| Check | Status | Notes |
+|---|---|---|
+| Build | NOT RUN | Requires tfel/mfront environment; mfront file is source-only |
+| ctest | NOT RUN | Parity PRJ files added but not yet registered in Tests.cmake |
+| Parity run (native vs mfront) | NOT RUN | Both binaries need to be built from respective branches |
+| Mathematical correctness | ✓ VERIFIED by inspection | vdW formula matches native PotentialExchange.h analytically |
+| PRJ parameter consistency | ✓ VERIFIED | Both parity PRJs use same numerical values |
+
+---
+
+## Open items
+
+- [ ] Apply same three fixes to `RichardsMechanicsDSMMicroMacroBridge_MCC.mfront`
+- [ ] Register parity PRJ files in `Tests/Data/RichardsMechanics/Tests.cmake`
+- [ ] Execute build + parity run to confirm numeric agreement < 1e-9 relative
+- [ ] Recalibrate `MassExchangeCoefficient` and `HamakerConstant` in existing
+      BEACON PRJ files (those using old Pa-domain alpha values) to the J/kg domain
