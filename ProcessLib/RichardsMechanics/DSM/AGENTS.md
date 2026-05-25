@@ -34,12 +34,12 @@
 - Canonical LE outcomes unchanged in accepted/rejected-step sense.
 - Open benchmark-quality work is primarily calibration/interpretation side (not immediate solver-break state).
 
-## PATCH_RECIPE.md maintenance rule
+## DSM_NATIVE_HIERARCHICAL_PATCH_RECIPE.md maintenance rule
 
-`ProcessLib/RichardsMechanics/DSM/PATCH_RECIPE.md` is the reconstruction
+`ProcessLib/RichardsMechanics/DSM/DSM_NATIVE_HIERARCHICAL_PATCH_RECIPE.md` is the reconstruction
 recipe for this branch from a fresh `master`. It must stay current.
 
-**Update PATCH_RECIPE.md before committing whenever:**
+**Update DSM_NATIVE_HIERARCHICAL_PATCH_RECIPE.md before committing whenever:**
 - Any hunk in `RichardsMechanicsFEM-impl.h` or `PotentialExchange.h` changes.
 - The DSMMicroMacro unit tests change (step 8 section + passing count).
 - Any PRJ `hamaker_constant` or `vdw_augmentation_prefactor` (K) value changes.
@@ -47,4 +47,4 @@ recipe for this branch from a fresh `master`. It must stay current.
 - Build flags or the verification `ctest` invocation changes.
 - A new step beyond Step 8 is added (add a new numbered section).
 
-Do not mark a step done in AGENTS.md unless PATCH_RECIPE.md already reflects it.
+Do not mark a step done in AGENTS.md unless DSM_NATIVE_HIERARCHICAL_PATCH_RECIPE.md already reflects it.
