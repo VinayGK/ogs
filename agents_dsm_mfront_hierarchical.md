@@ -194,3 +194,48 @@ removed nonexistent `<mode>` child element; added micro liquid EOS parameters.
       BEACON PRJ files (those using old Pa-domain alpha values) to the J/kg domain
 - [ ] Investigate early-time sigma discrepancy (20% at ts=10) — may be micro-EOS
       or Biot coupling initialization difference
+
+---
+
+## OPEN PHYSICS QUESTIONS (2026-05-25, mandatory investigation before publication)
+
+### Q1 — Exchange coefficient density scaling
+
+Current implementation:
+```
+alpha_eff = MassExchangeCoefficient * rho_LR_ref / fluid_viscosity
+rho_hat   = alpha_eff * (mu_LR - mu_lR)                          [kg/m³_REV/s]
+```
+The effective exchange coefficient scales with the **macro** fluid density
+`rho_LR_ref`. This matches `alpha_M_effective = alpha_bar * rho_LR / mu` in
+`RichardsMechanicsFEM-impl.h`.
+
+**MUST RESOLVE**: Is `rho_LR` the correct density here, or should the
+exchange flux involve the respective micro/macro densities, or their average?
+The question is non-trivial when `rho_lR ≠ rho_LR` (compressible micro fluid).
+The manuscript must state the derivation and justify the choice.
+
+Tracked in: `tex/dsm-bgr-paper/draft/paper_DSM.tex` `\VKtodo` near exchange equation;
+            `tex/dsm-bgr-paper/AGENTS.md` section "2026-05-25 open physics questions".
+
+### Q2 — Micro-saturation ceiling and large-alpha timestep behaviour
+
+With `alpha_eff = 1e-10 * 1000 / 1e-3 = 1e-4`, exchange is so fast that
+within one timestep the equilibrium `n_l` can exceed the current total
+porosity `phi`. The native C++ path clamps `n_l <= phi` (current, evolving).
+
+The MFront bridge was clamping at the **initial** `phi_0` and throwing an
+exception when no root existed below that ceiling. Fix applied (commit
+`ca360695b3`): ceiling clamp in Newton line search + saturation fallback that
+returns `n_l = phi_0` when residual at ceiling is negative.
+
+**MUST RESOLVE**:
+1. Should the ceiling be `phi` (current, evolving with swelling) or `phi_0`
+   (fixed, small-strain approximation)? Using `phi_0` is a known approximation.
+2. Does the saturation-clamped state (n_l held at ceiling, exchange not fully
+   equilibrated in one step) introduce a spurious artificial source term in the
+   macro balance over multiple steps?
+3. Is there an implication for time-step sensitivity — should a maximum
+   timestep be imposed when `alpha_eff` is large?
+
+Tracked in: `tex/dsm-bgr-paper/AGENTS.md` section "2026-05-25 open physics questions".
