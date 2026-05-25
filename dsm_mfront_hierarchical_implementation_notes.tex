@@ -1,0 +1,33 @@
+\\documentclass[11pt]{article}
+\\usepackage[a4paper,margin=1in]{geometry}
+\\usepackage{amsmath}
+\\usepackage{hyperref}
+\\title{DSM MFront Hierarchical Port: Implementation Notes}
+\\author{}
+\\date{\\today}
+
+\\begin{document}
+\\maketitle
+
+\\section{Motivation and Target Relationship}
+Target relationship: \\texttt{dsm\\_mfront\\_hierarchical} should stand to \\texttt{dsm\\_mfront} as \\texttt{dsm\\_native\\_hierarchical} stands to \\texttt{dsm\\_native}, with MFront-idiomatic implementation.
+
+\\section{Semantic Porting Objective}
+This is a semantic port. Native patch series is used as analytical evidence for behavior deltas and validation scope, not replayed mechanically.
+
+\\section{Native Hierarchical Delta Summary}
+Primary deltas: hierarchical porosity split, REV-consistent storage/Jacobian terms, thermodynamically consistent swelling increment form, and vdW potential dimensional fixes.
+
+\\section{MFront Translation Strategy}
+Apply hierarchical behavior at the same extension points where \\texttt{dsm\\_mfront} currently maps native DSM functionality into MFront-related process plumbing.
+
+\\section{Implementation Notes by Subsystem}
+To be completed as incremental commits are applied.
+
+\\section{Validation and Parity}
+To be completed with executed ctests, benchmark/model runs, and parity notes.
+
+\\section{Limitations and Follow-up}
+To be completed.
+
+\\end{document}
