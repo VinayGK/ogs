@@ -1,7 +1,6 @@
 \\documentclass[11pt]{article}
 \\usepackage[a4paper,margin=1in]{geometry}
 \\usepackage{amsmath}
-\\usepackage{hyperref}
 \\title{DSM MFront Hierarchical Port: Implementation Notes}
 \\author{}
 \\date{\\today}
@@ -10,24 +9,46 @@
 \\maketitle
 
 \\section{Motivation and Target Relationship}
-Target relationship: \\texttt{dsm\\_mfront\\_hierarchical} should stand to \\texttt{dsm\\_mfront} as \\texttt{dsm\\_native\\_hierarchical} stands to \\texttt{dsm\\_native}, with MFront-idiomatic implementation.
+Target relationship: \\texttt{dsm\\_mfront\\_hierarchical} should stand to \\texttt{dsm\\_mfront} as \\texttt{dsm\\_native\\_hierarchical} stands to \\texttt{dsm\\_native}, expressed through MFront bridge mechanisms.
 
 \\section{Semantic Porting Objective}
-This is a semantic port. Native patch series is used as analytical evidence for behavior deltas and validation scope, not replayed mechanically.
+This is a semantic port. The native patch recipe was used to identify behavior deltas; implementation was translated into MFront-native extension points.
 
-\\section{Native Hierarchical Delta Summary}
-Primary deltas: hierarchical porosity split, REV-consistent storage/Jacobian terms, thermodynamically consistent swelling increment form, and vdW potential dimensional fixes.
+\\section{Native Hierarchical Delta Analysis}
+Key native deltas used as semantic targets:
+\\begin{itemize}
+\\item Hierarchical porosity relation linking $\\phi$, $\\phi_M$, $\\phi_m$, and $n_l$.
+\\item REV-consistent micro mass storage using $\\phi_m \\rho_{lR}$ instead of flat $n_l \\rho_{lR}$.
+\\item Consistent swelling/mass-exchange coupling under the hierarchical split.
+\\end{itemize}
 
-\\section{MFront Translation Strategy}
-Apply hierarchical behavior at the same extension points where \\texttt{dsm\\_mfront} currently maps native DSM functionality into MFront-related process plumbing.
+\\section{How dsm\\_mfront Encodes DSM Behavior}
+In the MFront branch lineage, DSM micro-macro behavior is concentrated in \\texttt{RichardsMechanicsDSMMicroMacroBridge\\_MCC.mfront}, with RM process plumbing consuming bridge state variables.
 
-\\section{Implementation Notes by Subsystem}
-To be completed as incremental commits are applied.
+\\section{Porting Strategy}
+Apply hierarchical semantics where the bridge still assumes flat micro-porosity:
+\\begin{itemize}
+\\item map $n_l$ to REV micro-porosity via hierarchical conversion,
+\\item update residual and previous-mass terms to use converted $\\phi_m$,
+\\item keep changes local and reversible.
+\\end{itemize}
 
-\\section{Validation and Parity}
-To be completed with executed ctests, benchmark/model runs, and parity notes.
+\\section{Implemented Subsystem Change}
+Implemented in \\texttt{MaterialLib/SolidModels/MFront/RichardsMechanicsDSMMicroMacroBridge\\_MCC.mfront}:
+\\begin{itemize}
+\\item Added \\texttt{phi\\_m\\_from\\_n\\_l(...)} conversion under fixed trial total porosity.
+\\item Replaced \\texttt{previous\\_mass = n\\_l\\_prev * rho\\_lR\\_prev} with \\texttt{phi\\_m\\_prev * rho\\_lR\\_prev}.
+\\item Replaced residual mass terms from \\texttt{n\\_l * rho\\_lR} to \\texttt{phi\\_m(n\\_l) * rho\\_lR}.
+\\item Updated trial-state \\texttt{phi\\_m} and \\texttt{phi\\_M} assignment to hierarchical mapping.
+\\end{itemize}
 
-\\section{Limitations and Follow-up}
-To be completed.
+\\section{Mismatches and Compromises}
+The native and MFront branches differ structurally. Direct file-level replay is not possible; semantic translation was applied at the bridge behavior level.
+
+\\section{Validation and Parity Status}
+Validation runs are pending for this pass (build, ctest subset, benchmark/model replay). Current status is partial semantic port completion.
+
+\\section{Remaining Work}
+Complete residual hierarchical parity audit and execute validation matrix, then generate final replay artifacts.
 
 \\end{document}
