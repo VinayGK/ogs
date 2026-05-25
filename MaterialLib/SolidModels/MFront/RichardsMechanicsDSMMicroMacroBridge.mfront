@@ -5,10 +5,12 @@
 @Description {
 Reduced dsm_micromacro-aligned RichardsMechanics bridge for the verified shared
 pressure-history boundary. This bridge replaces the earlier logistic pressure
-surrogate by a local microstate update with phi_m := n_l, a reduced micro-liquid
-EOS, a van-der-Waals micro potential, and an isotropic swelling-stress update.
-The verified regression boundary of this step is the nonnegative pressure path
-used by the committed dsm_micromacro overlap-transfer baseline.
+surrogate by a local microstate update using the hierarchical porosity split
+(phi_M = (phi0-n_l)/(1-n_l), phi_m = n_l*(1-phi_M)), a reduced micro-liquid
+EOS, a van-der-Waals micro potential in J/kg (dimensional fix: /rho_lR applied,
+matching native PotentialExchange.h commit 0d579e8aeb), and an isotropic
+swelling-stress update.  Active solid fraction uses evolving nS=(1-phi0)/(1-n_l)
+instead of the initial constant 1-phi0.
 }
 
 @Gradient StrainStensor eps_to;
@@ -105,10 +107,26 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   const auto p = p_LR + Δp_LR;
   const auto delta_epsilon_v = trace(Δeps_to);
   const auto zero_dt = std::abs(dt) < 1e-15;
-  const auto n_s = 1.0 - phi0;
+  // Hierarchical porosity split: phi = phi_M + n_l*(1-phi_M)
+  //   => phi_M = (phi - n_l)/(1 - n_l)
+  //   => phi_m = n_l*(1 - phi_M) = n_l*(1 - phi0)/(1 - n_l)   [small-strain: phi ≈ phi0]
+  //   => active_nS = 1 - phi_M = (1 - phi0)/(1 - n_l)
+  // Using phi ≈ phi0 (small-strain / Biot alpha=1 approximation).
+  const auto phi_M_from_nl = [&](double nl) {
+    const auto nl_safe = std::max(minimum_n_l, nl);
+    return std::clamp((phi0 - nl_safe) / (1.0 - nl_safe), 0.0, phi0);
+  };
+  const auto phi_m_from_nl = [&](double nl) {
+    return nl * (1.0 - phi_M_from_nl(nl));
+  };
+  // active_nS = 1 - phi_M  (solid fraction of the micro aggregate, evolving with n_l)
+  const auto active_nS_from_nl = [&](double nl) {
+    return 1.0 - phi_M_from_nl(nl);  // = (1 - phi0)/(1 - nl)
+  };
+
   const auto n_l_prev = n_l;
   const auto rho_lR_prev = rho_lR;
-  const auto phi_m_prev = n_l_prev;
+  const auto phi_m_prev = phi_m_from_nl(n_l_prev);
   const auto previous_mass = n_l_prev * rho_lR_prev;
 
   const auto saturation_from_pressure = [&](const auto p_arg) {
@@ -130,8 +148,11 @@ rho_l_hat_value.setEntryName("rho_l_hat");
     return p_arg > -pressure_tolerance ? 0.0 : p_arg / rho_macro_safe;
   };
 
+  // omega = n_l * rho_lR / (active_nS * rho_SR)  — gravimetric water content
+  // Uses evolving active_nS = (1-phi0)/(1-n_l) from the hierarchical split.
   const auto omega_from_state = [&](const auto n_l_arg, const auto rho_lR_arg) {
-    return n_l_arg * rho_lR_arg / (n_s * rho_SR);
+    const auto nS = active_nS_from_nl(n_l_arg);
+    return n_l_arg * rho_lR_arg / (nS * rho_SR);
   };
 
   const auto rho_micro_eos = [&](const auto n_l_arg, const auto rho_lR_arg) {
@@ -139,9 +160,16 @@ rho_l_hat_value.setEntryName("rho_l_hat");
     return rho_l0 * std::exp(-density_a * std::pow(omega, density_b)) + rho_LR_ref;
   };
 
+  // vdW micro potential [J/kg] — matches native PotentialExchange.h (commit 0d579e8aeb):
+  //   mu_lR = A * Sa^3 * nS^3 * rho_SR^3 / (6*pi * n_l^3 * rho_lR)
+  // Written via omega: mu_lR = A * rho_lR^2 * Sa^3 / (6*pi * omega^3)
+  //   (rho_lR^3 from omega^-3 cancels leaving rho_lR^2 / rho_lR = rho_lR^1 net;
+  //    equivalently divide prefactor by rho_lR rather than multiply by rho_lR^3)
   const auto mu_micro_from_state = [&](const auto n_l_arg, const auto rho_lR_arg) {
-    const auto omega = std::max(omega_from_state(n_l_arg, rho_lR_arg), minimum_n_l);
-    return (hamaker_constant * rho_lR_arg * rho_lR_arg * rho_lR_arg / (6.0 * pi)) *
+    const auto rho_lR_safe = std::max(rho_lR_arg, rho_LR_ref + minimum_density_gap);
+    const auto omega = std::max(omega_from_state(n_l_arg, rho_lR_safe), minimum_n_l);
+    // J/kg: factor is A / (6*pi * rho_lR) not A * rho_lR^3 / (6*pi)
+    return (hamaker_constant / (6.0 * pi * rho_lR_safe)) *
            std::pow(specific_surface / omega, 3.0);
   };
 
@@ -472,8 +500,9 @@ rho_l_hat_value.setEntryName("rho_l_hat");
                      rho_lR_trial, mu_lR_trial, rho_l_hat_trial);
   }
 
-  const auto phi_m_trial = n_l_trial;
-  const auto phi_M_trial = phi0 - phi_m_trial;
+  // Hierarchical porosity split applied at solved n_l:
+  const auto phi_m_trial = phi_m_from_nl(n_l_trial);
+  const auto phi_M_trial = phi_M_from_nl(n_l_trial);
   const auto delta_epsilon_sw = swelling_slope * (phi_m_trial - phi_m_prev);
 
   sigma = sigma + lambda * trace(Δeps_to) * I₂ + 2.0 * mu * Δeps_to -
@@ -575,13 +604,19 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   constexpr const auto minimum_n_l = 1e-14;
   constexpr const auto pi = 3.14159265358979323846;
 
-  const auto n_s = 1.0 - phi0;
-  const auto omega = std::max(n_l * rho_lR / (n_s * rho_SR), minimum_n_l);
-  phi_m = n_l;
-  phi_M = phi0 - n_l;
-  mu_lR_value = (hamaker_constant * rho_lR * rho_lR * rho_lR / (6.0 * pi)) *
+  // Hierarchical porosity split: phi_M = (phi0-n_l)/(1-n_l), phi_m = n_l*(1-phi_M)
+  const auto phi_M_updated = std::clamp((phi0 - std::max(minimum_n_l, n_l)) /
+                                        (1.0 - std::max(minimum_n_l, n_l)), 0.0, phi0);
+  const auto active_nS_updated = 1.0 - phi_M_updated;  // = (1-phi0)/(1-n_l)
+  phi_m = n_l * active_nS_updated;
+  phi_M = phi_M_updated;
+  // omega with evolving active_nS:
+  const auto omega = std::max(n_l * rho_lR / (active_nS_updated * rho_SR), minimum_n_l);
+  // vdW potential [J/kg]: divide by rho_lR (dimensional fix, matches native commit 0d579e8aeb)
+  const auto rho_lR_safe = std::max(rho_lR, rho_LR_ref + 1e-12);
+  mu_lR_value = (hamaker_constant / (6.0 * pi * rho_lR_safe)) *
                 std::pow(specific_surface / omega, 3.0);
-  const auto rho_macro = std::max(rho_lR, rho_LR_ref + 1e-12);
+  const auto rho_macro = rho_lR_safe;
   const auto mu_LR = p_LR > -pressure_tolerance ? 0.0 : p_LR / rho_macro;
   rho_l_hat_value = mass_exchange_coefficient * (mu_LR - mu_lR_value);
 }
