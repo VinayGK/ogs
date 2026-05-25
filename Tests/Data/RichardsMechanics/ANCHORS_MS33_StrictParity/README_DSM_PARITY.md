@@ -19,18 +19,31 @@ DSM implementations produce identical physics.
 
 ## How to run the DSM parity test
 
+**Preferred — use the parity runner script** (runs both sims + reports MAE automatically):
+
 ```bash
-# Terminal 1: native binary
-OGS_NATIVE=path/to/dsm_native_hierarchical/build/ogs
-$OGS_NATIVE ms33_dsm_parity_native.prj
+# From repo root:
+python3 scripts/run_dsm_parity.py
 
-# Terminal 2: mfront binary
-OGS_MFRONT=path/to/dsm_mfront_hierarchical/build/ogs
-$OGS_MFRONT ms33_dsm_parity_mfront.prj
+# Single suite only:
+python3 scripts/run_dsm_parity.py --suite dsm_ms33
 
-# Compare (after both finish):
-# Compare porosity, sigma, displacement, exchange source fields.
-# Differences should be < solver tolerance (~1e-9 relative).
+# Re-report without re-running (uses existing output in /tmp/dsm_parity_runs):
+python3 scripts/run_dsm_parity.py --no-run
+```
+
+Output lands in `/tmp/dsm_parity_runs/dsm_ms33/{native,mfront}/`.
+The script prints an MAE table split by early timesteps (ts≤50, 100→50 MPa suction)
+and late timesteps (ts≥60, 50→0 MPa). Registered suites and field maps live in
+`PARITY_SUITES` at the bottom of `scripts/run_dsm_parity.py`.
+
+**Manual run (fallback):**
+
+```bash
+OGS_NATIVE=/path/to/native-release-omp-sharedcache/bin/ogs
+OGS_MFRONT=/path/to/mfront-release-omp-sharedcache/bin/ogs
+$OGS_NATIVE ms33_dsm_parity_native.prj -o /tmp/out/native
+$OGS_MFRONT ms33_dsm_parity_mfront.prj -o /tmp/out/mfront
 ```
 
 ## Physics agreement (post-fix)

@@ -208,11 +208,33 @@ Build: `ninja build_mfront` — passes clean (all 55 targets, `libBehaviour.dyli
 ## Open items
 
 - [x] Apply same fixes to `RichardsMechanicsDSMMicroMacroBridge_MCC.mfront` — DONE 2026-05-25
+- [x] Add parity runner script — DONE 2026-05-25; see `scripts/run_dsm_parity.py`
 - [ ] Register parity PRJ files in `Tests/Data/RichardsMechanics/Tests.cmake`
 - [ ] Recalibrate `MassExchangeCoefficient` and `HamakerConstant` in existing
       BEACON PRJ files (those using old Pa-domain alpha values) to the J/kg domain
 - [ ] Investigate early-time sigma discrepancy (20% at ts=10) — may be micro-EOS
       or Biot coupling initialization difference
+
+---
+
+## Parity runner script (2026-05-25, commit d2941d2aa7)
+
+`scripts/run_dsm_parity.py` — canonical way to run native-vs-mfront comparisons.
+
+```bash
+python3 scripts/run_dsm_parity.py              # run all suites
+python3 scripts/run_dsm_parity.py --suite dsm_ms33
+python3 scripts/run_dsm_parity.py --no-run     # re-report without re-running
+```
+
+**To add a new model pair:** append one dict to `PARITY_SUITES` at the bottom of the
+script. Fields: `name`, `description`, `native_prj`, `mfront_prj`, `field_map`, and
+optionally `native_bin`, `mfront_bin`, `notes`. No other code changes required.
+
+**Updated docs** (same commit):
+- `Tests/Data/RichardsMechanics/SCRIPT_INVENTORY.md` — new entry in workflows table
+- `Tests/Data/RichardsMechanics/ANCHORS_MS33_StrictParity/README_DSM_PARITY.md` — "How to run" section now points to script
+- `~/.claude/projects/.../memory/reference_dsm_parity_script.md` — agent memory
 
 ---
 

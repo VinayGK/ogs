@@ -1,7 +1,7 @@
 # RichardsMechanics Benchmark Script Inventory
 
-Last updated: 2026-04-15 (CEST)  
-Repository branch: `dsm-nb-mfront-transition`
+Last updated: 2026-05-25 (CEST)  
+Repository branch: `dsm_mfront_hierarchical`
 
 This file documents and consolidates the scripts used for DSM/native/MFront
 calibration and benchmark exercises (ANCHORS, BEACON, EPFL/BGR).
@@ -10,6 +10,7 @@ calibration and benchmark exercises (ANCHORS, BEACON, EPFL/BGR).
 
 | Script | Purpose | Primary outputs |
 |---|---|---|
+| `../../scripts/run_dsm_parity.py` | **DSM native-vs-mfront parity runner and MAE reporter.** Runs both OGS binaries side-by-side, compares every registered field, prints structured MAE table (early ts≤50 / late ts≥60). Suites registered in `PARITY_SUITES` at the bottom of the file — append a dict to add a new model pair without touching the runner logic. PRJ files live in `ANCHORS_MS33_StrictParity/`. | `/tmp/dsm_parity_runs/<suite>/{native,mfront}/` |
 | `run_linear_law_calibrated_dsm_comparison.py` | ANCHORS linear-law calibration + triplet comparison (`linear`, `native_dsm`, `mfront_dsm`) for ANCHORS/BEACON/EPFL. | `_outputs/linear_law_calibrated_dsm_comparison/*` |
 | `run_identical_parameter_benchmark_parity.py` | Same-parameter parity run for ANCHORS + BEACON + EPFL (`native` vs `mfront`) using shared dry-density multiplier curve. | `_outputs/identical_parameter_native_mfront_comparison_with_epfl/*` |
 | `run_calibrated_beacon_anchors_comparison.py` | Dry-density-calibrated comparison for ANCHORS + BEACON (`native` vs `mfront`) with threshold assertions. | `_outputs/calibrated_native_mfront_comparison/*` |
