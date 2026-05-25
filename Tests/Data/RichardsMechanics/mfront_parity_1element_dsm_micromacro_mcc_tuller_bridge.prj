@@ -142,8 +142,10 @@
                 <property>
                     <name>saturation</name>
                     <type>SaturationTuller</type>
+                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
+                    <residual_gas_saturation>0.0</residual_gas_saturation>
                     <area_factor_tuller>1.0</area_factor_tuller>
-                    <pore_area_shape_factor_tuller>0.8584073464102069</pore_area_shape_factor_tuller>
+                    <pore_area_shapefactor_tuller>0.8584073464102069</pore_area_shapefactor_tuller>
                     <characteristic_pore_size>1e-5</characteristic_pore_size>
                     <surface_tension>0.0715</surface_tension>
                 </property>
