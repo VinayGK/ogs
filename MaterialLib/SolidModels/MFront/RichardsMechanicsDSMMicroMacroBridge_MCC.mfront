@@ -328,9 +328,10 @@ phi0.setEntryName("InitialPorosity");
         return std::max(rho_macro_arg, rho_LR_ref + minimum_density_gap);
     };
 
-    const auto alpha_M_effective_from_density = [&](const auto rho_macro_arg) {
-        const auto rho_macro_safe = macro_density_from_state(rho_macro_arg);
-        return mass_exchange_coefficient * rho_macro_safe / macro_viscosity;
+    const auto alpha_M_effective_from_density = [&](const auto /*rho_macro_arg*/) {
+        // alpha_eff = MassExchangeCoefficient * rho_LR_ref / FluidViscosity
+        // Uses fixed reference density (not dynamic rho_macro) — matches native alpha_M_effective.
+        return mass_exchange_coefficient * rho_LR_ref / macro_viscosity;
     };
 
     const auto mu_macro_from_pressure = [&](const auto p_arg,
@@ -354,12 +355,16 @@ phi0.setEntryName("InitialPorosity");
 
     const auto mu_micro_from_state = [&](const auto n_l_arg,
                                          const auto rho_lR_arg) {
-        const auto omega =
-            std::max(omega_from_state(n_l_arg, rho_lR_arg), minimum_n_l);
-        return (micro_potential_sign * hamaker_magnitude * rho_lR_arg *
-                rho_lR_arg * rho_lR_arg /
+        const auto rho_lR_safe =
+            std::max(rho_lR_arg, rho_LR_ref + minimum_density_gap);
+        const auto n_l_safe = std::max(n_l_arg, minimum_n_l);
+        // nS-form [J/kg]: -A·Sa³·nS³·rho_SR³/(6π·n_l³·rho_lR)
+        // Fixes missing /rho_lR factor present in omega-form expansion.
+        return (micro_potential_sign * hamaker_magnitude *
+                specific_surface * specific_surface * specific_surface /
                 (6.0 * pi)) *
-               std::pow(specific_surface / omega, 3.0);
+               (n_s * n_s * n_s * rho_SR * rho_SR * rho_SR) /
+               (n_l_safe * n_l_safe * n_l_safe * rho_lR_safe);
     };
 
     const auto solve_microstate = [&](const auto p_arg,
@@ -758,7 +763,7 @@ phi0.setEntryName("InitialPorosity");
                 double& rho_l_hat_bracketed_out) {
                 constexpr const auto bracket_scan_points = 256u;
                 auto n_l_lo = minimum_n_l;
-                auto n_l_hi = n_l_upper_bound;
+                auto n_l_hi = std::max(phi0, std::max(n_l_prev_arg, minimum_n_l * 10.0));
 
                 double residual_lo = 0.0;
                 double residual_hi = 0.0;
@@ -962,9 +967,10 @@ phi0.setEntryName("InitialPorosity");
 
             for (unsigned int line_search = 0; line_search < 8; ++line_search)
             {
+                // Clamp to [minimum_n_l, phi0]: n_l cannot exceed total porosity.
                 const auto n_candidate =
                     std::clamp(n_l_trial + step_scale * delta_n, minimum_n_l,
-                               n_l_upper_bound);
+                               phi0);
                 const auto rho_candidate = std::max(
                     rho_lR_trial + step_scale * delta_rho,
                     rho_LR_ref + minimum_density_gap);
@@ -998,6 +1004,22 @@ phi0.setEntryName("InitialPorosity");
                 {
                     return;
                 }
+                // Saturation-clamped fallback: if residual at phi0 <= 0,
+                // physics demands n_l >= phi0 — clamp to ceiling.
+                // Matches native n_l = clamp(n_l, floor, phi_ceiling).
+                {
+                    double res_ceil = 0.0;
+                    double rho_ceil = rho_lR_trial;
+                    double mu_ceil = 0.0;
+                    double rho_hat_ceil = 0.0;
+                    evaluate_reduced(phi0, rho_lR_prev_arg, res_ceil, rho_ceil,
+                                     mu_ceil, rho_hat_ceil);
+                    if (res_ceil <= 0.0)
+                    {
+                        assign_coupled_state(phi0, rho_ceil);
+                        return;
+                    }
+                }
                 fallback_coupled_state();
                 return;
             }
@@ -1030,6 +1052,20 @@ phi0.setEntryName("InitialPorosity");
                                        rho_l_hat_out))
         {
             return;
+        }
+        // Final saturation-clamped fallback (mirrors line-search fallback above).
+        {
+            double res_ceil = 0.0;
+            double rho_ceil = rho_lR_trial;
+            double mu_ceil = 0.0;
+            double rho_hat_ceil = 0.0;
+            evaluate_reduced(phi0, rho_lR_prev_arg, res_ceil, rho_ceil,
+                             mu_ceil, rho_hat_ceil);
+            if (res_ceil <= 0.0)
+            {
+                assign_coupled_state(phi0, rho_ceil);
+                return;
+            }
         }
         fallback_coupled_state();
         return;

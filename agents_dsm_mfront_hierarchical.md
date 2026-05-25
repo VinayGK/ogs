@@ -186,9 +186,28 @@ removed nonexistent `<mode>` child element; added micro liquid EOS parameters.
 
 ---
 
+---
+
+## Physics fixes ported to MCC variant (2026-05-25, commit TBD)
+
+Applied the same four physics fixes from the main bridge to
+`RichardsMechanicsDSMMicroMacroBridge_MCC.mfront`:
+
+| Fix | Location in _MCC.mfront | Change |
+|---|---|---|
+| 1. vdW nS-form + `/rho_lR` | `mu_micro_from_state` lambda | Replaced omega-form (`A·rho_lR³/(6π)·(Sa/ω)³`) with nS-form: `sign·A·Sa³·nS³·rho_SR³/(6π·n_l³·rho_lR)`. Keeps existing `micro_potential_sign` for convention switching. |
+| 2. alpha_eff reference density | `alpha_M_effective_from_density` | Changed numerator from dynamic `rho_macro_safe` to fixed `rho_LR_ref`. `macro_viscosity` already served as FluidViscosity — no new material property needed. |
+| 3. REV-scale mass balance | `evaluate`, `evaluate_reduced` | **Already correct** — MCC file was already using `phi_m·rho_lR` (not `n_l·rho_lR`). No change needed. |
+| 4. Newton ceiling clamp + saturation fallback | Coupled solver line search; `solve_microstate_bracketed`; post-loop fallback | Changed clamp upper bound from `n_l_upper_bound` to `phi0` in line search and bracketed solver. Added saturation fallback (clamp to phi0 when `residual_at_phi0 ≤ 0`) in `!accepted` branch and final fallback. |
+| 5. No rho_l_hat recomputation in @UpdateAuxiliaryStateVariables | `@UpdateAuxiliaryStateVariables` | **Already correct** — MCC file copies `rho_l_hat_trial_value` (set by `solve_microstate` in `@InitializeLocalVariables` using end-of-step pressure). No recomputation from beginning-of-step `p_LR`. |
+
+Build: `ninja build_mfront` — passes clean (all 55 targets, `libBehaviour.dylib` linked).
+
+---
+
 ## Open items
 
-- [ ] Apply same three fixes to `RichardsMechanicsDSMMicroMacroBridge_MCC.mfront`
+- [x] Apply same fixes to `RichardsMechanicsDSMMicroMacroBridge_MCC.mfront` — DONE 2026-05-25
 - [ ] Register parity PRJ files in `Tests/Data/RichardsMechanics/Tests.cmake`
 - [ ] Recalibrate `MassExchangeCoefficient` and `HamakerConstant` in existing
       BEACON PRJ files (those using old Pa-domain alpha values) to the J/kg domain
