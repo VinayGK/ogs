@@ -1,0 +1,369 @@
+<?xml version='1.0' encoding='ISO-8859-1'?>
+<!--
+  DSM parity benchmark — NATIVE path.
+  Run with a binary built from dsm_native_hierarchical.
+  Counterpart: ms33_dsm_parity_mfront.prj  (run on dsm_mfront_hierarchical binary).
+
+  Physics: hierarchical porosity split + vdW potential exchange [J/kg].
+  All physical parameters are IDENTICAL to ms33_dsm_parity_mfront.prj;
+  only the XML structure differs (native <micro_porosity>/<potential_exchange>
+  vs MFront material properties).
+
+  Parameter-unit convention (J/kg domain, post dimensional fix):
+    hamaker_constant            [J]          2.2e-20  (Israelachvili & Adams 1978)
+    specific_surface            [m^2/kg]     5.23e5   (523 m^2/g FEBEX montmorillonite)
+    mass_exchange_coefficient   [kg*s/m^5]   1e-10    (J/kg domain: alpha s.t. rho_hat=alpha*(mu_M-mu_m))
+    micro_solid_density_ref     [kg/m^3]     2780
+    micro_solid_volume_fraction_ref [-]      0.59     (= 1-phi0, initial solid fraction)
+    n_l0                        [-]          0.001    (initial micro water content at 100 MPa suction)
+    micro_water_content_swelling_slope [-]   0.1
+-->
+<OpenGeoSysProject>
+    <meshes>
+        <mesh axially_symmetric="true">../square_1x1_quad_1e0.vtu</mesh>
+        <mesh axially_symmetric="true">../square_1x1_quad_1e0_left.vtu</mesh>
+        <mesh axially_symmetric="true">../square_1x1_quad_1e0_right.vtu</mesh>
+        <mesh axially_symmetric="true">../square_1x1_quad_1e0_top.vtu</mesh>
+        <mesh axially_symmetric="true">../square_1x1_quad_1e0_bottom.vtu</mesh>
+    </meshes>
+    <processes>
+        <process>
+            <name>RM</name>
+            <type>RICHARDS_MECHANICS</type>
+            <integration_order>2</integration_order>
+            <jacobian_assembler>
+                <type>Analytical</type>
+            </jacobian_assembler>
+            <!-- Native DSM micro-porosity exchange block -->
+            <micro_porosity>
+                <mass_exchange_coefficient>1e-10</mass_exchange_coefficient>
+                <nonlinear_solver>
+                    <maximum_iterations>100</maximum_iterations>
+                    <residuum_tolerance>1e-8</residuum_tolerance>
+                    <increment_tolerance>1e-20</increment_tolerance>
+                </nonlinear_solver>
+            </micro_porosity>
+            <!-- vdW potential exchange with hierarchical split and J/kg units -->
+            <potential_exchange>
+                <enabled>true</enabled>
+                <pressure_tolerance>1e-12</pressure_tolerance>
+                <hamaker_constant>2.2e-20</hamaker_constant>
+                <specific_surface>5.23e5</specific_surface>
+                <micro_solid_density_reference>2780</micro_solid_density_reference>
+                <micro_solid_volume_fraction_reference>0.59</micro_solid_volume_fraction_reference>
+                <initial_micro_water_content>0.001</initial_micro_water_content>
+                <!-- algebraic_split = hierarchical: phi_M=(phi-n_l)/(1-n_l) -->
+                <macro_porosity_update_mode>algebraic_split</macro_porosity_update_mode>
+                <!-- current_porosity_split = evolving active_nS = 1-phi_M -->
+                <micro_solid_volume_fraction_mode>current_porosity_split</micro_solid_volume_fraction_mode>
+                <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
+                <!-- Micro liquid EOS: rho_lR = rho_l0 * exp(-a * omega^b) + rho_LR_ref
+                     For parity with mfront bridge, set tiny amplitude so rho_lR ≈ rho_LR_ref = 1000. -->
+                <micro_liquid_density_reference>1.0</micro_liquid_density_reference>
+                <micro_liquid_density_a>50.0</micro_liquid_density_a>
+                <micro_liquid_density_b>1.0</micro_liquid_density_b>
+                <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
+                <micro_potential_convention>negative_attractive</micro_potential_convention>
+                <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
+            </potential_exchange>
+            <constitutive_relation>
+                <type>LinearElasticIsotropic</type>
+                <youngs_modulus>YoungModulus</youngs_modulus>
+                <poissons_ratio>PoissonRatio</poissons_ratio>
+            </constitutive_relation>
+            <process_variables>
+                <pressure>pressure</pressure>
+                <displacement>displacement</displacement>
+            </process_variables>
+            <secondary_variables>
+                <secondary_variable name="sigma"/>
+                <secondary_variable name="epsilon"/>
+                <secondary_variable name="velocity"/>
+                <secondary_variable name="saturation"/>
+                <secondary_variable name="porosity"/>
+                <secondary_variable name="dry_density_solid"/>
+                <secondary_variable name="micro_saturation"/>
+                <secondary_variable name="micro_pressure"/>
+                <secondary_variable name="micro_water_content"/>
+                <secondary_variable name="micro_porosity"/>
+                <secondary_variable name="micro_exchange_source"/>
+            </secondary_variables>
+            <specific_body_force>0 0</specific_body_force>
+            <initial_stress>sigma0</initial_stress>
+            <explicit_hm_coupling_in_unsaturated_zone>false</explicit_hm_coupling_in_unsaturated_zone>
+            <mass_lumping>true</mass_lumping>
+        </process>
+    </processes>
+    <media>
+        <medium>
+            <phases>
+                <phase>
+                    <type>AqueousLiquid</type>
+                    <properties>
+                        <property>
+                            <name>viscosity</name>
+                            <type>Constant</type>
+                            <value>1e-3</value>
+                        </property>
+                        <property>
+                            <name>density</name>
+                            <type>Constant</type>
+                            <value>1e3</value>
+                        </property>
+                    </properties>
+                </phase>
+                <phase>
+                    <type>Solid</type>
+                    <properties>
+                        <property>
+                            <name>density</name>
+                            <type>Constant</type>
+                            <value>2780.0</value>
+                        </property>
+                    </properties>
+                </phase>
+            </phases>
+            <properties>
+                <property>
+                    <name>biot_coefficient</name>
+                    <type>Constant</type>
+                    <value>1.0</value>
+                </property>
+                <property>
+                    <name>permeability</name>
+                    <type>KozenyCarman</type>
+                    <initial_permeability>IntrinsicPermeability0</initial_permeability>
+                    <initial_porosity>phi0</initial_porosity>
+                </property>
+                <property>
+                    <name>porosity</name>
+                    <type>PorosityFromMassBalance</type>
+                    <initial_porosity>phi0</initial_porosity>
+                    <minimal_porosity>0</minimal_porosity>
+                    <maximal_porosity>1</maximal_porosity>
+                </property>
+                <property>
+                    <name>reference_temperature</name>
+                    <type>Constant</type>
+                    <value>293.15</value>
+                </property>
+                <property>
+                    <name>saturation</name>
+                    <type>SaturationVanGenuchten</type>
+                    <residual_liquid_saturation>0</residual_liquid_saturation>
+                    <residual_gas_saturation>0</residual_gas_saturation>
+                    <exponent>0.45</exponent>
+                    <p_b>27e6</p_b>
+                </property>
+                <property>
+                    <name>relative_permeability</name>
+                    <type>RelativePermeabilityGeneralizedPower</type>
+                    <residual_liquid_saturation>0</residual_liquid_saturation>
+                    <residual_gas_saturation>0</residual_gas_saturation>
+                    <min_relative_permeability>1e-12</min_relative_permeability>
+                    <enhancement_factor>1</enhancement_factor>
+                    <exponent>3</exponent>
+                </property>
+                <property>
+                    <name>bishops_effective_stress</name>
+                    <type>BishopsSaturationCutoff</type>
+                    <cutoff_value>1</cutoff_value>
+                </property>
+            </properties>
+        </medium>
+    </media>
+    <time_loop>
+        <processes>
+            <process ref="RM">
+                <nonlinear_solver>basic_newton</nonlinear_solver>
+                <convergence_criterion>
+                    <type>PerComponentDeltaX</type>
+                    <norm_type>NORM2</norm_type>
+                    <reltols>1e-10 1e-10 1e-9</reltols>
+                </convergence_criterion>
+                <time_discretization>
+                    <type>BackwardEuler</type>
+                </time_discretization>
+                <time_stepping>
+                    <type>FixedTimeStepping</type>
+                    <t_initial>0</t_initial>
+                    <t_end>10368000</t_end>
+                    <timesteps>
+                        <pair>
+                            <repeat>120</repeat>
+                            <delta_t>86400</delta_t>
+                        </pair>
+                    </timesteps>
+                </time_stepping>
+            </process>
+        </processes>
+        <output>
+            <type>VTK</type>
+            <prefix>dsm_ramp_dd1600</prefix>
+            <suffix>_ts_{:timestep}_t_{:time}</suffix>
+            <timesteps>
+                <pair>
+                    <repeat>24</repeat>
+                    <each_steps>5</each_steps>
+                </pair>
+            </timesteps>
+            <variables>
+                <variable>displacement</variable>
+                <variable>pressure</variable>
+                <variable>sigma</variable>
+                <variable>epsilon</variable>
+                <variable>velocity</variable>
+                <variable>saturation</variable>
+                <variable>porosity</variable>
+                <variable>dry_density_solid</variable>
+                <variable>micro_saturation</variable>
+                <variable>micro_pressure</variable>
+                <variable>micro_water_content</variable>
+                <variable>micro_porosity</variable>
+                <variable>micro_exchange_source</variable>
+            </variables>
+        </output>
+    </time_loop>
+    <parameters>
+        <parameter>
+            <name>sigma0</name>
+            <type>Function</type>
+            <expression>0</expression>
+            <expression>0</expression>
+            <expression>0</expression>
+            <expression>0</expression>
+        </parameter>
+        <parameter>
+            <name>YoungModulus</name>
+            <type>Constant</type>
+            <value>52e6</value>
+        </parameter>
+        <parameter>
+            <name>PoissonRatio</name>
+            <type>Constant</type>
+            <value>0.3</value>
+        </parameter>
+        <parameter>
+            <name>phi0</name>
+            <type>Constant</type>
+            <value>0.4244604316546763</value>
+        </parameter>
+        <parameter>
+            <name>IntrinsicPermeability0</name>
+            <type>Constant</type>
+            <value>5.870260900123441e-21</value>
+        </parameter>
+        <parameter>
+            <name>displacement0</name>
+            <type>Constant</type>
+            <values>0 0</values>
+        </parameter>
+        <parameter>
+            <name>zero</name>
+            <type>Constant</type>
+            <value>0.0</value>
+        </parameter>
+        <parameter>
+            <name>pressure_ic</name>
+            <type>Constant</type>
+            <value>-100000000.0</value>
+        </parameter>
+        <parameter>
+            <name>pressure_bc_scale</name>
+            <type>Constant</type>
+            <value>1</value>
+        </parameter>
+        <parameter>
+            <name>pressure_bc</name>
+            <type>CurveScaled</type>
+            <curve>ms33_pressure_release</curve>
+            <parameter>pressure_bc_scale</parameter>
+        </parameter>
+    </parameters>
+    <process_variables>
+        <process_variable>
+            <name>displacement</name>
+            <components>2</components>
+            <order>1</order>
+            <initial_condition>displacement0</initial_condition>
+            <boundary_conditions>
+                <boundary_condition>
+                    <mesh>square_1x1_quad_1e0_left</mesh>
+                    <type>Dirichlet</type>
+                    <component>0</component>
+                    <parameter>zero</parameter>
+                </boundary_condition>
+                <boundary_condition>
+                    <mesh>square_1x1_quad_1e0_right</mesh>
+                    <type>Dirichlet</type>
+                    <component>0</component>
+                    <parameter>zero</parameter>
+                </boundary_condition>
+                <boundary_condition>
+                    <mesh>square_1x1_quad_1e0_bottom</mesh>
+                    <type>Dirichlet</type>
+                    <component>1</component>
+                    <parameter>zero</parameter>
+                </boundary_condition>
+                <boundary_condition>
+                    <mesh>square_1x1_quad_1e0_top</mesh>
+                    <type>Dirichlet</type>
+                    <component>1</component>
+                    <parameter>zero</parameter>
+                </boundary_condition>
+            </boundary_conditions>
+        </process_variable>
+        <process_variable>
+            <name>pressure</name>
+            <components>1</components>
+            <order>1</order>
+            <initial_condition>pressure_ic</initial_condition>
+            <boundary_conditions>
+                <boundary_condition>
+                    <mesh>square_1x1_quad_1e0_left</mesh>
+                    <type>Dirichlet</type>
+                    <parameter>pressure_bc</parameter>
+                </boundary_condition>
+                <boundary_condition>
+                    <mesh>square_1x1_quad_1e0_right</mesh>
+                    <type>Dirichlet</type>
+                    <parameter>pressure_bc</parameter>
+                </boundary_condition>
+                <boundary_condition>
+                    <mesh>square_1x1_quad_1e0_bottom</mesh>
+                    <type>Dirichlet</type>
+                    <parameter>pressure_bc</parameter>
+                </boundary_condition>
+                <boundary_condition>
+                    <mesh>square_1x1_quad_1e0_top</mesh>
+                    <type>Dirichlet</type>
+                    <parameter>pressure_bc</parameter>
+                </boundary_condition>
+            </boundary_conditions>
+        </process_variable>
+    </process_variables>
+    <nonlinear_solvers>
+        <nonlinear_solver>
+            <name>basic_newton</name>
+            <type>Newton</type>
+            <max_iter>60</max_iter>
+            <linear_solver>general_linear_solver</linear_solver>
+        </nonlinear_solver>
+    </nonlinear_solvers>
+    <linear_solvers>
+        <linear_solver>
+            <name>general_linear_solver</name>
+            <eigen>
+                <solver_type>SparseLU</solver_type>
+                <scaling>true</scaling>
+            </eigen>
+        </linear_solver>
+    </linear_solvers>
+    <curves>
+                <curve>
+            <name>ms33_pressure_release</name>
+            <coords>0 5184000 10368000</coords>
+            <values>-100000000.0 100000.0 -100000000.0</values>
+        </curve>
+    </curves>
+</OpenGeoSysProject>

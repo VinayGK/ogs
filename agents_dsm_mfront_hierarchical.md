@@ -205,10 +205,69 @@ Build: `ninja build_mfront` — passes clean (all 55 targets, `libBehaviour.dyli
 
 ---
 
+## DSM verification ramps (2026-05-25) — single-element replacement for Jupyter GP notebook
+
+Location: `Tests/Data/RichardsMechanics/ANCHORS_MS33_DSM_VerificationRamps/`
+
+Replaces the Gauss-point Jupyter notebook
+`/Users/vinaykumar/tex/cc2024/examples/DSM/Potentials_penalty.ipynb`
+(saturation + desaturation ramp on a single Gauss point) by running the
+equivalent ramp as an OGS single-element test, at the three Model-I
+calibrated dry densities (1400, 1600, 1800 kg/m³).
+
+- **Template PRJ**: `ANCHORS_MS33_StrictParity/ms33_dsm_parity_native.prj`
+  (DSM hierarchical path active; micro_* secondary variables wired up).
+- **Per-density override**: `phi0` and `IntrinsicPermeability0` substituted
+  from `ANCHORS_MS33_ModelI/ms33_model_i_dd{1400,1600,1800}.prj`.
+- **Ramp**: triangle in pressure BC; suction goes
+  `-100 MPa → +0.1 MPa → -100 MPa` over 120 days (dt = 1 day).
+  Shape matches the notebook (saturation half then desaturation half);
+  pressure range covers the suction regime over which the Model-I
+  calibration is active.
+- **Mesh**: reuses the single-element axisymmetric quad
+  `../square_1x1_quad_1e0.vtu` from the sibling MS33 directories.
+- **Binary**: native DSM hierarchical
+  `/Users/vinaykumar/git/build/native-release-omp-sharedcache/bin/ogs`
+  (worktree `dsm_native_hierarchical`).
+
+**Run script**:
+```bash
+cd Tests/Data/RichardsMechanics/ANCHORS_MS33_DSM_VerificationRamps
+python3 run_verification_ramps.py            # generate PRJs, run all three, plot
+python3 run_verification_ramps.py --only-gen # regenerate PRJs only
+python3 run_verification_ramps.py --skip-run # skip OGS, just post-process
+```
+
+The script does three things in sequence:
+1. Generates `dsm_ramp_dd{1400,1600,1800}.prj` from the native parity
+   template with per-density phi0/perm substitutions and the verification
+   ramp BCs.
+2. Runs each PRJ with the native binary; logs go to `dsm_ramp_dd{dd}.log`.
+3. Extracts cell/point-averaged scalars to `dsm_ramp_dd{dd}.csv` and writes
+   four PNGs per density (water-content vs time, water-content vs suction,
+   macro saturation hysteresis, mean stress vs time).
+
+**Verified outcome (2026-05-25)**: All three sims complete 120 steps without
+rejection. dd1400 example: at peak saturation (t=55 d, p=-8.2 MPa) the micro
+fully saturates (`n_l = phi0 = 0.4964`), `phi_M → 0` (rigid hierarchical
+split closing the macro channel), and the swelling-stress trace reaches its
+peak ~−2.15 MPa; on desaturation it returns close to the initial state with
+visible hysteresis, as expected from the path-dependent DSM update.
+
+The four PNGs per density live in the same directory and are intended as
+drop-in replacements for the Jupyter-notebook figures currently in the
+manuscript. They are NOT yet swapped into `paper_DSM.tex`.
+
+---
+
 ## Open items
 
 - [x] Apply same fixes to `RichardsMechanicsDSMMicroMacroBridge_MCC.mfront` — DONE 2026-05-25
 - [x] Add parity runner script — DONE 2026-05-25; see `scripts/run_dsm_parity.py`
+- [x] Replace Gauss-point Jupyter verification ramps with single-element OGS
+      sims at varying dd — DONE 2026-05-25; see
+      `Tests/Data/RichardsMechanics/ANCHORS_MS33_DSM_VerificationRamps/run_verification_ramps.py`
+- [ ] Swap notebook figures in `paper_DSM.tex` for the new PNGs (user review pending)
 - [ ] Register parity PRJ files in `Tests/Data/RichardsMechanics/Tests.cmake`
 - [ ] Recalibrate `MassExchangeCoefficient` and `HamakerConstant` in existing
       BEACON PRJ files (those using old Pa-domain alpha values) to the J/kg domain
