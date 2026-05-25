@@ -315,8 +315,14 @@ phi0.setEntryName("InitialPorosity");
     const auto n_l_prev = std::clamp(n_l, minimum_n_l, n_l_upper_bound);
     const auto rho_lR_prev =
         std::max(rho_lR, rho_LR_ref + minimum_density_gap);
-    const auto phi_m_prev = n_l_prev;
-    const auto previous_mass = n_l_prev * rho_lR_prev;
+    const auto phi_m_from_n_l = [&](const auto n_l_arg) {
+        const auto n_l_safe = std::clamp(n_l_arg, minimum_n_l, n_l_upper_bound);
+        const auto one_minus_n_l = std::max(1e-12, 1.0 - n_l_safe);
+        return std::clamp(((1.0 - phi_total_trial) / one_minus_n_l) * n_l_safe,
+                          minimum_n_l, phi_total_trial);
+    };
+    const auto phi_m_prev = phi_m_from_n_l(n_l_prev);
+    const auto previous_mass = phi_m_prev * rho_lR_prev;
 
     const auto macro_density_from_state = [&](const auto rho_macro_arg) {
         return std::max(rho_macro_arg, rho_LR_ref + minimum_density_gap);
@@ -640,9 +646,10 @@ phi0.setEntryName("InitialPorosity");
             mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
             rho_l_hat_arg =
                 alpha_M_effective * (mu_LR_arg - mu_lR_arg);
+            const auto phi_m_arg = phi_m_from_n_l(n_l_arg);
             residual_1 =
-                n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
-                n_l_arg * rho_lR_arg * delta_epsilon_v_arg;
+                phi_m_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
+                phi_m_arg * rho_lR_arg * delta_epsilon_v_arg;
             residual_2 = rho_lR_arg - rho_micro_eos(n_l_arg, rho_lR_arg);
         };
 
@@ -689,9 +696,10 @@ phi0.setEntryName("InitialPorosity");
             mu_lR_arg = mu_micro_from_state(n_l_arg, rho_lR_arg);
             rho_l_hat_arg =
                 alpha_M_effective * (mu_LR_arg - mu_lR_arg);
+            const auto phi_m_arg = phi_m_from_n_l(n_l_arg);
             residual_1 =
-                n_l_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
-                n_l_arg * rho_lR_arg * delta_epsilon_v_arg;
+                phi_m_arg * rho_lR_arg - previous_mass - dt * rho_l_hat_arg -
+                phi_m_arg * rho_lR_arg * delta_epsilon_v_arg;
             return rho_converged;
         };
 
@@ -1101,8 +1109,9 @@ phi0.setEntryName("InitialPorosity");
                                 (mu_LR_final - mu_lR_trial_value);
     }
 
-    phi_m_trial_value = std::clamp(n_l_trial_value, minimum_n_l, n_l_upper_bound);
-    phi_M_trial_value = std::max(0.0, phi_total_trial - phi_m_trial_value);
+    phi_m_trial_value = phi_m_from_n_l(n_l_trial_value);
+    phi_M_trial_value = std::clamp(phi_total_trial - phi_m_trial_value, 0.0,
+                                   phi_total_trial);
     epsilon_sw_increment_trial =
         swelling_slope * (phi_m_trial_value - phi_m_prev);
 }
