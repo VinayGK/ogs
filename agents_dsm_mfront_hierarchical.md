@@ -524,3 +524,52 @@ The red Truesdell--Noll paragraph in `paper_DSM.tex` (immediately above
 `eq:vdwEquation`) contains an explicit TODO with the full algebra. Resolve
 before submission: either fix the code (re-calibrate) or document the
 non-standard convention.
+
+---
+
+## RESOLVED — active_nS fix applied and calibration verified (2026-05-26)
+
+Applied the fix on both branches:
+- **MFront**: commit `340b928856` on `dsm_mfront_hierarchical`. Changed
+  `active_nS_from_nl` lambda in `RichardsMechanicsDSMMicroMacroBridge.mfront`
+  to return `(1 - n_l)` (aggregate solid fraction) instead of `1 - phi_M
+  = (1-phi_0)/(1-n_l)` (aggregate volume fraction in REV).
+- **Native**: commit `8192021299` on `dsm_native_hierarchical`. Changed
+  `computeActiveMicroSolidVolumeFraction` and
+  `computePreviousMicroSolidVolumeFraction` in `RichardsMechanicsFEM-impl.h`
+  to return `(1 - n_l)`. Caller `computePreviousMicroLiquidDensity` updated
+  to pass `n_l_prev`.
+- **Docs lock-in (pre-fix)**: commit `fc21a3dd1d` on `dsm_mfront_hierarchical`.
+
+### Numerical verification
+- **Strict-parity test** (`scripts/run_dsm_parity.py`, suite `dsm_ms33`):
+  passes with MAE ~1e-7 on the primary state variables.
+- **Calibration invariance** (Model I PRJs at
+  `/Users/vinaykumar/tex/cc2024/VK_SB_EURAD_DSM/MS33_LE_RERUN/ANCHORS_MS33_ModelI/`):
+  post-fix native gives sigma_sat = -1.5038, -5.8229, -22.5632 MPa for
+  dd=1400, 1600, 1800; all within <0.05% of Villar targets, identical to
+  pre-fix. This is because:
+  (a) The PRJs use `micro_liquid_density_a = 1e-16` (EOS bypassed,
+      omega_l → rho_lR map essentially constant).
+  (b) The saturated endpoint is locked by macro BC (S_L=1, p_L=+0.1 MPa);
+      the transient n_l(t) shifts under the fix but the calibrated endpoint
+      doesn't.
+- **Verification ramps** (`ANCHORS_MS33_DSM_VerificationRamps[_FreeTop]/`):
+  use a different config (no augmentation K, EOS active). Dry-endpoint
+  sigma shifts +18% (less compressive); saturated endpoint unchanged
+  (locked by SaturationDependentSwelling target = 2 MPa).
+
+### Paper updates (`/Users/vinaykumar/tex/dsm-bgr-paper/draft/paper_DSM.tex`)
+- §2.4 Truesdell-Noll paragraph: argument for choice of vdW input is
+  unchanged; the open-TODO at the end is now resolved (active_nS fixed).
+- `tab:msIII_vs_villar`: red NOTE confirms invariance under the fix
+  (previously claimed K needed re-fit — that was wrong).
+- §2.2 cancellation derivation: rewritten in `\phiMicro` / `\phiMicro(1-\phiMacro)`
+  notation.
+- §3 free-top discussion: `\phiMicro \approx 0.51` updated to `0.57` for
+  dd1800 to reflect post-fix simulated value.
+
+### Bottom line
+The fix is correct (it makes `omega_l = m_water/m_solid` actually equal
+m_water/m_solid). The paper's quantitative Villar-match claim is preserved.
+Transient and dry-state response shifts by predicted state-dependent factors.

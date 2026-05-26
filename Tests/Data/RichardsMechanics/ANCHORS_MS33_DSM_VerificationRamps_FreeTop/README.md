@@ -57,18 +57,29 @@ For each density:
 | `dsm_ramp_dd{dd}_hysteresis.png`           | macro saturation hysteresis loop      |
 | `dsm_ramp_dd{dd}_stress_vs_time.png`       | mean stress vs time (swelling trace)  |
 
-## Verified outcome (2026-05-25)
+## Verified outcome (2026-05-26, after active_nS fix)
 
 All three sims complete 120 steps without rejected steps. dd1400 example:
 
 | t (d) | p (MPa) | n_l   | φ_M   | S_L  | σ_mean (MPa) |
 |-------|---------|-------|-------|------|--------------|
-|  0    | −100    | 0.210 | 0.362 | 0.33 | −0.91        |
-| 25    | −58.3   | 0.274 | 0.307 | 0.48 | −1.18        |
-| 55    | −8.2    | 0.496 | 0.000 | 0.95 | −2.15 (peak) |
-| 85    | −41.6   | 0.334 | 0.244 | 0.59 | −1.44        |
-| 115   | −91.7   | 0.219 | 0.355 | 0.35 | −0.94        |
+|  0    | −100    | 0.248 | 0.330 | 0.33 | −33.97       |
+| 25    | −58.3   | 0.283 | 0.528 | 0.48 | −13.00       |
+| 60    | +0.1    | 0.670 | 0.000 | 1.00 | −13.58 (peak)|
+| 85    | −41.6   | 0.306 | 0.513 | 0.59 | −13.04       |
+| 115   | −91.7   | 0.253 | 0.546 | 0.35 | −12.95       |
 
-The `φ_M → 0` collapse at peak saturation when `n_l = φ_0` is the rigid
-hierarchical-split kinematic limit documented in
-`tex/dsm-bgr-paper/draft/paper_DSM.tex` (kinematic-scope section).
+The free-top dd1400 column starts under the Biot-balancing initial
+effective stress `sigma0_eff = alpha * chi(p_L_init) * p_L_init` 
+(≈ −34 MPa with chi ≈ 0.33 at p = −100 MPa). The hydration arc raises
+n_l from 0.25 to 0.67 (= phi(t) at peak) and lifts the mean effective
+stress to ≈ −13.6 MPa. The `φ_M → 0` collapse at peak saturation when
+`n_l = φ(t)` is the rigid hierarchical-split kinematic limit documented
+in `tex/dsm-bgr-paper/draft/paper_DSM.tex` (kinematic-scope section).
+
+**Note (2026-05-26):** the pre-2026-05-26 numbers in earlier revisions
+of this table (n_l=0.210 at t=0, σ=−2.15 MPa at peak, etc.) were
+produced before the `active_nS` physics fix (native commit
+`8192021299`, mfront commit `340b928856`) which corrected the
+denominator of `omega_l` from `(1 − phi_M)` to `(1 − n_l)`. The new
+values in the table above reflect the post-fix physics.
