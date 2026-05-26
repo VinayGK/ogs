@@ -339,3 +339,117 @@ returns `n_l = phi_0` when residual at ceiling is negative.
    timestep be imposed when `alpha_eff` is large?
 
 Tracked in: `tex/dsm-bgr-paper/AGENTS.md` section "2026-05-25 open physics questions".
+
+---
+
+## DECISION (2026-05-26): mfront must use current evolving `phi`, not `phi_0`
+
+### Decision
+
+The MFront bridge SHALL match the native implementation in using the
+**current evolving total porosity** `phi(t)` everywhere the hierarchical
+algebraic split and the saturation ceiling appear. `phi_0` (initial
+porosity) is no longer the constitutive reference; it is only the initial
+condition of `phi(t)`. This aligns the paper's stated convention with both
+implementations.
+
+### Justification (mass-conservation consistency)
+
+The paper now contains a derivation (paper_DSM.tex §2.2, eq.
+`eq:micro_balance_cancellation` and `eq:micro_balance_after_cancellation`)
+showing that with `phi_m = n_l * (1 - phi(t)) / (1 - n_l)` from the
+hierarchical split using the EVOLVING phi(t), the explicit REV
+deformation term `phi_m * rho_lR * div(u_dot)` in the micro mass balance
+and the implicit `dot(phi)` contribution that propagates through the
+algebraic relation **cancel exactly**. The cancellation is
+
+    dot(phi_m * rho_lR) + phi_m * rho_lR * div(u_dot)
+      = [dot(n_l) * rho_lR * (1 - phi) / (1 - n_l)^2]
+        - phi_m * rho_lR * div(u_dot)         <-- from dot(phi)=(1-phi)*div(u_dot)
+        + phi_m * dot(rho_lR)
+        + phi_m * rho_lR * div(u_dot)         <-- explicit REV term
+      = dot(n_l) * rho_lR * (1 - phi) / (1 - n_l)^2 + phi_m * dot(rho_lR)
+      = rho_l_hat.
+
+The aggregate-referenced micro liquid content n_l is, by construction of
+the hierarchical split, blind to REV-scale mechanical dilation. The two
+appearances of `div(u_dot)` in the unexpanded balance are NOT the same
+effect counted twice; they precisely cancel. Mass conservation is exact
+under any mechanical loading. Using `phi_0` in the algebraic split is a
+small-strain approximation of this exact form; using `phi(t)` is the
+exact form.
+
+### Implementation changes required in mfront
+
+The MFront bridge file
+`MaterialLib/SolidModels/MFront/RichardsMechanicsDSMMicroMacroBridge.mfront`
+currently uses `phi0` in several places. Replace each with current `phi`
+read from the OGS side. Specifically:
+
+1. **`phi_M_from_nl` lambda in `@Integrator`**: change
+       (phi0 - nl_safe) / (1.0 - nl_safe)
+   to use current phi (passed as an external state variable or computed
+   from PorosityFromMassBalance result):
+       (phi - nl_safe) / (1.0 - nl_safe)
+   with the corresponding clamp upper bound updated from `phi0` to `phi`.
+
+2. **Newton line-search ceiling** in `solve_microstate`: change
+       std::clamp(n_l_candidate, minimum_n_l, phi0)
+   to
+       std::clamp(n_l_candidate, minimum_n_l, phi)
+   so the ceiling moves with mechanical dilation.
+
+3. **Saturation fallback** (both occurrences — line-search fallback and
+   post-Newton fallback): the ceiling probe currently evaluates at
+   `phi0`; change to `phi`. The fallback sets `n_l_out = phi` when the
+   residual at ceiling is non-positive.
+
+4. **`@UpdateAuxiliaryStateVariables`**: any `phi_M_updated` computed
+   with `phi0` must use current `phi` from the same external-state input.
+
+5. **External state variable wiring**: add a `@ExternalStateVariable`
+   for `TotalPorosity` (named `phi_total` in mfront, mapped to OGS's
+   current `phi` from `PorosityFromMassBalance`). The OGS side already
+   evolves `phi(t)` from the solid balance and PorosityFromMassBalance.
+
+### What this does NOT change
+
+- The vdW and augmentation closures (`mu_micro_from_state`,
+  `mu_aug_from_state`) — these depend on `n_l`, `n_S`, `rho_SR`, `s^a`
+  via the existing formulas; they do not involve `phi_0` directly.
+- The exchange-coefficient form `alpha_eff = alpha_bar * rho_LR / mu`.
+- The macro/micro liquid balance forms in the OGS C++ side.
+- The native binary is already correct in using current `phi(t)`; only
+  the MFront bridge needs the change.
+
+### Validation steps after the change
+
+1. Re-run the strict-parity benchmark
+   `Tests/Data/RichardsMechanics/ANCHORS_MS33_StrictParity/`
+   (`ms33_dsm_parity_native.prj` vs `ms33_dsm_parity_mfront.prj`).
+   In the parity test case (zero deformation, all-Dirichlet pressure
+   BCs), the change should be a no-op since `phi(t) = phi_0` pointwise.
+   Confirm machine-epsilon parity is preserved.
+2. Re-run a coupled HM benchmark with non-zero `div(u_dot)` (any of
+   the BEACON or MS33 coupled cases) and confirm that native and mfront
+   results converge as the timestep shrinks (with the cancellation,
+   they should agree exactly; previously they diverged in regions with
+   `div(u_dot) != 0`).
+3. Re-run the DSM verification ramps in
+   `ANCHORS_MS33_DSM_VerificationRamps/`. These are confined
+   single-element runs so the change is a no-op; outputs should be
+   bit-identical to the current committed CSVs.
+
+### Cross-references
+
+- Paper derivation: `paper_DSM.tex` §2.2, eq.
+  `eq:micro_balance_cancellation` and `eq:micro_balance_after_cancellation`
+  (in red).
+- Open-questions tracking: the Q2 entry above (micro-saturation ceiling)
+  is resolved by this decision; `phi(t)` is the chosen convention.
+- The kinematic-partition limitation (the rigid split forcing $\phi_M$
+  and $\phi_m$ to share $\dot\phi$ in a fixed ratio) is a separate
+  issue, addressed in paper_DSM.tex `\subsection{Discussion of results}`
+  and `\subsection{Outlook}`. This decision does not change that
+  limitation; it only fixes the small-strain approximation in the
+  saturation ceiling.
