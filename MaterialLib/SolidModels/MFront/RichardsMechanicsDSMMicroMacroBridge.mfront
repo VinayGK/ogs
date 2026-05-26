@@ -112,7 +112,6 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   // Hierarchical porosity split: phi = phi_M + n_l*(1-phi_M)
   //   => phi_M = (phi - n_l)/(1 - n_l)
   //   => phi_m = n_l*(1 - phi_M) = n_l*(1 - phi0)/(1 - n_l)   [small-strain: phi ≈ phi0]
-  //   => active_nS = 1 - phi_M = (1 - phi0)/(1 - n_l)
   // Using phi ≈ phi0 (small-strain / Biot alpha=1 approximation).
   const auto phi_M_from_nl = [&](double nl) {
     const auto nl_safe = std::max(minimum_n_l, nl);
@@ -121,9 +120,21 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   const auto phi_m_from_nl = [&](double nl) {
     return nl * (1.0 - phi_M_from_nl(nl));
   };
-  // active_nS = 1 - phi_M  (solid fraction of the micro aggregate, evolving with n_l)
+  // [2026-05-26 PHYSICS FIX] active_nS now denotes the aggregate SOLID
+  // fraction (V_solid/V_aggregate = 1 - n_l), NOT the aggregate VOLUME
+  // fraction in REV (1 - phi_M = (1-phi0)/(1-n_l)). Rationale: the
+  // gravimetric water content omega_l = m_water / m_solid requires the
+  // mass of solid as the carrier. Per aggregate volume, m_solid =
+  // (1-n_l)*V_aggregate*rho_SR; per REV, m_solid = (1-phi)*V_REV*rho_SR;
+  // both give the same omega_l. The OLD definition (1-phi_M) produced
+  // omega_l_code = n_l*(1-n_l)*rho_lR/((1-phi0)*rho_SR), which is
+  // state-dependently off from the standard gravimetric content by
+  // factor (1-n_l)^2/(1-phi0) (+80% dry side, -50% saturated side).
+  // The same fix is applied in the native binary
+  // (ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h).
   const auto active_nS_from_nl = [&](double nl) {
-    return 1.0 - phi_M_from_nl(nl);  // = (1 - phi0)/(1 - nl)
+    const auto nl_safe = std::clamp(nl, minimum_n_l, 1.0 - minimum_n_l);
+    return 1.0 - nl_safe;
   };
 
   const auto n_l_prev = n_l;
