@@ -382,6 +382,17 @@ inline TransportPorosityUpdateData computeTransportPorosityUpdate(
     };
 }
 
+// [2026-05-26 PHYSICS FIX] The returned quantity is the aggregate SOLID
+// fraction (V_solid/V_aggregate = 1 - n_l) used as the denominator of
+// the gravimetric water content omega_l = n_l * rho_lR / (nS * rho_SR).
+// Earlier this returned the aggregate VOLUME fraction in REV
+// (1 - phi_M = (1-phi0)/(1-n_l)), which produces a non-standard
+// omega_l that deviates from the dry-solid-mass-referenced gravimetric
+// content by factor (1-n_l)^2/(1-phi0) (state-dependent: up to +80%
+// at low n_l, down to -50% near saturation). See the OPEN section in
+// agents_dsm_mfront_hierarchical.md (commit fc21a3dd1d) for the full
+// algebra and numerical verification. The same fix is applied to the
+// mfront bridge in RichardsMechanicsDSMMicroMacroBridge.mfront.
 inline double computeActiveMicroSolidVolumeFraction(
     double const n_l, PotentialExchangeLocalSolveContext const& local_context,
     PotentialExchangeParameters const& potential_exchange_params)
@@ -392,16 +403,14 @@ inline double computeActiveMicroSolidVolumeFraction(
         return std::max(1e-16, potential_exchange_params.micro_solid_volume_fraction_reference);
     }
 
-    auto const split = computeTransportPorosityUpdate(
-        local_context.phi, local_context.phi_M_prev, local_context.phi_m_prev,
-        n_l, local_context.volumetric_strain,
-        local_context.volumetric_strain_prev,
-        potential_exchange_params.macro_porosity_update_mode);
-    return std::max(1e-16, 1.0 - split.phi_M);
+    // Aggregate solid fraction = 1 - n_l (with clamps).
+    double const n_l_safe = std::clamp(std::max(0.0, n_l), 0.0, 1.0 - 1e-12);
+    return std::max(1e-16, 1.0 - n_l_safe);
 }
 
 inline double computePreviousMicroSolidVolumeFraction(
-    PotentialExchangeLocalSolveContext const& local_context,
+    double const n_l_prev,
+    PotentialExchangeLocalSolveContext const& /*local_context*/,
     PotentialExchangeParameters const& potential_exchange_params)
 {
     if (potential_exchange_params.micro_solid_volume_fraction_mode ==
@@ -410,9 +419,11 @@ inline double computePreviousMicroSolidVolumeFraction(
         return std::max(1e-16, potential_exchange_params.micro_solid_volume_fraction_reference);
     }
 
-    double const phi_M_prev_safe =
-        std::clamp(std::max(0.0, local_context.phi_M_prev), 0.0, 1.0 - 1e-12);
-    return std::max(1e-16, 1.0 - phi_M_prev_safe);
+    // [2026-05-26 PHYSICS FIX] Previously returned 1 - phi_M_prev. Now
+    // returns the previous aggregate solid fraction 1 - n_l_prev to match
+    // the corrected active definition.
+    double const n_l_prev_safe = std::clamp(std::max(0.0, n_l_prev), 0.0, 1.0 - 1e-12);
+    return std::max(1e-16, 1.0 - n_l_prev_safe);
 }
 
 struct ReducedMicroLiquidDensityData
@@ -534,7 +545,8 @@ inline ReducedMicroLiquidDensityData computePreviousMicroLiquidDensity(
     PotentialExchangeParameters const& potential_exchange_params)
 {
     double const previous_nS =
-        computePreviousMicroSolidVolumeFraction(local_context, potential_exchange_params);
+        computePreviousMicroSolidVolumeFraction(n_l_prev, local_context,
+                                                potential_exchange_params);
     return computeReducedMicroLiquidDensity(n_l_prev, rho_LR, previous_nS,
                                               potential_exchange_params);
 }
