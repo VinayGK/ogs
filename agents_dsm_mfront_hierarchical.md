@@ -453,3 +453,74 @@ read from the OGS side. Specifically:
   and `\subsection{Outlook}`. This decision does not change that
   limitation; it only fixes the small-strain approximation in the
   saturation ceiling.
+
+---
+
+## OPEN — `active_nS` vs `(1-n_l)` discrepancy (2026-05-26, paper-driven finding)
+
+While drafting the Truesdell--Noll argument for the vdW constitutive-argument
+choice in `paper_DSM.tex` (red paragraph above `eq:vdwEquation`), a direct
+read of both implementations shows:
+
+- Native `computeReducedMicroLiquidDensity`
+  (`ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h`)
+- MFront `omega_from_state` / `mu_micro_from_state`
+  (`MaterialLib/SolidModels/MFront/RichardsMechanicsDSMMicroMacroBridge.mfront`)
+
+both compute:
+```
+omega_l = n_l * rho_lR / (active_nS * rho_SR)
+active_nS = (1 - phi0)/(1 - n_l)            // labelled "1 - phi_M"
+```
+yielding `omega_l_code = n_l*(1-n_l)*rho_lR / ((1-phi0)*rho_SR)`.
+
+The Truesdell--Noll-consistent gravimetric content under the aggregate-ref
+`n_l` convention (the convention both binaries use for `phi_M =
+(phi-n_l)/(1-n_l)`) is, by direct `m_water/m_solid` derivation
+`(1-phi) = (1-phi_M)(1-n_l)`:
+```
+omega_l_phys = n_l * rho_lR / ((1 - n_l) * rho_SR)
+```
+
+These differ by a factor `(1-n_l)^2 / (1-phi0)`, equal to 1 only at a single
+value of `n_l` per `phi0`.
+
+The vdW closure then propagates the discrepancy:
+```
+mu_micro_code = -A * Sa^3 * active_nS^3 * rho_SR^3 / (6*pi * n_l^3 * rho_lR)
+              = -A * Sa^3 * (1-phi0)^3 * rho_SR^3 / (6*pi * (1-n_l)^3 * n_l^3 * rho_lR)
+```
+whereas the Truesdell--Noll-correct form (using h = n_l/((1-n_l)*Sa*rho_SR))
+gives
+```
+mu_micro_phys = -A * Sa^3 * (1-n_l)^3 * rho_SR^3 / (6*pi * n_l^3 * rho_lR)
+```
+
+### Open question
+Two possibilities to investigate:
+
+1. **Non-standard `omega` convention absorbed into calibration.** The fitted
+   EOS coefficients (`A_rho, B_rho, C_rho`) and the Hamaker constant `A_H`
+   absorb the normalisation, so calibrated Villar match works by construction
+   but the symbolic equations in the paper do not literally describe what
+   the code computes. Paper-side fix: document the code-side definition of
+   omega explicitly and adjust the equation forms.
+
+2. **Code bug: `(1-n_l)` vs `(1-phi_M)` confusion in `active_nS`.** The
+   denominator of `omega_l` should be the dry-solid mass per REV
+   = `(1-phi)*rho_SR`, or equivalently the aggregate solid mass per
+   aggregate volume = `(1-n_l)*rho_SR`. The current `active_nS = (1-phi_M)
+   = (1-phi0)/(1-n_l)` is the aggregate volume fraction in REV — not a
+   solid fraction. Code fix: replace `active_nS` with `(1-n_l)` (or
+   `(1-phi)` for non-small-strain), then re-calibrate `K` against Villar.
+
+Both implementations agree to machine epsilon, so any bug is identical and
+the parity check does not detect it. Resolution requires a separate
+consistency test (e.g., compute `omega_l_code` and `omega_l_phys` at the
+calibrated saturated state and compare).
+
+### Paper-side TODO
+The red Truesdell--Noll paragraph in `paper_DSM.tex` (immediately above
+`eq:vdwEquation`) contains an explicit TODO with the full algebra. Resolve
+before submission: either fix the code (re-calibrate) or document the
+non-standard convention.
