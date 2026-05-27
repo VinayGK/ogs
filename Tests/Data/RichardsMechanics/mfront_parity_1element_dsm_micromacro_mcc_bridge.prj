@@ -47,6 +47,8 @@
                     <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize"/>
                     <material_property name="SurfaceTension" parameter="SurfaceTension"/>
                     <material_property name="InitialPorosity" parameter="phi0"/>
+                    <material_property name="VdwAugmentationPrefactor" parameter="VdwAugmentationPrefactor"/>
+                    <material_property name="VdwAugmentationDecayLength" parameter="VdwAugmentationDecayLength"/>
                 </material_properties>
                 <initial_values>
                     <state_variable name="PreConsolidationPressure" parameter="InitialPreConsolidationPressure"/>
@@ -365,6 +367,18 @@
             <name>SurfaceTension</name>
             <type>Constant</type>
             <value>0.0715</value>
+        </parameter>
+        <!-- Augmentation disabled for this PRJ (K=0); lambda kept at the
+             Villar-calibrated 7.5e-7 m as a documented placeholder. -->
+        <parameter>
+            <name>VdwAugmentationPrefactor</name>
+            <type>Constant</type>
+            <value>0.0</value>
+        </parameter>
+        <parameter>
+            <name>VdwAugmentationDecayLength</name>
+            <type>Constant</type>
+            <value>7.5e-7</value>
         </parameter>
         <parameter>
             <name>phi0</name>

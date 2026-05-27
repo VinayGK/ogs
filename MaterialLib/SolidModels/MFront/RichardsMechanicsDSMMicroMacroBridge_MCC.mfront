@@ -169,9 +169,29 @@ density_b.setEntryName("MicroLiquidDensityB");
 
 @MaterialProperty real hamaker_constant;
 hamaker_constant.setEntryName("HamakerConstant");
+// A: Hamaker constant [J] for clay-water-clay; literature value
+// 2.2e-20 J for montmorillonite-water-montmorillonite (Israelachvili &
+// Adams 1978, J. Chem. Soc. Faraday Trans. I, vol. 74, p. 975, Table 2,
+// SFA mica proxy; range 1-5e-20 J across DLVO smectite literature).
+// DO NOT calibrate A. Only K (vdw_augmentation_prefactor) and lambda
+// (vdw_augmentation_decay_length) below are calibrated to Villar.
+// Ported from native ProcessLib/RichardsMechanics/ConstitutiveRelations/
+// PotentialExchange.h lines 71-94.
 
 @MaterialProperty real specific_surface;
 specific_surface.setEntryName("SpecificSurface");
+
+@MaterialProperty real vdw_augmentation_prefactor;
+vdw_augmentation_prefactor.setEntryName("VdwAugmentationPrefactor");
+// K [J/kg]: lumped exponential augmentation amplitude; calibrated to
+// Villar swelling pressure (paper_DSM.tex Tab. msIII_vs_villar:
+// K(rho_d=1400)=7654.9, K(1600)=29985.0, K(1800)=118582.6 J/kg).
+// Set to 0 to disable augmentation (pure vdW base only).
+
+@MaterialProperty real vdw_augmentation_decay_length;
+vdw_augmentation_decay_length.setEntryName("VdwAugmentationDecayLength");
+// lambda [m]: characteristic water-film thickness in the augmentation
+// exponential exp(-h/lambda); calibrated to Villar (typical 7.5e-7 m).
 
 @MaterialProperty real area_factor_tuller;
 area_factor_tuller.setEntryName("AreaFactorTuller");
@@ -290,6 +310,12 @@ phi0.setEntryName("InitialPorosity");
                    "Invalid parameter: HamakerConstant must be non-zero.");
     tfel::raise_if(specific_surface <= 0.0,
                    "Invalid parameter: SpecificSurface must be positive.");
+    tfel::raise_if(vdw_augmentation_prefactor < 0.0,
+                   "Invalid parameter: VdwAugmentationPrefactor must be >= 0.");
+    tfel::raise_if(vdw_augmentation_prefactor > 0.0 &&
+                       !(vdw_augmentation_decay_length > 0.0),
+                   "Invalid parameter: VdwAugmentationDecayLength must be > 0 "
+                   "when VdwAugmentationPrefactor > 0.");
 
     const auto p = pᴸᴿ + Δpᴸᴿ;
     const auto delta_epsilon_v = trace(Δεᵗᵒ);
@@ -310,7 +336,20 @@ phi0.setEntryName("InitialPorosity");
                              porosity_denominator,
                          minimum_n_l, porosity_upper)
             : phi_total_prev;
-    const auto n_s = std::max(minimum_n_l, 1.0 - phi_total_trial);
+    // [2026-05-27 F2 PHYSICS FIX] active_nS denotes the aggregate SOLID
+    // fraction (V_solid/V_aggregate = 1 - n_l) used as the denominator of
+    // the gravimetric water content omega_l = n_l*rho_lR/(nS*rho_SR).
+    // Previously this MCC bridge used 1 - phi_total (the REV solid
+    // fraction), which equals (1-phi_M)*(1-n_l) in the hierarchical
+    // split — a state-dependent factor (1-phi_M) off from the standard
+    // gravimetric content. The fix mirrors the native (commit 8192021299)
+    // and base mfront bridge (commit 340b928856) treatments and makes
+    // active_nS a function of the iterate n_l within solve_microstate.
+    const auto active_nS_from_nl = [&](const auto n_l_arg) {
+        const auto n_l_clamped =
+            std::clamp(n_l_arg, minimum_n_l, 1.0 - minimum_n_l);
+        return std::max(minimum_n_l, 1.0 - n_l_clamped);
+    };
     const auto n_l_upper_bound = std::max(phi_total_trial, minimum_n_l);
     const auto n_l_prev = std::clamp(n_l, minimum_n_l, n_l_upper_bound);
     const auto rho_lR_prev =
@@ -342,7 +381,10 @@ phi0.setEntryName("InitialPorosity");
 
     const auto omega_from_state = [&](const auto n_l_arg,
                                       const auto rho_lR_arg) {
-        return n_l_arg * rho_lR_arg / (n_s * rho_SR);
+        // F2: nS is the AGGREGATE solid fraction = 1 - n_l_arg (function of
+        // the iterate n_l), not the REV solid fraction (1 - phi_total).
+        const auto nS_local = active_nS_from_nl(n_l_arg);
+        return n_l_arg * rho_lR_arg / (nS_local * rho_SR);
     };
 
     const auto rho_micro_eos = [&](const auto n_l_arg,
@@ -358,13 +400,28 @@ phi0.setEntryName("InitialPorosity");
         const auto rho_lR_safe =
             std::max(rho_lR_arg, rho_LR_ref + minimum_density_gap);
         const auto n_l_safe = std::max(n_l_arg, minimum_n_l);
-        // nS-form [J/kg]: -A·Sa³·nS³·rho_SR³/(6π·n_l³·rho_lR)
-        // Fixes missing /rho_lR factor present in omega-form expansion.
-        return (micro_potential_sign * hamaker_magnitude *
-                specific_surface * specific_surface * specific_surface /
-                (6.0 * pi)) *
-               (n_s * n_s * n_s * rho_SR * rho_SR * rho_SR) /
-               (n_l_safe * n_l_safe * n_l_safe * rho_lR_safe);
+        // F2: active_nS = 1 - n_l_arg (aggregate solid fraction).
+        const auto nS_local = active_nS_from_nl(n_l_arg);
+        // vdW base [J/kg]: nS-form -(A·Sa³·nS³·rho_SR³)/(6π·n_l³·rho_lR).
+        // /rho_lR dimensional fix already applied (matches base bridge).
+        const auto mu_vdW = (micro_potential_sign * hamaker_magnitude *
+                             specific_surface * specific_surface *
+                             specific_surface / (6.0 * pi)) *
+                            (nS_local * nS_local * nS_local *
+                             rho_SR * rho_SR * rho_SR) /
+                            (n_l_safe * n_l_safe * n_l_safe * rho_lR_safe);  // J/kg
+        // F3: lumped exponential augmentation [J/kg],
+        // mu_aug = sign · K · exp(-h/lambda),  h = n_l/(nS·rho_SR·Sa).
+        // Same sign convention as vdW; K = 0 disables.
+        const auto mu_aug =
+            (vdw_augmentation_prefactor > 0.0 &&
+             vdw_augmentation_decay_length > 0.0)
+                ? micro_potential_sign * vdw_augmentation_prefactor *
+                      std::exp(-n_l_safe /
+                               (vdw_augmentation_decay_length * nS_local *
+                                rho_SR * specific_surface))
+                : 0.0;  // J/kg
+        return mu_vdW + mu_aug;  // J/kg
     };
 
     const auto solve_microstate = [&](const auto p_arg,
@@ -927,30 +984,72 @@ phi0.setEntryName("InitialPorosity");
                 return;
             }
 
-            const auto dn_scale =
-                std::max(1e-8, std::abs(n_l_trial) * 1e-6);
-            const auto drho_scale =
-                std::max(1e-6, std::abs(rho_lR_trial) * 1e-6);
-
-            double residual_1_n = 0.0;
-            double residual_2_n = 0.0;
-            double mu_dummy = 0.0;
-            double rho_hat_dummy = 0.0;
-            evaluate(std::clamp(n_l_trial + dn_scale, minimum_n_l,
-                                n_l_upper_bound),
-                     rho_lR_trial, residual_1_n, residual_2_n, mu_dummy,
-                     rho_hat_dummy);
-
-            double residual_1_rho = 0.0;
-            double residual_2_rho = 0.0;
-            evaluate(n_l_trial, std::max(rho_lR_trial + drho_scale,
-                                         rho_LR_ref + minimum_density_gap),
-                     residual_1_rho, residual_2_rho, mu_dummy, rho_hat_dummy);
-
-            const auto j11 = (residual_1_n - residual_1) / dn_scale;
-            const auto j21 = (residual_2_n - residual_2) / dn_scale;
-            const auto j12 = (residual_1_rho - residual_1) / drho_scale;
-            const auto j22 = (residual_2_rho - residual_2) / drho_scale;
+            // Analytical Jacobian (F5a port from native, mirroring base
+            // mfront bridge). Total derivatives treat active_nS = 1 - n_l
+            // (F2 fix above). dphi_m/dn_l uses MCC's phi_m_from_n_l form,
+            // K_phi = 1 - phi_total_trial (not 1 - phi0 — phi evolves under
+            // MCC plasticity coupling).
+            const auto n_l_jac = std::max(n_l_trial, minimum_n_l);
+            const auto rho_lR_jac =
+                std::max(rho_lR_trial, rho_LR_ref + minimum_density_gap);
+            const auto nS_jac = active_nS_from_nl(n_l_jac);
+            const auto one_minus_n_l_jac = std::max(1e-12, 1.0 - n_l_jac);
+            const auto phi_m_jac = phi_m_from_n_l(n_l_jac);
+            const auto dphi_m_dnl_jac = (1.0 - phi_total_trial) /
+                                        (one_minus_n_l_jac * one_minus_n_l_jac);
+            const auto alpha_eff_jac =
+                alpha_M_effective_from_density(rho_macro_step);
+            const auto mu_vdW_jac =
+                (micro_potential_sign * hamaker_magnitude * specific_surface *
+                 specific_surface * specific_surface / (6.0 * pi)) *
+                (nS_jac * nS_jac * nS_jac * rho_SR * rho_SR * rho_SR) /
+                (n_l_jac * n_l_jac * n_l_jac * rho_lR_jac);  // J/kg
+            const bool aug_active_jac = (vdw_augmentation_prefactor > 0.0 &&
+                                         vdw_augmentation_decay_length > 0.0);
+            const auto mu_aug_jac =
+                aug_active_jac
+                    ? micro_potential_sign * vdw_augmentation_prefactor *
+                          std::exp(-n_l_jac /
+                                   (vdw_augmentation_decay_length * nS_jac *
+                                    rho_SR * specific_surface))
+                    : 0.0;  // J/kg
+            const auto dmu_lR_dnl_jac =
+                -3.0 * mu_vdW_jac / (n_l_jac * nS_jac) +
+                (aug_active_jac
+                     ? -mu_aug_jac /
+                           (vdw_augmentation_decay_length * nS_jac *
+                            nS_jac * rho_SR * specific_surface)
+                     : 0.0);
+            const auto dmu_lR_drho_lR_jac = -mu_vdW_jac / rho_lR_jac;
+            const auto omega_raw_jac =
+                n_l_jac * rho_lR_jac / (nS_jac * rho_SR);
+            const auto omega_clamped_jac =
+                std::max(omega_raw_jac, minimum_n_l);
+            const auto EOS_attr_jac =
+                rho_l0 * std::exp(-density_a *
+                                  std::pow(omega_clamped_jac, density_b));
+            const auto domega_dnl_jac =
+                (omega_raw_jac > minimum_n_l)
+                    ? rho_lR_jac / (rho_SR * nS_jac * nS_jac)
+                    : 0.0;
+            const auto domega_drho_lR_jac =
+                (omega_raw_jac > minimum_n_l)
+                    ? n_l_jac / (nS_jac * rho_SR)
+                    : 0.0;
+            const auto deos_pref_jac =
+                -EOS_attr_jac * density_a * density_b *
+                std::pow(omega_clamped_jac, density_b - 1.0);
+            const auto drho_eos_dnl_jac =
+                deos_pref_jac * domega_dnl_jac;
+            const auto drho_eos_drho_lR_jac =
+                deos_pref_jac * domega_drho_lR_jac;
+            const auto one_minus_deps_v_jac = 1.0 - delta_epsilon_v_arg;
+            const auto j11 = dphi_m_dnl_jac * rho_lR_jac * one_minus_deps_v_jac +
+                             dt * alpha_eff_jac * dmu_lR_dnl_jac;
+            const auto j12 = phi_m_jac * one_minus_deps_v_jac +
+                             dt * alpha_eff_jac * dmu_lR_drho_lR_jac;
+            const auto j21 = -drho_eos_dnl_jac;
+            const auto j22 = 1.0 - drho_eos_drho_lR_jac;
 
             const auto det = j11 * j22 - j12 * j21;
             if (std::abs(det) < newton_tolerance)
@@ -1086,47 +1185,146 @@ phi0.setEntryName("InitialPorosity");
                          n_l_trial_value, rho_lR_trial_value,
                          mu_lR_trial_value, rho_l_hat_trial_value);
 
-        const auto deps_v_fd =
-            std::max(1e-8, std::abs(delta_epsilon_v) * 1e-6 + 1e-8);
-        double n_l_eps_plus = n_l_prev;
-        double rho_lR_eps_plus = rho_lR_prev;
-        double mu_lR_eps_plus = mu_lR_trial_value;
-        double rho_l_hat_eps_plus = rho_l_hat_trial_value;
-        double n_l_eps_minus = n_l_prev;
-        double rho_lR_eps_minus = rho_lR_prev;
-        double mu_lR_eps_minus = mu_lR_trial_value;
-        double rho_l_hat_eps_minus = rho_l_hat_trial_value;
-
-        solve_microstate(p, delta_epsilon_v + deps_v_fd, n_l_prev, rho_lR_prev,
-                         n_l_eps_plus, rho_lR_eps_plus, mu_lR_eps_plus,
-                         rho_l_hat_eps_plus);
-        solve_microstate(p, delta_epsilon_v - deps_v_fd, n_l_prev, rho_lR_prev,
-                         n_l_eps_minus, rho_lR_eps_minus, mu_lR_eps_minus,
-                         rho_l_hat_eps_minus);
-
-        dn_l_dtrace_eps_trial =
-            (n_l_eps_plus - n_l_eps_minus) / (2.0 * deps_v_fd);
-
-        if (p <= -pressure_tolerance)
+        if (!use_scalar_microstate_storage)
         {
-            const auto dp_fd = std::max(1e-6, std::abs(p) * 1e-6);
-            double n_l_plus = n_l_prev;
-            double rho_lR_plus = rho_lR_prev;
-            double mu_lR_plus = mu_lR_trial_value;
-            double rho_l_hat_plus = rho_l_hat_trial_value;
-            double n_l_minus = n_l_prev;
-            double rho_lR_minus = rho_lR_prev;
-            double mu_lR_minus = mu_lR_trial_value;
-            double rho_l_hat_minus = rho_l_hat_trial_value;
+            // F5b port (vector-mode analytical outer tangent).
+            // Replaces FD on solve_microstate w.r.t. eps_v and p with
+            // implicit-function-theorem applied to the converged microstate.
+            // Same Jacobian shape as the vector-mode inner Newton (F5a above);
+            // re-evaluated at converged (n_l_trial_value, rho_lR_trial_value).
+            //
+            // External-variable derivatives of the residuals:
+            //   ∂r1/∂eps_v = -phi_m*rho_lR,            ∂r2/∂eps_v = 0
+            //   ∂r1/∂p     = -dt*alpha_eff/rho_macro,  ∂r2/∂p     = 0
+            // Cramer: dn_l/dx = (-∂r1/∂x * J22 + ∂r2/∂x * J12) / det(J)
+            const auto rho_macro_jt =
+                std::max(rho_lR_prev, rho_LR_ref + minimum_density_gap);
+            const auto n_l_jt = std::max(n_l_trial_value, minimum_n_l);
+            const auto rho_lR_jt =
+                std::max(rho_lR_trial_value, rho_LR_ref + minimum_density_gap);
+            const auto nS_jt = active_nS_from_nl(n_l_jt);
+            const auto one_minus_n_l_jt = std::max(1e-12, 1.0 - n_l_jt);
+            const auto phi_m_jt = phi_m_from_n_l(n_l_jt);
+            const auto dphi_m_dnl_jt = (1.0 - phi_total_trial) /
+                                       (one_minus_n_l_jt * one_minus_n_l_jt);
+            const auto alpha_eff_jt =
+                alpha_M_effective_from_density(rho_macro_jt);
+            const auto mu_vdW_jt =
+                (micro_potential_sign * hamaker_magnitude * specific_surface *
+                 specific_surface * specific_surface / (6.0 * pi)) *
+                (nS_jt * nS_jt * nS_jt * rho_SR * rho_SR * rho_SR) /
+                (n_l_jt * n_l_jt * n_l_jt * rho_lR_jt);
+            const bool aug_active_jt = (vdw_augmentation_prefactor > 0.0 &&
+                                        vdw_augmentation_decay_length > 0.0);
+            const auto mu_aug_jt =
+                aug_active_jt
+                    ? micro_potential_sign * vdw_augmentation_prefactor *
+                          std::exp(-n_l_jt /
+                                   (vdw_augmentation_decay_length * nS_jt *
+                                    rho_SR * specific_surface))
+                    : 0.0;
+            const auto dmu_lR_dnl_jt =
+                -3.0 * mu_vdW_jt / (n_l_jt * nS_jt) +
+                (aug_active_jt
+                     ? -mu_aug_jt /
+                           (vdw_augmentation_decay_length * nS_jt *
+                            nS_jt * rho_SR * specific_surface)
+                     : 0.0);
+            const auto dmu_lR_drho_lR_jt = -mu_vdW_jt / rho_lR_jt;
+            const auto omega_raw_jt =
+                n_l_jt * rho_lR_jt / (nS_jt * rho_SR);
+            const auto omega_clamped_jt =
+                std::max(omega_raw_jt, minimum_n_l);
+            const auto EOS_attr_jt =
+                rho_l0 * std::exp(-density_a *
+                                  std::pow(omega_clamped_jt, density_b));
+            const auto domega_dnl_jt =
+                (omega_raw_jt > minimum_n_l)
+                    ? rho_lR_jt / (rho_SR * nS_jt * nS_jt)
+                    : 0.0;
+            const auto domega_drho_lR_jt =
+                (omega_raw_jt > minimum_n_l)
+                    ? n_l_jt / (nS_jt * rho_SR)
+                    : 0.0;
+            const auto deos_pref_jt =
+                -EOS_attr_jt * density_a * density_b *
+                std::pow(omega_clamped_jt, density_b - 1.0);
+            const auto drho_eos_dnl_jt =
+                deos_pref_jt * domega_dnl_jt;
+            const auto drho_eos_drho_lR_jt =
+                deos_pref_jt * domega_drho_lR_jt;
+            const auto one_minus_deps_v_jt = 1.0 - delta_epsilon_v;
+            const auto j11_jt =
+                dphi_m_dnl_jt * rho_lR_jt * one_minus_deps_v_jt +
+                dt * alpha_eff_jt * dmu_lR_dnl_jt;
+            const auto j12_jt = phi_m_jt * one_minus_deps_v_jt +
+                                dt * alpha_eff_jt * dmu_lR_drho_lR_jt;
+            const auto j21_jt = -drho_eos_dnl_jt;
+            const auto j22_jt = 1.0 - drho_eos_drho_lR_jt;
+            const auto det_jt = j11_jt * j22_jt - j12_jt * j21_jt;
+            tfel::raise_if(
+                std::abs(det_jt) < 1e-24,
+                "DSMMicroMacro_MCC outer-tangent Jacobian became singular.");
 
-            solve_microstate(p + dp_fd, delta_epsilon_v, n_l_prev, rho_lR_prev,
-                             n_l_plus, rho_lR_plus, mu_lR_plus,
-                             rho_l_hat_plus);
-            solve_microstate(p - dp_fd, delta_epsilon_v, n_l_prev, rho_lR_prev,
-                             n_l_minus, rho_lR_minus, mu_lR_minus,
-                             rho_l_hat_minus);
+            dn_l_dtrace_eps_trial =
+                phi_m_jt * rho_lR_jt * j22_jt / det_jt;
 
-            dn_l_dp_trial = (n_l_plus - n_l_minus) / (2.0 * dp_fd);
+            if (p <= -pressure_tolerance)
+            {
+                dn_l_dp_trial =
+                    dt * alpha_eff_jt * j22_jt / (rho_macro_jt * det_jt);
+            }
+        }
+        else
+        {
+            // Scalar-storage path: rho_lR is held fixed at the macro density,
+            // so the inner solve is 1D in n_l. The F5b port covers vector
+            // mode only; scalar mode retains FD on solve_microstate. The
+            // analytical 1D IFT for scalar mode is a worthwhile follow-up
+            // (mu_lR depends only on n_l with rho_lR = rho_scalar) but is
+            // out of the current port scope.
+            const auto deps_v_fd =
+                std::max(1e-8, std::abs(delta_epsilon_v) * 1e-6 + 1e-8);
+            double n_l_eps_plus = n_l_prev;
+            double rho_lR_eps_plus = rho_lR_prev;
+            double mu_lR_eps_plus = mu_lR_trial_value;
+            double rho_l_hat_eps_plus = rho_l_hat_trial_value;
+            double n_l_eps_minus = n_l_prev;
+            double rho_lR_eps_minus = rho_lR_prev;
+            double mu_lR_eps_minus = mu_lR_trial_value;
+            double rho_l_hat_eps_minus = rho_l_hat_trial_value;
+
+            solve_microstate(p, delta_epsilon_v + deps_v_fd, n_l_prev,
+                             rho_lR_prev, n_l_eps_plus, rho_lR_eps_plus,
+                             mu_lR_eps_plus, rho_l_hat_eps_plus);
+            solve_microstate(p, delta_epsilon_v - deps_v_fd, n_l_prev,
+                             rho_lR_prev, n_l_eps_minus, rho_lR_eps_minus,
+                             mu_lR_eps_minus, rho_l_hat_eps_minus);
+
+            dn_l_dtrace_eps_trial =
+                (n_l_eps_plus - n_l_eps_minus) / (2.0 * deps_v_fd);
+
+            if (p <= -pressure_tolerance)
+            {
+                const auto dp_fd = std::max(1e-6, std::abs(p) * 1e-6);
+                double n_l_plus = n_l_prev;
+                double rho_lR_plus = rho_lR_prev;
+                double mu_lR_plus = mu_lR_trial_value;
+                double rho_l_hat_plus = rho_l_hat_trial_value;
+                double n_l_minus = n_l_prev;
+                double rho_lR_minus = rho_lR_prev;
+                double mu_lR_minus = mu_lR_trial_value;
+                double rho_l_hat_minus = rho_l_hat_trial_value;
+
+                solve_microstate(p + dp_fd, delta_epsilon_v, n_l_prev,
+                                 rho_lR_prev, n_l_plus, rho_lR_plus,
+                                 mu_lR_plus, rho_l_hat_plus);
+                solve_microstate(p - dp_fd, delta_epsilon_v, n_l_prev,
+                                 rho_lR_prev, n_l_minus, rho_lR_minus,
+                                 mu_lR_minus, rho_l_hat_minus);
+
+                dn_l_dp_trial = (n_l_plus - n_l_minus) / (2.0 * dp_fd);
+            }
         }
     }
 
@@ -1236,7 +1434,17 @@ phi0.setEntryName("InitialPorosity");
     n_S_value = 1.0 - phi_value;
     n_L_value = phi_M * macro_support_saturation_trial;
     rho_LR_value = rho_lR;
-    omega_l_value = n_l * rho_lR / (n_S_value * rho_SR);
+    // F2 fix: omega_l = m_water/m_solid uses the AGGREGATE solid fraction
+    // (1 - n_l), not the REV solid fraction n_S_value = 1 - phi. The aux
+    // state n_S_value reports 1 - phi as a separate, valid quantity; it is
+    // NOT the denominator of the gravimetric water content. Pre-fix this
+    // line used n_S_value, giving omega_l_code = omega_l_true * (1-n_l)/(1-phi)
+    // — state-dependent error (same as the bug fixed inside the @Integrator
+    // microstate solve). See [[ogs_rm_dsm_potential_physics]].
+    {
+        const auto aggregate_nS_final = std::max(1e-14, 1.0 - n_l);
+        omega_l_value = n_l * rho_lR / (aggregate_nS_final * rho_SR);
+    }
     mu_lR_value = mu_lR_trial_value;
     rho_l_hat_value = rho_l_hat_trial_value;
     delta_epsilon_sw_value = epsilon_sw_increment_trial;

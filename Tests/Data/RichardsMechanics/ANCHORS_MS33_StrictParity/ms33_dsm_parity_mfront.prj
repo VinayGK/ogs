@@ -61,6 +61,8 @@
                     <material_property name="PoreAreaShapeFactorTuller" parameter="PoreAreaShapeFactorTuller"/>
                     <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize"/>
                     <material_property name="SurfaceTension" parameter="SurfaceTension"/>
+                    <material_property name="VdwAugmentationPrefactor" parameter="VdwAugmentationPrefactor"/>
+                    <material_property name="VdwAugmentationDecayLength" parameter="VdwAugmentationDecayLength"/>
                 </material_properties>
                 <initial_values>
                     <state_variable name="n_l" parameter="n_l0"/>
@@ -332,6 +334,20 @@
             <name>SurfaceTension</name>
             <type>Constant</type>
             <value>0.0715</value>
+        </parameter>
+        <!-- Strict parity test: K=0 on both native and mfront paths so the
+             two implementations exercise the same reduced (pure vdW) model.
+             lambda kept at Villar-calibrated 7.5e-7 m as a documented
+             placeholder; inert when K=0. -->
+        <parameter>
+            <name>VdwAugmentationPrefactor</name>
+            <type>Constant</type>
+            <value>0.0</value>
+        </parameter>
+        <parameter>
+            <name>VdwAugmentationDecayLength</name>
+            <type>Constant</type>
+            <value>7.5e-7</value>
         </parameter>
         <!-- Initial state -->
         <parameter>

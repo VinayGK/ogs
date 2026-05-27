@@ -51,8 +51,26 @@ density_a.setEntryName("MicroLiquidDensityA");
 density_b.setEntryName("MicroLiquidDensityB");
 @MaterialProperty real hamaker_constant;
 hamaker_constant.setEntryName("HamakerConstant");
+// A: Hamaker constant [J] for clay-water-clay; literature value
+// 2.2e-20 J for montmorillonite-water-montmorillonite (Israelachvili &
+// Adams 1978, J. Chem. Soc. Faraday Trans. I, vol. 74, p. 975, Table 2,
+// SFA mica proxy; range 1-5e-20 J across DLVO smectite literature).
+// DO NOT calibrate A. Only K (vdw_augmentation_prefactor) and lambda
+// (vdw_augmentation_decay_length) below are calibrated to Villar.
+// Ported from native ProcessLib/RichardsMechanics/ConstitutiveRelations/
+// PotentialExchange.h lines 71-94.
 @MaterialProperty real specific_surface;
 specific_surface.setEntryName("SpecificSurface");
+@MaterialProperty real vdw_augmentation_prefactor;
+vdw_augmentation_prefactor.setEntryName("VdwAugmentationPrefactor");
+// K [J/kg]: lumped exponential augmentation amplitude; calibrated to
+// Villar swelling pressure (paper_DSM.tex Tab. msIII_vs_villar:
+// K(rho_d=1400)=7654.9, K(1600)=29985.0, K(1800)=118582.6 J/kg).
+// Set to 0 to disable augmentation (pure vdW base only).
+@MaterialProperty real vdw_augmentation_decay_length;
+vdw_augmentation_decay_length.setEntryName("VdwAugmentationDecayLength");
+// lambda [m]: characteristic water-film thickness in the augmentation
+// exponential exp(-h/lambda); calibrated to Villar (typical 7.5e-7 m).
 @MaterialProperty real phi0;
 phi0.setEntryName("InitialPorosity");
 @MaterialProperty real area_factor_tuller;
@@ -98,6 +116,12 @@ rho_l_hat_value.setEntryName("rho_l_hat");
                  "Invalid density parameter: all reference densities must be positive.");
   tfel::raise_if(specific_surface <= 0.0,
                  "Invalid parameter: SpecificSurface must be positive.");
+  tfel::raise_if(vdw_augmentation_prefactor < 0.0,
+                 "Invalid parameter: VdwAugmentationPrefactor must be >= 0.");
+  tfel::raise_if(vdw_augmentation_prefactor > 0.0 &&
+                     !(vdw_augmentation_decay_length > 0.0),
+                 "Invalid parameter: VdwAugmentationDecayLength must be > 0 "
+                 "when VdwAugmentationPrefactor > 0.");
   tfel::raise_if(characteristic_pore_size <= 0.0,
                  "Invalid parameter: CharacteristicPoreSize must be positive.");
   tfel::raise_if(surface_tension <= 0.0,
@@ -178,32 +202,48 @@ rho_l_hat_value.setEntryName("rho_l_hat");
     return rho_l0 * std::exp(-density_a * std::pow(omega, density_b)) + rho_LR_ref;
   };
 
-  // vdW micro potential [J/kg], negative_attractive convention — matches native
-  // PotentialExchange.h (commit 0d579e8aeb, micro_potential_convention = negative_attractive):
+  // vdW micro potential + lumped exponential augmentation [J/kg],
+  // negative_attractive convention — matches native PotentialExchange.h
+  // lines 71-94 (commit 0d579e8aeb dimensional fix, commit 8192021299
+  // active_nS fix). For the augmentation theory see paper_DSM.tex; K and
+  // lambda calibrated to Villar (DO NOT calibrate A).
   //
-  //   mu_lR = -A * Sa^3 * nS^3 * rho_SR^3 / (6*pi * n_l^3 * rho_lR)   [J/kg, negative]
+  //   mu_lR_vdW = -A * Sa^3 * nS^3 * rho_SR^3 / (6*pi * n_l^3 * rho_lR)   [J/kg]
+  //   mu_lR_aug = -K * exp(-h/lambda),  h = n_l/(nS*rho_SR*Sa)            [J/kg]
+  //   mu_lR     = mu_lR_vdW + mu_lR_aug                                    [J/kg]
   //
-  // SIGN: negative_attractive means the vdW binding reduces micro chemical potential
-  // below free water (mu_lR < 0).  Exchange:
+  // SIGN: negative_attractive means the vdW binding reduces micro chemical
+  // potential below free water (mu_lR < 0). Both vdW and augmentation
+  // share the negative sign factor.  Exchange:
   //   rho_l_hat = alpha * (mu_LR - mu_lR)
-  //   mu_LR < 0 at suction; mu_lR < 0 (vdW binding).
-  //   When |mu_lR| > |mu_LR| (vdW > suction): mu_LR - mu_lR > 0 → micro fills.
-  //   When |mu_lR| < |mu_LR| (suction > vdW): mu_LR - mu_lR < 0 → micro drains.
-  //   Equilibrium: mu_LR = mu_lR  (both negative, magnitudes equal).
+  //   mu_LR < 0 at suction; mu_lR < 0 (vdW + augmentation binding).
+  //   When |mu_lR| > |mu_LR|: mu_LR - mu_lR > 0 → micro fills.
+  //   When |mu_lR| < |mu_LR|: mu_LR - mu_lR < 0 → micro drains.
+  //   Equilibrium: mu_LR = mu_lR (both negative, magnitudes equal).
   //
   // MAGNITUDE: direct nS-form avoids rho_lR power-counting ambiguity via omega.
   //   omega = n_l*rho_lR/(nS*rho_SR); (Sa/omega)^3 = Sa^3*(nS*rho_SR)^3/(n_l*rho_lR)^3
-  //   Correct: A*rho_lR^2/(6pi) * (Sa/omega)^3  — not A/(6pi*rho_lR) * (Sa/omega)^3.
-  //   Using nS-form directly to eliminate ambiguity:
+  //   Correct: A*rho_lR^2/(6pi) * (Sa/omega)^3 — not A/(6pi*rho_lR) * (Sa/omega)^3.
+  //
+  // K = 0 disables augmentation (legacy/parity-pure-vdW configurations).
   const auto mu_micro_from_state = [&](const auto n_l_arg, const auto rho_lR_arg) {
     const auto rho_lR_safe = std::max(rho_lR_arg, rho_LR_ref + minimum_density_gap);
     const auto nS = active_nS_from_nl(n_l_arg);
     const auto n_l_safe = std::max(n_l_arg, minimum_n_l);
-    // negative_attractive: sign = -1
-    return -(hamaker_constant * specific_surface * specific_surface * specific_surface /
-             (6.0 * pi)) *
-            (nS * nS * nS * rho_SR * rho_SR * rho_SR) /
-            (n_l_safe * n_l_safe * n_l_safe * rho_lR_safe);
+    // vdW base term [J/kg]; negative_attractive: leading minus.
+    const auto mu_vdW = -(hamaker_constant * specific_surface * specific_surface *
+                          specific_surface / (6.0 * pi)) *
+                        (nS * nS * nS * rho_SR * rho_SR * rho_SR) /
+                        (n_l_safe * n_l_safe * n_l_safe * rho_lR_safe);  // J/kg
+    // Lumped exponential augmentation [J/kg]: -K * exp(-h/lambda),
+    // h = n_l/(nS*rho_SR*Sa). Same sign as vdW base.
+    const auto mu_aug =
+        (vdw_augmentation_prefactor > 0.0 && vdw_augmentation_decay_length > 0.0)
+            ? -vdw_augmentation_prefactor *
+                  std::exp(-n_l_safe / (vdw_augmentation_decay_length * nS *
+                                        rho_SR * specific_surface))
+            : 0.0;  // J/kg
+    return mu_vdW + mu_aug;  // J/kg
   };
 
   const auto solve_microstate = [&](const auto p_arg,
@@ -445,24 +485,86 @@ rho_l_hat_value.setEntryName("rho_l_hat");
         break;
       }
 
-      const auto h_n_l = std::max(1e-8 * std::abs(n_l_trial), 1e-10);
-      const auto h_rho = std::max(1e-8 * std::abs(rho_lR_trial), 1e-8);
-
-      double residual_1_n = 0.0;
-      double residual_2_n = 0.0;
-      double residual_1_rho = 0.0;
-      double residual_2_rho = 0.0;
-      double dummy_1 = 0.0;
-      double dummy_2 = 0.0;
-      evaluate(n_l_trial + h_n_l, rho_lR_trial, residual_1_n, residual_2_n,
-               dummy_1, dummy_2);
-      evaluate(n_l_trial, rho_lR_trial + h_rho, residual_1_rho, residual_2_rho,
-               dummy_1, dummy_2);
-
-      const auto j11 = (residual_1_n - residual_1) / h_n_l;
-      const auto j21 = (residual_2_n - residual_2) / h_n_l;
-      const auto j12 = (residual_1_rho - residual_1) / h_rho;
-      const auto j22 = (residual_2_rho - residual_2) / h_rho;
+      // Analytical Jacobian (F5a port from native
+      // ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h
+      // ~lines 656-669; uses analytical dmu_lR_dnl, dmu_lR_drho_lR
+      // exposed in PotentialExchange.h lines 174-175 after the /rho_lR
+      // dimensional fix at commit 0d579e8aeb).
+      //
+      // r1 = phi_m(n_l)*rho_lR - prev_mass - dt*alpha_eff*(mu_LR - mu_lR(n_l,rho_lR))
+      //        - phi_m(n_l)*rho_lR*delta_eps_v
+      // r2 = rho_lR - rho_micro_eos(n_l, rho_lR)
+      //
+      // Derivatives treat active_nS = 1 - n_l (post-2026-05-26 fix), so nS
+      // is an implicit function of n_l. Total derivatives (chain rule):
+      //   dphi_m/dn_l      = (1-phi0)/(1-n_l)^2                       (unclamped)
+      //   dmu_vdW/dn_l     = -3*mu_vdW/(n_l*nS)                        [J/kg per 1]
+      //   dmu_vdW/drho_lR  = -mu_vdW/rho_lR                            [J/kg per kg/m^3]
+      //   dmu_aug/dn_l     = -mu_aug/(lambda*nS^2*rho_SR*Sa)           [J/kg per 1]
+      //   dmu_aug/drho_lR  = 0
+      //   drho_eos/dn_l    = -(rho_eos-rho_LR_ref)*a*b*omega^(b-1)*rho_lR/(rho_SR*nS^2)
+      //   drho_eos/drho_lR = -(rho_eos-rho_LR_ref)*a*b*omega^(b-1)*n_l/(nS*rho_SR)
+      const auto n_l_jac = std::max(n_l_trial, minimum_n_l);
+      const auto rho_lR_jac =
+          std::max(rho_lR_trial, rho_LR_ref + minimum_density_gap);
+      const auto nS_jac = active_nS_from_nl(n_l_jac);
+      const auto one_minus_n_l_jac = std::max(1e-12, 1.0 - n_l_jac);
+      const auto phi_m_jac = phi_m_from_nl(n_l_jac);
+      // dphi_m/dn_l = (1-phi0)/(1-n_l)^2; flat zero when phi_M is clamped to
+      // [0, phi0]. Clamps engage only at n_l <= 0 or n_l >= phi0, both outside
+      // the iterate domain [minimum_n_l, phi0]; the unclamped form is safe.
+      const auto dphi_m_dnl =
+          (1.0 - phi0) / (one_minus_n_l_jac * one_minus_n_l_jac);  // 1
+      // vdW + augmentation split for analytical derivatives.
+      const auto mu_vdW_jac =
+          -(hamaker_constant * specific_surface * specific_surface *
+            specific_surface / (6.0 * pi)) *
+          (nS_jac * nS_jac * nS_jac * rho_SR * rho_SR * rho_SR) /
+          (n_l_jac * n_l_jac * n_l_jac * rho_lR_jac);  // J/kg
+      const bool aug_active = (vdw_augmentation_prefactor > 0.0 &&
+                               vdw_augmentation_decay_length > 0.0);
+      const auto mu_aug_jac =
+          aug_active
+              ? -vdw_augmentation_prefactor *
+                    std::exp(-n_l_jac /
+                             (vdw_augmentation_decay_length * nS_jac *
+                              rho_SR * specific_surface))
+              : 0.0;  // J/kg
+      const auto dmu_lR_dnl =
+          -3.0 * mu_vdW_jac / (n_l_jac * nS_jac) +
+          (aug_active
+               ? -mu_aug_jac / (vdw_augmentation_decay_length * nS_jac *
+                                nS_jac * rho_SR * specific_surface)
+               : 0.0);  // J/kg per 1
+      const auto dmu_lR_drho_lR = -mu_vdW_jac / rho_lR_jac;  // J/kg per kg/m^3
+      // rho_eos chain rule
+      const auto omega_raw = n_l_jac * rho_lR_jac / (nS_jac * rho_SR);
+      const auto omega_clamped = std::max(omega_raw, minimum_n_l);
+      const auto EOS_attractive =
+          rho_l0 * std::exp(-density_a * std::pow(omega_clamped, density_b));  // kg/m^3
+      const auto domega_dnl_jac =
+          (omega_raw > minimum_n_l)
+              ? rho_lR_jac / (rho_SR * nS_jac * nS_jac)
+              : 0.0;  // 1 per 1
+      const auto domega_drho_lR_jac =
+          (omega_raw > minimum_n_l)
+              ? n_l_jac / (nS_jac * rho_SR)
+              : 0.0;  // 1 per kg/m^3
+      const auto deos_prefactor =
+          -EOS_attractive * density_a * density_b *
+          std::pow(omega_clamped, density_b - 1.0);  // kg/m^3 per 1
+      const auto drho_eos_dnl = deos_prefactor * domega_dnl_jac;  // kg/m^3
+      const auto drho_eos_drho_lR = deos_prefactor * domega_drho_lR_jac;  // 1
+      // Assemble Jacobian. delta_eps_v captured from solve_microstate args.
+      const auto one_minus_deps_v = 1.0 - delta_epsilon_v_arg;
+      const auto j11 =
+          dphi_m_dnl * rho_lR_jac * one_minus_deps_v +
+          dt * alpha_eff * dmu_lR_dnl;  // kg/m^3 per 1
+      const auto j12 =
+          phi_m_jac * one_minus_deps_v +
+          dt * alpha_eff * dmu_lR_drho_lR;  // 1 (i.e., kg/m^3 per kg/m^3)
+      const auto j21 = -drho_eos_dnl;  // kg/m^3 per 1
+      const auto j22 = 1.0 - drho_eos_drho_lR;  // 1
       const auto determinant = j11 * j22 - j12 * j21;
       tfel::raise_if(std::abs(determinant) < 1e-24,
                      "DSMMicroMacro bridge microstate Newton system became singular.");
@@ -582,10 +684,63 @@ rho_l_hat_value.setEntryName("rho_l_hat");
   // Hierarchical porosity split applied at solved n_l:
   const auto phi_m_trial = phi_m_from_nl(n_l_trial);
   const auto phi_M_trial = phi_M_from_nl(n_l_trial);
-  const auto delta_epsilon_sw = swelling_slope * (phi_m_trial - phi_m_prev);
 
-  sigma = sigma + lambda * trace(Δeps_to) * I₂ + 2.0 * mu * Δeps_to -
-          bulk_modulus * delta_epsilon_sw * I₂;
+  // Swelling stress increment. Mirrors native
+  // RichardsMechanicsFEM-impl.h ~lines 1525-1567 (legacy path):
+  //   K>0 && lambda>0 (augmentation enabled):
+  //     Δσ_sw = n_S_rev * (n_l_prev * Π_prev - n_l_trial * Π_curr) * I_2
+  //     with Π = ρ_LR_macro * K * exp(-ξ),
+  //          ξ = n_l / (λ * n_S_rev * ρ_SR * Sa),
+  //          n_S_rev = 1 - φ_M (REV-scale solid fraction — DISTINCT from
+  //          active_nS = 1 - n_l used as the omega_l denominator).
+  //     This is the thermodynamic eigenstress (tension-positive convention);
+  //     the empirical slope formula is bypassed.
+  //   else if SwellingSlope > 0:
+  //     Δσ_sw = -K_bulk * slope * (φ_m - φ_m_prev) * I_2 (legacy slope path).
+  //   else:
+  //     Δσ_sw = 0.
+  Stensor delta_sigma_sw_tensor;
+  delta_sigma_sw_tensor = Stensor::Id() * 0.0;
+  auto delta_epsilon_sw = real{0};
+  const auto aug_stress_enabled =
+      (vdw_augmentation_prefactor > 0.0 &&
+       vdw_augmentation_decay_length > 0.0);
+  if (aug_stress_enabled)
+  {
+    const auto nS_rev_stress =
+        std::max(minimum_n_l, 1.0 - phi_M_trial);
+    // Π in native uses the MACRO liquid density (rho_LR), not the micro
+    // density (rho_lR). rho_lR_prev was a porting bug (the trace
+    // diff-by-step revealed rho_LR_native=1000 vs mfront-prev=1100).
+    // mfront's macro density is a constant material property =
+    // rho_LR_ref (ReferenceLiquidDensityMacro). Use it directly.
+    const auto rho_LR_macro_safe_stress = rho_LR_ref;
+    const auto aug_denom_stress =
+        vdw_augmentation_decay_length * nS_rev_stress * rho_SR *
+        specific_surface;
+    const auto xi_curr_stress = n_l_trial / aug_denom_stress;
+    const auto xi_prev_stress = n_l_prev / aug_denom_stress;
+    const auto Pi_curr_stress = rho_LR_macro_safe_stress *
+                                vdw_augmentation_prefactor *
+                                std::exp(-xi_curr_stress);  // Pa
+    const auto Pi_prev_stress = rho_LR_macro_safe_stress *
+                                vdw_augmentation_prefactor *
+                                std::exp(-xi_prev_stress);  // Pa
+    const auto delta_sigma_aug_scalar =
+        nS_rev_stress *
+        (n_l_prev * Pi_prev_stress - n_l_trial * Pi_curr_stress);  // Pa
+    delta_sigma_sw_tensor = delta_sigma_aug_scalar * I₂;
+    // delta_epsilon_sw stays 0 — stress derives from the augmentation
+    // potential, not a kinematic swelling strain.
+  }
+  else if (swelling_slope > 0.0)
+  {
+    delta_epsilon_sw = swelling_slope * (phi_m_trial - phi_m_prev);
+    delta_sigma_sw_tensor = -bulk_modulus * delta_epsilon_sw * I₂;
+  }
+
+  sigma = sigma + lambda * trace(Δeps_to) * I₂ + 2.0 * mu * Δeps_to +
+          delta_sigma_sw_tensor;
   S_L = saturation_from_pressure(p);
 
   n_l = n_l_trial;
@@ -620,27 +775,116 @@ rho_l_hat_value.setEntryName("rho_l_hat");
     }
     else
     {
-      const auto deps_v_fd = std::max(1e-8, std::abs(delta_epsilon_v) * 1e-6 + 1e-8);
-      double n_l_eps_plus = 0.0;
-      double rho_lR_eps_plus = 0.0;
-      double mu_lR_eps_plus = 0.0;
-      double rho_l_hat_eps_plus = 0.0;
-      double n_l_eps_minus = 0.0;
-      double rho_lR_eps_minus = 0.0;
-      double mu_lR_eps_minus = 0.0;
-      double rho_l_hat_eps_minus = 0.0;
+      // Analytical outer tangent (F5b port). Use the implicit-function theorem
+      // on the converged microstate to compute dn_l/deps_v and dn_l/dp without
+      // FD-perturbing solve_microstate. The Jacobian J = ∂(r1,r2)/∂(n_l,rho_lR)
+      // is the same as the inner-Newton Jacobian, re-evaluated at the converged
+      // (n_l_trial, rho_lR_trial).
+      //
+      // External-variable derivatives of the residuals:
+      //   ∂r1/∂eps_v = -phi_m * rho_lR              (from the -phi_m*rho_lR*Δeps_v term)
+      //   ∂r2/∂eps_v = 0                            (r2 has no eps_v dependence)
+      //   ∂r1/∂p     = -dt*alpha_eff/rho_macro_safe (when p < -tol, via mu_LR = p/rho_macro)
+      //   ∂r2/∂p     = 0                            (rho_micro_eos uses ref macro density)
+      //
+      // IFT: J · [dn_l/dx; drho_lR/dx] = -[∂r1/∂x; ∂r2/∂x]
+      // Cramer:   dn_l/dx = (-∂r1/∂x · J22 + ∂r2/∂x · J12) / det(J)
+      //
+      // dS_L/dp uses the analytical Tuller derivative:
+      //   S_L = 1 - exp(-C/p²),  C = 4·β·σ²/(α·L²)
+      //   dS_L/dp = -2·(1-S_L)·C / p³
 
-      solve_microstate(p, delta_epsilon_v + deps_v_fd, n_l_prev, rho_lR_prev,
-                       n_l_eps_plus, rho_lR_eps_plus, mu_lR_eps_plus,
-                       rho_l_hat_eps_plus);
-      solve_microstate(p, delta_epsilon_v - deps_v_fd, n_l_prev, rho_lR_prev,
-                       n_l_eps_minus, rho_lR_eps_minus, mu_lR_eps_minus,
-                       rho_l_hat_eps_minus);
+      // Recompute analytical Jacobian at the converged state.
+      const auto n_l_jt = std::max(n_l_trial, minimum_n_l);
+      const auto rho_lR_jt =
+          std::max(rho_lR_trial, rho_LR_ref + minimum_density_gap);
+      const auto nS_jt = active_nS_from_nl(n_l_jt);
+      const auto one_minus_n_l_jt = std::max(1e-12, 1.0 - n_l_jt);
+      const auto phi_m_jt = phi_m_from_nl(n_l_jt);
+      const auto dphi_m_dnl_jt =
+          (1.0 - phi0) / (one_minus_n_l_jt * one_minus_n_l_jt);  // 1
+      const auto mu_vdW_jt =
+          -(hamaker_constant * specific_surface * specific_surface *
+            specific_surface / (6.0 * pi)) *
+          (nS_jt * nS_jt * nS_jt * rho_SR * rho_SR * rho_SR) /
+          (n_l_jt * n_l_jt * n_l_jt * rho_lR_jt);  // J/kg
+      const bool aug_active_jt = (vdw_augmentation_prefactor > 0.0 &&
+                                  vdw_augmentation_decay_length > 0.0);
+      const auto mu_aug_jt =
+          aug_active_jt
+              ? -vdw_augmentation_prefactor *
+                    std::exp(-n_l_jt /
+                             (vdw_augmentation_decay_length * nS_jt *
+                              rho_SR * specific_surface))
+              : 0.0;  // J/kg
+      const auto dmu_lR_dnl_jt =
+          -3.0 * mu_vdW_jt / (n_l_jt * nS_jt) +
+          (aug_active_jt
+               ? -mu_aug_jt / (vdw_augmentation_decay_length * nS_jt *
+                               nS_jt * rho_SR * specific_surface)
+               : 0.0);  // J/kg per 1
+      const auto dmu_lR_drho_lR_jt = -mu_vdW_jt / rho_lR_jt;  // J/kg per kg/m^3
+      const auto omega_raw_jt = n_l_jt * rho_lR_jt / (nS_jt * rho_SR);
+      const auto omega_clamped_jt = std::max(omega_raw_jt, minimum_n_l);
+      const auto EOS_attr_jt =
+          rho_l0 *
+          std::exp(-density_a * std::pow(omega_clamped_jt, density_b));  // kg/m^3
+      const auto domega_dnl_jt = (omega_raw_jt > minimum_n_l)
+                                     ? rho_lR_jt / (rho_SR * nS_jt * nS_jt)
+                                     : 0.0;
+      const auto domega_drho_lR_jt = (omega_raw_jt > minimum_n_l)
+                                         ? n_l_jt / (nS_jt * rho_SR)
+                                         : 0.0;
+      const auto deos_pref_jt =
+          -EOS_attr_jt * density_a * density_b *
+          std::pow(omega_clamped_jt, density_b - 1.0);  // kg/m^3
+      const auto drho_eos_dnl_jt = deos_pref_jt * domega_dnl_jt;  // kg/m^3
+      const auto drho_eos_drho_lR_jt = deos_pref_jt * domega_drho_lR_jt;  // 1
+      const auto one_minus_deps_v_jt = 1.0 - delta_epsilon_v;
+      const auto j11_jt = dphi_m_dnl_jt * rho_lR_jt * one_minus_deps_v_jt +
+                          dt * alpha_eff * dmu_lR_dnl_jt;
+      const auto j12_jt = phi_m_jt * one_minus_deps_v_jt +
+                          dt * alpha_eff * dmu_lR_drho_lR_jt;
+      const auto j21_jt = -drho_eos_dnl_jt;
+      const auto j22_jt = 1.0 - drho_eos_drho_lR_jt;
+      const auto det_jt = j11_jt * j22_jt - j12_jt * j21_jt;
+      tfel::raise_if(std::abs(det_jt) < 1e-24,
+                     "DSMMicroMacro outer-tangent Jacobian became singular.");
 
+      // Analytical dn_l/deps_v via IFT: ∂r1/∂eps_v = -phi_m*rho_lR, ∂r2/∂eps_v = 0.
       const auto dn_l_dtrace_eps =
-          (n_l_eps_plus - n_l_eps_minus) / (2.0 * deps_v_fd);
-      ∂sigma∕∂Δeps_to = ∂sigma∕∂Δeps_to -
-                        (bulk_modulus * swelling_slope * dn_l_dtrace_eps) *
+          phi_m_jt * rho_lR_jt * j22_jt / det_jt;  // 1
+
+      // Swelling tangent factor ∂σ_sw/∂n_l_trial (dominant term):
+      //   K>0:    -n_S_rev * Π_curr   (augmentation, dominant in dG/dn_l)
+      //   else:   -K_bulk * slope     (slope-based eigenstress)
+      // n_S_rev variation with n_l (subdominant) is neglected here; the macro
+      // Newton converges with this approximation. If convergence is slow,
+      // upgrade to the full chain rule on Π_prev and n_S_rev.
+      real swelling_tangent_factor;
+      if (vdw_augmentation_prefactor > 0.0 &&
+          vdw_augmentation_decay_length > 0.0)
+      {
+        const auto phi_M_jt_tg = phi_M_from_nl(n_l_jt);
+        const auto nS_rev_tg = std::max(minimum_n_l, 1.0 - phi_M_jt_tg);
+        // Π uses MACRO liquid density (rho_LR_ref), not micro density.
+        // See note in the stress-update block (porting bug fixed 2026-05-27).
+        const auto rho_LR_safe_tg = rho_LR_ref;
+        const auto aug_denom_tg = vdw_augmentation_decay_length *
+                                  nS_rev_tg * rho_SR * specific_surface;
+        const auto xi_curr_tg = n_l_jt / aug_denom_tg;
+        const auto Pi_curr_tg =
+            rho_LR_safe_tg * vdw_augmentation_prefactor *
+            std::exp(-xi_curr_tg);  // Pa
+        swelling_tangent_factor = -nS_rev_tg * Pi_curr_tg;  // Pa
+      }
+      else
+      {
+        swelling_tangent_factor = -bulk_modulus * swelling_slope;  // Pa
+      }
+
+      ∂sigma∕∂Δeps_to = ∂sigma∕∂Δeps_to +
+                        (swelling_tangent_factor * dn_l_dtrace_eps) *
                             (I₂ ⊗ I₂);
 
       if (p > -pressure_tolerance)
@@ -650,27 +894,28 @@ rho_l_hat_value.setEntryName("rho_l_hat");
       }
       else
       {
-        const auto dp_fd = std::max(1e-6, std::abs(p) * 1e-6);
-        double n_l_plus = 0.0;
-        double rho_lR_plus = 0.0;
-        double mu_lR_plus = 0.0;
-        double rho_l_hat_plus = 0.0;
-        double n_l_minus = 0.0;
-        double rho_lR_minus = 0.0;
-        double mu_lR_minus = 0.0;
-        double rho_l_hat_minus = 0.0;
+        // Analytical dn_l/dp via IFT (∂r1/∂p = -dt·alpha_eff/rho_macro_safe).
+        // mu_macro_from_pressure uses rho_macro_safe = max(rho_lR_prev,
+        // rho_LR_ref+gap), so the same denominator appears here.
+        const auto rho_macro_safe_dp =
+            std::max(rho_lR_prev, rho_LR_ref + minimum_density_gap);
+        const auto dn_l_dp =
+            dt * alpha_eff * j22_jt / (rho_macro_safe_dp * det_jt);  // 1 per Pa
 
-        solve_microstate(p + dp_fd, delta_epsilon_v, n_l_prev, rho_lR_prev,
-                         n_l_plus, rho_lR_plus, mu_lR_plus, rho_l_hat_plus);
-        solve_microstate(p - dp_fd, delta_epsilon_v, n_l_prev, rho_lR_prev,
-                         n_l_minus, rho_lR_minus, mu_lR_minus, rho_l_hat_minus);
-
+        // Analytical dS_L/dp from the Tuller-Or curve (closed form).
+        const auto capillary_prefactor =
+            4.0 * pore_area_shape_factor_tuller *
+            surface_tension * surface_tension /
+            (area_factor_tuller * characteristic_pore_size *
+             characteristic_pore_size);
+        const auto capillary_term =
+            capillary_prefactor / (p * p);
+        const auto S_local = 1.0 - std::exp(-capillary_term);
         const auto dS_dp =
-            (saturation_from_pressure(p + dp_fd) - saturation_from_pressure(p - dp_fd)) /
-            (2.0 * dp_fd);
-        const auto dn_l_dp = (n_l_plus - n_l_minus) / (2.0 * dp_fd);
+            -2.0 * (1.0 - S_local) * capillary_prefactor /
+            (p * p * p);  // 1/Pa  (positive for p<0)
 
-        ∂sigma∕∂Δp_LR = -(bulk_modulus * swelling_slope * dn_l_dp) * I₂;
+        ∂sigma∕∂Δp_LR = (swelling_tangent_factor * dn_l_dp) * I₂;
         ∂S_L∕∂Δp_LR = dS_dp;
       }
     }
@@ -679,28 +924,28 @@ rho_l_hat_value.setEntryName("rho_l_hat");
 
 @UpdateAuxiliaryStateVariables
 {
-  constexpr const auto pressure_tolerance = 1e-12;
   constexpr const auto minimum_n_l = 1e-14;
-  constexpr const auto pi = 3.14159265358979323846;
 
   // Hierarchical porosity split: phi_M = (phi0-n_l)/(1-n_l), phi_m = n_l*(1-phi_M)
+  // (phi_m and phi_M values reported back to OGS; consistent with @Integrator's
+  //  phi_M_from_nl/phi_m_from_nl.)
   const auto phi_M_updated = std::clamp((phi0 - std::max(minimum_n_l, n_l)) /
                                         (1.0 - std::max(minimum_n_l, n_l)), 0.0, phi0);
-  const auto active_nS_updated = 1.0 - phi_M_updated;  // = (1-phi0)/(1-n_l)
-  phi_m = n_l * active_nS_updated;
+  phi_m = n_l * (1.0 - phi_M_updated);  // = n_l*(1-phi0)/(1-n_l) in unclamped regime
   phi_M = phi_M_updated;
-  // vdW potential [J/kg], negative_attractive convention (mu_lR < 0):
-  //   mu_lR = -A * Sa^3 * nS^3 * rho_SR^3 / (6*pi * n_l^3 * rho_lR)
-  const auto rho_lR_safe = std::max(rho_lR, rho_LR_ref + 1e-12);
-  const auto n_l_safe_aux = std::max(n_l, minimum_n_l);
-  mu_lR_value = -(hamaker_constant * specific_surface * specific_surface * specific_surface /
-                  (6.0 * pi)) *
-                (active_nS_updated * active_nS_updated * active_nS_updated *
-                 rho_SR * rho_SR * rho_SR) /
-                (n_l_safe_aux * n_l_safe_aux * n_l_safe_aux * rho_lR_safe);
-  // rho_l_hat_value is already set correctly in @Integrator from the converged
-  // solve_microstate result (using end-of-step pressure). Do NOT recompute here:
-  // @UpdateAuxiliaryStateVariables receives p_LR as the beginning-of-step value
-  // in the OGS-MFront coupling, which would give the wrong exchange rate.
-  // Leave rho_l_hat_value unchanged (already set by @Integrator line 584).
+
+  // mu_lR_value and rho_l_hat_value are already set correctly in @Integrator
+  // from the converged solve_microstate result (using end-of-step pressure).
+  // Do NOT recompute them here:
+  //   * @UpdateAuxiliaryStateVariables receives p_LR as the beginning-of-step
+  //     value in the OGS-MFront coupling, which would give the wrong exchange
+  //     rate for rho_l_hat.
+  //   * A prior version of this block recomputed mu_lR_value using
+  //     active_nS_updated = (1-phi0)/(1-n_l), which is the PRE-2026-05-26-fix
+  //     definition and inconsistent with @Integrator's active_nS_from_nl(n_l)
+  //     = 1 - n_l. The recomputation also omitted the K*exp(-xi) augmentation
+  //     added with the parameter port. Preserving the @Integrator value avoids
+  //     both bugs (single source of truth).
+  // Leave mu_lR_value and rho_l_hat_value unchanged (already set in @Integrator
+  // around lines 596-597 after the augmentation port).
 }

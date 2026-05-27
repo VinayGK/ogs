@@ -39,6 +39,8 @@
                     <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize" />
                     <material_property name="SurfaceTension" parameter="SurfaceTension" />
                     <material_property name="InitialPorosity" parameter="phi0_block" />
+                    <material_property name="VdwAugmentationPrefactor" parameter="VdwAugmentationPrefactor" />
+                    <material_property name="VdwAugmentationDecayLength" parameter="VdwAugmentationDecayLength" />
                 </material_properties>
                 <initial_values>
                     <state_variable name="PreConsolidationPressure" parameter="InitialPreConsolidationPressure" />
@@ -167,6 +169,10 @@
         <parameter><name>PoreAreaShapeFactorTuller</name><type>Constant</type><value>0.8584073464102069</value></parameter>
         <parameter><name>CharacteristicPoreSize</name><type>Constant</type><value>1e-5</value></parameter>
         <parameter><name>SurfaceTension</name><type>Constant</type><value>0.0715</value></parameter>
+        <!-- Augmentation disabled for this PRJ (K=0); lambda kept at the
+             Villar-calibrated 7.5e-7 m as a documented placeholder. -->
+        <parameter><name>VdwAugmentationPrefactor</name><type>Constant</type><value>0.0</value></parameter>
+        <parameter><name>VdwAugmentationDecayLength</name><type>Constant</type><value>7.5e-7</value></parameter>
         <parameter><name>BubblePressure_block</name><type>Constant</type><value>1e6</value></parameter>
         <parameter><name>BubblePressure_pellet</name><type>Constant</type><value>5e5</value></parameter>
         <parameter><name>DSMMicroMacroSwellingSlope_block</name><type>Constant</type><value>0.0</value></parameter>
