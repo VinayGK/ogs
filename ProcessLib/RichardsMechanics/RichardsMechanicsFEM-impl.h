@@ -2735,6 +2735,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         ConstitutiveData<DisplacementDim>& constitutive_data,
         StatefulData<DisplacementDim>& state_current,
         StatefulDataPrev<DisplacementDim> const& state_previous,
+        OutputData<DisplacementDim>& OD,
         std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
         PotentialExchangeParameters const* const
             potential_exchange_parameters,
@@ -3025,11 +3026,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
     std::get<
         ProcessLib::ThermoRichardsMechanics::PermeabilityData<DisplacementDim>>(
-        constitutive_data)
+        OD)
         .k_rel = k_rel;
     std::get<
         ProcessLib::ThermoRichardsMechanics::PermeabilityData<DisplacementDim>>(
-        constitutive_data)
+        OD)
         .Ki = K_intrinsic;
 
     //
@@ -3219,7 +3220,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             CapillaryPressureData<DisplacementDim>{
                 p_cap_ip, p_cap_prev_ip,
                 Eigen::Vector<double, DisplacementDim>::Zero()},
-            constitutive_data, state_current, state_previous, this->process_data_.micro_porosity_parameters,
+            constitutive_data, state_current, state_previous,
+            this->output_data_[ip],
+            this->process_data_.micro_porosity_parameters,
             this->getPotentialExchangeParameters(),
             this->solid_material_, this->material_states_[ip]);
 
@@ -3339,11 +3342,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
         double const k_rel =
             std::get<ProcessLib::ThermoRichardsMechanics::PermeabilityData<
-                DisplacementDim>>(constitutive_data)
+                DisplacementDim>>(this->output_data_[ip])
                 .k_rel;
         auto const& K_intrinsic =
             std::get<ProcessLib::ThermoRichardsMechanics::PermeabilityData<
-                DisplacementDim>>(constitutive_data)
+                DisplacementDim>>(this->output_data_[ip])
                 .Ki;
         double const mu =
             *std::get<ProcessLib::ThermoRichardsMechanics::LiquidViscosityData>(
@@ -3964,6 +3967,15 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         double const k_rel =
             medium->property(MPL::PropertyType::relative_permeability)
                 .template value<double>(variables, x_position, t, dt);
+
+        std::get<
+            ProcessLib::ThermoRichardsMechanics::PermeabilityData<DisplacementDim>>(
+            this->output_data_[ip])
+            .Ki = K_intrinsic;
+        std::get<
+            ProcessLib::ThermoRichardsMechanics::PermeabilityData<DisplacementDim>>(
+            this->output_data_[ip])
+            .k_rel = k_rel;
 
         GlobalDimMatrixType const K_over_mu = k_rel * K_intrinsic / mu;
 
