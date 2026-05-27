@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+EURAD-2 MS33 Theoretical Benchmarking — Model III
+Swelling pressure with 2 mm lateral technological gap
+BGR / DSM MFront micro-macro bridge (RichardsMechanicsDSMMicroMacroBridge)
+
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460
+Geometry: 50mm diam × 70mm height axisymmetric cylinder, PLUS 2mm lateral gap
+  Clay zone  (medium id=0): r=0 to 0.025m, z=0 to 0.070m  (MaterialID=0)
+  Gap zone   (medium id=1): r=0.025 to 0.027m, z=0 to 0.070m  (MaterialID=1)
+  Container wall: rigid at r=0.027m
+
+Constitutive setup (TWO per-material relations):
+  id="0" (clay)  → MFrontRichardsMechanics / RichardsMechanicsDSMMicroMacroBridge
+  id="1" (gap)   → LinearElasticIsotropic with very soft E=10 MPa
+The OGS framework supports multiple <constitutive_relation id="N"> entries
+inside <process> via createConstitutiveRelations (see
+MaterialLib/SolidModels/CreateConstitutiveRelationsGeneric.h).
+This keeps the gap as a soft linear-elastic medium without DSM physics,
+matching the native-branch intent (gap n_s ≈ 0.015 → negligible Pi).
+
+K calibration caveat (MFront bridge): the MFront behaviour
+RichardsMechanicsDSMMicroMacroBridge computes the vdW prefactor *internally*
+from HamakerConstant (2.2e-20 J literature) and SpecificSurface
+(5.23e5 m²/kg = 523 m²/g). There is no vdw_augmentation_prefactor knob —
+swelling-pressure magnitudes differ from the native-branch dd-calibrated
+counterpart (which used K=29985 J/kg here). See MEMORY.md "DSM Pi-path
+potential physics" entry (2026-05-26) for the active_nS-fix invariance
+discussion.
+
+Boundary conditions (official spec):
+  Bottom (z=0): suction ramp 100→0 MPa over 20 days; 0 MPa for 180 days
+  Top    (z=0.07): u_z = 0  (rigid lid)
+  Left   (r=0):   u_r = 0  (axis of symmetry)
+  Right  (r=0.027): u_r = 0  (container wall, rigid)
+  Initial stress: isotropic 0.15 MPa
+-->
+<!--
+  KNOWN ISSUE (mfront branch only): this PRJ runs on the dsm_native_hierarchical
+  branch but fails the Eigen SparseLU factorization at t=0 on the current
+  dsm_mfront_hierarchical branch ("Failed during Eigen linear solver
+  initialization"). The MFront DSM bridge handles single-element axisymmetric
+  problems (see Model I in this set) but currently fails on multi-element
+  axisymmetric meshes. Disabled in Tests.cmake until the MFront bridge is
+  fixed for multi-element axisym.
+-->
+<OpenGeoSysProject>
+    <meshes>
+        <mesh axially_symmetric="true">../../ANCHORS_MS33_ModelIII/ms33_gap2mm_r27_h70.vtu</mesh>
+        <mesh axially_symmetric="true">../../ANCHORS_MS33_ModelIII/ms33_gap2mm_r27_h70_left.vtu</mesh>
+        <mesh axially_symmetric="true">../../ANCHORS_MS33_ModelIII/ms33_gap2mm_r27_h70_right.vtu</mesh>
+        <mesh axially_symmetric="true">../../ANCHORS_MS33_ModelIII/ms33_gap2mm_r27_h70_bottom.vtu</mesh>
+        <mesh axially_symmetric="true">../../ANCHORS_MS33_ModelIII/ms33_gap2mm_r27_h70_top.vtu</mesh>
+    </meshes>
+    <processes>
+        <process>
+            <name>RM</name>
+            <type>RICHARDS_MECHANICS</type>
+            <integration_order>2</integration_order>
+            <constitutive_relation id="0">
+                <type>MFrontRichardsMechanics</type>
+                <behaviour>RichardsMechanicsDSMMicroMacroBridge_MCC</behaviour>
+                <material_properties>
+                    <material_property name="YoungModulus" parameter="YoungModulus"/>
+                    <material_property name="PoissonRatio" parameter="PoissonRatio"/>
+                    <material_property name="CriticalStateLineSlope" parameter="CriticalStateLineSlope"/>
+                    <material_property name="SwellingLineSlope" parameter="SwellingLineSlope"/>
+                    <material_property name="VirginConsolidationLineSlope" parameter="VirginConsolidationLineSlope"/>
+                    <material_property name="CharacteristicPreConsolidationPressure" parameter="InitialPreConsolidationPressure"/>
+                    <material_property name="ResidualLiquidSaturation" parameter="ResidualLiquidSaturation"/>
+                    <material_property name="ResidualGasSaturation" parameter="ResidualGasSaturation"/>
+                    <material_property name="BubblePressure" parameter="BubblePressure"/>
+                    <material_property name="VanGenuchtenExponent_m" parameter="VanGenuchtenExponent_m"/>
+                    <material_property name="MacroSaturationLawMode" parameter="MacroSaturationLawMode"/>
+                    <material_property name="MicroStateLocalSolveMode" parameter="MicroStateLocalSolveMode"/>
+                    <material_property name="MicroPotentialConvention" parameter="MicroPotentialConvention"/>
+                    <material_property name="SwellingSlope" parameter="SwellingSlope"/>
+                    <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
+                    <material_property name="MacroViscosity" parameter="MacroViscosity"/>
+                    <material_property name="ReferenceLiquidDensityMacro" parameter="ReferenceLiquidDensityMacro"/>
+                    <material_property name="ReferenceLiquidDensityMicro" parameter="ReferenceLiquidDensityMicro"/>
+                    <material_property name="ReferenceDensitySolid" parameter="ReferenceDensitySolid"/>
+                    <material_property name="MicroLiquidDensityA" parameter="MicroLiquidDensityA"/>
+                    <material_property name="MicroLiquidDensityB" parameter="MicroLiquidDensityB"/>
+                    <material_property name="HamakerConstant" parameter="HamakerConstant"/>
+                    <material_property name="SpecificSurface" parameter="SpecificSurface"/>
+                    <material_property name="AreaFactorTuller" parameter="AreaFactorTuller"/>
+                    <material_property name="PoreAreaShapeFactorTuller" parameter="PoreAreaShapeFactorTuller"/>
+                    <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize"/>
+                    <material_property name="SurfaceTension" parameter="SurfaceTension"/>
+                    <material_property name="InitialPorosity" parameter="phi0_clay"/>
+                </material_properties>
+                <initial_values>
+                    <state_variable name="PreConsolidationPressure" parameter="InitialPreConsolidationPressure"/>
+                    <state_variable name="VolumeRatio" parameter="InitialVolumeRatio"/>
+                    <state_variable name="n_l" parameter="n_l0"/>
+                    <state_variable name="rho_lR" parameter="rho_lR0"/>
+                    <state_variable name="epsilon_sw" parameter="epsilon_sw0"/>
+                </initial_values>
+            </constitutive_relation>
+            <constitutive_relation id="1">
+                <type>LinearElasticIsotropic</type>
+                <youngs_modulus>E_gap</youngs_modulus>
+                <poissons_ratio>PoissonRatio</poissons_ratio>
+            </constitutive_relation>
+            <jacobian_assembler>
+                <type>Analytical</type>
+            </jacobian_assembler>
+            <!-- Clay zone: MFront DSM bridge -->
+            <!-- Gap zone: linear-elastic soft (no DSM); E_gap=10 MPa kept from native PRJ -->
+            <process_variables>
+                <pressure>pressure</pressure>
+                <displacement>displacement</displacement>
+            </process_variables>
+            <secondary_variables>
+                <secondary_variable name="sigma"/>
+                <secondary_variable name="epsilon"/>
+                <secondary_variable name="velocity"/>
+                <secondary_variable name="saturation"/>
+                <secondary_variable name="porosity"/>
+                <secondary_variable name="dry_density_solid"/>
+                <secondary_variable name="intrinsic_permeability"/>
+                <secondary_variable name="relative_permeability"/>
+                <secondary_variable name="n_l"/>
+                <secondary_variable name="rho_lR"/>
+                <secondary_variable name="epsilon_sw"/>
+                <secondary_variable name="phi_m"/>
+                <secondary_variable name="phi_M"/>
+                <secondary_variable name="mu_lR"/>
+                <secondary_variable name="rho_l_hat"/>
+            </secondary_variables>
+            <specific_body_force>0 0</specific_body_force>
+            <initial_stress>sigma0</initial_stress>
+            <explicit_hm_coupling_in_unsaturated_zone>false</explicit_hm_coupling_in_unsaturated_zone>
+            <mass_lumping>true</mass_lumping>
+        </process>
+    </processes>
+    <media>
+        <!-- Clay zone: DSM with rho_d=1600 kg/m³ -->
+        <medium id="0">
+            <phases>
+                <phase>
+                    <type>AqueousLiquid</type>
+                    <properties>
+                        <property><name>viscosity</name><type>Constant</type><value>1e-3</value></property>
+                        <property><name>density</name><type>Constant</type><value>1000.0</value></property>
+                    </properties>
+                </phase>
+                <phase>
+                    <type>Solid</type>
+                    <properties>
+                        <property><name>density</name><type>Constant</type><value>2780.0</value></property>
+                        <!-- No swelling_stress_rate: swelling handled inside MFront bridge -->
+                    </properties>
+                </phase>
+            </phases>
+            <properties>
+                <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
+                <property>
+                    <name>permeability</name>
+                    <type>KozenyCarman</type>
+                    <initial_permeability>k0_clay</initial_permeability>
+                    <initial_porosity>phi0_clay</initial_porosity>
+                </property>
+                <property>
+                    <name>porosity</name>
+                    <type>PorosityFromMassBalance</type>
+                    <initial_porosity>phi0_clay</initial_porosity>
+                    <minimal_porosity>0</minimal_porosity>
+                    <maximal_porosity>1</maximal_porosity>
+                </property>
+                <property><name>reference_temperature</name><type>Constant</type><value>293.15</value></property>
+                <property>
+                    <name>relative_permeability</name>
+                    <type>RelativePermeabilityGeneralizedPower</type>
+                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
+                    <residual_gas_saturation>0.0</residual_gas_saturation>
+                    <min_relative_permeability>1e-12</min_relative_permeability>
+                    <enhancement_factor>1.0</enhancement_factor>
+                    <exponent>3</exponent>
+                </property>
+                <property>
+                    <name>saturation</name>
+                    <type>SaturationVanGenuchten</type>
+                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
+                    <residual_gas_saturation>0.0</residual_gas_saturation>
+                    <exponent>0.45</exponent>
+                    <p_b>2.7e7</p_b>
+                </property>
+                <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
+            </properties>
+        </medium>
+        <!-- Gap zone: highly permeable, soft linear-elastic, NO DSM -->
+        <medium id="1">
+            <phases>
+                <phase>
+                    <type>AqueousLiquid</type>
+                    <properties>
+                        <property><name>viscosity</name><type>Constant</type><value>1e-3</value></property>
+                        <property><name>density</name><type>Constant</type><value>1000.0</value></property>
+                    </properties>
+                </phase>
+                <phase>
+                    <type>Solid</type>
+                    <properties>
+                        <property><name>density</name><type>Constant</type><value>2780.0</value></property>
+                    </properties>
+                </phase>
+            </phases>
+            <properties>
+                <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
+                <!-- Gap: elevated permeability (3 orders of magnitude above clay) -->
+                <property><name>permeability</name><type>Constant</type><value>1e-18</value></property>
+                <property>
+                    <name>porosity</name>
+                    <type>PorosityFromMassBalance</type>
+                    <initial_porosity>phi0_gap</initial_porosity>
+                    <minimal_porosity>0</minimal_porosity>
+                    <maximal_porosity>1</maximal_porosity>
+                </property>
+                <property><name>reference_temperature</name><type>Constant</type><value>293.15</value></property>
+                <property><name>relative_permeability</name><type>Constant</type><value>1.0</value></property>
+                <property>
+                    <name>saturation</name>
+                    <type>SaturationVanGenuchten</type>
+                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
+                    <residual_gas_saturation>0.0</residual_gas_saturation>
+                    <exponent>0.45</exponent>
+                    <p_b>2.7e7</p_b>
+                </property>
+                <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
+            </properties>
+        </medium>
+    </media>
+    <time_loop>
+        <processes>
+            <process ref="RM">
+                <nonlinear_solver>basic_newton</nonlinear_solver>
+                <convergence_criterion>
+                    <type>PerComponentDeltaX</type>
+                    <norm_type>NORM2</norm_type>
+                    <abstols>1 1e-12 1e-12</abstols>
+                </convergence_criterion>
+                <time_discretization><type>BackwardEuler</type></time_discretization>
+                <time_stepping>
+                    <type>IterationNumberBasedTimeStepping</type>
+                    <t_initial>0.0</t_initial>
+                    <!-- 200 days = 17280000 s -->
+                    <t_end>17280000</t_end>
+                    <initial_dt>1</initial_dt>
+                    <minimum_dt>0.01</minimum_dt>
+                    <maximum_dt>86400</maximum_dt>
+                    <number_iterations>1 2 3 4 5 6 7 8 9 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25</number_iterations>
+                    <multiplier>1.225 1.2 1.175 1.15 1.125 1.1 1.075 1.05 1.025 0.975 0.95 0.925 0.9 0.875 0.85 0.825 0.8 0.775 0.75 0.725 0.7 0.675 0.65 0.625</multiplier>
+                </time_stepping>
+            </process>
+        </processes>
+        <output>
+            <type>VTK</type>
+            <prefix>ms33_modelIII_gap2mm_mcc</prefix>
+            <suffix>_ts_{:timestep}_t_{:time}</suffix>
+            <fixed_output_times>86400 432000 864000 1296000 1728000 4320000 8640000 12960000 17280000</fixed_output_times>
+            <variables>
+                <variable>pressure</variable>
+                <variable>displacement</variable>
+                <variable>sigma</variable>
+                <variable>epsilon</variable>
+                <variable>velocity</variable>
+                <variable>saturation</variable>
+                <variable>porosity</variable>
+                <variable>dry_density_solid</variable>
+                <variable>intrinsic_permeability</variable>
+                <variable>relative_permeability</variable>
+                <variable>n_l</variable>
+                <variable>rho_lR</variable>
+                <variable>epsilon_sw</variable>
+                <variable>phi_m</variable>
+                <variable>phi_M</variable>
+                <variable>mu_lR</variable>
+                <variable>rho_l_hat</variable>
+            </variables>
+        </output>
+    </time_loop>
+    <parameters>
+        <!-- Initial stress: uniform -0.15 MPa isotropic (benchmark spec applies to
+             clay; gap is also initialised at -0.15 MPa to keep sigma0 continuous
+             and avoid a stress-jump residual at the clay-gap interface on step 1). -->
+        <parameter><name>sigma0</name><type>Function</type>
+            <expression>-1.5e5</expression><expression>-1.5e5</expression>
+            <expression>-1.5e5</expression><expression>0</expression>
+        </parameter>
+        <!-- Per-medium Young's moduli (constants now — replaces the prior single
+             E=Function with spatial selector since the constitutive relation is
+             chosen per material id rather than by spatial coordinate). -->
+        <parameter><name>YoungModulus_clay</name><type>Constant</type><value>52e6</value></parameter>
+        <parameter><name>YoungModulus_gap</name><type>Constant</type><value>10e6</value></parameter>
+        <parameter><name>PoissonRatio</name><type>Constant</type><value>0.3</value></parameter>
+        <!-- Clay parameters: phi0_clay = 1 - 1600/2780 = 0.424460 -->
+        <parameter><name>phi0_clay</name><type>Constant</type><value>0.4244604316546763</value></parameter>
+        <parameter><name>k0_clay</name><type>Constant</type><value>5.8703e-21</value></parameter>
+        <!-- Gap parameters: nearly empty void -->
+        <parameter><name>phi0_gap</name><type>Constant</type><value>0.985018</value></parameter>
+        <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
+        <parameter><name>pressure_ic</name><type>Constant</type><value>-1e8</value></parameter>
+        <parameter><name>zero</name><type>Constant</type><value>0.0</value></parameter>
+        <parameter><name>p_bc_scale</name><type>Constant</type><value>1</value></parameter>
+        <parameter><name>pressure_bc</name><type>CurveScaled</type><curve>suction_ramp</curve><parameter>p_bc_scale</parameter></parameter>
+        <!-- ─── DSM MFront bridge parameters (identical to StrictParity template) ─── -->
+        <parameter><name>SwellingSlope</name><type>Constant</type><value>0.1</value></parameter>
+        <parameter><name>MassExchangeCoefficient</name><type>Constant</type><value>1e-13</value></parameter>
+        <parameter><name>FluidViscosity</name><type>Constant</type><value>1e-3</value></parameter>
+        <parameter><name>ReferenceLiquidDensityMacro</name><type>Constant</type><value>1000</value></parameter>
+        <parameter><name>ReferenceLiquidDensityMicro</name><type>Constant</type><value>1.0</value></parameter>
+        <parameter><name>MicroLiquidDensityA</name><type>Constant</type><value>50.0</value></parameter>
+        <parameter><name>MicroLiquidDensityB</name><type>Constant</type><value>1.0</value></parameter>
+        <parameter><name>ReferenceDensitySolid</name><type>Constant</type><value>2780</value></parameter>
+        <parameter><name>HamakerConstant</name><type>Constant</type><value>2.2e-20</value></parameter>
+        <parameter><name>SpecificSurface</name><type>Constant</type><value>5.23e5</value></parameter>
+        <parameter><name>AreaFactorTuller</name><type>Constant</type><value>1.0</value></parameter>
+        <parameter><name>PoreAreaShapeFactorTuller</name><type>Constant</type><value>0.8584073464102069</value></parameter>
+        <parameter><name>CharacteristicPoreSize</name><type>Constant</type><value>1e-5</value></parameter>
+        <parameter><name>SurfaceTension</name><type>Constant</type><value>0.0715</value></parameter>
+        <parameter><name>n_l0</name><type>Constant</type><value>0.001</value></parameter>
+        <parameter><name>rho_lR0</name><type>Constant</type><value>1000.0</value></parameter>
+    
+        <!-- MCC parameters (beacon_1a01 seed values) -->
+        <parameter><name>CriticalStateLineSlope</name><type>Constant</type><value>1.2</value></parameter>
+        <parameter><name>SwellingLineSlope</name><type>Constant</type><value>6.6e-3</value></parameter>
+        <parameter><name>VirginConsolidationLineSlope</name><type>Constant</type><value>7.7e-2</value></parameter>
+        <parameter><name>InitialPreConsolidationPressure</name><type>Constant</type><value>1.0e10</value></parameter>
+        <parameter><name>InitialVolumeRatio</name><type>Constant</type><value>1.737500</value></parameter>
+        <parameter><name>MacroSaturationLawMode</name><type>Constant</type><value>0</value></parameter>
+        <parameter><name>MicroStateLocalSolveMode</name><type>Constant</type><value>1</value></parameter>
+        <parameter><name>MicroPotentialConvention</name><type>Constant</type><value>0</value></parameter>
+        <parameter><name>BubblePressure</name><type>Constant</type><value>2.7e7</value></parameter>
+        <parameter><name>VanGenuchtenExponent_m</name><type>Constant</type><value>0.45</value></parameter>
+        <parameter><name>ResidualLiquidSaturation</name><type>Constant</type><value>0.0</value></parameter>
+        <parameter><name>ResidualGasSaturation</name><type>Constant</type><value>0.0</value></parameter>
+        <parameter><name>MacroViscosity</name><type>Constant</type><value>1.0e-3</value></parameter>
+        <parameter><name>epsilon_sw0</name><type>Constant</type><value>0.0</value></parameter>
+        <parameter><name>YoungModulus</name><type>Constant</type><value>5.2e7</value></parameter>
+        <parameter><name>E_gap</name><type>Constant</type><value>1.0e7</value></parameter>
+    </parameters>
+    <process_variables>
+        <process_variable>
+            <name>displacement</name>
+            <components>2</components>
+            <order>1</order>
+            <initial_condition>displacement0</initial_condition>
+            <boundary_conditions>
+                <!-- Axis of symmetry: u_r = 0 -->
+                <boundary_condition><mesh>ms33_gap2mm_r27_h70_left</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
+                <!-- Container wall at r=0.027m: u_r = 0 -->
+                <boundary_condition><mesh>ms33_gap2mm_r27_h70_right</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
+                <!-- Bottom: u_z = 0 -->
+                <boundary_condition><mesh>ms33_gap2mm_r27_h70_bottom</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
+                <!-- Top lid: u_z = 0 -->
+                <boundary_condition><mesh>ms33_gap2mm_r27_h70_top</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
+            </boundary_conditions>
+        </process_variable>
+        <process_variable>
+            <name>pressure</name>
+            <components>1</components>
+            <order>1</order>
+            <initial_condition>pressure_ic</initial_condition>
+            <boundary_conditions>
+                <!-- Hydration from bottom: suction ramp 100→0 MPa over 20 days -->
+                <boundary_condition><mesh>ms33_gap2mm_r27_h70_bottom</mesh><type>Dirichlet</type><parameter>pressure_bc</parameter></boundary_condition>
+            </boundary_conditions>
+        </process_variable>
+    </process_variables>
+    <nonlinear_solvers>
+        <nonlinear_solver><name>basic_newton</name><type>Newton</type><max_iter>60</max_iter><linear_solver>ls</linear_solver></nonlinear_solver>
+    </nonlinear_solvers>
+    <linear_solvers>
+        <linear_solver><name>ls</name><eigen><solver_type>SparseLU</solver_type><scaling>true</scaling></eigen></linear_solver>
+    </linear_solvers>
+    <curves>
+        <curve>
+            <name>suction_ramp</name>
+            <coords>0 1728000 17280000</coords>
+            <values>-1e8 0 0</values>
+        </curve>
+    </curves>
+</OpenGeoSysProject>

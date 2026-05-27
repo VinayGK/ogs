@@ -1,5 +1,38 @@
 # ANCHORS MS33 Model-I
 
+## 2026-05-27 — Swap to DSM-native hierarchical formulation
+
+The three project files (`ms33_model_i_dd1400.prj`, `ms33_model_i_dd1600.prj`,
+`ms33_model_i_dd1800.prj`) have been replaced with the EURAD-2 MS33 spec-aligned
+DSM-native hierarchical formulation promoted from
+`tex/cc2024/VK_SB_EURAD_DSM/MS33_LE_RERUN/ANCHORS_MS33_ModelI/`.
+
+What changed:
+- Constitutive law: phenomenological `LinearElasticIsotropic` +
+  `SaturationDependentSwelling` (with a single 2 MPa swelling pressure shared
+  by all three dry densities) replaced by DSM-native hierarchical model with
+  per-density vdW augmentation prefactors `K` calibrated against Villar
+  swelling-pressure targets (1.504 / 5.824 / 22.556 MPa at
+  1400 / 1600 / 1800 kg/m³).
+- Mesh: spec-aligned single-element cell `../square_1e-2_quad_1e0.vtu`
+  (1 cm × 1 cm) instead of the previous `square_1x1_quad_1e0.vtu` 1 m cell.
+- Saturation BC: applied to both top and bottom faces so all 4 nodes track
+  the suction ramp (proper suction-controlled single-element benchmark).
+- Output prefixes: `ms33_modelI_dd*` (camelCase) — produced files therefore no
+  longer collide with the previous `ms33_model_i_dd*` snapshot artefacts in
+  this directory. The in-tree PRJ filenames remain `ms33_model_i_dd*.prj`
+  (snake_case) so that pre-existing references (CTest, scripts) keep working.
+- Output variables now include `intrinsic_permeability` and
+  `relative_permeability` (sibling C++ change enables emitting these).
+
+Why the swap:
+- The previous in-tree PRJs used the same 2 MPa swelling pressure for all
+  three dry densities, which is physically wrong — Villar measurements span
+  ~1.5 to ~22.6 MPa across this density range. The promoted spec-aligned
+  PRJs are the only versions reproducing those targets.
+
+## Historical content (pre-2026-05-27)
+
 This folder contains a simplified MS33 Model-I confined swelling sweep at
 three dry-density points.
 

@@ -1,43 +1,53 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <!--
-EURAD-2 MS33 Theoretical Benchmarking — Model I
-Swelling pressure under isotropic constant-volume conditions
+EURAD-2 MS33 Theoretical Benchmarking — Model IV
+Clay-pellets interaction, homogenization in dry density
 BGR / DSM MFront micro-macro bridge (RichardsMechanicsDSMMicroMacroBridge)
 
-Dry density: 1400 kg/m³  (14 kN/m³)  |  phi0 = 0.496403  |  n_s = 0.503597
+Geometry: 50mm diam × 70mm height axisymmetric cylinder
+  Bentonite block (medium id=0): r=0–0.025m, z=0.035–0.070m  (MaterialID=0)
+  Pellet zone     (medium id=1): r=0–0.025m, z=0–0.035m      (MaterialID=1)
 
-K calibration caveat (MFront bridge): the MFront behaviour
-RichardsMechanicsDSMMicroMacroBridge computes the vdW prefactor *internally*
-from HamakerConstant (literature 2.2e-20 J, Israelachvili & Adams 1978) and
-SpecificSurface (5.23e5 m²/kg = 523 m²/g FEBEX montmorillonite). There is no
-vdw_augmentation_prefactor knob in the bridge XML — swelling-pressure
-magnitudes will therefore differ from the native-branch dd-calibrated
-counterpart (which uses K=7654.9 J/kg here). The native and MFront paths are
-expected to agree only at the saturated endpoint of the StrictParity suite,
-where the calibration is invariant (micro_liquid_density_a≈0 bypasses the
-EOS); for the present verification ramps (EOS active) the dry-endpoint sigma
-shifts but the saturated endpoint is preserved within the C++/native parity
-tolerance documented in MEMORY.md ("DSM Pi-path potential physics" entry,
-2026-05-26 active_nS fix).
+Bentonite (clay): rho_d=1600 kg/m³, phi0=0.424460
+Pellets:          rho_d=900  kg/m³, phi0=0.676259
 
-Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_parameters):
-  Geometry: single-element constant-volume (no geometric dimensions required)
-  Implemented reference cell: 1 cm x 1 cm (L = 1e-2 m)
-  Initial suction: 100 MPa  →  pressure_ic = -1e8 Pa
-  Hydration BC (top+bottom): suction ramp 100→0 MPa over 20 days (1728000 s),
-                              then 0 MPa constant for 180 days  (total 200 days = 17280000 s)
-  van Genuchten WRC: P0=27 MPa, alpha=0.45
-  Permeability: Kozeny-Carman, k0 at phi0 (from k_ref=5.6e-21 m² at phi_ref=0.42)
-  Liquid relative permeability: S_e^3  (A=1, n=3)
-  Solid density: 2780 kg/m³
+Constitutive setup (TWO per-material MFront DSM relations):
+  id="0" (clay)    → MFrontRichardsMechanics with InitialPorosity=phi0_clay
+  id="1" (pellet)  → MFrontRichardsMechanics with InitialPorosity=phi0_pellet
+The OGS framework supports multiple <constitutive_relation id="N"> entries
+inside <process> (CreateConstitutiveRelationsGeneric.h). All other DSM
+parameters (Hamaker, SpecificSurface, SwellingSlope, …) are shared and
+literature-derived.
+
+K calibration caveat (MFront bridge): the MFront behaviour computes the vdW
+prefactor internally from HamakerConstant (2.2e-20 J) and SpecificSurface
+(5.23e5 m²/kg). There is no vdw_augmentation_prefactor knob — swelling-
+pressure magnitudes differ from the native-branch dd-calibrated counterpart
+(which used K=29985 J/kg for the clay zone here). See MEMORY.md "DSM Pi-path
+potential physics" entry (2026-05-26) for the active_nS-fix invariance
+discussion.
+
+Official benchmark spec (MSXX §Model IV):
+  Initial suction = 100 MPa for both zones
+  Same hydration BC as reference configuration (bottom suction ramp)
+  Both zones use same 200-day simulation
+-->
+<!--
+  KNOWN ISSUE (mfront branch only): this PRJ runs on the dsm_native_hierarchical
+  branch but fails the Eigen SparseLU factorization at t=0 on the current
+  dsm_mfront_hierarchical branch ("Failed during Eigen linear solver
+  initialization"). The MFront DSM bridge handles single-element axisymmetric
+  problems (see Model I in this set) but currently fails on multi-element
+  axisymmetric meshes. Disabled in Tests.cmake until the MFront bridge is
+  fixed for multi-element axisym.
 -->
 <OpenGeoSysProject>
     <meshes>
-        <mesh axially_symmetric="true">../square_1e-2_quad_1e0.vtu</mesh>
-        <mesh axially_symmetric="true">../square_1e-2_quad_1e0_left.vtu</mesh>
-        <mesh axially_symmetric="true">../square_1e-2_quad_1e0_right.vtu</mesh>
-        <mesh axially_symmetric="true">../square_1e-2_quad_1e0_top.vtu</mesh>
-        <mesh axially_symmetric="true">../square_1e-2_quad_1e0_bottom.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_pellets_r25_h70.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_pellets_r25_h70_left.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_pellets_r25_h70_right.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_pellets_r25_h70_bottom.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_pellets_r25_h70_top.vtu</mesh>
     </meshes>
     <processes>
         <process>
@@ -47,7 +57,8 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
             <jacobian_assembler>
                 <type>Analytical</type>
             </jacobian_assembler>
-            <constitutive_relation>
+            <!-- Clay (bentonite) zone -->
+            <constitutive_relation id="0">
                 <type>MFrontRichardsMechanics</type>
                 <behaviour>RichardsMechanicsDSMMicroMacroBridge</behaviour>
                 <material_properties>
@@ -63,13 +74,40 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                     <material_property name="ReferenceDensitySolid" parameter="ReferenceDensitySolid"/>
                     <material_property name="HamakerConstant" parameter="HamakerConstant"/>
                     <material_property name="SpecificSurface" parameter="SpecificSurface"/>
-                    <material_property name="InitialPorosity" parameter="phi0"/>
+                    <material_property name="InitialPorosity" parameter="phi0_clay"/>
                     <material_property name="AreaFactorTuller" parameter="AreaFactorTuller"/>
                     <material_property name="PoreAreaShapeFactorTuller" parameter="PoreAreaShapeFactorTuller"/>
                     <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize"/>
                     <material_property name="SurfaceTension" parameter="SurfaceTension"/>
-                    <material_property name="VdwAugmentationPrefactor" parameter="VdwAugmentationPrefactor"/>
-                    <material_property name="VdwAugmentationDecayLength" parameter="VdwAugmentationDecayLength"/>
+                </material_properties>
+                <initial_values>
+                    <state_variable name="n_l" parameter="n_l0"/>
+                    <state_variable name="rho_lR" parameter="rho_lR0"/>
+                    <state_variable name="epsilon_sw" parameter="zero"/>
+                </initial_values>
+            </constitutive_relation>
+            <!-- Pellet zone -->
+            <constitutive_relation id="1">
+                <type>MFrontRichardsMechanics</type>
+                <behaviour>RichardsMechanicsDSMMicroMacroBridge</behaviour>
+                <material_properties>
+                    <material_property name="YoungModulus" parameter="YoungModulus"/>
+                    <material_property name="PoissonRatio" parameter="PoissonRatio"/>
+                    <material_property name="SwellingSlope" parameter="SwellingSlope"/>
+                    <material_property name="MassExchangeCoefficient" parameter="MassExchangeCoefficient"/>
+                    <material_property name="FluidViscosity" parameter="FluidViscosity"/>
+                    <material_property name="ReferenceLiquidDensityMacro" parameter="ReferenceLiquidDensityMacro"/>
+                    <material_property name="ReferenceLiquidDensityMicro" parameter="ReferenceLiquidDensityMicro"/>
+                    <material_property name="MicroLiquidDensityA" parameter="MicroLiquidDensityA"/>
+                    <material_property name="MicroLiquidDensityB" parameter="MicroLiquidDensityB"/>
+                    <material_property name="ReferenceDensitySolid" parameter="ReferenceDensitySolid"/>
+                    <material_property name="HamakerConstant" parameter="HamakerConstant"/>
+                    <material_property name="SpecificSurface" parameter="SpecificSurface"/>
+                    <material_property name="InitialPorosity" parameter="phi0_pellet"/>
+                    <material_property name="AreaFactorTuller" parameter="AreaFactorTuller"/>
+                    <material_property name="PoreAreaShapeFactorTuller" parameter="PoreAreaShapeFactorTuller"/>
+                    <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize"/>
+                    <material_property name="SurfaceTension" parameter="SurfaceTension"/>
                 </material_properties>
                 <initial_values>
                     <state_variable name="n_l" parameter="n_l0"/>
@@ -105,6 +143,7 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         </process>
     </processes>
     <media>
+        <!-- Bentonite (clay) zone: DSM, rho_d=1600 kg/m³ -->
         <medium id="0">
             <phases>
                 <phase>
@@ -118,8 +157,6 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                     <type>Solid</type>
                     <properties>
                         <property><name>density</name><type>Constant</type><value>2780.0</value></property>
-                        <!-- No swelling_stress_rate: swelling is handled inside the MFront bridge
-                             (via SwellingSlope * (phi_m - phi_m_prev) bulk-modulus update). -->
                     </properties>
                 </phase>
             </phases>
@@ -128,13 +165,13 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                 <property>
                     <name>permeability</name>
                     <type>KozenyCarman</type>
-                    <initial_permeability>k0</initial_permeability>
-                    <initial_porosity>phi0</initial_porosity>
+                    <initial_permeability>k0_clay</initial_permeability>
+                    <initial_porosity>phi0_clay</initial_porosity>
                 </property>
                 <property>
                     <name>porosity</name>
                     <type>PorosityFromMassBalance</type>
-                    <initial_porosity>phi0</initial_porosity>
+                    <initial_porosity>phi0_clay</initial_porosity>
                     <minimal_porosity>0</minimal_porosity>
                     <maximal_porosity>1</maximal_porosity>
                 </property>
@@ -154,8 +191,61 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
                     <exponent>0.45</exponent>
-                    <!-- P0 = 27 MPa per benchmark Table TH-G_model_parameters -->
                     <p_b>2.7e7</p_b>
+                </property>
+                <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
+            </properties>
+        </medium>
+        <!-- Pellet zone: DSM with rho_d=900 kg/m³ (high porosity) -->
+        <medium id="1">
+            <phases>
+                <phase>
+                    <type>AqueousLiquid</type>
+                    <properties>
+                        <property><name>viscosity</name><type>Constant</type><value>1e-3</value></property>
+                        <property><name>density</name><type>Constant</type><value>1000.0</value></property>
+                    </properties>
+                </phase>
+                <phase>
+                    <type>Solid</type>
+                    <properties>
+                        <property><name>density</name><type>Constant</type><value>2780.0</value></property>
+                    </properties>
+                </phase>
+            </phases>
+            <properties>
+                <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
+                <property>
+                    <name>permeability</name>
+                    <type>KozenyCarman</type>
+                    <initial_permeability>k0_pellet</initial_permeability>
+                    <initial_porosity>phi0_pellet</initial_porosity>
+                </property>
+                <property>
+                    <name>porosity</name>
+                    <type>PorosityFromMassBalance</type>
+                    <initial_porosity>phi0_pellet</initial_porosity>
+                    <minimal_porosity>0</minimal_porosity>
+                    <maximal_porosity>1</maximal_porosity>
+                </property>
+                <property><name>reference_temperature</name><type>Constant</type><value>293.15</value></property>
+                <property>
+                    <name>relative_permeability</name>
+                    <type>RelativePermeabilityGeneralizedPower</type>
+                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
+                    <residual_gas_saturation>0.0</residual_gas_saturation>
+                    <min_relative_permeability>1e-12</min_relative_permeability>
+                    <enhancement_factor>1.0</enhancement_factor>
+                    <exponent>3</exponent>
+                </property>
+                <property>
+                    <name>saturation</name>
+                    <type>SaturationVanGenuchten</type>
+                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
+                    <residual_gas_saturation>0.0</residual_gas_saturation>
+                    <exponent>0.45</exponent>
+                    <!-- Pellets saturate more easily (lower P_entry) -->
+                    <p_b>1.5e7</p_b>
                 </property>
                 <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
             </properties>
@@ -186,12 +276,9 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>ms33_model_i_dd1400</prefix>
+            <prefix>ms33_modelIV_pellets</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
-            <fixed_output_times>
-                864000 1382400 1555200 1641600 1693440 1710720 1719360 1726272
-                1728000 8640000 17280000
-            </fixed_output_times>
+            <fixed_output_times>1728000 8640000 17280000</fixed_output_times>
             <variables>
                 <variable>pressure</variable>
                 <variable>displacement</variable>
@@ -214,19 +301,19 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         </output>
     </time_loop>
     <parameters>
-        <!-- Initial stress (isotropic 0.15 MPa per benchmark reference configuration) -->
         <parameter><name>sigma0</name><type>Function</type>
             <expression>-1.5e5</expression><expression>-1.5e5</expression>
             <expression>-1.5e5</expression><expression>0</expression>
         </parameter>
         <parameter><name>YoungModulus</name><type>Constant</type><value>52e6</value></parameter>
         <parameter><name>PoissonRatio</name><type>Constant</type><value>0.3</value></parameter>
-        <!-- phi0 = 1 - 1400/2780 = 0.496403 -->
-        <parameter><name>phi0</name><type>Constant</type><value>0.4964028776978417</value></parameter>
-        <!-- k0 at phi0=0.4964 from Kozeny-Carman with k_ref=5.6e-21 m² at phi_ref=0.42 -->
-        <parameter><name>k0</name><type>Constant</type><value>1.2264e-20</value></parameter>
+        <!-- Clay (bentonite) parameters: rho_d=1600, phi0=0.424460 -->
+        <parameter><name>phi0_clay</name><type>Constant</type><value>0.4244604316546763</value></parameter>
+        <parameter><name>k0_clay</name><type>Constant</type><value>5.8703e-21</value></parameter>
+        <!-- Pellet parameters: rho_d=900, phi0=0.676259 -->
+        <parameter><name>phi0_pellet</name><type>Constant</type><value>0.6762589928057554</value></parameter>
+        <parameter><name>k0_pellet</name><type>Constant</type><value>7.478e-20</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
-        <!-- Initial suction = 100 MPa → pL = -1e8 Pa -->
         <parameter><name>pressure_ic</name><type>Constant</type><value>-1e8</value></parameter>
         <parameter><name>zero</name><type>Constant</type><value>0.0</value></parameter>
         <parameter><name>p_bc_scale</name><type>Constant</type><value>1</value></parameter>
@@ -240,19 +327,12 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         <parameter><name>MicroLiquidDensityA</name><type>Constant</type><value>50.0</value></parameter>
         <parameter><name>MicroLiquidDensityB</name><type>Constant</type><value>1.0</value></parameter>
         <parameter><name>ReferenceDensitySolid</name><type>Constant</type><value>2780</value></parameter>
-        <!-- Hamaker constant [J] — literature value, NOT calibrated -->
         <parameter><name>HamakerConstant</name><type>Constant</type><value>2.2e-20</value></parameter>
-        <!-- specific surface [m²/kg] = 523 m²/g -->
         <parameter><name>SpecificSurface</name><type>Constant</type><value>5.23e5</value></parameter>
         <parameter><name>AreaFactorTuller</name><type>Constant</type><value>1.0</value></parameter>
         <parameter><name>PoreAreaShapeFactorTuller</name><type>Constant</type><value>0.8584073464102069</value></parameter>
         <parameter><name>CharacteristicPoreSize</name><type>Constant</type><value>1e-5</value></parameter>
         <parameter><name>SurfaceTension</name><type>Constant</type><value>0.0715</value></parameter>
-        <!-- Step-1 placeholder per user 2026-05-27: K=0 for dd1400 (and dd1800);
-             dd1600 alone activates the calibrated K=29985 J/kg. -->
-        <parameter><name>VdwAugmentationPrefactor</name><type>Constant</type><value>0.0</value></parameter>
-        <parameter><name>VdwAugmentationDecayLength</name><type>Constant</type><value>7.5e-7</value></parameter>
-        <!-- Initial state of MFront bridge state variables -->
         <parameter><name>n_l0</name><type>Constant</type><value>0.001</value></parameter>
         <parameter><name>rho_lR0</name><type>Constant</type><value>1000.0</value></parameter>
     </parameters>
@@ -263,11 +343,14 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
             <order>1</order>
             <initial_condition>displacement0</initial_condition>
             <boundary_conditions>
-                <!-- All walls fixed: constant-volume isotropic test -->
-                <boundary_condition><mesh>square_1e-2_quad_1e0_left</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
-                <boundary_condition><mesh>square_1e-2_quad_1e0_right</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
-                <boundary_condition><mesh>square_1e-2_quad_1e0_bottom</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
-                <boundary_condition><mesh>square_1e-2_quad_1e0_top</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
+                <!-- Axis of symmetry: u_r = 0 -->
+                <boundary_condition><mesh>ms33_pellets_r25_h70_left</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
+                <!-- Outer wall at r=0.025m: u_r = 0 (rigid container) -->
+                <boundary_condition><mesh>ms33_pellets_r25_h70_right</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
+                <!-- Bottom: u_z = 0 (rigid base) -->
+                <boundary_condition><mesh>ms33_pellets_r25_h70_bottom</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
+                <!-- Top lid: u_z = 0 (rigid lid) -->
+                <boundary_condition><mesh>ms33_pellets_r25_h70_top</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
             </boundary_conditions>
         </process_variable>
         <process_variable>
@@ -276,8 +359,8 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
             <order>1</order>
             <initial_condition>pressure_ic</initial_condition>
             <boundary_conditions>
-                <boundary_condition><mesh>square_1e-2_quad_1e0_bottom</mesh><type>Dirichlet</type><parameter>pressure_bc</parameter></boundary_condition>
-                <boundary_condition><mesh>square_1e-2_quad_1e0_top</mesh><type>Dirichlet</type><parameter>pressure_bc</parameter></boundary_condition>
+                <!-- Hydration from bottom (pellet zone bottom face) -->
+                <boundary_condition><mesh>ms33_pellets_r25_h70_bottom</mesh><type>Dirichlet</type><parameter>pressure_bc</parameter></boundary_condition>
             </boundary_conditions>
         </process_variable>
     </process_variables>
@@ -290,8 +373,6 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
     <curves>
         <curve>
             <name>suction_ramp</name>
-            <!-- Ramp from -1e8 Pa (100 MPa suction) to 0 in 20 days (1728000 s),
-                 then constant 0 for remainder of 200 days (17280000 s) -->
             <coords>0 1728000 17280000</coords>
             <values>-1e8 0 0</values>
         </curve>
