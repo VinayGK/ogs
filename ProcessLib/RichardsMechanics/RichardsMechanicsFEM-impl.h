@@ -1579,8 +1579,19 @@ computeReferenceMicroPorositySwellingStressIncrement(
         double const K = potential_exchange_params.vdw_augmentation_prefactor;
         double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
         double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
-        // Thermodynamic form: sigma_sw = -phi_m * Pi = -n_S * n_l * Pi
-        // (compressive eigenstress, tension-positive convention).
+        // Thermodynamic form (REV scale):  sigma_sw = -phi_m * Pi
+        // with phi_m = (1 - phi_M) * n_l = n_S * n_l in the hierarchical
+        // split (compressive eigenstress, tension-positive convention).
+        //
+        // NAMING NOTE: the n_S in scope here is the REV-scale solid fraction
+        // (1 - phi_M), passed in from the caller at line ~1648
+        //   double const n_S = std::max(1e-16, 1.0 - phi_M);
+        // It is DISTINCT from the aggregate-scale active_nS = 1 - n_l used
+        // as the omega_l denominator in PotentialExchange.h (post-2026-05-26
+        // fix, commit 8192021299). Both quantities are sometimes named "nS"
+        // in nearby code; the identification phi_m = n_S * n_l holds only
+        // for the REV-scale n_S here, NOT for the aggregate-scale active_nS.
+        //
         // n_l factor was previously absorbed into K; now explicit.
         // Sign: n_l*Pi increases during hydration (n_l<<C=lambda*nS*rho_SR*Sa),
         // so n_l_prev*Pi_prev - n_l*Pi_curr < 0 -> compressive increment.

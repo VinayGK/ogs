@@ -166,8 +166,14 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     double const prefactor = hamaker_constant * specific_surface *
                                  specific_surface * specific_surface /
                              (6.0 * pi);
-    // Units: [J]*[m^2/kg]^3 * [kg/m^3]^3 / ([m^3] * [kg/m^3]) = J/kg  ✓
-    // (dividing by rho_lR converts from Pa to J/kg — dimensionally required)
+    // Units (n_l, nS are dimensionless volume fractions, so [1]):
+    //   A · Sa^3 · nS^3 · rho_SR^3 / (n_l^3 · rho_lR)
+    //   [J] · [m^2/kg]^3 · [1] · [kg/m^3]^3 / ([1] · [kg/m^3])
+    //   = [J · m^6/kg^3 · kg^3/m^9] / [kg/m^3]
+    //   = [J/m^3] / [kg/m^3]
+    //   = J/kg  ✓
+    // The leading /rho_lR converts J/m^3 (Pa) to J/kg — dimensionally
+    // required by the exchange equation rho_l_hat = alpha * (mu_LR - mu_lR).
     out.mu_lR = potential_sign_factor * prefactor * (nS * nS * nS) *
                 (rho_SR * rho_SR * rho_SR) / (n_l * n_l * n_l * rho_lR);
 

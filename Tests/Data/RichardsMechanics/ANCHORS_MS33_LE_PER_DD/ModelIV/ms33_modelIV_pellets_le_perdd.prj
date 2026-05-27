@@ -173,7 +173,7 @@ Official benchmark spec (MSXX §Model IV):
                 <!-- saturation_micro (VGM, p_b=2.7e8) removed: vestigial in Pi-path mode.
                      micro_pressure = Pi = rho_lR*K*exp(-xi) (disjoining pressure).
                      micro_water_content = n_l (adsorbed water per unit solid volume). -->
-                <property><name>bishops_effective_stress</name><type>BishopsPowerLaw</type><exponent>1</exponent></property>
+                <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
             </properties>
         </medium>
         <!-- Pellet zone: DSM with rho_d=900 kg/m³ (high porosity) -->
@@ -239,7 +239,7 @@ Official benchmark spec (MSXX §Model IV):
                 </property>
                 <!-- saturation_micro (VGM, p_b=1.5e8) removed: vestigial in Pi-path mode.
                      Pellet zone: same Pi-path physics, no capillary micro-saturation concept. -->
-                <property><name>bishops_effective_stress</name><type>BishopsPowerLaw</type><exponent>1</exponent></property>
+                <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
             </properties>
         </medium>
     </media>
