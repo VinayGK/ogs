@@ -26,6 +26,20 @@ if (NOT OGS_USE_MPI)
     OgsTest(PROJECTFILE RichardsMechanics/LiakopoulosHM/liakopoulos_QN.prj RUNTIME 50)
     OgsTest(PROJECTFILE RichardsMechanics/A2.prj RUNTIME 20)
     OgsTest(PROJECTFILE RichardsMechanics/restart_w_backfill.prj RUNTIME 20)
+
+    # ANCHORS EURAD-2 MS33 theoretical benchmarking — MFront DSM bridge runs
+    # Model I: works on single-element axisymmetric.
+    OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelI/ms33_model_i_dd1400.prj RUNTIME 120)
+    OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelI/ms33_model_i_dd1600.prj RUNTIME 120)
+    OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelI/ms33_model_i_dd1800.prj RUNTIME 120)
+    # Models III/IV/VII PRJs exist in-tree under the MFront-bridge schema, but
+    # MFront-RichardsMechanics currently fails the SparseLU factorization on
+    # multi-element axisymmetric meshes ("Failed during Eigen linear solver
+    # initialization" at t=0). Same physics runs cleanly on the native branch.
+    # Re-enable here once the MFront bridge is fixed for multi-element axisym.
+    # OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIII/ms33_modelIII_gap2mm.prj RUNTIME 240)
+    # OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIV/ms33_modelIV_pellets.prj RUNTIME 240)
+    # OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling.prj RUNTIME 300)
 endif()
 
 if (NOT OGS_USE_MPI AND OGS_USE_MFRONT)

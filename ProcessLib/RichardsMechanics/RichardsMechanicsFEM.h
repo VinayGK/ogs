@@ -231,6 +231,7 @@ private:
         ConstitutiveData<DisplacementDim>& CD,
         StatefulData<DisplacementDim>& SD,
         StatefulDataPrev<DisplacementDim> const& SD_prev,
+        OutputData<DisplacementDim>& OD,
         std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
         MaterialLib::Solids::MechanicsBase<DisplacementDim> const&
             solid_material,

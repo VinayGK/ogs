@@ -55,6 +55,7 @@ using StatefulDataPrev = ProcessLib::ConstitutiveRelations::PrevStateOf<
 template <int DisplacementDim>
 using OutputData = std::tuple<
     ProcessLib::ThermoRichardsMechanics::DarcyLawData<DisplacementDim>,
+    ProcessLib::ThermoRichardsMechanics::PermeabilityData<DisplacementDim>,
     DrySolidDensity>;
 
 /// Data that is needed for the equation system assembly.
@@ -70,7 +71,6 @@ using ConstitutiveData = std::tuple<
     ProcessLib::ThermoRichardsMechanics::SolidCompressibilityData,
     ProcessLib::ThermoRichardsMechanics::BishopsData,
     PrevState<ProcessLib::ThermoRichardsMechanics::BishopsData>,
-    ProcessLib::ThermoRichardsMechanics::PermeabilityData<DisplacementDim>,
     SaturationSecantDerivative>;
 
 /// Data that stores intermediate values, which are not needed outside the
