@@ -1,0 +1,65 @@
+# ANCHORS MS33 Model III — clay column with 2 mm soft-elastic technological gap.
+#
+# Mesh: ANCHORS_MS33_ModelIII/ms33_gap2mm_r27_h70.vtu, axisymmetric.
+#
+# Geometry (transcribed from ms33_modelIII_gap2mm.prj lines 8–11, 35):
+#   Clay zone (MaterialID=0): r ∈ [0,     0.025] m, z ∈ [0, 0.070] m  — DSM
+#   Gap zone  (MaterialID=1): r ∈ [0.025, 0.027] m, z ∈ [0, 0.070] m  — LinearElastic soft
+#   Container wall: rigid at r=0.027 m (u_r=0 on the right face).
+#
+# Stress convention: same as Model I (BishopsSaturationCutoff cutoff=1
+# → σ_eff ≡ σ_total numerically). CSV column labeled mean_stress_MPa.
+
+model: III
+mesh: ms33_gap2mm_r27_h70.vtu       # OGS snapshots omit MaterialIDs; loaded from this file alongside the PVD
+description: |
+  Clay column with 2 mm lateral technological gap modeled as a soft elastic zone.
+  Story: gap closure as clay swells into the gap. The gap is a physically modeled
+  material zone (E_gap=10 MPa per PRJ), not a free surface.
+
+material_ids:
+  0: { name: clay }
+  1: { name: gap }                    # soft linear-elastic, E≈10 MPa per PRJ
+zones:
+  - { id: clay, material_id: 0, aggregation: [volume_avg, centroid] }
+  - { id: gap,  material_id: 1, aggregation: [volume_avg, centroid] }
+
+triptych:
+  fields:
+    - { panel: pressure,         source: pressure,        reduction: identity,         unit: MPa,  scale: -1.0e-6 }
+    - { panel: displacement_mag, source: displacement,    reduction: vector_magnitude, unit: mm,   scale: 1.0e3   }
+    - { panel: swelling_stress,  source: swelling_stress, reduction: mean_compressive, unit: MPa,  scale: 1.0e-6  }
+  layout: horizontal
+  time: final
+  axis_labels: { x: "r [m]", y: "z [m]" }
+
+time_series:
+  - { key: suction,              field: pressure,         reduction: mean,             unit: MPa,    scale: -1.0e-6, per_zone: false }
+  - { key: mean_stress,          field: sigma,            reduction: mean_compressive, unit: MPa,    scale:  1.0e-6, per_zone: true  }
+  - { key: mean_swelling_stress, field: swelling_stress,  reduction: mean_compressive, unit: MPa,    scale:  1.0e-6, per_zone: true  }
+  - { key: dry_density,          field: dry_density_solid, reduction: mean,            unit: kg/m^3, scale: 1.0,     per_zone: true  }
+  - { key: saturation,           field: saturation,       reduction: mean,             unit: "-",    scale: 1.0,     per_zone: true  }
+  - { key: porosity,             field: porosity,         reduction: mean,             unit: "-",    scale: 1.0,     per_zone: true  }
+  - { key: gap_aperture,         probe: gap_aperture }
+
+# Gap-aperture sampling: aperture(t) = (initial gap) − max_z u_r at the clay/gap
+# interface (r = r_clay_outer). Universal rule chosen: "max radial displacement
+# at the outer free surface of the clay zone" — applied here to the clay/gap
+# interface (the gap is a soft zone, not a free boundary, but the interface
+# behaves like a free surface to the clay).
+probes:
+  gap_aperture:
+    type: radial_extension_at_interface
+    # Geometry from ms33_modelIII_gap2mm.prj header lines 8–11:
+    gap_nominal_m:  0.002             # initial gap thickness (PRJ: r=0.025 → 0.027)
+    interface_r_m:  0.025             # clay outer / gap inner interface
+    z_range_m:      [0.0, 0.070]      # full specimen height (PRJ: z=0 to 0.070)
+    field: displacement
+    reduction: max_ur                 # max(u_r) over interface nodes
+
+markers_days: [20, 100, 200]
+
+figures:
+  - { key: mean_stress,    xaxis: time_days,   yaxis: mean_stress_clay_volavg_MPa,             title: "Model III — Mean stress (clay zone)" }
+  - { key: gap_aperture,   xaxis: time_days,   yaxis: gap_aperture_mm,                         title: "Model III — Gap aperture vs time" }
+  - { key: ps_path,        xaxis: suction_MPa, yaxis: mean_stress_clay_volavg_MPa,             title: "Model III — p–s path (clay zone)" }

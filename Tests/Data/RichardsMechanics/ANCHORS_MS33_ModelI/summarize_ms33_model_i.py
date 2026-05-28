@@ -72,7 +72,15 @@ def reduce_snapshot(path: Path):
     sigma = get_array(grid, "sigma")
     swelling = get_array(grid, "swelling_stress")
 
-    mean_total_stress = float((-sigma[:, 0] - sigma[:, 1] - sigma[:, 2]).mean() / 3.0)
+    # The VTU `sigma` field is OGS's stored sigma_eff. Under BishopsSaturationCutoff
+    # with cutoff_value=1 (all four MS33 PRJs) we have χ=0 on the unsaturated
+    # branch and p_L=0 at saturation, so sigma_eff ≡ sigma_total numerically
+    # throughout these simulations. The column is therefore labeled neutrally as
+    # `mean_stress_MPa` and the legacy `mean_total_stress_MPa` key is also
+    # written for backward compatibility with earlier downstream tooling.
+    # Rename / drop the legacy key if the cutoff convention is ever changed.
+    # (Cf. ../ANCHORS_MS33_shared/audit_extract_ms33.py docstring; CLAUDE.md §5.1.)
+    mean_stress = float((-sigma[:, 0] - sigma[:, 1] - sigma[:, 2]).mean() / 3.0)
     mean_swelling_stress = float((-swelling[:, 0] - swelling[:, 1] - swelling[:, 2]).mean() / 3.0)
 
     return {
@@ -85,7 +93,8 @@ def reduce_snapshot(path: Path):
         "porosity_spread": clean_scalar(float(porosity.max() - porosity.min())),
         "dry_density_avg_kg_m3": clean_scalar(float(dry_density.mean())),
         "dry_density_spread_kg_m3": clean_scalar(float(dry_density.max() - dry_density.min())),
-        "mean_total_stress_MPa": clean_scalar(mean_total_stress / 1e6),
+        "mean_stress_MPa": clean_scalar(mean_stress / 1e6),
+        "mean_total_stress_MPa": clean_scalar(mean_stress / 1e6),  # legacy alias; remove once downstream callers migrate
         "mean_swelling_stress_MPa": clean_scalar(mean_swelling_stress / 1e6),
     }
 
@@ -120,7 +129,8 @@ def main() -> None:
                     "rho_dry_kg_m3": meta["rho_dry"],
                     "time_days": snap["time_days"],
                     "suction_MPa": snap["suction_MPa_avg"],
-                    "mean_total_stress_MPa": snap["mean_total_stress_MPa"],
+                    "mean_stress_MPa": snap["mean_stress_MPa"],
+                    "mean_total_stress_MPa": snap["mean_total_stress_MPa"],  # legacy alias
                     "mean_swelling_stress_MPa": snap["mean_swelling_stress_MPa"],
                     "saturation": snap["saturation_avg"],
                     "porosity": snap["porosity_avg"],
@@ -144,7 +154,8 @@ def main() -> None:
                 "rho_dry_kg_m3",
                 "time_days",
                 "suction_MPa",
-                "mean_total_stress_MPa",
+                "mean_stress_MPa",
+                "mean_total_stress_MPa",  # legacy alias of mean_stress_MPa; see reduce_snapshot()
                 "mean_swelling_stress_MPa",
                 "saturation",
                 "porosity",

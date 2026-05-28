@@ -1,0 +1,66 @@
+# ANCHORS MS33 Model I — single-element confined Villar swell test.
+#
+# Mesh: ../square_1e-2_quad_1e0.vtu (1 element, axisymmetric, r,z ∈ [0,0.01]).
+# All four nodes have u_r = u_z = 0; suction ramp from 100 MPa to 0 over 20 d,
+# hold for 180 d; t_end = 200 d. Three dry-density cases (1400/1600/1800 kg/m^3)
+# share this mesh; the dd-dependent material parameters live in the PRJ.
+#
+# Stress convention: under BishopsSaturationCutoff with cutoff_value=1, χ ≡ 0 on
+# the unsaturated branch and p_L = 0 at saturation, so the VTU `sigma` field is
+# numerically identical to σ_total throughout. The CSV column is labeled
+# `mean_stress_MPa` (neutral); rename if the cutoff convention changes.
+
+model: I
+mesh: square_1e-2_quad_1e0.vtu      # shared with parent RichardsMechanics/ dir; OGS snapshots omit MaterialIDs, so the audit loads them from this file when present alongside the PVD
+description: |
+  Single-element confined Villar swell test. Drives the dd-sweep calibration of
+  the vdW augmentation prefactor K against Ps_target = exp(6.77·ρ_d − 9.07) MPa.
+
+# Single material; one-element mesh. The dry density is case-dependent (1400 /
+# 1600 / 1800 kg/m^3); the script reads ρ_d from the PVD's matching PRJ when
+# possible, otherwise from the --rho-dry CLI flag. Do NOT hardcode it here.
+material_ids:
+  0: { name: bentonite }
+zones:
+  - { id: bentonite, material_id: 0, aggregation: [volume_avg, centroid] }
+
+# Triptych panels (frame 184 of VK_SB_EURAD_DSM_output.tex):
+# "Pressure, Displacement, Swelling-Stress Fields"
+triptych:
+  fields:
+    - { panel: pressure,           source: pressure,         reduction: identity,         unit: MPa,  scale: -1.0e-6 }
+    - { panel: displacement_mag,   source: displacement,     reduction: vector_magnitude, unit: m,    scale: 1.0 }
+    - { panel: swelling_stress,    source: swelling_stress,  reduction: mean_compressive, unit: MPa,  scale: 1.0e-6 }
+  layout: horizontal
+  time: final
+  axis_labels: { x: "r [m]", y: "z [m]" }
+
+# Per-timestep scalars (history.csv columns).
+time_series:
+  - { key: suction,            field: pressure,         reduction: mean,             unit: MPa,    scale: -1.0e-6,  per_zone: false }
+  - { key: mean_stress,        field: sigma,            reduction: mean_compressive, unit: MPa,    scale:  1.0e-6,  per_zone: true  }
+  - { key: mean_swelling_stress, field: swelling_stress, reduction: mean_compressive, unit: MPa,   scale:  1.0e-6,  per_zone: true  }
+  - { key: dry_density,        field: dry_density_solid, reduction: mean,            unit: kg/m^3, scale: 1.0,      per_zone: true  }
+  - { key: saturation,         field: saturation,       reduction: mean,             unit: "-",    scale: 1.0,      per_zone: true  }
+  - { key: porosity,           field: porosity,         reduction: mean,             unit: "-",    scale: 1.0,      per_zone: true  }
+
+# Snapshot times in days, drawn as markers on every evolution figure (per the
+# universal rule "continuous curve + markers at fixed_output_times").
+markers_days: [20, 100, 200]
+
+# Per-model evolution figures (one PDF each).
+figures:
+  - { key: mean_stress,           xaxis: time_days,   yaxis: mean_stress_bentonite_volavg_MPa,           title: "Model I — Mean stress" }
+  - { key: dry_density,           xaxis: time_days,   yaxis: dry_density_bentonite_volavg_kg_m3,         title: "Model I — Dry density" }
+  - { key: ps_path,               xaxis: suction_MPa, yaxis: mean_stress_bentonite_volavg_MPa,           title: "Model I — p–s path" }
+  - { key: villar_benchmark,      kind: dd_sweep,                                                        title: "Model I — Villar swelling-pressure curve" }
+
+# Villar / Lloret Eq. (7) for the final-state benchmark figure. Plotted as a
+# reference curve plus discrete dd reference points.
+# Source: Villar 2007 Tab. 3 transcription used throughout the MS33 suite.
+villar_reference:
+  formula: "exp(6.77 * rho_d_g_cm3 - 9.07)  # MPa"
+  reference_points:
+    - { rho_d_g_cm3: 1.40, Ps_target_MPa: 1.504 }
+    - { rho_d_g_cm3: 1.60, Ps_target_MPa: 5.824 }
+    - { rho_d_g_cm3: 1.80, Ps_target_MPa: 22.556 }

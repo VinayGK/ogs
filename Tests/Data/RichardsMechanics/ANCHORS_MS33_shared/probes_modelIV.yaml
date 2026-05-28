@@ -1,0 +1,64 @@
+# ANCHORS MS33 Model IV — clay + pellet stack, two-material homogenisation.
+#
+# Mesh: ANCHORS_MS33_ModelIV/ms33_pellets_r25_h70.vtu, axisymmetric.
+#
+# Geometry (transcribed from ms33_modelIV_pellets.prj lines 7–9):
+#   Clay zone  (MaterialID=0): r ∈ [0, 0.025] m, z ∈ [0.035, 0.070] m  — DSM, ρ_d=1600
+#   Pellet zone(MaterialID=1): r ∈ [0, 0.025] m, z ∈ [0, 0.035] m      — DSM, ρ_d=900
+#   Clay/pellet interface plane: z = 0.035 m.
+#
+# Stress convention: same as Model I (BishopsSaturationCutoff cutoff=1
+# → σ_eff ≡ σ_total numerically). CSV column labeled mean_stress_MPa.
+
+model: IV
+mesh: ms33_pellets_r25_h70.vtu      # OGS snapshots omit MaterialIDs; loaded from this file alongside the PVD
+description: |
+  Clay-pellet stack. Story: hydration enters through the pellet bottom face,
+  saturates the pellet zone first (lower entry pressure, p_b=1.5e7 vs clay 2.7e7),
+  then the clay; mechanical response concentrates at the clay/pellet interface.
+
+material_ids:
+  0: { name: clay }
+  1: { name: pellet }
+zones:
+  - { id: clay,   material_id: 0, aggregation: [volume_avg, centroid] }
+  - { id: pellet, material_id: 1, aggregation: [volume_avg, centroid] }
+
+triptych:
+  fields:
+    - { panel: pressure,         source: pressure,        reduction: identity,         unit: MPa,  scale: -1.0e-6 }
+    - { panel: displacement_mag, source: displacement,    reduction: vector_magnitude, unit: mm,   scale: 1.0e3   }
+    - { panel: swelling_stress,  source: swelling_stress, reduction: mean_compressive, unit: MPa,  scale: 1.0e-6  }
+  layout: horizontal
+  time: final
+  axis_labels: { x: "r [m]", y: "z [m]" }
+
+time_series:
+  - { key: suction,              field: pressure,         reduction: mean,             unit: MPa,    scale: -1.0e-6, per_zone: false }
+  - { key: mean_stress,          field: sigma,            reduction: mean_compressive, unit: MPa,    scale:  1.0e-6, per_zone: true  }
+  - { key: mean_swelling_stress, field: swelling_stress,  reduction: mean_compressive, unit: MPa,    scale:  1.0e-6, per_zone: true  }
+  - { key: dry_density,          field: dry_density_solid, reduction: mean,            unit: kg/m^3, scale: 1.0,     per_zone: true  }
+  - { key: saturation,           field: saturation,       reduction: mean,             unit: "-",    scale: 1.0,     per_zone: true  }
+  - { key: porosity,             field: porosity,         reduction: mean,             unit: "-",    scale: 1.0,     per_zone: true  }
+  - { key: interface_stress,     probe: interface_stress }
+
+# Clay/pellet interface stress: line probe at z=0.035 m, r ∈ [0, 0.025].
+# Universal rule chosen: "line probe along z=0.035 m" (mesh-convergent, single
+# scalar per timestep, semantically matches a virtual interface load cell).
+# The probe samples the `sigma` field at n_samples equispaced points along the
+# line and reports the line-mean of -tr(sigma)/3.
+probes:
+  interface_stress:
+    type: line_probe
+    geometry: { z_m: 0.035, r_min_m: 0.0, r_max_m: 0.025, n_samples: 21 }
+    field: sigma
+    reduction: mean_compressive
+
+markers_days: [20, 100, 200]
+
+figures:
+  - { key: mean_stress,        xaxis: time_days,   yaxis: [mean_stress_clay_volavg_MPa, mean_stress_pellet_volavg_MPa], title: "Model IV — Mean stress per zone" }
+  - { key: dry_density,        xaxis: time_days,   yaxis: [dry_density_clay_volavg_kg_m3, dry_density_pellet_volavg_kg_m3], title: "Model IV — Dry density per zone" }
+  - { key: ps_path_clay,       xaxis: suction_MPa, yaxis: mean_stress_clay_volavg_MPa,    title: "Model IV — p–s path (clay)" }
+  - { key: ps_path_pellet,     xaxis: suction_MPa, yaxis: mean_stress_pellet_volavg_MPa,  title: "Model IV — p–s path (pellet)" }
+  - { key: interface_stress,   xaxis: time_days,   yaxis: interface_stress_line_mean_MPa, title: "Model IV — Interface mean stress (z=0.035 m line probe)" }
