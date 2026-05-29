@@ -513,7 +513,7 @@ specific dataset row and target sigma value in the PRJ header.
 relative permeability {m, η}, ρ_s, n_l, ρ_d target, p_cav, vdW base
 A, micro-EOS parameters, biot_coefficient, intrinsic permeability,
 porosity, mass-transfer coefficient α_M, … and any other dimensioned
-material literal in the PRJ) — closed list of FIVE allowed source
+material literal in the PRJ) — closed list of SIX allowed source
 families:
 
 1. **Beacon** — Beacon project benchmark spec / Beacon experimental
@@ -525,6 +525,14 @@ families:
    characterisation papers.
 5. **EURAD-MS** — EURAD-2 MS33 theoretical benchmarking task
    spec (cite deliverable / task-specification document section).
+6. **FEBEX** — FEBEX bentonite (Cortijo de Archidona / Cabo de Gata
+   clay) THM characterisation. Principal sources: Villar (2002),
+   "Thermo-hydro-mechanical characterisation of a bentonite from Cabo
+   de Gata," ENRESA Publicación Técnica; and Lloret & Villar (2007),
+   "Advances on the knowledge of the THM behaviour of heavily compacted
+   FEBEX bentonite," Phys. Chem. Earth 32, pp. 701–715. Cite the
+   specific report/paper + table/figure per parameter. (FEBEX bentonite
+   ≠ MX-80; do not conflate with the Dixon/MX-80 family.)
 
 Any other source (lab handbook, internal memo, "standard value",
 "typical for bentonite", a tuned value with no provenance) is
@@ -540,7 +548,7 @@ keys are mandatory):
 ```xml
 <!--
   DSM provenance (CLAUDE.md §12)
-  Benchmark family : <MS LE | Villar | Beacon | EPFL | EURAD-MS>
+  Benchmark family : <MS LE | Villar | Beacon | EPFL | EURAD-MS | FEBEX>
   Geometry / BC    : <one-line description, e.g. axisymmetric 1D column, free swelling, ρ_d=1600>
   Calibration anchor:
     source         : <Dixon (2023) | Villar (YYYY)>
@@ -548,7 +556,7 @@ keys are mandatory):
     target sigma   : <value with units>
     fitted K       : <value with units, J/kg>
   Material parameters (source per parameter group):
-    elastic (E, ν)            : <Beacon | EPFL | Dixon | Villar | EURAD-MS>, <citation>
+    elastic (E, ν)            : <Beacon | EPFL | Dixon | Villar | EURAD-MS | FEBEX>, <citation>
     retention curve (P0,λ,Sr) : <…>, <citation>
     rel. permeability (m, η)  : <…>, <citation>
     solid density ρ_s         : <…>, <citation>
