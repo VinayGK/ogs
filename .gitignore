@@ -47,6 +47,7 @@ nohup.out
 .continue/
 .cursor/
 .aider/
-AGENTS.md
-AGENTS_*.md
-CLAUDE.md
+# NOTE: CLAUDE.md / AGENTS.md / AGENTS_*.md are intentionally TRACKED, not
+# ignored. They are the research guardrails and per-directory worklogs and
+# must stay under git control (CLAUDE.md §6.3). Do not re-add ignore
+# patterns for them.
