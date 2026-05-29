@@ -312,7 +312,12 @@ Official benchmark spec (MSXX §Model IV):
              Initial phi_M is computed from phi0_clay and initial_micro_water_content by the hierarchical split. -->
         <!-- k0_clay from Kozeny-Carman at phi0=0.4245 -->
         <parameter><name>k0_clay</name><type>Constant</type><value>5.8703e-21</value></parameter>
-        <!-- Pellet parameters: rho_d=900, phi0 = 1-900/2780 = 0.676259 -->
+        <!-- Pellet parameters: rho_d=900, phi0 = 1-900/2780 = 0.676259
+             Source: EURAD-2 MS33 theoretical benchmarking spec, §Model IV "Modelling
+             procedure" — "a pellet section (dry density 0.9 g/cm³)"
+             (theoretical_benchmarking.tex, MS33). rho_d=900 kg/m³ is the verbatim spec
+             value; phi0 follows from phi0 = 1 - rho_d/rho_s with rho_s=2780 kg/m³.
+             Accepted as an EURAD-MS benchmark spec (Vinay, 2026-05-29). -->
         <parameter><name>phi0_pellet</name><type>Constant</type><value>0.6762589928057554</value></parameter>
         <!-- phi_tr0_pellet removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
              Initial phi_M for pellet zone is computed from phi0_pellet and initial_micro_water_content. -->

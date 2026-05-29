@@ -308,7 +308,12 @@ Boundary conditions (official spec):
         <parameter><name>k0_clay</name><type>Constant</type><value>5.8703e-21</value></parameter>
         <!-- Gap parameters: nearly empty void.
              phi0_gap = phi_M0_gap + (1-phi_M0_gap)*n_l0 = 0.985 + 0.015*1.1699e-3 ≈ 0.985018
-             where phi_M0_gap=0.985 is the initial macro transport porosity of the gap. -->
+             where phi_M0_gap=0.985 is the initial macro transport porosity of the gap.
+             Source: EURAD-2 MS33 theoretical benchmarking spec, §Model III "Modelling
+             procedure" — "a lateral technological gap of 2 mm ... consisting of either air
+             or water" (theoretical_benchmarking.tex, MS33). phi_M0_gap=0.985 is the numerical
+             realization of that air-filled void (near-empty; 1.5% residual solid retained
+             for numerical stability). Accepted as an EURAD-MS benchmark spec (Vinay, 2026-05-29). -->
         <parameter><name>phi0_gap</name><type>Constant</type><value>0.985018</value></parameter>
         <!-- phi_tr0_gap removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
              Initial phi_M for gap zone is computed from phi0_gap and initial_micro_water_content. -->
