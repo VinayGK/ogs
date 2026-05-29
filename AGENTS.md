@@ -270,24 +270,46 @@ native MPL property **before Option B can merge**. This work is on the
 
 ---
 
-## Decision points (from you, before the agent starts — beamer §"Decision points")
+## Decision points (beamer §"Decision points") — RESOLVED 2026-05-29 (Vinay)
 
-1. **Air-entry ψ_ae** — from the largest drainable macro pore `r_max`: a
-   measured macro-pore size, or derived from `p_b = 27` MPa?
-   *Note:* in the pure coexistence reading (corner shrinks continuously to 0,
-   "no air-entry threshold"), ψ_ae and the blend are **moot** — they only
-   matter if a corner cutoff / junction is reintroduced. Resolve which reading
-   is intended.
-2. **Film `h` as state** — track macro film thickness as an output/state, or
-   compute pointwise and discard? (Decides plumbing cost; the beamer's
-   "new process state variable?" is *likely no* but flags "verify if film h
-   must be tracked".)
-3. **Blend** — hard switch at ψ_ae (simpler, kink risk) vs. C¹ smoothing
-   (Newton-safe, more algebra). Only relevant if a junction exists (see 1).
-4. **Calibration target** — keep the Villar swelling-pressure target, or also
-   fit the high-suction retention tail if data exist?
+Original questions retained for the record (Strict Rule 6); each is annotated
+with Vinay's ruling on 2026-05-29.
 
-Record the choices in the Status log when made.
+1. **Air-entry ψ_ae** — *from the largest drainable macro pore `r_max`: a
+   measured macro-pore size, or derived from `p_b = 27` MPa?*
+   **RESOLVED: no air-entry, no junction.** Pure coexistence reading — the
+   corner shrinks continuously to 0 and the film persists. There is no ψ_ae to
+   pick. (This is the beamer's "Resolution" frame, not its decision-points
+   frame.)
+2. **Film `h` as state** — *track macro film thickness as an output/state, or
+   compute pointwise and discard?*
+   **RESOLVED: `h` is NOT a state and NOT the target.** The closure is
+   parameterized through **water content** — the measurable quantity the paper
+   uses (`ψ ↔ ω_l`), exactly as the micro vdW potential already is. Film
+   thickness `h` is hard to measure and is, at most, an internal pointwise
+   intermediate; it is never tracked, never plumbed as a primary/secondary
+   variable, and never a calibration target. **Be careful here:** the
+   implementation must express `S_film` via the adsorption/water-content
+   expression, not by carrying `h`.
+3. **Blend** — *hard switch at ψ_ae vs. C¹ smoothing?*
+   **RESOLVED: no blend.** Follows directly from decision 1 (no junction); both
+   branches are smooth in ψ and their sum has no kink.
+4. **Calibration target** — *Villar swelling pressure only, or also fit a
+   high-suction retention tail?*
+   **RESOLVED: Villar swelling pressure only.** No high-suction retention-tail
+   data exist, and none are needed — the water-content/adsorption expression
+   *produces* the high-suction behaviour automatically. Do not fit a separate
+   tail.
+
+**Parameter sourcing (resolved 2026-05-29).** `φ^Macro` is taken from the PRJ
+files (point the implementer at the specific PRJ + key). Remaining FEBEX-bentonite
+material parameters come from the newly-added **FEBEX** source family (CLAUDE.md
+§12.1, family #6: Villar 2002 ENRESA PT; Lloret & Villar 2007, Phys. Chem.
+Earth 32, 701–715) — "most parameters are there" (Vinay). `A_H` stays the
+literature anchor (2.2e-20 J, Israelachvili & Adams 1978), not a knob; confirm
+the same `A_H` is intended for the macro walls before writing it. `s^a_Macro`
+still needs a cited value (FEBEX or another §12.1 source) before any literal is
+written — STOP and ASK at that point (§1.1).
 
 ---
 
@@ -355,5 +377,19 @@ when it lands; never erase items — annotate.
   made** — implementation still not started, now un-blocked and awaiting the
   decision-point answers (ψ_ae reading, film-h-as-state, blend, calibration
   target).
+- **2026-05-29** — All four decision points RESOLVED by Vinay (see the
+  Decision points section): (1) no air-entry, no junction — pure coexistence;
+  (2) film `h` is not a state and not the target — closure parameterized via
+  **water content** (`ψ ↔ ω_l`, the measurable, as in the micro vdW closure),
+  `h` only an internal intermediate; (3) no blend (follows from no junction);
+  (4) calibrate to Villar swelling pressure only, high-suction behaviour is
+  emergent from the adsorption expression (no tail fit). Parameter sourcing:
+  `φ^Macro` from the PRJ; FEBEX added as CLAUDE.md §12.1 source family #6
+  (Villar 2002 ENRESA PT; Lloret & Villar 2007, PCE 32, 701–715) at Vinay's
+  instruction; `A_H` stays the literature anchor; `s^a_Macro` still needs a
+  cited value before any literal (§1.1 STOP/ASK). A standalone evaluation
+  Q&A was written alongside the beamer at
+  `tex/cc2024/VK_B35_Pinion_May_2026/tuller_macro_wrc_QA.md`. Still no code
+  changes — the native MPL surgery can now begin once `s^a_Macro` is sourced.
 
 ---
