@@ -17,6 +17,19 @@ standing, and the four decision points reproduced below. Where this AGENTS.md
 and the beamer disagree on a *branch name*, see the explicit inconsistency
 note in "Implementation scope".
 
+> **ACTIVE DESIGN (2026-05-29, latest) — read this first.** The closure on this
+> branch is now a **sharp cavitation handover** at the cavitation pressure
+> `p_cav` (Frydman & Baker 2009), **not** the additive corner+film
+> *coexistence sum* described in the older sections below. The two macro
+> branches are **sequential in `p_cap`**, joined at `p_cav` — *not* summed.
+> The fully agent-executable spec is the new section
+> **"ACTIVE closure — sharp cavitation handover"** immediately below; the
+> beamer's matching slides are its `\section{The active plan: sharp cavitation
+> handover}` (the older additive-sum slides there now carry a "THEORETICAL"
+> watermark). The additive-sum sections further down (and the shipped additive
+> `value()` placeholder, see the final Status-log entry) are **superseded** and
+> retained only as the historical/parked reading per Strict Rules 3 & 7.
+
 ---
 
 ## Branch: `dsm_native_tuller_macro_film` — Option B (Tuller corner + film)
@@ -81,9 +94,140 @@ film branch.
 
 ---
 
-## Option B closure (fully specified by the beamer)
+## ACTIVE closure — sharp cavitation handover (2026-05-29 latest)
 
-(beamer §"Option B (alternative): the Tuller two-branch closure")
+(beamer §"The active plan: sharp cavitation handover"; Frydman & Baker 2009,
+after Tuller 1999 / Or 1999. **This SUPERSEDES the additive coexistence sum**
+in the next section — keep that next section only as the parked theoretical
+reading, Strict Rules 3 & 7.)
+
+Macro liquid saturation is **piecewise** in the capillary pressure `p_cap`, the
+two branches **sequential** (not summed), joined **sharply** at the cavitation
+pressure `p_cav`:
+
+```
+                ┌ S_Lmax · (1 − exp(−C_T / p_cap²)),   0 ≤ p_cap ≤ p_cav   (capillary corner)
+S_Macro(p_cap) =│
+                └ C_film · p_cap^(−1/3),               p_cap > p_cav        (adsorbed film = residual)
+
+C_T   = 4 F_γ σ² / (A_n L²)              [Pa²]      (the existing single-branch Tuller coefficient_)
+C_film = (s^a_Macro / φ^Macro) · (A_H/6π)^(1/3)     [Pa^(1/3)]   (the existing computeFilmCoefficient)
+```
+
+- **Capillary regime** (`p_cap < p_cav`): the Tuller *corner* term carries the
+  macro water — exactly the term already in `SaturationTuller`.
+- **Cavitation** (`p_cap = p_cav`): macropore menisci cavitate, corner water
+  drains.
+- **Adsorptive regime** (`p_cap > p_cav`): only the vdW *film*
+  `C_film·p_cap^(−1/3)` survives — it **is** the macro residual (so the constant
+  floor `S_L_res` is dropped when the film is on).
+
+**Junction (the downward jump).** At `p_cav`,
+`ΔS_Macro = S_Lmax(1 − exp(−C_T/p_cav²)) − C_film·p_cav^(−1/3) ≥ 0`. It must be
+*downward* (corner-just-wet ≥ film-just-dry) — a **parameter-sanity check, not a
+clamp**. Vinay's physical reading: "smooth in saturation" (a vertical plateau in
+`p_cap(S_Macro)`), "jumpy in `p_cap`" (a downward step in `S_Macro(p_cap)`).
+
+**Derivatives (each branch smooth; reuse the existing code).**
+```
+p_cap < p_cav:  dS/dp_cap = −S_Lmax · (2 C_T / p_cap³) · exp(−C_T/p_cap²)   < 0
+p_cap > p_cav:  dS/dp_cap = −(1/3) · C_film · p_cap^(−4/3)                  < 0
+```
+Within a Newton evaluation `p_cav` is fixed, so each branch has a well-defined
+tangent; only the crossing is non-smooth.
+
+### Agent-executable rewrite spec (native C++, in-situ, no new files)
+
+Target files (extend in place — do **not** add a sibling class or new gtest):
+
+- [SaturationTuller.{h,cpp}](MaterialLib/MPL/Properties/CapillaryPressureSaturation/SaturationTuller.h)
+- [CreateSaturationTuller.cpp](MaterialLib/MPL/Properties/CapillaryPressureSaturation/CreateSaturationTuller.cpp)
+- [TestMPLSaturationTuller.cpp](Tests/MaterialLib/TestMPLSaturationTuller.cpp)
+
+1. **Replace the shipped additive placeholder.** The current `value()` does
+   `S = S_L_res_ + (S_Lmax−S_L_res_)(1−e^{−C/p²}); if (film_active_) S += C_film·cbrt(1/p); return std::clamp(...)`.
+   That additive-plus-clamp form is the **known-wrong placeholder** and is
+   removed. (`computeFilmCoefficient` and `coefficient_` themselves are correct
+   and stay.)
+2. **New `value()` — gated piecewise:**
+   - `!film_active_` → `S_L_res_ + (S_Lmax − S_L_res_)(1 − e^{−C_T/p²})`
+     — the unchanged single-branch Tuller, **byte-for-byte off-recovery**.
+   - `film_active_` → piecewise on `p_cav`:
+     `p ≤ p_cav → S_Lmax(1 − e^{−C_T/p²})`; `p > p_cav → C_film·p^(−1/3)`.
+     **No `std::clamp`; no `S_L_res_` floor.**
+3. **`dValue()` / `d2Value()`** — same gate, same split; reuse the per-branch
+   corner and film derivative formulas above (the film `dS = −(C_film/3)p^(−4/3)`,
+   `d²S = (4/9)C_film·p^(−7/3)` are already implemented — just move them under
+   the `p > p_cav` branch). Carry the unit comment on each changed line (§4.2).
+4. **New constructor parameter `cavitation_pressure` (`p_cav`)** on
+   `SaturationTuller` + `CreateSaturationTuller`. **Default `+∞`** (inactive) ⇒
+   the cut never triggers ⇒ uncut curve recovered. Parse it as an *optional* XML
+   key. Use the **same parameter** as Option A's `cavitation_pressure` on
+   `dsm_native_hierarchical` — one shared concept, not a second knob.
+
+**One parameter, three behaviours (the unification — verify by test, do not
+assert numerically here):**
+
+| film (`s^a_Macro`) | `p_cav` | behaviour |
+|---|---|---|
+| off | `+∞` | pure single-branch Tuller (byte-for-byte) |
+| off | finite | **Option A**: capped capillary; macro drains to micro via the exchange |
+| on  | finite | **Option B** (this branch): capped capillary + macro film residual |
+
+### Test plan (structure only; expected values `TODO(user)`, §3)
+
+In [TestMPLSaturationTuller.cpp](Tests/MaterialLib/TestMPLSaturationTuller.cpp),
+property-based, no expected-value literals:
+
+1. **Off-recovery** — `s^a_Macro = 0` ⇒ value/dValue/d2Value equal the
+   single-branch Tuller across a `p_cap` sweep. *Anchor: prior-approved
+   regression baseline (the in-file pure-Tuller test).*
+2. **Regime selection** — `p_cap < p_cav` uses the corner; `p_cap > p_cav` uses
+   the film. *Anchor: analytical limit.*
+3. **Monotonicity** — `dValue < 0` within each branch. *Anchor: analytical.*
+4. **Junction** — `S_Macro(p_cav⁻) ≥ S_Macro(p_cav⁺)` (downward jump).
+   *Anchor: analytical/physical.*
+5. **FD vs analytic** derivative within each branch (same FD tolerances as the
+   existing in-file pure-Tuller test). *Anchor: analytical.*
+
+### Open §9 sub-decision (Vinay, formulation — NOT decided by the agent)
+
+The junction treatment is the one remaining formulation choice. Options:
+**(a)** genuine jump — sharp, the default, accept the `S_Macro` discontinuity at
+`p_cav` (Vinay's "jumpy in `p_cap`" favours this); **(b)** continuity by picking
+`p_cav` at the crossover `S_corner = S_film` (a slope kink only, no jump);
+**(c)** a narrow regularisation band around `p_cav`. **Confirm with Vinay before
+choosing (b) or (c).** Implement (a) unless told otherwise.
+
+### Parameter sourcing & merge gates (this design)
+
+- `p_cav` ≈ `1.4×10⁸` Pa — **Or & Tuller (2002)**, already the DSM cavitation
+  pressure (memory `project_dsm_mcc_bishop_cutoff`). Confirm the same value
+  governs the macro film cut before writing a literal in any PRJ.
+- `A_H` ≈ `2.2×10⁻²⁰` J — **literature anchor** (Israelachvili & Adams 1978 /
+  Mitchell & Soga 2005), **NOT a knob** (CLAUDE.md §1.1 incident).
+- `s^a_Macro` — still needs a **FEBEX**-sourced value (CLAUDE.md §12.1 family #6)
+  **before any `.prj` enables the film** → STOP and ASK at that point (§1.1).
+- `φ^Macro` — from the PRJ.
+- **MFront port + native↔bridge parity** on the `dsm_mfront` lineage gates the
+  merge (see "MFront follow-on" below).
+- **Recalibrate K** (`vdw_augmentation_prefactor`) against Villar targets
+  (Dixon EMDD ≡ ρ_d) after the closure changes — *predicted* to shift, not yet
+  verified (§5).
+
+---
+
+## Option B closure (SUPERSEDED — additive coexistence sum, parked theoretical)
+
+> **SUPERSEDED 2026-05-29** by the sharp cavitation handover above. This section
+> describes the *additive coexistence sum* `S_Macro = S_cap + S_film` (both
+> branches present at every potential, summed). It is retained as the historical
+> / parked theoretical reading (Strict Rules 3 & 7); the corresponding beamer
+> slides now carry a "THEORETICAL" watermark. **Do not implement the additive
+> sum** — implement the piecewise cavitation handover above.
+
+(beamer §"Implementation discussion --- volume referencing of the sum",
+now watermarked THEORETICAL)
 
 Macro retention = capillary **corner** water + adsorbed **film** water,
 **coexisting at every potential**, both smooth functions of the single macro
@@ -272,6 +416,16 @@ native MPL property **before Option B can merge**. This work is on the
 
 ## Decision points (beamer §"Decision points") — RESOLVED 2026-05-29 (Vinay)
 
+> **Refined by the active design.** Decisions (1) "no air-entry, no junction"
+> and (3) "no blend" below were made under the *additive coexistence* reading
+> (both branches summed at every potential). The **active** sharp cavitation
+> handover **reintroduces a single junction at `p_cav`** (the branches are now
+> sequential, not summed). Its treatment is the one open **§9 formulation
+> sub-decision** — see "ACTIVE closure → Open §9 sub-decision" above:
+> (a) genuine jump [default], (b) continuity at crossover, (c) regularisation.
+> Decisions (2) film-`h`-not-a-state and (4) Villar-only calibration are
+> unchanged.
+
 Original questions retained for the record (Strict Rule 6); each is annotated
 with Vinay's ruling on 2026-05-29.
 
@@ -391,5 +545,68 @@ when it lands; never erase items — annotate.
   Q&A was written alongside the beamer at
   `tex/cc2024/VK_B35_Pinion_May_2026/tuller_macro_wrc_QA.md`. Still no code
   changes — the native MPL surgery can now begin once `s^a_Macro` is sourced.
+- **2026-05-29 — DONE: native MPL film surgery implemented and unit-verified.**
+  **(NOW SUPERSEDED — see the next entry: the shipped additive `value()` is the
+  known-wrong placeholder; the active design is the sharp cavitation handover,
+  not this additive sum + clamp.)**
+  Extended in place (no new files):
+  [SaturationTuller.h](MaterialLib/MPL/Properties/CapillaryPressureSaturation/SaturationTuller.h),
+  [SaturationTuller.cpp](MaterialLib/MPL/Properties/CapillaryPressureSaturation/SaturationTuller.cpp),
+  [CreateSaturationTuller.cpp](MaterialLib/MPL/Properties/CapillaryPressureSaturation/CreateSaturationTuller.cpp),
+  [TestMPLSaturationTuller.cpp](Tests/MaterialLib/TestMPLSaturationTuller.cpp).
+  Closure: from the vdW disjoining-pressure balance `p_cap = A_H/(6π h³)`
+  (ρ^L cancels in pressure form; same `6π` as the micro vdW in
+  PotentialExchange.h) → `h(p_cap) = (A_H/(6π p_cap))^(1/3)`,
+  `S_film = (a_v/φ_M)·h = C_film·p_cap^(−1/3)` [dimensionless],
+  `C_film = (a_v/φ_M)·(A_H/(6π))^(1/3)` [Pa^(1/3)]. Added into
+  `value`/`dValue`/`d2Value` (`dS_film = −(C_film/3)p^(−4/3)`,
+  `d²S_film = (4/9)C_film·p^(−7/3)`), with unit comments (§4.2).
+  Three new constructor args `macro_specific_surface` (a_v),
+  `hamaker_constant` (A_H), `macro_porosity` (φ_M), all defaulting to 0;
+  `film_active_ = (a_v > 0)` gates the branch. **Off recovers pure Tuller
+  byte-for-byte** (the `if (film_active_)` blocks are skipped), verified by a
+  dedicated point-for-point regression test. `h` is an internal pointwise
+  intermediate only — never stored, never a state/target; the closure is
+  parameterized through saturation/water content as Vinay required. New XML
+  keys are optional in CreateSaturationTuller (default off). Tests added
+  (property-based, no expected-value literals): off-recovery, film-on
+  monotonicity + analytic-vs-FD derivative consistency (same FD tolerances as
+  the in-file pure-Tuller test), and a create-path parse check. Build (warm
+  CPM cache, MFront OFF) + `testrunner` green: 5/5 SaturationTuller tests and
+  all 83 MaterialPropertyLib tests pass. **Guardrails noted (§0.1):** §1.1 —
+  film-on tests use `a_v`/`φ_M` as *synthetic fixtures* (no physical magnitude
+  asserted; A_H cited to Israelachvili & Adams 1978); a FEBEX-sourced
+  `s^a_Macro` is still required before any *PRJ* enables the film branch. §9
+  (formulation, left to Vinay, NOT decided here): (a) whether the film should
+  replace `S_L_res` (QA Q7: film "sets the residual"); (b) the near-saturation
+  region where `S_cap + S_film` can hit the existing `S_L_max` clamp — the
+  literal additive reading + existing clamp is what shipped; the film-on test
+  samples the high-suction window where it is unclamped. **Remaining gates
+  before merge:** MFront port + native↔bridge parity on the `dsm_mfront`
+  lineage; a §12-compliant Tuller-film PRJ once `s^a_Macro` is sourced.
+- **2026-05-29 — CLOSURE SUPERSEDED: additive sum → sharp cavitation handover.**
+  Vinay's decision (recorded in memory `project_tuller_film_volume_referencing`
+  and `project_tuller_macro_options`): the additive coexistence sum
+  `S_Macro = S_cap + S_film` is **parked as theoretical**; the active closure is
+  a **sharp cavitation handover** at `p_cav` (Frydman & Baker 2009) — the two
+  macro branches are **sequential in `p_cap`**, joined at `p_cav`, **not summed**
+  (capillary corner for `p_cap ≤ p_cav`; vdW film = residual for `p_cap > p_cav`).
+  This unifies Options A and B through one shared `cavitation_pressure` param:
+  film off + `p_cav = +∞` → pure Tuller; film off + finite `p_cav` → Option A;
+  film on + finite `p_cav` → Option B. Documented as the **active design** in
+  this AGENTS.md (new section "ACTIVE closure — sharp cavitation handover",
+  with the agent-executable rewrite spec for `SaturationTuller` /
+  `CreateSaturationTuller` / `TestMPLSaturationTuller`) and in the beamer
+  `tex/cc2024/VK_B35_Pinion_May_2026/tuller_macro_wrc.tex` (new
+  `\section{The active plan: sharp cavitation handover}`, 6 slides; the older
+  additive-sum slides watermarked "THEORETICAL", kept per §6). The shipped
+  additive `value()` (previous entry) is therefore the **known-wrong
+  placeholder** to be replaced by the gated piecewise form. **No code changed in
+  this step — documentation only.** Open **§9 formulation sub-decision (Vinay,
+  not the agent):** junction treatment — (a) genuine jump [default], (b)
+  continuity at the crossover (slope kink), or (c) a narrow regularisation band;
+  implement (a) unless told otherwise. Sourcing unchanged: `p_cav` from Or &
+  Tuller (2002), `A_H` literature anchor, `s^a_Macro` still needs a FEBEX value
+  (§1.1 STOP/ASK) before any PRJ enables the film.
 
 ---

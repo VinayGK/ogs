@@ -79,10 +79,27 @@ std::unique_ptr<SaturationTuller> createSaturationTuller(
         config.getConfigParameterOptional<double>("pressure_tolerance")
             .value_or(0.0);
 
+    // Option B adsorptive-film branch (optional; default 0 -> film off, pure
+    // Tuller recovered exactly). All three keys must be supplied together; the
+    // SaturationTuller constructor validates hamaker_constant and
+    // macro_porosity when macro_specific_surface > 0.
+    auto const macro_specific_surface =
+        //! \ogs_file_param{properties__property__SaturationTuller__macro_specific_surface}
+        config.getConfigParameterOptional<double>("macro_specific_surface")
+            .value_or(0.0);
+    auto const hamaker_constant =
+        //! \ogs_file_param{properties__property__SaturationTuller__hamaker_constant}
+        config.getConfigParameterOptional<double>("hamaker_constant")
+            .value_or(0.0);
+    auto const macro_porosity =
+        //! \ogs_file_param{properties__property__SaturationTuller__macro_porosity}
+        config.getConfigParameterOptional<double>("macro_porosity").value_or(0.0);
+
     return std::make_unique<SaturationTuller>(
         std::move(property_name), residual_liquid_saturation,
         maximum_liquid_saturation, area_factor_tuller,
         pore_area_shapefactor_tuller, characteristic_pore_size, surface_tension,
-        pressure_tolerance);
+        pressure_tolerance, macro_specific_surface, hamaker_constant,
+        macro_porosity);
 }
 }  // namespace MaterialPropertyLib
