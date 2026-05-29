@@ -135,9 +135,46 @@ passing (per repo Strict Rule 5).
   advantage of using parameters already calibrated in the
   [ANCHORS_MS33_ModelI](Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/)
   workflow.
-- Does the macro film term replace the cavitation cap entirely on this
-  branch, or coexist with a soft `p_cav` cap as a numerical safeguard?
-  Default reading from the table above: replace entirely (no threshold).
+- **(BLOCKING — architecture decision pending Vinay.)** Does Option B
+  even apply to *this* model, or does the paper's architecture already
+  demand Option A? Reading of the EURAD-DSM sources on 2026-05-29:
+  - The paper assumes a clean two-scale split — **macro = capillarity
+    only** (Tuller 1999), **micro = van der Waals / adsorption only**
+    (Frydman 2009, Baker 2009; `μ^Micro = A_Hamaker/(6πh³)`)
+    (`tex/cc2024/VK_SB_EURAD_DSM/VK_SB_EURAD_DSM.tex:290–342`).
+  - The cavitation cutoff `p_cav ≈ 140 MPa` (Or & Tuller 2002) plays a
+    **physical drainage role**: "beyond `p_cav` the macro meniscus
+    cavitates, the macro pore water drains into the micro-structure,
+    and S_L freezes" (`VK_SB_EURAD_DSM_output.tex:786–795`). It is the
+    macro→micro handoff, not a numerical guard.
+  - Consequence: the "adsorption potential active at zero water content"
+    motivating Option B is, in this model, **the micro continuum**.
+    Adding a macro adsorbed film re-introduces on the macro side the
+    adsorption already carried on the micro side — the same
+    double-counting already corrected on the mechanical side
+    (`BishopsSaturationCutoff(χ=0)`, report §"Bishop's effective
+    stress") and still open on the hydraulic side (the `p_L`
+    macro/micro split, report §"Hydraulic-side double-counting").
+  - **Therefore:** as a bolt-on to the existing micro=vdW model, Option B
+    double-counts and **Option A is the architecture-consistent choice**.
+    Option B is coherent *only* as a deliberate re-architecture that
+    moves/partitions adsorption macro↔micro so the two do not overlap.
+    This is a model decision, not a coding detail — do not start the
+    surgery until Vinay rules: (a) re-architect for Option B with an
+    explicit macro/micro adsorption partition, or (b) convert this
+    branch's goal to Option A (capillary + `p_cav` drain-to-micro).
+- Film closure form (only if Option B / re-architecture is chosen):
+  Or-Tuller analytical vs. exponential matched to the micro vdW
+  augmentation? The second reuses parameters already calibrated in the
+  [ANCHORS_MS33_ModelI](Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/)
+  workflow.
+
+Note: the cavitation cutoff is **not in the code** on these branches —
+[SaturationTuller.cpp](MaterialLib/MPL/Properties/CapillaryPressureSaturation/SaturationTuller.cpp)
+is the 2-branch uncapped form (no `cavitation_pressure`), despite the
+deck describing a 3-branch capped form as "implemented but not yet
+wired." Whichever option is chosen, the cap/freeze branch would itself
+be new in-situ code.
 
 ## Status log
 
@@ -154,5 +191,14 @@ passing (per repo Strict Rule 5).
   PRJ test data requires explicit clearance before adding. This
   supersedes the earlier "new class vs. extend" open question — the
   decision is: extend in place.
+- **2026-05-29** — Read the EURAD-DSM paper/deck sources to settle the
+  `p_cav` role (per Vinay's request). Finding: the paper's macro scale
+  is capillarity-only and the micro scale carries all adsorption (vdW),
+  and `p_cav` is the physical macro→micro drainage threshold — so a
+  macro adsorbed film (Option B) double-counts the micro adsorption
+  unless adsorption is re-partitioned across scales. Recorded as the
+  BLOCKING open question above. **Implementation is on hold pending
+  Vinay's architecture ruling (re-architect for Option B vs. convert
+  this branch to Option A).** No code changes made.
 
 ---
