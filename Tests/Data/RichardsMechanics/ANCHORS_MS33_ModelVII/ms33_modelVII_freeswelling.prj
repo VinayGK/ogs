@@ -4,7 +4,14 @@ EURAD-2 MS33 Theoretical Benchmarking — Model VII
 Free swelling, loading and unloading
 BGR / DSM native hierarchical vdW-augmented model
 
-Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=27371.9007 J/kg
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=71 900 J/kg
+  (Inherits the Dixon (2023) anchor calibrated for ModelI dd1600: EMDD=ρ_d=1.6 g/cm³,
+   target sigma_swell = 14.105 MPa. Citation: Dixon et al. (2023), Applied Clay Science
+   241:106998. Anchor history: an early Villar iteration gave K=27371.9 J/kg; a
+   subsequent Villar calibration gave K=29999.25 J/kg (target 5.824 MPa); re-anchored
+   2026-05-27 (commit 58c87d44ff) to Dixon (K=71900, target 14.105 MPa) per the
+   EMDD≡ρ_d convention agreed with the other MS33 teams.
+   See [[feedback_emdd_dry_density_convention]].)
 Geometry: 50mm diam × 70mm height axisymmetric cylinder (r=0–0.025m, z=0–0.070m)
 
 Free swelling under constant axial stress = 0.2 MPa (1-D oedometer-like):
@@ -74,8 +81,11 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                      set >0 to add phenomenological n_l coupling). -->
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
                 <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
-                <!-- K calibrated to Villar swelling pressure at rho_d=1600 kg/m³ via Pi-path;
-                     Π uses bulk ρ_LR (Gibbs–Duhem consistent); steps 2+3, 2026-05-21 -->
+                <!-- K calibrated to Dixon (2023) MX-80 swelling pressure at EMDD≡ρ_d=1600 kg/m³
+                     (inherits ModelI dd1600 anchor); Π uses bulk ρ_LR.
+                     Re-anchored 2026-05-27 (commit 58c87d44ff) from Villar (K=29999.25 J/kg,
+                     target 5.824 MPa) to Dixon (K=71900, target 14.105 MPa) per the
+                     EMDD≡ρ_d convention agreed with the other MS33 teams. -->
                 <vdw_augmentation_prefactor>71900</vdw_augmentation_prefactor>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,

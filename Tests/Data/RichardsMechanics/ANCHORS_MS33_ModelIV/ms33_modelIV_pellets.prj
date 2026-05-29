@@ -8,9 +8,17 @@ Geometry: 50mm diam × 70mm height axisymmetric cylinder
   Bentonite block (medium id=0): r=0–0.025m, z=0.035–0.070m  (MaterialID=0)
   Pellet zone     (medium id=1): r=0–0.025m, z=0–0.035m      (MaterialID=1)
 
-Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=29999.2513 J/kg
-Pellets:   rho_d=900  kg/m³, phi0=0.676259, K≈150 J/kg
-  (Villar target at 0.9 g/cm³ ≈ 0.051 MPa; K extrapolated from calibration curve)
+Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=71 900 J/kg
+  (Inherits Dixon (2023) anchor calibrated for ModelI dd1600: EMDD=ρ_d=1.6 g/cm³,
+   target sigma_swell = 14.105 MPa. Citation: Dixon et al. (2023), Applied Clay Science
+   241:106998. Anchor history: previously K=29999.2513 J/kg under Villar (target
+   5.824 MPa); re-anchored 2026-05-27, commit 58c87d44ff, per EMDD≡ρ_d convention.)
+Pellets:   rho_d=900  kg/m³, phi0=0.676259, K = bentonite K = 71 900 J/kg (inherited)
+  (Pellet zone has NO own calibration anchor — the OGS RM process supports a single
+   <vdw_augmentation_prefactor> field, so the pellet zone uses the bentonite-calibrated K
+   scaled at runtime by the local n_s_pellet=0.324. The pellet sigma_swell is therefore
+   a MODEL PREDICTION, not a calibrated quantity. Under CLAUDE.md §12, this PRJ
+   documents the limitation rather than claiming a pellet-specific anchor.)
   Pellet k0 from Kozeny-Carman with k_ref=5.6e-21 m² at phi_ref=0.42
 
 Official benchmark spec (MSXX §Model IV):
@@ -65,9 +73,14 @@ Official benchmark spec (MSXX §Model IV):
                      set >0 to add phenomenological n_l coupling). -->
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
                 <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
-                <!-- K for bentonite zone (Villar at 1600 kg/m³); Π uses bulk ρ_LR (step 3).
-                     Pellet zone inherits same K; n_s_pellet=0.324 → smaller Pi contribution
-                     (n_s enters delta_sigma_sw computation). Calibrated 2026-05-21. -->
+                <!-- K for bentonite zone: Dixon (2023) MX-80 anchor at EMDD≡ρ_d=1600 kg/m³.
+                     Π uses bulk ρ_LR. Re-anchored 2026-05-27 (commit 58c87d44ff) from
+                     Villar (K=29999.25 J/kg, target 5.824 MPa) to Dixon (K=71900, target
+                     14.105 MPa).
+                     Pellet zone inherits the same K (single-K-per-process schema limitation);
+                     n_s_pellet=0.324 reduces Pi locally via delta_sigma_sw computation.
+                     Pellet sigma_swell is a MODEL PREDICTION under CLAUDE.md §12 — not
+                     directly calibrated to any pellet-density Dixon/Villar target. -->
                 <vdw_augmentation_prefactor>71900</vdw_augmentation_prefactor>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
