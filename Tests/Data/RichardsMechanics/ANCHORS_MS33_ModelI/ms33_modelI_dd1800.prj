@@ -27,6 +27,9 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                          suction ramp 100->0 MPa over 20 d, then 0 MPa to 200 d. Source: EURAD-2 MS33 spec.
       Calibration anchor:
         source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
+        locator      : Dixon et al. (2023), "Measured swelling, hydraulic and thermal
+                       properties of MX-80 bentonite", Applied Clay Science 241:106998;
+                       median fit sigma_swell [MPa] = 0.003 * exp(5.2883 * EMDD [Mg/m3]).
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (working-group agreement 2026-05-27), rho_d=1800 kg/m3
         target sigma : 40.86 MPa
         fitted K     : 214400 J/kg (vdw_augmentation_prefactor)

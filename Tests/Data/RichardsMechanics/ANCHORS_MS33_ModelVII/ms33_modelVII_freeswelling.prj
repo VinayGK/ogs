@@ -45,6 +45,9 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                          free-boundary rule sigma0 = alpha*chi*p_L,initial.
       Calibration anchor:
         source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
+        locator      : Dixon et al. (2023), "Measured swelling, hydraulic and thermal
+                       properties of MX-80 bentonite", Applied Clay Science 241:106998;
+                       median fit sigma_swell [MPa] = 0.003 * exp(5.2883 * EMDD [Mg/m3]).
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1600 kg/m3
         target sigma : 14.161 MPa
         fitted K     : 71900 J/kg (vdw_augmentation_prefactor)

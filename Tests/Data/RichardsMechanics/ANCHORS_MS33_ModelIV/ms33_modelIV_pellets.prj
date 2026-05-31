@@ -29,6 +29,9 @@ Official benchmark spec (MSXX §Model IV):
                          Source: EURAD-2 MS33 spec (pellet rho_d=0.9 g/cm3 verbatim spec value).
       Calibration anchor:
         source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
+        locator      : Dixon et al. (2023), "Measured swelling, hydraulic and thermal
+                       properties of MX-80 bentonite", Applied Clay Science 241:106998;
+                       median fit sigma_swell [MPa] = 0.003 * exp(5.2883 * EMDD [Mg/m3]).
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27)
         bentonite    : rho_d=1600 kg/m3, target 14.161 MPa, fitted K=71900 J/kg (vdw_augmentation_prefactor)
         pellet       : rho_d=900 kg/m3, target ~0.051 MPa, K EXTRAPOLATED below Dixon's data range
