@@ -19,6 +19,24 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
   Solid density: 2780 kg/m³
 -->
 <OpenGeoSysProject>
+    <!--
+      DSM provenance (CLAUDE.md 12.2). Authoritative; supersedes any older inline
+      "Villar" calibration wording elsewhere in this file.
+      Benchmark family : MS LE (MCC native cam-clay variant)
+      Geometry / BC    : axisym single-element 1 cm constant-volume cell. Source: EURAD-2 MS33 spec.
+      Calibration anchor:
+        source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
+        dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1400 kg/m3
+        target sigma : 4.922 MPa
+        fitted K     : 3624 J/kg (vdw_augmentation_prefactor)
+        (MCC fit     : K is the MCC-specific value reproducing the Dixon target; differs from the LE K)
+      Material parameters (source per group): as Model I dd1600. elastic E,nu: EURAD-2 MS33
+        Table TH-G [TODO(Vinay): confirm]; retention P0=27MPa,a=0.45; rel.perm S_e^3; rho_s=2780;
+        cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20 Israelachvili and Adams 1978;
+        lambda=7.5e-7 co-calibrated; micro EOS / Tuller geom / specific_surface 523 m2/g
+        [TODO(Vinay): primary locators]; alpha_M phenomenological.
+      NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
+    -->
     <meshes>
         <mesh axially_symmetric="true">../square_1e-2_quad_1e0.vtu</mesh>
         <mesh axially_symmetric="true">../square_1e-2_quad_1e0_left.vtu</mesh>

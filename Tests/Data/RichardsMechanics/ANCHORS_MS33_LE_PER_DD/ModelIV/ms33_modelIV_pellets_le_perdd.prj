@@ -23,6 +23,25 @@ Official benchmark spec (MSXX Â§Model IV):
   Variant: LE_PER_DD.  Original PRJ: /Users/vinaykumar/git/ogs-worktrees/dsm_native_hierarchical_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIV/ms33_modelIV_pellets.prj
 -->
 <OpenGeoSysProject>
+    <!--
+      DSM provenance (CLAUDE.md 12.2). Authoritative; supersedes any older inline
+      "Villar" calibration wording elsewhere in this file.
+      Benchmark family : MS LE  (gating regression standard, §12.3)
+      Geometry / BC    : axisym cylinder 50x70 mm; bentonite block (rho_d=1600) over pellet zone (rho_d=900). Source: EURAD-2 MS33 spec.
+      Calibration anchor:
+        source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
+        dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1600 kg/m3
+        target sigma : 14.161 MPa
+        fitted K     : 71900 J/kg (vdw_augmentation_prefactor)
+        per-zone K   : [71900, 2100] J/kg (TODO(Vinay): confirm per-zone anchors)
+        pellet zone  : rho_d=900 kg/m3, target ~0.051 MPa, K EXTRAPOLATED below Dixon range (TODO(Vinay) confirm)
+      Material parameters (source per group): as Model I dd1600. elastic E,nu: EURAD-2 MS33
+        Table TH-G [TODO(Vinay): confirm]; retention P0=27MPa,a=0.45; rel.perm S_e^3; rho_s=2780;
+        cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20 Israelachvili and Adams 1978;
+        lambda=7.5e-7 co-calibrated; micro EOS / Tuller geom / specific_surface 523 m2/g
+        [TODO(Vinay): primary locators]; alpha_M phenomenological.
+      NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
+    -->
     <meshes>
         <mesh axially_symmetric="true">../../ANCHORS_MS33_ModelIV/ms33_pellets_r25_h70.vtu</mesh>
         <mesh axially_symmetric="true">../../ANCHORS_MS33_ModelIV/ms33_pellets_r25_h70_left.vtu</mesh>
