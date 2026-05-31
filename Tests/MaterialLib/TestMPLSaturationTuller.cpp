@@ -20,9 +20,10 @@ TEST(MaterialPropertyLib, SaturationTuller)
     double const L = 1e-5;
     double const sigma = 0.072;
     double const p_tol = 1.0;
+    double const p_cav = std::numeric_limits<double>::infinity();
 
     MPL::Property const& saturation = MPL::SaturationTuller{
-        "saturation", S_L_res, S_L_max, An, F_gamma, L, sigma, p_tol};
+        "saturation", S_L_res, S_L_max, An, F_gamma, L, sigma, p_tol, p_cav};
 
     MPL::VariableArray vars;
     ParameterLib::SpatialPosition const pos;
@@ -71,6 +72,62 @@ TEST(MaterialPropertyLib, SaturationTuller)
         EXPECT_NEAR(dS, dS_fd, 1e-10);
         EXPECT_NEAR(d2S, d2S_fd, 1e-12);
     }
+}
+
+TEST(MaterialPropertyLib, SaturationTullerCavitationCutoff)
+{
+    double const S_L_res = 0.05;
+    double const S_L_max = 1.0;
+    double const An = 1.0;
+    double const F_gamma = 0.858407;
+    double const L = 1e-5;
+    double const sigma = 0.072;
+    double const p_tol = 1.0;
+    double const p_cav = 1e5;
+
+    // Reference curve without cutoff.
+    MPL::Property const& uncut = MPL::SaturationTuller{
+        "uncut",  S_L_res, S_L_max, An, F_gamma, L, sigma, p_tol,
+        std::numeric_limits<double>::infinity()};
+    // Same curve, cut at the cavitation pressure.
+    MPL::Property const& cut = MPL::SaturationTuller{
+        "cut", S_L_res, S_L_max, An, F_gamma, L, sigma, p_tol, p_cav};
+
+    MPL::VariableArray vars;
+    ParameterLib::SpatialPosition const pos;
+    double const t = std::numeric_limits<double>::quiet_NaN();
+    double const dt = std::numeric_limits<double>::quiet_NaN();
+
+    auto value = [&](MPL::Property const& p, double p_cap)
+    {
+        vars.capillary_pressure = p_cap;
+        return p.template value<double>(vars, pos, t, dt);
+    };
+    auto dvalue = [&](MPL::Property const& p, double p_cap)
+    {
+        vars.capillary_pressure = p_cap;
+        return p.template dValue<double>(
+            vars, MPL::Variable::capillary_pressure, pos, t, dt);
+    };
+
+    // Below cavitation: identical to the uncut curve.
+    EXPECT_DOUBLE_EQ(value(cut, 5e4), value(uncut, 5e4));
+    EXPECT_DOUBLE_EQ(dvalue(cut, 5e4), dvalue(uncut, 5e4));
+
+    // Continuity at the cavitation pressure (C^0).
+    double const S_at_cav = value(uncut, p_cav);
+    EXPECT_DOUBLE_EQ(value(cut, p_cav), S_at_cav);
+
+    // Beyond cavitation: frozen saturation, zero storage response.
+    EXPECT_DOUBLE_EQ(value(cut, 2.0 * p_cav), S_at_cav);
+    EXPECT_DOUBLE_EQ(value(cut, 1e7), S_at_cav);
+    EXPECT_DOUBLE_EQ(dvalue(cut, 2.0 * p_cav), 0.0);
+    vars.capillary_pressure = 2.0 * p_cav;
+    EXPECT_DOUBLE_EQ(
+        cut.template d2Value<double>(vars, MPL::Variable::capillary_pressure,
+                                     MPL::Variable::capillary_pressure, pos, t,
+                                     dt),
+        0.0);
 }
 
 TEST(MaterialPropertyLib, CreateSaturationTuller)

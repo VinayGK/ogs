@@ -5,6 +5,7 @@
 #include "SaturationTuller.h"
 
 #include <cmath>
+#include <limits>
 
 namespace MaterialPropertyLib
 {
@@ -79,10 +80,17 @@ std::unique_ptr<SaturationTuller> createSaturationTuller(
         config.getConfigParameterOptional<double>("pressure_tolerance")
             .value_or(0.0);
 
+    // Optional Frydman--Baker cavitation cutoff. When omitted, the cutoff is
+    // disabled (infinity) and the original asymptotic curve is recovered.
+    auto const cavitation_pressure =
+        //! \ogs_file_param{properties__property__SaturationTuller__cavitation_pressure}
+        config.getConfigParameterOptional<double>("cavitation_pressure")
+            .value_or(std::numeric_limits<double>::infinity());
+
     return std::make_unique<SaturationTuller>(
         std::move(property_name), residual_liquid_saturation,
         maximum_liquid_saturation, area_factor_tuller,
         pore_area_shapefactor_tuller, characteristic_pore_size, surface_tension,
-        pressure_tolerance);
+        pressure_tolerance, cavitation_pressure);
 }
 }  // namespace MaterialPropertyLib

@@ -77,6 +77,19 @@ Official benchmark spec (MSXX §Model IV):
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
                 <vdw_augmentation_decay_length>7.5e-7</vdw_augmentation_decay_length>
+                <!-- Per-medium DSM override for the pellet zone (material id 1, rho_d=0.9 g/cm3):
+                     n_s=0.324 (=1-phi0_pellet=1-0.6763), n_l0=6.59e-4 (dd900 vdW eq. vs bentonite
+                     1.17e-3), and a lower K so the loose pellets swell much less than the dense
+                     bentonite -> heterogeneous initial state that homogenises during hydration.
+                     CALIBRATED K_pellet=2100: single-element pellet calibration (n_s=0.324, n_l0=6.59e-4,
+                     phi0=0.6763, Vr0=3.089, p_b=1.5e7) gives sigma_sat=0.355 MPa = Dixon EMDD=rho_d
+                     median at rho_d=0.9 g/cm3 (0.350 MPa), 2026-05-29. Same block as the MCC variant
+                     (ANCHORS_MS33_MCC_NATIVE/ModelIV); per-medium K applies to both MCC and LE. -->
+                <medium id="1">
+                    <micro_solid_volume_fraction_reference>0.3237410071942446</micro_solid_volume_fraction_reference>
+                    <initial_micro_water_content>6.59e-4</initial_micro_water_content>
+                    <vdw_augmentation_prefactor>2100</vdw_augmentation_prefactor>
+                </medium>
             </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
@@ -158,17 +171,23 @@ Official benchmark spec (MSXX §Model IV):
                     <type>RelativePermeabilityGeneralizedPower</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <min_relative_permeability>0.0</min_relative_permeability>
+                    <min_relative_permeability>1e-2</min_relative_permeability>
                     <enhancement_factor>1.0</enhancement_factor>
                     <exponent>3</exponent>
                 </property>
                 <property>
+                    <!-- Tuller macro retention (parity-branch params: area_factor=1.0,
+                         shapefactor=0.8584073464102069, char_pore_size=1e-5 m, surface_tension=0.0715);
+                         cavitation_pressure=1.4e8 Pa (Or and Tuller 2002 WRR 38(5) 1061). -->
                     <name>saturation</name>
-                    <type>SaturationVanGenuchten</type>
+                    <type>SaturationTuller</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <exponent>0.45</exponent>
-                    <p_b>2.7e7</p_b>
+                    <area_factor_tuller>1.0</area_factor_tuller>
+                    <pore_area_shapefactor_tuller>0.8584073464102069</pore_area_shapefactor_tuller>
+                    <characteristic_pore_size>1e-5</characteristic_pore_size>
+                    <surface_tension>0.0715</surface_tension>
+                    <cavitation_pressure>1.4e8</cavitation_pressure>
                 </property>
                 <!-- saturation_micro (VGM, p_b=2.7e8) removed: vestigial in Pi-path mode.
                      micro_pressure = Pi = rho_lR*K*exp(-xi) (disjoining pressure).
@@ -224,18 +243,23 @@ Official benchmark spec (MSXX §Model IV):
                     <type>RelativePermeabilityGeneralizedPower</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <min_relative_permeability>0.0</min_relative_permeability>
+                    <min_relative_permeability>1e-2</min_relative_permeability>
                     <enhancement_factor>1.0</enhancement_factor>
                     <exponent>3</exponent>
                 </property>
                 <property>
+                    <!-- Tuller macro retention (pellet zone uses same macro curve; heterogeneity
+                         is via the DSM per-medium K override). cavitation_pressure=1.4e8 Pa
+                         (Or and Tuller 2002 WRR 38(5) 1061). -->
                     <name>saturation</name>
-                    <type>SaturationVanGenuchten</type>
+                    <type>SaturationTuller</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <exponent>0.45</exponent>
-                    <!-- Pellets saturate more easily (lower P_entry) -->
-                    <p_b>1.5e7</p_b>
+                    <area_factor_tuller>1.0</area_factor_tuller>
+                    <pore_area_shapefactor_tuller>0.8584073464102069</pore_area_shapefactor_tuller>
+                    <characteristic_pore_size>1e-5</characteristic_pore_size>
+                    <surface_tension>0.0715</surface_tension>
+                    <cavitation_pressure>1.4e8</cavitation_pressure>
                 </property>
                 <!-- saturation_micro (VGM, p_b=1.5e8) removed: vestigial in Pi-path mode.
                      Pellet zone: same Pi-path physics, no capillary micro-saturation concept. -->
@@ -251,6 +275,8 @@ Official benchmark spec (MSXX §Model IV):
                     <type>PerComponentDeltaX</type>
                     <norm_type>NORM2</norm_type>
                     <abstols>1 1e-12 1e-12</abstols>
+                    <!-- reltols 1e-6 added 2026-05-30 (Vinay approved): abstol-only criterion (1 Pa on |p|~1.7e9, 1 pm disp) traps the IterationNumberBased dt at the wetting front; a relative tol opens it (sandbox IV tolerance sweep: Newton 11 to 9 iters, dt 2s to 5e4s, Model IV completes 200d in 443 steps vs stalled). -->
+                    <reltols>1e-6 1e-6 1e-6</reltols>
                 </convergence_criterion>
                 <time_discretization><type>BackwardEuler</type></time_discretization>
                 <time_stepping>

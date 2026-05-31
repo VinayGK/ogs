@@ -61,7 +61,7 @@
                 <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
                 <!-- K calibrated to Villar swelling pressure at rho_d=1600 kg/m³ via Pi-path;
                      Π uses bulk ρ_LR (Gibbs–Duhem consistent); steps 2+3, 2026-05-21 -->
-                <vdw_augmentation_prefactor>13050.0</vdw_augmentation_prefactor>
+                <vdw_augmentation_prefactor>71900</vdw_augmentation_prefactor>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
@@ -140,31 +140,40 @@
                 </property>
                 <property><name>reference_temperature</name><type>Constant</type><value>293.15</value></property>
                 <property>
+                    <!-- Benchmark-spec relative permeability: k_r = S_e^3 (RelativePermeabilityGeneralizedPower,
+                         enhancement A=1, exponent n=3). Restored from the parity-branch VG(exp=0.01) per
+                         Vinay 2026-05-29: the deliverable must use the spec relperm, not the numerical
+                         parity choice. NOTE (hiccup): with the Tuller macro (S_L->0 at high suction) S_e^3
+                         is floored at min_relative_permeability=1e-2 (Vinay 2026-05-29) so the drained
+                         macro cannot give a singular k_rel=0 at step 1. -->
                     <name>relative_permeability</name>
-                    <!-- Benchmark spec: k_r = S_e^3 (power law, A=1, n=3).
-                         RelativePermeabilityGeneralizedPower: k_r = enhancement_factor × S_eff^exponent.
-                         Replaces Mualem-VGM (RelativePermeabilityVanGenuchten) which gives
-                         k_r = sqrt(S_eff)·[1−(1−S_eff^(1/m))^m]², not S_e^3. -->
                     <type>RelativePermeabilityGeneralizedPower</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <min_relative_permeability>0.0</min_relative_permeability>
+                    <min_relative_permeability>1e-2</min_relative_permeability>
                     <enhancement_factor>1.0</enhancement_factor>
                     <exponent>3</exponent>
                 </property>
                 <property>
+                    <!-- Tuller macro retention ported from dsm_mfront_hierarchical (parity prjs);
+                         params: area_factor=1.0, shapefactor=0.8584073464102069, char_pore_size=1e-5 m,
+                         surface_tension=0.0715 N/m (water). cavitation_pressure=1.4e8 Pa = homogeneous-
+                         nucleation tensile strength of water (Or & Tuller 2002 WRR 38(5) 1061); NOTE
+                         (audit): not present in dsm_mfront_hierarchical; inert at <=100 MPa suction. -->
                     <name>saturation</name>
-                    <type>SaturationVanGenuchten</type>
+                    <type>SaturationTuller</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <exponent>0.45</exponent>
-                    <!-- P0 = 27 MPa per benchmark Table TH-G_model_parameters -->
-                    <p_b>2.7e7</p_b>
+                    <area_factor_tuller>1.0</area_factor_tuller>
+                    <pore_area_shapefactor_tuller>0.8584073464102069</pore_area_shapefactor_tuller>
+                    <characteristic_pore_size>1e-5</characteristic_pore_size>
+                    <surface_tension>0.0715</surface_tension>
+                    <cavitation_pressure>1.4e8</cavitation_pressure>
                 </property>
                 <!-- saturation_micro (VGM, p_b=2.7e8) removed: vestigial in Pi-path mode.
                      micro_pressure = Pi = rho_lR*K*exp(-xi) (disjoining pressure).
                      micro_water_content = n_l (adsorbed water per unit solid volume). -->
-                <property><name>bishops_effective_stress</name><type>BishopsPowerLaw</type><exponent>1</exponent></property>
+                <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
             </properties>
         </medium>
     </media>
@@ -176,6 +185,8 @@
                     <type>PerComponentDeltaX</type>
                     <norm_type>NORM2</norm_type>
                     <abstols>1 1e-12 1e-12</abstols>
+                    <!-- reltols 1e-6 added 2026-05-30 (Vinay approved): abstol-only criterion (1 Pa on |p|~1.7e9, 1 pm disp) traps the IterationNumberBased dt at the wetting front; a relative tol opens it (sandbox IV tolerance sweep: Newton 11 to 9 iters, dt 2s to 5e4s, Model IV completes 200d in 443 steps vs stalled). -->
+                    <reltols>1e-6 1e-6 1e-6</reltols>
                 </convergence_criterion>
                 <time_discretization><type>BackwardEuler</type></time_discretization>
                 <time_stepping>
@@ -231,8 +242,6 @@
             <expression>-1.5e5</expression><expression>-1.5e5</expression>
             <expression>-1.5e5</expression><expression>0</expression>
         </parameter>
-        <parameter><name>E</name><type>Constant</type><value>52e6</value></parameter>
-        <parameter><name>nu</name><type>Constant</type><value>0.3</value></parameter>
         <!-- phi0 = 1 - 1600/2780 = 0.424460 -->
         <parameter><name>phi0</name><type>Constant</type><value>0.4244604316546763</value></parameter>
         <!-- phi_tr0 removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
@@ -252,7 +261,11 @@
         <parameter><name>M_csl</name><type>Constant</type><value>1.2</value></parameter>
         <parameter><name>kappa_mcc</name><type>Constant</type><value>0.0066</value></parameter>
         <parameter><name>lambda_mcc</name><type>Constant</type><value>0.077</value></parameter>
-        <parameter><name>pc_char_mcc</name><type>Constant</type><value>1.0000e+10</value></parameter>
+        <!-- Saturated pre-consolidation p0* = 12 MPa (dd=1.6 g/cm3, reference density).
+             CIMNE-UPC EURAD-2 MS report (Table tab:CIMNE_BBM, p0*=6,12,24 MPa for
+             rho_d=1.4,1.6,1.8), calibrated to compaction pressures from Eriksson (2017).
+             ULIEGE independently calibrate p0*=12 MPa at this reference density. -->
+        <parameter><name>pc_char_mcc</name><type>Constant</type><value>12.0e6</value></parameter>
         <parameter><name>Vr0_mcc</name><type>Constant</type><value>1.737500</value></parameter>
     </parameters>
     <process_variables>

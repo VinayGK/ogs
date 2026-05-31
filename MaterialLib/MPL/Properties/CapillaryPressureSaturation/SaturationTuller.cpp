@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <limits>
 
 namespace MaterialPropertyLib
 {
@@ -14,14 +15,16 @@ SaturationTuller::SaturationTuller(
     double const maximum_liquid_saturation, double const area_factor_tuller,
     double const pore_area_shapefactor_tuller,
     double const characteristic_pore_size, double const surface_tension,
-    double const pressure_tolerance)
+    double const pressure_tolerance, double const cavitation_pressure)
     : S_L_res_(residual_liquid_saturation),
       S_L_max_(maximum_liquid_saturation),
       coefficient_(4.0 * pore_area_shapefactor_tuller * surface_tension *
                    surface_tension /
                    (area_factor_tuller * characteristic_pore_size *
                     characteristic_pore_size)),
-      pressure_tolerance_(pressure_tolerance)
+      pressure_tolerance_(pressure_tolerance),
+      cavitation_pressure_(cavitation_pressure),
+      saturation_at_cavitation_(saturationUncut(cavitation_pressure))
 {
     name_ = std::move(name);
 
@@ -68,14 +71,18 @@ SaturationTuller::SaturationTuller(
         OGS_FATAL("SaturationTuller internal coefficient must be > 0, got {:g}.",
                   coefficient_);
     }
+    if (!(cavitation_pressure_ > pressure_tolerance_))
+    {
+        OGS_FATAL(
+            "SaturationTuller requires cavitation_pressure > pressure_tolerance "
+            "({:g}), got {:g}. The cavitation cutoff must lie strictly inside "
+            "the drained branch of the curve.",
+            pressure_tolerance_, cavitation_pressure_);
+    }
 }
 
-PropertyDataType SaturationTuller::value(
-    VariableArray const& variable_array,
-    ParameterLib::SpatialPosition const& /*pos*/, double const /*t*/,
-    double const /*dt*/) const
+double SaturationTuller::saturationUncut(double const p_cap) const
 {
-    double const p_cap = variable_array.capillary_pressure;
     if (p_cap <= pressure_tolerance_)
     {
         return S_L_max_;
@@ -86,6 +93,23 @@ PropertyDataType SaturationTuller::value(
     double const S = S_L_res_ + (S_L_max_ - S_L_res_) * S_eff;
 
     return std::clamp(S, S_L_res_, S_L_max_);
+}
+
+PropertyDataType SaturationTuller::value(
+    VariableArray const& variable_array,
+    ParameterLib::SpatialPosition const& /*pos*/, double const /*t*/,
+    double const /*dt*/) const
+{
+    double const p_cap = variable_array.capillary_pressure;
+
+    // Beyond cavitation the macro meniscus has drained completely into the
+    // micro structure: freeze the macro saturation (zero storage response).
+    if (p_cap >= cavitation_pressure_)
+    {
+        return saturation_at_cavitation_;
+    }
+
+    return saturationUncut(p_cap);
 }
 
 PropertyDataType SaturationTuller::dValue(
@@ -101,7 +125,8 @@ PropertyDataType SaturationTuller::dValue(
     }
 
     double const p_cap = variable_array.capillary_pressure;
-    if (p_cap <= pressure_tolerance_)
+    // Plateau (and the dry corner): zero storage response.
+    if (p_cap <= pressure_tolerance_ || p_cap >= cavitation_pressure_)
     {
         return 0.0;
     }
@@ -124,7 +149,7 @@ PropertyDataType SaturationTuller::d2Value(
            "respect to capillary pressure only.");
 
     double const p_cap = variable_array.capillary_pressure;
-    if (p_cap <= pressure_tolerance_)
+    if (p_cap <= pressure_tolerance_ || p_cap >= cavitation_pressure_)
     {
         return 0.0;
     }

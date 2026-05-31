@@ -41,6 +41,30 @@
 @PhysicalBounds pamb in [0:*[;
 pamb.setEntryName("AmbientPressure");
 
+// Tension cutoff (no-tension cap on the TRUE mean stress, i.e. without the pamb
+// shift). Default -1 disables it so every existing MCC model is numerically
+// untouched (the branch below is never entered). Set >= 0 to forbid a true
+// tensile mean stress more negative than -pt_cutoff: pt_cutoff = 0 is a strict
+// no-tension material. The cutoff is surgical -- it only activates where the
+// elastic prediction is in tension (p_true < -pt_cutoff), which never happens
+// for the compression-dominated models (I/III/IV).
+//
+// TESTED 2026-05-29 on ModelVII free swelling and does NOT rescue it. The cutoff
+// works as designed (it holds the mean stress at 0; the nodal min went from
+// -63 kPa uncapped to +52 kPa), but VII still fails with status -1 at the
+// SAME wetting-front point. Diagnosis (single-thread instrumented run): the
+// failing Gauss point sits at p_el ~= -5e-12 Pa (exactly the tension APEX) with
+// a residual deviatoric q_el ~= 0.16 MPa and f_el > 0. At p=0 the cam-clay
+// ellipse pinches to the single point (0,0), so a state with q != 0 has no
+// admissible return; a purely volumetric cutoff caps p but leaves q untouched,
+// so f = q^2 > 0 persists -> status -1. The only constitutive cure would relax
+// BOTH p->0 and q->0 (a full apex/fissuring collapse), which zeroes the wetting-
+// front stiffness and is not globally solvable in OGS RM. Conclusion unchanged:
+// use the LE variant for VII free swelling. Left here (disabled) as the recorded
+// experiment; not a production lever.
+@Parameter stress pt_cutoff = -1; //Pa  (disabled by default; see note above)
+pt_cutoff.setEntryName("TensionCutoff");
+
 // material parameters
 @MaterialProperty stress young;
 @PhysicalBounds young in [0:*[;
@@ -87,6 +111,8 @@ v.setEntryName("VolumeRatio");  // Total volume per solid volume = inv(1 - poros
 
 // local variables
 @LocalVariable bool withinElasticRange;
+@LocalVariable bool tensileReturn;
+@LocalVariable bool useTensionCutoff;
 @LocalVariable real M2;
 @LocalVariable real pc_min;
 @LocalVariable real rpc_min;
@@ -100,7 +126,14 @@ v.setEntryName("VolumeRatio");  // Total volume per solid volume = inv(1 - poros
     eel = (1 + nu) / young * sig - nu / young * trace(sig) * Stensor::Id();
 
     rpc = pc / young;
-    pc_min = 1e-15 * pc_char;
+    // pc_min floors the pre-consolidation pressure to avoid a singular yield
+    // ellipse if pc softens toward zero (set to 0.5e-8*pc_char, same order as the
+    // absP variant). NOTE (2026-05-29 controlled experiment): raising this to
+    // 0.95*pc_char (pc floored at ~11.95 MPa, near-zero softening) did NOT fix the
+    // VII/III/IV wetting-front failure -- that failure is TENSION (mean stress p<0
+    // at yielding points while pc stays ~11 MPa), which the MCC ellipse [0,pc]
+    // cannot represent for any pc. pc_min is a singularity guard only, not the lever.
+    pc_min = 0.5e-8 * pc_char;
     rpc_min = pc_min / young;
 
     // elastic estimators
@@ -113,6 +146,21 @@ v.setEntryName("VolumeRatio");  // Total volume per solid volume = inv(1 - poros
     const auto pc_el = pc;
     const auto f_el = q_el * q_el + M2 * p_el * (p_el - pc_el);
     withinElasticRange = f_el < 0;
+
+    // tension cutoff detection: route to the no-tension return whenever the
+    // elastic prediction violates the cap on the TRUE mean stress (p_true_el
+    // measured without the pamb shift). Disabled when pt_cutoff < 0.
+    useTensionCutoff = (pt_cutoff >= stress(0));
+    tensileReturn = false;
+    if (useTensionCutoff)
+    {
+        const auto p_true_el = -trace(sig_el) / 3;
+        if (p_true_el < -pt_cutoff)
+        {
+            tensileReturn = true;
+            withinElasticRange = false;
+        }
+    }
 }
 
 @Integrator
@@ -124,6 +172,29 @@ v.setEntryName("VolumeRatio");  // Total volume per solid volume = inv(1 - poros
     // elastic range:
     if (withinElasticRange)
     {
+        return true;
+    }
+    // tension cutoff range: the MCC ellipse [0,pc] has no admissible state at a
+    // negative mean stress, so the wetting-front tension cannot be returned onto
+    // it. Instead relax purely volumetric plastic strain (associated flow on the
+    // planar cap -p_true = pt_cutoff) to bring the true mean stress back to
+    // -pt_cutoff. pc is frozen here (no shear-driven hardening in pure tension).
+    if (tensileReturn)
+    {
+        const auto p_true = -trace(sig) / 3;
+        const auto depl = eval(dlp * id2);
+        feel += depl;
+        flp = (p_true + pt_cutoff) / young;
+        frpc = drpc;
+
+        dfeel_ddlp = id2;
+        dfeel_ddrpc = Stensor(real(0));
+        dflp_ddeel = -(id2 | D) * theta / (3 * young);
+        dflp_ddlp = strain(0);
+        dflp_ddrpc = strain(0);
+        dfrpc_ddeel = Stensor(real(0));
+        dfrpc_ddlp = strain(0);
+        dfrpc_ddrpc = 1;
         return true;
     }
     // plastic range:

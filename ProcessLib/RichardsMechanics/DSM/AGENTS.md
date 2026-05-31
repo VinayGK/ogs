@@ -42,7 +42,8 @@ recipe for this branch from a fresh `master`. It must stay current.
 **Update DSM_NATIVE_HIERARCHICAL_PATCH_RECIPE.md before committing whenever:**
 - Any hunk in `RichardsMechanicsFEM-impl.h` or `PotentialExchange.h` changes.
 - The DSMMicroMacro unit tests change (step 8 section + passing count).
-- Any PRJ `hamaker_constant` or `vdw_augmentation_prefactor` (K) value changes.
+- Any PRJ `hamaker_constant`, `vdw_augmentation_prefactor` (K), or pre-consolidation
+  pressure (`pc_char_mcc` / `InitialPreConsolidationPressure`, the MCC cap `pc`) value changes.
 - A new benchmark model is added to the canonical LE set.
 - Build flags or the verification `ctest` invocation changes.
 - A new step beyond Step 8 is added (add a new numbered section).
@@ -88,6 +89,46 @@ Use ∇p_L_macro only in Darcy; route the (p_L − p_L_macro) residual through
 the existing DSM micro↔macro exchange. Requires a new constitutive law for
 the split and a process-variable refactor in `RichardsMechanicsProcess`.
 Estimate: 1–2 weeks careful work + tests.
+
+### MCC tension-apex non-convergence (ModelVII AND ModelIV) — use LE
+
+**Location:** `MaterialLib/SolidModels/MFront/ModCamClay_semiExpl_constE.mfront`
+(yield `f = q² + M²·p·(p−pc)`, `p = −trace(σ)/3 + pamb`).
+
+**Issue:** in the free-swelling ModelVII, differential swelling at the wetting
+front drives integration points to the tensile APEX of the cam-clay ellipse —
+the failing Gauss point sits at `p ≈ 0` with a residual deviatoric `q ≈ 0.16 MPa`
+and `pc ≈ 12 MPa` (healthy). At p=0 the ellipse pinches to the single point
+(0,0); a state with q≠0 has no admissible return → MFront `status -1`.
+
+**ModelIV joins this class (2026-05-29).** Once the clay–pellet ModelIV uses the
+*physical* soft pellet modulus (`E_mcc_pellet = 9.2549 MPa = C·ρ_d³` at ρ_d=900,
+parity with the LE variant), the compliant pellet lets differential swelling drive
+the pellet/clay interface to the apex (`p → 0.03 MPa`, `q → 4.8 MPa`, `eqpl=0`,
+`status -1` at ~22 d). The earlier MCC ModelIV that "completed" (1977 steps) used an
+unphysically stiff pellet (`E = 52 MPa = E_clay`) that suppressed the interface
+deformation. Per the user decision (physical params preferred), **ModelIV is now
+submitted with the LE variant** (`ANCHORS_MS33_LE_PER_DD/ModelIV`, soft pellet,
+converges: clay 13.9 / pellet ~0 MPa). ModelIII does NOT fail because its soft gap
+is a per-material LinearElastic zone (id=1) — no MCC integration there, no apex.
+
+**Tested (2026-05-29) and rejected as the fix:** added a gated `TensionCutoff`
+(`pt_cutoff`) @Parameter (default −1 = OFF; converging models I/III/IV stay
+byte-identical, verified dd1400 elastic 4.908 MPa / eqpl=0). `pt_cutoff=0`
+(strict no-tension) routes p<0 elastic predictions to a volumetric-only return
+that caps the mean stress at 0. It works (nodal min mean −63 → +52 kPa) but VII
+still fails at the same step: the cutoff caps p but leaves q, so `f = q² > 0`
+persists at the apex. Completing the Jacobian did not change the outcome →
+structural, not a numerical bug. The earlier "negative mean stress" reading was
+a nodal-extrapolation artifact; the true obstruction is the p→0 / q≠0 apex
+coincidence. `pc_min` and `pamb` were separately ruled out (see
+`project_dsm_mcc_bishop_cutoff.md` memory).
+
+**Verdict:** the gated cutoff is left disabled in the .mfront as the recorded
+experiment, NOT a production lever. ModelVII free swelling and ModelIV clay–pellet
+both use the LE variant (`ANCHORS_MS33_LE_PER_DD/ModelVII` and `.../ModelIV`).
+A genuine cure would relax BOTH p→0 and q→0 (full apex/fissuring collapse), which
+zeroes wetting-front stiffness and is not globally solvable in OGS RM.
 
 **Pragmatic interim:** submit current results with explicit caveat in the
 deliverable (deck frame "Known Limitation — Hydraulic Side of OGS RM-DSM").

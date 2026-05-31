@@ -153,25 +153,35 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                 </property>
                 <property><name>reference_temperature</name><type>Constant</type><value>293.15</value></property>
                 <property>
+                    <!-- Benchmark-spec relative permeability: k_r = S_e^3 (RelativePermeabilityGeneralizedPower,
+                         enhancement A=1, exponent n=3). Restored from the parity-branch VG(exp=0.01) per
+                         Vinay 2026-05-29: the deliverable must use the spec relperm, not the numerical
+                         parity choice. NOTE (hiccup): with the Tuller macro (S_L->0 at high suction) S_e^3
+                         is floored at min_relative_permeability=1e-2 (Vinay 2026-05-29) so the drained
+                         macro cannot give a singular k_rel=0 at step 1. -->
                     <name>relative_permeability</name>
-                    <!-- Benchmark spec: k_r = S_e^3 (power law, A=1, n=3).
-                         RelativePermeabilityGeneralizedPower: k_r = enhancement_factor × S_eff^exponent.
-                         Replaces Mualem-VGM (RelativePermeabilityVanGenuchten) which gives
-                         k_r = sqrt(S_eff)·[1−(1−S_eff^(1/m))^m]², not S_e^3. -->
                     <type>RelativePermeabilityGeneralizedPower</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <min_relative_permeability>0.0</min_relative_permeability>
+                    <min_relative_permeability>1e-2</min_relative_permeability>
                     <enhancement_factor>1.0</enhancement_factor>
                     <exponent>3</exponent>
                 </property>
                 <property>
+                    <!-- Tuller macro retention ported from dsm_mfront_hierarchical (parity prjs);
+                         params: area_factor=1.0, shapefactor=0.8584073464102069, char_pore_size=1e-5 m,
+                         surface_tension=0.0715 N/m (water). cavitation_pressure=1.4e8 Pa = homogeneous-
+                         nucleation tensile strength of water (Or & Tuller 2002 WRR 38(5) 1061); NOTE
+                         (audit): not present in dsm_mfront_hierarchical; inert at <=100 MPa suction. -->
                     <name>saturation</name>
-                    <type>SaturationVanGenuchten</type>
+                    <type>SaturationTuller</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <exponent>0.45</exponent>
-                    <p_b>2.7e7</p_b>
+                    <area_factor_tuller>1.0</area_factor_tuller>
+                    <pore_area_shapefactor_tuller>0.8584073464102069</pore_area_shapefactor_tuller>
+                    <characteristic_pore_size>1e-5</characteristic_pore_size>
+                    <surface_tension>0.0715</surface_tension>
+                    <cavitation_pressure>1.4e8</cavitation_pressure>
                 </property>
                 <!-- saturation_micro (VGM, p_b=2.7e8) removed: vestigial in Pi-path mode.
                      micro_pressure = Pi = rho_lR*K*exp(-xi) (disjoining pressure).
@@ -188,6 +198,8 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                     <type>PerComponentDeltaX</type>
                     <norm_type>NORM2</norm_type>
                     <abstols>1 1e-12 1e-12</abstols>
+                    <!-- reltols 1e-6 added 2026-05-30 (Vinay approved): abstol-only criterion (1 Pa on |p|~1.7e9, 1 pm disp) traps the IterationNumberBased dt at the wetting front; a relative tol opens it (sandbox IV tolerance sweep: Newton 11 to 9 iters, dt 2s to 5e4s, Model IV completes 200d in 443 steps vs stalled). -->
+                    <reltols>1e-6 1e-6 1e-6</reltols>
                 </convergence_criterion>
                 <time_discretization><type>BackwardEuler</type></time_discretization>
                 <time_stepping>
@@ -232,11 +244,11 @@ initial micro water content is set to the 99 MPa-equilibrium value.
     <parameters>
         <!-- Initial stress: Biot-consistent with benchmark suction level.
              At 100 MPa suction, S_w≈0.3292, chi≈0.3292, p_L=-1e8:
-             sigma0_eff_rr = sigma0_eff_θθ = α*χ*p_L ≈ -3.292e7 Pa
-             sigma0_eff_zz = α*χ*p_L + σ_Neumann ≈ -3.312e7 Pa -->
+             sigma0_eff_rr = sigma0_eff_θθ = α*χ*p_L ≈ -1.5e5 Pa
+             sigma0_eff_zz = α*χ*p_L + σ_Neumann ≈ -1.5e5 Pa -->
         <parameter><name>sigma0</name><type>Function</type>
-            <expression>-3.292e7</expression><expression>-3.312e7</expression>
-            <expression>-3.292e7</expression><expression>0</expression>
+            <expression>-1.5e5</expression><expression>-1.5e5</expression>
+            <expression>-1.5e5</expression><expression>0</expression>
         </parameter>
         <parameter><name>E</name><type>Constant</type><value>52e6</value></parameter>
         <parameter><name>nu</name><type>Constant</type><value>0.3</value></parameter>

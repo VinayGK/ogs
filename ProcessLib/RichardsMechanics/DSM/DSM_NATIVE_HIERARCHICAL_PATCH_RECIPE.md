@@ -352,10 +352,76 @@ dd1600: <vdw_augmentation_prefactor>29984.9</vdw_augmentation_prefactor>
 dd1800: <vdw_augmentation_prefactor>118582.6</vdw_augmentation_prefactor>
 ```
 
+MCC pre-consolidation cap `pc` (MCC models only: `*_mcc_native`, `*_mcc`) — parameter
+`pc_char_mcc` (MCC_NATIVE) / `InitialPreConsolidationPressure` (MCC_SUITE). It sets both
+the initial yield-cap size and the residual-normalization `pc_char`. Values are the
+CIMNE-UPC saturated pre-consolidation p0* (EURAD-2 MS report, Table tab:CIMNE_BBM;
+calibrated to Eriksson 2017 compaction pressures):
+```
+dd1400: 6.0e6    (6 MPa)
+dd1600: 12.0e6   (12 MPa)  <- also ModelIII / ModelIV(bentonite) / ModelVII (dd1600 reference)
+dd1800: 24.0e6   (24 MPa)
+```
+**K consistency (2026-05-29):** MCC_NATIVE K was aligned to the LE submission's agreed
+EMDD≡rho_d calibration (`vdw_augmentation_prefactor` = 26950/71900/214400 for dd1400/1600/1800;
+III/IV/VII use the dd1600 value 71900). It previously carried the stale EMDD=0.8*rho_d K
+(5500/13050/31280 -> 1.12/2.61/6.09 MPa). With the consistent EMDD≡rho_d K the developed
+swelling stress vs the CIMNE caps gives:
+- dd1400: p=4.91 MPa < 6 -> elastic (coincides with LE = Dixon).
+- dd1600: p=15.2 MPa > 12 -> **yields and hardens** (pc 12->15.8); LE elastic 14.1 (+7.8%).
+- dd1800: ~40 MPa >> 24 -> **fails** (plastic excursion +67% exceeds the MFront-MCC integrator;
+  not fixable by dt reduction).
+- III gap / IV pellets: elastic (gap/pellet stress relief keeps p ~7 / ~4.5 MPa < 12 cap).
+- VII free: fails on the MCC supercritical dry side at the wetting front -> use the LE variant.
+
+ModelIV's pellet zone (rho_d=900) shares the single `pc_char_mcc`; CIMNE has no p0* at 0.9 g/cm3
+(open: needs a separate pellet-zone pc parameter).
+
+**Per-medium DSM swelling override (already in the code, no change needed):** the
+`<potential_exchange>` block accepts per-material `<medium id="N">` sub-blocks that override the
+base DSM params (parsed in `CreateRichardsMechanicsProcess.cpp` via `parsePotentialExchangeParameters`
+with the base as defaults; the local assembler picks per material id in `LocalAssemblerInterface.h`).
+ModelIV now uses this to differentiate the pellet zone (material id 1): `n_s=0.324` (=1-phi0_pellet),
+`initial_micro_water_content=6.59e-4`, lower `vdw_augmentation_prefactor`. Result: heterogeneous
+swelling (clay ~2.45 vs pellet ~0.1 MPa) + partial density homogenisation. NOTE: ModelIV currently
+runs at a **demo** base K=13050 (EMDD=0.8, runnable); the EMDD≡rho_d K=71900 makes the multi-element
+gap/pellet models (III, IV) impractically slow (III crawled to step 9371). Pellet K_pellet=1200 is a
+demo value, to be calibrated to Dixon EMDD≡rho_d sigma_sat(0.9)~0.35 MPa for production.
+
+**Model III (gap) stays elastic — by design:** the gap is a soft LE spring (E_gap=1e7 Pa, phi0=0.985)
+so the bentonite equilibrates at ~7 MPa < 12 cap (no yielding, no evolving yield surface, no plastic
+gap closure). A stiffer/contact-like gap would build stress to the cap but suppress closure; true
+contact mechanics is absent in OGS RM. Documented limitation, not a calibration error.
+
 All PRJ files must also have:
 ```xml
 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
 ```
+
+Bishop effective-stress coefficient (group decision 2026-05-29): **all DSM models** use
+```xml
+<property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
+```
+i.e. chi=0 while S_L<1, chi=1 only at full saturation. Molecular suction is carried solely
+by the Pi-path disjoining-pressure swelling source (no double counting). Rationale: with
+`BishopsPowerLaw` (chi=S_L) the high initial suction (~100 MPa, S_L~0.33) gives chi*s~33 MPa
+effective stress that busts the MCC cap at t=0 (instant yield -> divergence). With the cutoff
+this vanishes and III/IV/VII integrate (previously failed at step 1/82).
+
+Initial stress: confined models use `sigma0 = -1.5e5` Pa (seating). Free-boundary models
+(ModelVII free swelling) **also** use -1.5e5 now — the former -33 MPa balanced the PowerLaw
+Bishop force (sigma0_eff = alpha*chi*s); with chi=0 that balance gives 0, so -33 MPa is obsolete.
+
+ModelVII (free swelling) + MCC: documented limitation. Even with cutoff+sigma0 fixed it diverges
+near the wetting front (~step 74, t~19 d): unconfined + sharp front -> deviatoric stress on the
+MCC supercritical/dry side (p<<pc/2) -> dilatant softening -> local return-map instability.
+Decision: use the **LE** variant (`ANCHORS_MS33_LE_PER_DD/ModelVII`) for the free-swelling case.
+
+Optional macro-retention `SaturationTuller` (implemented, not yet wired into MS33 prjs which use
+`SaturationVanGenuchten`, p_b=27 MPa) supports `cavitation_pressure` (Frydman-Baker cutoff: freezes
+S_L beyond p_cav, zero macro storage). Tuller/Or-faithful value: `cavitation_pressure=1.4e8` Pa
+(~140 MPa, homogeneous-nucleation tensile strength of water; Or & Tuller 2002 WRR 38(5) 1061, via
+Zheng 1991 / Speedy 1982) — NOT the tens-of-MPa Lu figure.
 
 ---
 
@@ -368,7 +434,7 @@ All PRJ files must also have:
 | Any hunk in `RichardsMechanicsFEM-impl.h` changes | Relevant step diff above |
 | Any hunk in `PotentialExchange.h` changes | Step 5 diff |
 | DSMMicroMacro unit test changes | Step 8 description + passing criteria |
-| PRJ `hamaker_constant` or K values change | PRJ parameter summary table |
+| PRJ `hamaker_constant`, K, or MCC `pc` (`pc_char_mcc`/`InitialPreConsolidationPressure`) values change | PRJ parameter summary table |
 | New benchmark model added to canonical LE set | Verification commands + passing criteria |
 | Build system flags change | Build instructions |
 | New step added beyond Step 8 | New section following the same template |
