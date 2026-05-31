@@ -79,6 +79,8 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                     <material_property name="MicroLiquidDensityB" parameter="MicroLiquidDensityB"/>
                     <material_property name="HamakerConstant" parameter="HamakerConstant"/>
                     <material_property name="SpecificSurface" parameter="SpecificSurface"/>
+                    <material_property name="VdwAugmentationPrefactor" parameter="VdwAugmentationPrefactor"/>
+                    <material_property name="VdwAugmentationDecayLength" parameter="VdwAugmentationDecayLength"/>
                     <material_property name="AreaFactorTuller" parameter="AreaFactorTuller"/>
                     <material_property name="PoreAreaShapeFactorTuller" parameter="PoreAreaShapeFactorTuller"/>
                     <material_property name="CharacteristicPoreSize" parameter="CharacteristicPoreSize"/>
@@ -160,7 +162,7 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                     <type>RelativePermeabilityGeneralizedPower</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <min_relative_permeability>1e-12</min_relative_permeability>
+                    <min_relative_permeability>1e-2</min_relative_permeability>
                     <enhancement_factor>1.0</enhancement_factor>
                     <exponent>3</exponent>
                 </property>
@@ -185,6 +187,8 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                     <type>PerComponentDeltaX</type>
                     <norm_type>NORM2</norm_type>
                     <abstols>1 1e-12 1e-12</abstols>
+                    <!-- reltols 1e-6 added 2026-05-30 (Vinay approved): abstol-only convergence traps the time-stepper dt; relative tol opens it (IV stall fix). -->
+                    <reltols>1e-6 1e-6 1e-6</reltols>
                 </convergence_criterion>
                 <time_discretization><type>BackwardEuler</type></time_discretization>
                 <time_stepping>
@@ -257,6 +261,8 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         <!-- specific surface [m²/kg] = 523 m²/g -->
         <parameter><name>SpecificSurface</name><type>Constant</type><value>5.23e5</value></parameter>
         <parameter><name>AreaFactorTuller</name><type>Constant</type><value>1.0</value></parameter>
+        <parameter><name>VdwAugmentationPrefactor</name><type>Constant</type><value>71900</value></parameter>
+        <parameter><name>VdwAugmentationDecayLength</name><type>Constant</type><value>7.5e-7</value></parameter>
         <parameter><name>PoreAreaShapeFactorTuller</name><type>Constant</type><value>0.8584073464102069</value></parameter>
         <parameter><name>CharacteristicPoreSize</name><type>Constant</type><value>1e-5</value></parameter>
         <parameter><name>SurfaceTension</name><type>Constant</type><value>0.0715</value></parameter>
@@ -271,7 +277,7 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         <parameter><name>VirginConsolidationLineSlope</name><type>Constant</type><value>7.7e-2</value></parameter>
         <parameter><name>InitialPreConsolidationPressure</name><type>Constant</type><value>1.0e10</value></parameter>
         <parameter><name>InitialVolumeRatio</name><type>Constant</type><value>1.737500</value></parameter>
-        <parameter><name>MacroSaturationLawMode</name><type>Constant</type><value>0.0</value></parameter>
+        <parameter><name>MacroSaturationLawMode</name><type>Constant</type><value>1.0</value></parameter>
         <parameter><name>MicroStateLocalSolveMode</name><type>Constant</type><value>1</value></parameter>
         <parameter><name>MicroPotentialConvention</name><type>Constant</type><value>0</value></parameter>
         <parameter><name>BubblePressure</name><type>Constant</type><value>2.7e7</value></parameter>

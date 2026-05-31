@@ -146,7 +146,7 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                     <type>RelativePermeabilityGeneralizedPower</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <min_relative_permeability>1e-12</min_relative_permeability>
+                    <min_relative_permeability>1e-2</min_relative_permeability>
                     <enhancement_factor>1.0</enhancement_factor>
                     <exponent>3</exponent>
                 </property>
@@ -171,6 +171,8 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                     <type>PerComponentDeltaX</type>
                     <norm_type>NORM2</norm_type>
                     <abstols>1 1e-12 1e-12</abstols>
+                    <!-- reltols 1e-6 added 2026-05-30 (Vinay approved): abstol-only convergence traps the time-stepper dt; relative tol opens it (IV stall fix). -->
+                    <reltols>1e-6 1e-6 1e-6</reltols>
                 </convergence_criterion>
                 <time_discretization><type>BackwardEuler</type></time_discretization>
                 <time_stepping>

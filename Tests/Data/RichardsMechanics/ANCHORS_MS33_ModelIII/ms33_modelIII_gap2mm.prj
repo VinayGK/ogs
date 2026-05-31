@@ -77,6 +77,8 @@ Boundary conditions (official spec):
                     <material_property name="ReferenceDensitySolid" parameter="ReferenceDensitySolid"/>
                     <material_property name="HamakerConstant" parameter="HamakerConstant"/>
                     <material_property name="SpecificSurface" parameter="SpecificSurface"/>
+                    <material_property name="VdwAugmentationPrefactor" parameter="VdwAugmentationPrefactor"/>
+                    <material_property name="VdwAugmentationDecayLength" parameter="VdwAugmentationDecayLength"/>
                     <material_property name="InitialPorosity" parameter="phi0_clay"/>
                     <material_property name="AreaFactorTuller" parameter="AreaFactorTuller"/>
                     <material_property name="PoreAreaShapeFactorTuller" parameter="PoreAreaShapeFactorTuller"/>
@@ -162,7 +164,7 @@ Boundary conditions (official spec):
                     <type>RelativePermeabilityGeneralizedPower</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
                     <residual_gas_saturation>0.0</residual_gas_saturation>
-                    <min_relative_permeability>1e-12</min_relative_permeability>
+                    <min_relative_permeability>1e-2</min_relative_permeability>
                     <enhancement_factor>1.0</enhancement_factor>
                     <exponent>3</exponent>
                 </property>
@@ -227,6 +229,8 @@ Boundary conditions (official spec):
                     <type>PerComponentDeltaX</type>
                     <norm_type>NORM2</norm_type>
                     <abstols>1 1e-12 1e-12</abstols>
+                    <!-- reltols 1e-6 added 2026-05-30 (Vinay approved): abstol-only convergence traps the time-stepper dt; relative tol opens it (IV stall fix). -->
+                    <reltols>1e-6 1e-6 1e-6</reltols>
                 </convergence_criterion>
                 <time_discretization><type>BackwardEuler</type></time_discretization>
                 <time_stepping>
@@ -304,6 +308,8 @@ Boundary conditions (official spec):
         <parameter><name>HamakerConstant</name><type>Constant</type><value>2.2e-20</value></parameter>
         <parameter><name>SpecificSurface</name><type>Constant</type><value>5.23e5</value></parameter>
         <parameter><name>AreaFactorTuller</name><type>Constant</type><value>1.0</value></parameter>
+        <parameter><name>VdwAugmentationPrefactor</name><type>Constant</type><value>71900</value></parameter>
+        <parameter><name>VdwAugmentationDecayLength</name><type>Constant</type><value>7.5e-7</value></parameter>
         <parameter><name>PoreAreaShapeFactorTuller</name><type>Constant</type><value>0.8584073464102069</value></parameter>
         <parameter><name>CharacteristicPoreSize</name><type>Constant</type><value>1e-5</value></parameter>
         <parameter><name>SurfaceTension</name><type>Constant</type><value>0.0715</value></parameter>
