@@ -8,7 +8,7 @@ Geometry: 50mm diam × 70mm height axisymmetric cylinder
   Bentonite block (medium id=0): r=0–0.025m, z=0.035–0.070m  (MaterialID=0)
   Pellet zone     (medium id=1): r=0–0.025m, z=0–0.035m      (MaterialID=1)
 
-Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=29999.2513 J/kg
+Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=71900 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes Villar 29999.25)
 Pellets:   rho_d=900  kg/m³, phi0=0.676259, K≈150 J/kg
   (Villar target at 0.9 g/cm³ ≈ 0.051 MPa; K extrapolated from calibration curve)
   Pellet k0 from Kozeny-Carman with k_ref=5.6e-21 m² at phi_ref=0.42
@@ -19,6 +19,31 @@ Official benchmark spec (MSXX §Model IV):
   Both zones use same 200-day simulation
 -->
 <OpenGeoSysProject>
+    <!--
+      DSM provenance (CLAUDE.md §12.2). Authoritative; supersedes any older inline
+      "Villar" calibration wording elsewhere in this file.
+      Benchmark family : MS LE  (gating regression standard, §12.3)
+      Geometry / BC    : axisym cylinder 50 mm diam x 70 mm; bentonite block (MaterialID 0,
+                         rho_d=1600) over pellet zone (MaterialID 1, rho_d=900); 100 MPa initial
+                         suction both zones; bottom suction ramp 100->0 MPa / 20 d to 200 d.
+                         Source: EURAD-2 MS33 spec (pellet rho_d=0.9 g/cm3 verbatim spec value).
+      Calibration anchor:
+        source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
+        dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27)
+        bentonite    : rho_d=1600 kg/m3, target 14.161 MPa, fitted K=71900 J/kg (vdw_augmentation_prefactor)
+        pellet       : rho_d=900 kg/m3, target ~0.051 MPa, K EXTRAPOLATED below Dixon's data range
+                       (header notes K~150 J/kg).
+                       [TODO(Vinay): (1) the body currently exposes only ONE
+                        vdw_augmentation_prefactor (=71900); confirm whether the pellet zone carries
+                        a distinct K override or intentionally shares 71900. (2) extrapolating K
+                        below Dixon's measured density range is a 12.1 edge case to confirm.]
+      Material parameters (source per group): as Model I; elastic E,nu: EURAD-2 MS33 Table TH-G
+        [TODO(Vinay): confirm]; retention P0=27MPa,a=0.45; rel.perm S_e^3; rho_s=2780; pellet
+        phi0=0.676259 = 1-rho_d/rho_s; cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20
+        Israelachvili & Adams 1978; lambda=7.5e-7 co-calibrated; micro EOS / Tuller geom /
+        specific_surface [TODO(Vinay): primary locators]; alpha_M phenomenological.
+      NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
+    -->
     <meshes>
         <mesh axially_symmetric="true">ms33_pellets_r25_h70.vtu</mesh>
         <mesh axially_symmetric="true">ms33_pellets_r25_h70_left.vtu</mesh>

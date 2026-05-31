@@ -4,7 +4,7 @@ EURAD-2 MS33 Theoretical Benchmarking — Model VII
 Free swelling, loading and unloading
 BGR / DSM native hierarchical vdW-augmented model
 
-Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=27371.9007 J/kg
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=71900 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes earlier 27371.90)
 Geometry: 50mm diam × 70mm height axisymmetric cylinder (r=0–0.025m, z=0–0.070m)
 
 Free swelling under constant axial stress = 0.2 MPa (1-D oedometer-like):
@@ -32,6 +32,29 @@ For consistency with the benchmark-aligned Pi-path initialization used in Models
 initial micro water content is set to the 99 MPa-equilibrium value.
 -->
 <OpenGeoSysProject>
+    <!--
+      DSM provenance (CLAUDE.md §12.2). Authoritative; supersedes any older inline
+      "Villar" calibration wording elsewhere in this file.
+      Benchmark family : MS LE  (gating regression standard, §12.3)
+      Geometry / BC    : axisym cylinder 50 mm diam x 70 mm; FREE radial swelling (right face
+                         u_r free), fixed base, time-varying axial traction (load/unload path
+                         to 240 d); bottom suction ramp 100->0 MPa / 20 d. Source: EURAD-2 MS33
+                         spec (Table Loading_unloading_path).
+      Constitutive note : delivered in LINEAR ELASTIC. MCC fails at the cam-clay dry-side tension
+                         apex under free swelling (documented limit); sigma0 from the
+                         free-boundary rule sigma0 = alpha*chi*p_L,initial.
+      Calibration anchor:
+        source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
+        dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1600 kg/m3
+        target sigma : 14.161 MPa
+        fitted K     : 71900 J/kg (vdw_augmentation_prefactor)
+      Material parameters (source per group): as Model I dd1600; elastic E,nu: EURAD-2 MS33
+        Table TH-G [TODO(Vinay): confirm]; retention P0=27MPa,a=0.45; rel.perm S_e^3; rho_s=2780;
+        cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20 Israelachvili & Adams 1978; lambda=7.5e-7
+        co-calibrated; micro EOS / Tuller geom / specific_surface 523 m2/g [TODO(Vinay): primary
+        locators]; alpha_M phenomenological.
+      NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
+    -->
     <meshes>
         <mesh axially_symmetric="true">ms33_cylinder_r25_h70.vtu</mesh>
         <mesh axially_symmetric="true">ms33_cylinder_r25_h70_left.vtu</mesh>

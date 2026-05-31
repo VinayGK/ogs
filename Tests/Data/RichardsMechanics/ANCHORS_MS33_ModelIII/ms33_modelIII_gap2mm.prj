@@ -4,7 +4,7 @@ EURAD-2 MS33 Theoretical Benchmarking — Model III
 Swelling pressure with 2 mm lateral technological gap
 BGR / DSM native hierarchical vdW-augmented model
 
-Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=29999.2513 J/kg
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=71900 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes Villar 29999.25)
 Geometry: 50mm diam × 70mm height axisymmetric cylinder, PLUS 2mm lateral gap
   Clay zone  (medium id=0): r=0 to 0.025m, z=0 to 0.070m  (MaterialID=0)
   Gap zone   (medium id=1): r=0.025 to 0.027m, z=0 to 0.070m  (MaterialID=1)
@@ -22,6 +22,33 @@ Boundary conditions (official spec):
   Initial stress: isotropic 0.15 MPa
 -->
 <OpenGeoSysProject>
+    <!--
+      DSM provenance (CLAUDE.md §12.2). Authoritative; supersedes any older inline
+      "Villar" calibration wording elsewhere in this file.
+      Benchmark family : MS LE  (gating regression standard, §12.3)
+      Geometry / BC    : axisym cylinder 50 mm diam x 70 mm; clay (MaterialID 0) + 2 mm lateral
+                         technological gap (MaterialID 1; high-k, near-zero stiffness, no DSM);
+                         rigid lid + wall; bottom suction ramp 100->0 MPa / 20 d then 0 to 200 d;
+                         initial isotropic stress 0.15 MPa. Source: EURAD-2 MS33 spec.
+      Calibration anchor:
+        source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
+        dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), clay rho_d=1600 kg/m3
+        target sigma : 14.161 MPa
+        fitted K     : 71900 J/kg (clay; vdw_augmentation_prefactor)
+      Material parameters (source per group):
+        elastic (E, nu)              : EURAD-2 MS33 spec, Table TH-G_model_parameters  [TODO(Vinay): confirm]
+        retention (P0=27MPa, a=0.45)  : EURAD-2 MS33 spec (van Genuchten)
+        rel. permeability (S_e^3)     : EURAD-2 MS33 spec (A=1, n=3)
+        solid density rho_s=2780      : EURAD-2 MS33 spec
+        clay porosity phi0=0.42446    : = 1 - rho_d/rho_s (EURAD-2 MS33)
+        gap porosity phi0_gap=0.985018: EURAD-2 MS33 spec (2 mm void realisation)
+        cavitation p_cav=1.4e8 Pa     : Or-Tuller 2002
+        vdW base A_Hamaker=2.2e-20 J  : Israelachvili & Adams 1978
+        vdW decay lambda=7.5e-7 m     : co-calibrated with K to the Dixon anchor
+        micro EOS / Tuller geom / specific_surface=523 m2/g : as Model I  [TODO(Vinay): primary locators]
+        mass-transfer alpha_M         : phenomenological; not identified by sigma_sw
+      NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
+    -->
     <meshes>
         <mesh axially_symmetric="true">ms33_gap2mm_r27_h70.vtu</mesh>
         <mesh axially_symmetric="true">ms33_gap2mm_r27_h70_left.vtu</mesh>
