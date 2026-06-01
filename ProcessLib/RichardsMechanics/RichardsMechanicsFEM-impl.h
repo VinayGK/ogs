@@ -1510,6 +1510,12 @@ computeReferenceMicroPorositySwellingStressIncrement(
     PotentialExchangeParameters const& potential_exchange_params)
 {
     using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
+    auto const& params = potential_exchange_params;
+
+    // C_el is no longer used: the legacy beta_sw slope branch (the only
+    // consumer of the elastic stiffness here) has been removed. The signature
+    // is kept for call-site compatibility.
+    (void)C_el;
 
     KV delta_sigma_sw = KV::Zero();
     double const delta_n_l = n_l - n_l_prev;
@@ -1519,98 +1525,107 @@ computeReferenceMicroPorositySwellingStressIncrement(
         return delta_sigma_sw;
     }
 
+    // Fail loud: the full p^disj swelling law has no fallback branch, so the
+    // vdW micro-potential parameters MUST be physical. (computeVanDerWaals-
+    // MicroPotential would itself OGS_FATAL on these, but we check up front to
+    // emit a swelling-law-specific message and to cover the n_S-reference
+    // mode before the helper is ever reached.)
+    if (!(params.hamaker_constant > 0.0) || !(params.specific_surface > 0.0) ||
+        !(params.micro_solid_density_reference > 0.0))
+    {
+        OGS_FATAL(
+            "The full-p^disj DSM swelling law requires positive vdW "
+            "parameters: hamaker_constant > 0 (got {:g}), specific_surface > 0 "
+            "(got {:g}) and micro_solid_density_reference > 0 (got {:g}).",
+            params.hamaker_constant, params.specific_surface,
+            params.micro_solid_density_reference);
+    }
+    if (params.micro_solid_volume_fraction_mode ==
+            MicroSolidVolumeFractionMode::Reference &&
+        !(params.micro_solid_volume_fraction_reference > 0.0))
+    {
+        OGS_FATAL(
+            "The full-p^disj DSM swelling law with "
+            "micro_solid_volume_fraction_mode='reference' requires "
+            "micro_solid_volume_fraction_reference > 0, got {:g}.",
+            params.micro_solid_volume_fraction_reference);
+    }
+
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(
             DisplacementDim)>::identity2;
-    bool const augmentation_enabled =
-        potential_exchange_params.vdw_augmentation_prefactor > 0.0 &&
-        potential_exchange_params.vdw_augmentation_decay_length > 0.0 && n_S > 0.0;
-    bool const slope_enabled =
-        potential_exchange_params.micro_water_content_swelling_slope > 0.0;
-    (void)rho_lR;
-    (void)rho_lR_prev;
 
-    // Legacy path: keep historical semantics unless explicitly switched.
-    if (!potential_exchange_params.accumulate_swelling_contributions)
-    {
-        if (!slope_enabled)
-        {
-            return delta_sigma_sw;
-        }
+    // ONE unconditional swelling law (full micro disjoining pressure):
+    //
+    //   sigma_sw eigenstress increment
+    //       = n_S * (n_l_prev * Pi_prev - n_l * Pi_curr) * identity2
+    //
+    // with, for tau in {prev, curr},
+    //   Pi_tau           = -p_L_m_density_tau * mu_lR_tau   (FULL p^disj)
+    //   mu_lR_tau        = computeVanDerWaalsMicroPotential(...).mu_lR
+    //   p_L_m_density_tau = use_micro_liquid_density_for_micro_pressure
+    //                           ? rho_lR_tau : rho_LR       (MIRRORS hydraulic)
+    //
+    // The vdW potential AND its exponential augmentation are BOTH carried
+    // through unconditionally (adsorption potential, NOT a plate-plate term),
+    // so both are swelling-promoting.
+    //
+    // Sign (SETTLED — do not change): negative_attractive => mu_lR < 0 =>
+    //   Pi = -density * mu_lR > 0 => sigma_sw = -phi_m * Pi compressive
+    //   (tension-positive convention), i.e. swelling.
+    //   phi_m = (1 - phi_M) * n_l = n_S * n_l in the hierarchical split, so the
+    //   eigenstress increment carries the explicit factor n_S * n_l. During
+    //   hydration n_l*Pi increases, so (n_l_prev*Pi_prev - n_l*Pi_curr) < 0,
+    //   giving a compressive (swelling) increment.
+    //
+    // NAMING NOTE: the n_S prefactor in scope here is the REV-scale solid
+    // fraction (1 - phi_M), passed in from the caller. It is DISTINCT from the
+    // aggregate-scale active_nS = computeActiveMicroSolidVolumeFraction(...)
+    // used inside the vdW potential (the omega_l denominator). The
+    // identification phi_m = n_S * n_l holds only for the REV-scale n_S here.
 
-        if (augmentation_enabled)
-        {
-            double const denom =
-                potential_exchange_params.vdw_augmentation_decay_length * n_S *
-                potential_exchange_params.micro_solid_density_reference *
-                potential_exchange_params.specific_surface;
-            double const xi_curr = n_l / denom;
-            double const xi_prev = n_l_prev / denom;
-            double const K = potential_exchange_params.vdw_augmentation_prefactor;
-            double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
-            double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
-            // Thermodynamic form: sigma_sw = -phi_m * Pi = -n_S * n_l * Pi
-            // (compressive eigenstress, tension-positive convention).
-            // Factor n_l (previously absorbed into K) now explicit.
-            // Sign: n_l*Pi increases during hydration (n_l<<C=lambda*nS*rho_SR*Sa),
-            // so n_l_prev*Pi_prev - n_l*Pi_curr < 0 -> compressive increment.
-            delta_sigma_sw.noalias() +=
-                n_S * (n_l_prev * Pi_prev - n_l * Pi_curr) * identity2;
-            return delta_sigma_sw;
-        }
+    // active_nS feeds the vdW potential's nS argument. The helper IGNORES the
+    // PotentialExchangeLocalSolveContext entirely (Reference mode returns the
+    // reference fraction; CurrentPorositySplit mode uses only n_l), so a
+    // default-constructed context is the correct, intentional argument here.
+    double const active_nS_prev = computeActiveMicroSolidVolumeFraction(
+        n_l_prev, PotentialExchangeLocalSolveContext{}, params);
+    double const active_nS_curr = computeActiveMicroSolidVolumeFraction(
+        n_l, PotentialExchangeLocalSolveContext{}, params);
 
-        double const delta_eps_sw =
-            potential_exchange_params.micro_water_content_swelling_slope *
-            delta_n_l;
-        delta_sigma_sw.noalias() -= C_el * ((delta_eps_sw / 3.0) * identity2);
-        return delta_sigma_sw;
-    }
+    double const sign_factor = microPotentialSignFactorFromParameters(params);
 
-    if (potential_exchange_params.vdw_augmentation_prefactor > 0.0 &&
-        potential_exchange_params.vdw_augmentation_decay_length > 0.0 &&
-        n_S > 0.0)
-    {
-        double const denom =
-            potential_exchange_params.vdw_augmentation_decay_length * n_S *
-            potential_exchange_params.micro_solid_density_reference *
-            potential_exchange_params.specific_surface;
-        double const xi_curr = n_l / denom;
-        double const xi_prev = n_l_prev / denom;
-        double const K = potential_exchange_params.vdw_augmentation_prefactor;
-        double const Pi_curr = rho_LR * K * std::exp(-xi_curr);
-        double const Pi_prev = rho_LR * K * std::exp(-xi_prev);
-        // Thermodynamic form (REV scale):  sigma_sw = -phi_m * Pi
-        // with phi_m = (1 - phi_M) * n_l = n_S * n_l in the hierarchical
-        // split (compressive eigenstress, tension-positive convention).
-        //
-        // NAMING NOTE: the n_S in scope here is the REV-scale solid fraction
-        // (1 - phi_M), passed in from the caller at line ~1648
-        //   double const n_S = std::max(1e-16, 1.0 - phi_M);
-        // It is DISTINCT from the aggregate-scale active_nS = 1 - n_l used
-        // as the omega_l denominator in PotentialExchange.h (post-2026-05-26
-        // fix, commit 8192021299). Both quantities are sometimes named "nS"
-        // in nearby code; the identification phi_m = n_S * n_l holds only
-        // for the REV-scale n_S here, NOT for the aggregate-scale active_nS.
-        //
-        // n_l factor was previously absorbed into K; now explicit.
-        // Sign: n_l*Pi increases during hydration (n_l<<C=lambda*nS*rho_SR*Sa),
-        // so n_l_prev*Pi_prev - n_l*Pi_curr < 0 -> compressive increment.
-        delta_sigma_sw.noalias() +=
-            n_S * (n_l_prev * Pi_prev - n_l * Pi_curr) * identity2;
-    }
+    double const mu_lR_prev =
+        computeVanDerWaalsMicroPotential(
+            n_l_prev, rho_lR_prev, active_nS_prev,
+            params.micro_solid_density_reference, params.hamaker_constant,
+            params.specific_surface, sign_factor,
+            params.vdw_augmentation_prefactor,
+            params.vdw_augmentation_decay_length)
+            .mu_lR;
+    double const mu_lR_curr =
+        computeVanDerWaalsMicroPotential(
+            n_l, rho_lR, active_nS_curr,
+            params.micro_solid_density_reference, params.hamaker_constant,
+            params.specific_surface, sign_factor,
+            params.vdw_augmentation_prefactor,
+            params.vdw_augmentation_decay_length)
+            .mu_lR;
 
-    if (!(potential_exchange_params.micro_water_content_swelling_slope > 0.0))
-    {
-        return delta_sigma_sw;
-    }
+    // MIRROR the hydraulic p_L_m density choice exactly (see
+    // computeCompatibilityMicroHydraulicOutput): confined micro-liquid density
+    // when enabled, bulk density otherwise.
+    double const p_L_m_density_prev =
+        params.use_micro_liquid_density_for_micro_pressure ? rho_lR_prev
+                                                           : rho_LR;
+    double const p_L_m_density_curr =
+        params.use_micro_liquid_density_for_micro_pressure ? rho_lR : rho_LR;
 
-    // Couple to the LOCAL micro water content n_l, not the REV-scale phi_m.
-    // In the hierarchical split phi_m = (1-phi_M)*n_l, so using n_l preserves
-    // the calibrated slope value across both flat and hierarchical models.
-    double const delta_eps_sw =
-        potential_exchange_params.micro_water_content_swelling_slope * delta_n_l;
+    double const Pi_prev = -p_L_m_density_prev * mu_lR_prev;
+    double const Pi_curr = -p_L_m_density_curr * mu_lR_curr;
 
-    delta_sigma_sw.noalias() -= C_el * ((delta_eps_sw / 3.0) * identity2);
+    delta_sigma_sw.noalias() +=
+        n_S * (n_l_prev * Pi_prev - n_l * Pi_curr) * identity2;
     return delta_sigma_sw;
 }
 
@@ -3540,10 +3555,140 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         local_solve_context,
                         *potential_exchange_params_ptr);
 
+                    // Full total derivative of the vdW micro potential w.r.t.
+                    // pL. NOTE (on-disk): dmu_lR_drho_lR is NON-zero here
+                    // (= -mu_lR/rho_lR; PotentialExchange.h line 181, "non-zero
+                    // after /rho_lR fix"), despite the stale struct comment at
+                    // line 64 ("exactly zero in the reduced algebraic form").
+                    // It is paired with the BULK drho_LR_dpL, matching both
+                    // computeImplicitNlDpL (line ~1327) and the
+                    // computePotentialExchangeUpdate fallback (line ~217). The
+                    // dominant contribution is the implicit n_l(p_L) chain
+                    // dmu_lR_dnl * dn_l_dpL.
                     dmu_lR_vdw_dpL = micro_potential.dmu_lR_dnl * dn_l_dpL +
                                      micro_potential.dmu_lR_drho_lR *
                                          drho_LR_dpL;
                     use_custom_dmu_lR_vdw_dpL = true;
+
+                    // --- DSM swelling-eigenstress u-p Jacobian (full p^disj) -
+                    // Consistent-tangent completeness term for the swelling
+                    // eigenstress that enters R_u through the mechanical strain
+                    // (eps_m = eps + C_el^{-1} : sigma_sw, see line ~3080 and
+                    // the swelling-state update at line ~1688). Differentiating
+                    // the DSM eigenstress w.r.t. pL propagates as
+                    //   dsigma'/dpL = C * C_el^{-1} * d(delta_sigma_sw)/dpL,
+                    // where delta_sigma_sw =
+                    //   n_S*(n_l_prev*Pi_prev - n_l*Pi_curr)*identity2 (the
+                    // *_prev terms are frozen) and -n_l*Pi_curr =
+                    //   +n_l * rho_d * mu_lR, with rho_d = micro liquid density
+                    // (when use_micro_liquid_density_for_micro_pressure) else
+                    // bulk rho_LR (mirrors the residual, line ~1618). It reuses
+                    // the analytic dn_l_dpL just computed, hence its placement
+                    // inside this !use_fd_jacobian guard.
+                    //
+                    // CAVEAT (carried forward from the upstream authors, see
+                    // the commented block at line ~3315): for the classical
+                    // saturation_micro swelling path this u-p coupling "does
+                    // not improve convergence and sometimes worsens it". It is
+                    // included here only for consistent-tangent completeness on
+                    // the DSM potential-exchange path and is ISOLATED behind
+                    // the opt-in flag below so it can be compiled out by
+                    // flipping one line without disturbing the residual or any
+                    // other Jacobian block.
+                    // DEFAULT OFF (verified 2026-06-01): with the corrected
+                    // scope (below) this term DOES fire on the Pi-path models,
+                    // but on dd1400 it is residual-neutral (P_sw 4.91637 MPa
+                    // unchanged) AND convergence-neutral (824 Newton iters
+                    // unchanged) because the micro-macro coupling here is tiny
+                    // (dn_l_dpL ~ 3e-13, d(sigma_sw)/dpL ~ 4e-5, negligible vs the
+                    // O(1) Biot term in K_up). It costs an elastic-tangent
+                    // reconstruction per ip and the upstream authors disabled the
+                    // analogous classical term (line ~3315). Flip to true to
+                    // enable the consistent-tangent contribution.
+                    constexpr bool enable_dsm_swelling_up_jacobian = false;
+                    // Scope: already inside `if (potential_exchange_enabled)`,
+                    // which IS the p^disj (Pi-path) DSM path. Do NOT additionally
+                    // gate on saturation_micro: the Pi-path models REMOVE that
+                    // MPL property as vestigial (see e.g. ms33_modelI_dd1400.prj
+                    // line ~205), so a hasProperty(saturation_micro) gate would
+                    // make this term silently never fire on the real models.
+                    if (enable_dsm_swelling_up_jacobian)
+                    {
+                        // Current transport porosity phi_M -> REV solid
+                        // fraction n_S = 1 - phi_M, matching the residual caller
+                        // (updateSwellingStateWithMicroPorosity, line ~1671).
+                        double const phi_M_swj =
+                            std::get<ProcessLib::ThermoRichardsMechanics::
+                                         TransportPorosityData>(
+                                this->current_states_[ip])
+                                .phi;
+                        double const n_S_swj = std::max(1e-16, 1.0 - phi_M_swj);
+
+                        // rho_d and its pL-derivative: mirror the residual's
+                        // p_L_m_density choice (micro liquid density when
+                        // enabled, bulk otherwise; line ~1618-1622). Inside
+                        // mu_lR the density argument is the MICRO rho_lR, so
+                        // dmu_lR_drho_lR is paired with the MICRO drho_lR/dpL
+                        // here (distinct from the bulk pairing used for the
+                        // exchange equation above).
+                        double rho_d_swj = rho_LR;
+                        double drho_d_dpL_swj = drho_LR_dpL;
+                        double dmu_lR_dpL_swj =
+                            micro_potential.dmu_lR_dnl * dn_l_dpL +
+                            micro_potential.dmu_lR_drho_lR * drho_LR_dpL;
+                        if (potential_exchange_params_ptr
+                                ->use_micro_liquid_density_for_micro_pressure)
+                        {
+                            double const rho_lR_state_swj =
+                                *std::get<MicroLiquidDensity>(
+                                    this->current_states_[ip]);
+                            double const drho_lR_dpL_swj =
+                                rho_lR_state_swj * beta_LR;
+                            rho_d_swj = rho_lR_state_swj;
+                            drho_d_dpL_swj = drho_lR_dpL_swj;
+                            dmu_lR_dpL_swj =
+                                micro_potential.dmu_lR_dnl * dn_l_dpL +
+                                micro_potential.dmu_lR_drho_lR *
+                                    drho_lR_dpL_swj;
+                        }
+
+                        // d(delta_sigma_sw)/dpL scalar on identity2 (product
+                        // rule on the three current-pL-dependent factors n_l,
+                        // rho_d, mu_lR; -n_l*Pi_curr = +n_l*rho_d*mu_lR).
+                        double const d_delta_sigma_sw_dpL_scalar =
+                            n_S_swj *
+                            (dn_l_dpL * rho_d_swj * micro_potential.mu_lR +
+                             n_l * drho_d_dpL_swj * micro_potential.mu_lR +
+                             n_l * rho_d_swj * dmu_lR_dpL_swj);
+
+                        MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
+                            const d_delta_sigma_sw_dpL =
+                                d_delta_sigma_sw_dpL_scalar * identity2;
+
+                        // Consistent tangent C (as fetched at line ~3256) and
+                        // the elastic tangent C_el (reconstructed exactly as at
+                        // line ~3773; not a local in this function). For a
+                        // linear-elastic solid C == C_el so C*C_el^{-1} ==
+                        // Identity and this block reduces to B^T *
+                        // d(delta_sigma_sw)/dpL * N_p * w; the remap factor only
+                        // matters for nonlinear tangents.
+                        auto const& C_consistent_swj =
+                            *std::get<StiffnessTensor<DisplacementDim>>(
+                                constitutive_data);
+                        auto const C_el_swj =
+                            ip_data_[ip].computeElasticTangentStiffness(
+                                variables, t, x_position, dt,
+                                this->solid_material_,
+                                *this->material_states_[ip]
+                                     .material_state_variables);
+
+                        local_Jac
+                            .template block<displacement_size, pressure_size>(
+                                displacement_index, pressure_index)
+                            .noalias() += B.transpose() * C_consistent_swj *
+                                          C_el_swj.inverse() *
+                                          d_delta_sigma_sw_dpL * N_p * w;
+                    }
                 }
             }
 

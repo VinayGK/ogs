@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
-<!-- ANCHORS MS33 — MCC_NATIVE variant (native DSM + MFront MCC mechanical). dd=1800, K=31280.0 -->
+<!-- ANCHORS MS33 — MCC_NATIVE variant (native DSM + MFront MCC mechanical). dd=1800, K UNCALIBRATED (MCC return map fails at step 1; see header) -->
 <OpenGeoSysProject>
     <!--
       DSM provenance (CLAUDE.md 12.2). Authoritative; supersedes any older inline
@@ -10,7 +10,11 @@
         source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1800 kg/m3
         target sigma : 40.86 MPa
-        fitted K     : 214400 J/kg (vdw_augmentation_prefactor)
+        fitted K     : NOT CALIBRATED. The MCC dd1800 case FAILS at time step #1 (t=10 s) with
+                       'MFront: integration failed with status -1' — the Cam-Clay return map diverges
+                       at this high density, so P_sw cannot be measured and K cannot be fit. Verified
+                       2026-06-01 (agent run) at the prior K=214400. The value 214400 below is the
+                       PRE-EXISTING uncalibrated entry and is UNVERIFIED — do NOT treat it as a Dixon fit.
         (MCC fit     : K is the MCC-specific value reproducing the Dixon target; differs from the LE K)
       Material parameters (source per group): as Model I dd1600. elastic E,nu: EURAD-2 MS33
         Table TH-G [TODO(Vinay): confirm]; retention P0=27MPa,a=0.45; rel.perm S_e^3; rho_s=2780;
@@ -77,9 +81,11 @@
                      Set slope>0 to add or replace with phenomenological coupling. -->
                 <!-- micro_water_content_swelling_slope omitted: default 0.0 (Pi-only swelling). -->
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
-                <accumulate_swelling_contributions>true</accumulate_swelling_contributions>
-                <!-- K calibrated to Villar swelling pressure at rho_d=1800 kg/m³ via Pi-path;
-                     Π uses bulk ρ_LR (Gibbs–Duhem consistent); steps 2+3, 2026-05-21 -->
+                <!-- K UNCALIBRATED for MCC dd1800: the Cam-Clay return map fails at step #1 (t=10 s,
+                     'MFront: integration failed with status -1') at this density, so P_sw is
+                     unmeasurable and K cannot be fit to Dixon. Value below is the pre-existing
+                     UNVERIFIED entry; left untouched 2026-06-01 (agent run) — NOT a Dixon fit.
+                     (The LE dd1800 family calibrates fine; the failure is MCC-specific plasticity.) -->
                 <vdw_augmentation_prefactor>214400</vdw_augmentation_prefactor>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,

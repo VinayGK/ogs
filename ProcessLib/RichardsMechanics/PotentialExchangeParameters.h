@@ -136,16 +136,8 @@ struct PotentialExchangeParameters
     double vdw_augmentation_prefactor = 0.0;     // K      [J/kg], must be >= 0
     double vdw_augmentation_decay_length = 0.0;  // lambda [m],    must be > 0 if K > 0
 
-    // Reversible swelling-strain slope driven by signed micro-porosity
-    // increments Delta phi_m. If non-zero, the DSM branch computes
-    // Delta eps_sw = slope * Delta phi_m and converts that isotropic
-    // swelling-strain increment into a stress increment via the elastic
-    // stiffness.
-    double micro_water_content_swelling_slope = 0.0;
-
     // Optional consistency switches for the hierarchical DSM branch.
     // Default micro-pressure density is the confined micro-liquid density.
     bool use_micro_liquid_density_for_micro_pressure = true;
-    bool accumulate_swelling_contributions = false;
 };
 }  // namespace ProcessLib::RichardsMechanics

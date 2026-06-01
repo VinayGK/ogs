@@ -442,17 +442,6 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context, vdw_augmentation_decay_length);
     }
 
-    auto const micro_water_content_swelling_slope =
-        config.getConfigParameter<double>(
-            "micro_water_content_swelling_slope",
-            defaults ? defaults->micro_water_content_swelling_slope : 0.0);
-    if (!(micro_water_content_swelling_slope >= 0.0))
-    {
-        OGS_FATAL(
-            "RichardsMechanics: {} micro_water_content_swelling_slope must be >= 0, got {:g}.",
-            context, micro_water_content_swelling_slope);
-    }
-
     auto const use_micro_liquid_density_for_micro_pressure =
         config.getConfigParameter<bool>(
             "use_micro_liquid_density_for_micro_pressure",
@@ -464,11 +453,6 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             "RichardsMechanics: {} use_micro_liquid_density_for_micro_pressure=false selected; micro pressure will use bulk rho_LR instead of confined rho_lR.",
             context);
     }
-    auto const accumulate_swelling_contributions =
-        config.getConfigParameter<bool>(
-            "accumulate_swelling_contributions",
-            defaults ? defaults->accumulate_swelling_contributions : false);
-
     return PotentialExchangeParameters{
         enabled,
         pressure_tolerance,
@@ -489,9 +473,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         local_jacobian_perturbation,
         vdw_augmentation_prefactor,
         vdw_augmentation_decay_length,
-        micro_water_content_swelling_slope,
-        use_micro_liquid_density_for_micro_pressure,
-        accumulate_swelling_contributions};
+        use_micro_liquid_density_for_micro_pressure};
 }
 
 template <int DisplacementDim>

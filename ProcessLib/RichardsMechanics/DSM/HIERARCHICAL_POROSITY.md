@@ -31,7 +31,17 @@ Changes:
 - Macro/micro split remains bounded and consistent with total porosity.
 - Legacy project files using `additive_macro_porosity_rate_mode` run on this branch with hierarchical split behavior.
 
-## Swelling slope correction (2026-05-19)
+## Swelling slope correction (2026-05-19) — SUPERSEDED (2026-06-01)
+
+> **HISTORICAL / SUPERSEDED.** This section documents the removed parameter
+> `micro_water_content_swelling_slope` (and the companion
+> `accumulate_swelling_contributions` switch). Both were deleted from
+> `PotentialExchangeParameters` and `CreateRichardsMechanicsProcess` when
+> `computeReferenceMicroPorositySwellingStressIncrement` was rewritten to derive
+> the swelling-stress increment from the micro-liquid-density / micro-porosity
+> state directly (see its current signature), rather than from an externally
+> supplied slope. Retained for provenance only; the slope parameter no longer
+> exists in the code or in project files.
 
 **Issue identified**: `computeReferenceMicroPorositySwellingStressIncrement` was using
 `delta_phi_m = phi_m - phi_m_prev` as the swelling driver. In the hierarchical split

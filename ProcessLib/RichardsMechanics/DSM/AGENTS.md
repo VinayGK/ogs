@@ -132,3 +132,16 @@ zeroes wetting-front stiffness and is not globally solvable in OGS RM.
 
 **Pragmatic interim:** submit current results with explicit caveat in the
 deliverable (deck frame "Known Limitation — Hydraulic Side of OGS RM-DSM").
+
+**2026-06-01 -- full-Pi closure; beta_sw retired; EMDD=rho_d calibration.**
+The disjoining-pressure eigenstress (Delta sigma_sw = n_S(n_l_prev Pi_prev - n_l Pi) I,
+Pi = -rho_lR psi_Micro) is the implemented micro-swelling closure; the legacy
+micro_water_content_swelling_slope (beta_sw) branch and its
+<accumulate_swelling_contributions> PRJ tag are removed. K re-fit (dt-converged P*
+basis) to the Dixon (2023) MX-80 anchor under the EMDD=rho_d ANCHORS-groups
+agreement: targets 4.92/14.16/40.86 MPa, K=35625.4/85312.6/224610 J/kg at
+dd1400/1600/1800. CLAUDE.md 12.1 updated; 12.2 provenance synced across the LE
+suite; 12.2 blocks added to the ModelVII experimental BC variants. Verified:
+ogs+testrunner build clean; 14/14 DSM unit tests pass (incl. corrected
+active_nS=1-n_l, section-2 incident); full MS33 suite (10/11 to t_end; dd1600
+documented corner crash; endpoints ~2% high, first-order dt error).

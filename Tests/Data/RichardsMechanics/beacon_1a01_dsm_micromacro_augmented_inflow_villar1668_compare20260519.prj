@@ -73,7 +73,6 @@ Geometry and setup: identical to calibrated_inflow.prj
                 <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
-                <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
                 <!-- Augmented exponential surface-force term:
                      mu_lR_aug = sign * K * exp(-xi),  xi = h/lambda
                      h = n_l / (nS * rho_SR * Sa)  [film thickness, code units]

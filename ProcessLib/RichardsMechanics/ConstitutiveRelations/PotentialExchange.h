@@ -61,7 +61,10 @@ struct VanDerWaalsMicroPotentialData
     double domega_l_drho_SR = 0.0;
 
     double dmu_lR_dnl = 0.0;
-    double dmu_lR_drho_lR = 0.0;   // exactly zero in the reduced algebraic form.
+    double dmu_lR_drho_lR = 0.0;   // NON-zero in the current form: computed as
+                                   // -mu_lR/rho_lR (see line ~181, "/rho_lR fix"),
+                                   // because mu_lR carries an explicit 1/rho_lR.
+                                   // (Was exactly zero in the earlier reduced form.)
     double dmu_lR_dnS = 0.0;
     double dmu_lR_drho_SR = 0.0;
 };

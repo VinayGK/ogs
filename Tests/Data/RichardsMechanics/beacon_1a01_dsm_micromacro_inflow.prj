@@ -31,7 +31,6 @@
                 <local_nonlinear_solve_mode>scalar_microstate_storage_mode</local_nonlinear_solve_mode>
                 <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
-                <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
             </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>

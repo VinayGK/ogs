@@ -71,7 +71,6 @@ Top face (inflow): p = 0 Pa (atmospheric). All displacement BCs: zero.
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <!-- Swelling is driven by micro water content increments Delta n_l.
                      eps_sw = slope * Delta n_l (isotropic) -->
-                <micro_water_content_swelling_slope>0.1</micro_water_content_swelling_slope>
             </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>

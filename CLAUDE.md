@@ -498,9 +498,14 @@ the micro-macro Pi-path / vdW augmentation potential (i.e. invokes
 **Calibration anchor** (the dataset against which K =
 `vdw_augmentation_prefactor` is fit) — closed list of TWO:
 
-1. **Dixon (2023)** — MX-80 swelling pressure vs EMDD≡ρ_d
-   (Dixon 2023 Fig. 1; medians 1.12 / 2.61 / 6.09 MPa at
-   ρ_d=1400/1600/1800 kg/m³).
+1. **Dixon (2023)** — MX-80 swelling pressure vs EMDD, with
+   **EMDD ≡ ρ_d** per the ANCHORS-groups agreement for the MS modelling
+   (the effective montmorillonite dry density is taken equal to the bulk
+   dry density). The Dixon median fit
+   σ_swell[MPa] = 0.003·exp(5.2883·EMDD[Mg/m³]) then gives targets
+   **4.92 / 14.16 / 40.86 MPa** at ρ_d=1400/1600/1800 kg/m³ (Dixon 2023
+   Fig. 1; ANCHORS MS agreement 2026-05-27). The earlier 1.12 / 2.61 /
+   6.09 MPa figures used EMDD < ρ_d and are superseded for MS work.
 2. **Villar (year, dataset)** — Villar swelling-pressure
    datasets (target sigma values cited from a specific table /
    figure of a specific Villar publication, e.g. "Villar 2007

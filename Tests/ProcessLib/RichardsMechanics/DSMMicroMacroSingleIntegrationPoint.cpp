@@ -951,66 +951,250 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
 {
     using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
 
+    // NEW full-p^disj swelling law (the legacy beta_sw slope branch and the
+    // augmentation-ONLY Pi reconstruction were removed together with the
+    // micro_water_content_swelling_slope and accumulate_swelling_contributions
+    // parameters):
+    //
+    //   delta_sigma_sw = n_S * (n_l_prev * Pi_prev - n_l * Pi_curr) * identity2
+    //
+    //   Pi_tau            = -p_L_m_density_tau * mu_lR_tau            (FULL p^disj)
+    //   p_L_m_density_tau = use_micro_liquid_density_for_micro_pressure
+    //                           ? rho_lR_tau : rho_LR
+    //   mu_lR_tau         = sign * (mu_lR_vdW_tau + mu_lR_aug_tau)    (FULL potential)
+    //
+    // Expected values are reconstructed FROM THE FORMULA by re-evaluating
+    // computeVanDerWaalsMicroPotential with exactly the arguments the
+    // production helper feeds it (same active_nS, same rho_SR/A/Sa/sign/K/
+    // lambda) — never hand-fitted to a run.
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
-    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
+    potential_exchange_params.hamaker_constant = 6.0e-20;
+    potential_exchange_params.specific_surface = 1000.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.micro_potential_convention =
+        MicroPotentialConvention::NegativeAttractive;
+    // FULL potential: vdW core + exponential augmentation, both carried
+    // through. lambda is sized so xi = n_l / (lambda * nS * rho_SR * Sa) is
+    // O(1) over the n_l range used here, making the augmentation a genuine,
+    // non-negligible part of mu_lR (~0.6-0.8 of the total) rather than a term
+    // suppressed to ~0 by a tiny decay length.
+    potential_exchange_params.vdw_augmentation_prefactor = 1.0e-2;
+    potential_exchange_params.vdw_augmentation_decay_length = 1e-7;
+
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
+    KM C_el = KM::Identity();  // unused by the new law; kept for ABI.
+
+    double const sign = microPotentialSignFactor(
+        potential_exchange_params.micro_potential_convention);
+
+    // Reconstruct Pi(n_l, rho_lR) exactly as the production helper does:
+    //   active_nS = computeActiveMicroSolidVolumeFraction(n_l, {}, params)
+    //   mu_lR     = computeVanDerWaalsMicroPotential(n_l, rho_lR, active_nS, ...)
+    //   Pi        = -density * mu_lR
+    // The Pi-density mirrors the hydraulic choice exactly.
+    auto const expected_Pi = [&](double const n_l_eval,
+                                 double const rho_lR_eval,
+                                 double const rho_LR_eval)
+    {
+        double const active_nS = computeActiveMicroSolidVolumeFraction(
+            n_l_eval, PotentialExchangeLocalSolveContext{},
+            potential_exchange_params);
+        double const mu_lR =
+            computeVanDerWaalsMicroPotential(
+                n_l_eval, rho_lR_eval, active_nS,
+                potential_exchange_params.micro_solid_density_reference,
+                potential_exchange_params.hamaker_constant,
+                potential_exchange_params.specific_surface, sign,
+                potential_exchange_params.vdw_augmentation_prefactor,
+                potential_exchange_params.vdw_augmentation_decay_length)
+                .mu_lR;
+        double const density =
+            potential_exchange_params.use_micro_liquid_density_for_micro_pressure
+                ? rho_lR_eval
+                : rho_LR_eval;
+        return -density * mu_lR;
+    };
+
+    auto const expected_increment = [&](double const n_l_prev,
+                                        double const n_l, double const n_S,
+                                        double const rho_lR_curr,
+                                        double const rho_lR_prev,
+                                        double const rho_LR)
+    {
+        double const Pi_prev = expected_Pi(n_l_prev, rho_lR_prev, rho_LR);
+        double const Pi_curr = expected_Pi(n_l, rho_lR_curr, rho_LR);
+        return (n_S * (n_l_prev * Pi_prev - n_l * Pi_curr) * identity2).eval();
+    };
+
+    // Forward step (n_l: 0.2 -> 0.3) with the confined micro-liquid density.
+    // The ONLY magnitude assertion is the formula match (sign-agnostic): we do
+    // NOT bake in a compressive-vs-tensile expectation here.
+    double forward_trace = 0.0;
+    {
+        double const n_l_prev = 0.2;
+        double const n_l = 0.3;
+        double const n_S = 0.7;
+        double const rho_LR = 1000.0;
+        double const rho_lR_curr = 1050.0;
+        double const rho_lR_prev = 1000.0;
+        auto const forward_increment =
+            computeReferenceMicroPorositySwellingStressIncrement<2>(
+                n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, rho_LR, C_el,
+                potential_exchange_params);
+        auto const expected_forward = expected_increment(
+            n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, rho_LR);
+        EXPECT_NEAR((forward_increment - expected_forward).norm(), 0.0,
+                    1e-12 * std::max(1.0, expected_forward.norm()));
+        forward_trace = forward_increment.dot(identity2);
+        EXPECT_GT(std::abs(forward_trace), 0.0);
+    }
+
+    // Exactly reversed step (n_l: 0.3 -> 0.2, densities swapped back) negates
+    // (n_l_prev*Pi_prev - n_l*Pi_curr), so the increment must be the exact
+    // negative of the forward one. This is a DERIVED symmetry of the formula,
+    // not an assumed swelling direction.
+    double reverse_trace = 0.0;
+    {
+        double const n_l_prev = 0.3;
+        double const n_l = 0.2;
+        double const n_S = 0.7;
+        double const rho_LR = 1000.0;
+        double const rho_lR_curr = 1000.0;
+        double const rho_lR_prev = 1050.0;
+        auto const reverse_increment =
+            computeReferenceMicroPorositySwellingStressIncrement<2>(
+                n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, rho_LR, C_el,
+                potential_exchange_params);
+        auto const expected_reverse = expected_increment(
+            n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, rho_LR);
+        EXPECT_NEAR((reverse_increment - expected_reverse).norm(), 0.0,
+                    1e-12 * std::max(1.0, expected_reverse.norm()));
+        reverse_trace = reverse_increment.dot(identity2);
+    }
+    // Forward and reverse traces are exact opposites (formula symmetry).
+    EXPECT_NEAR(forward_trace + reverse_trace, 0.0,
+                1e-12 * std::max(1.0, std::abs(forward_trace)));
+    EXPECT_LT(forward_trace * reverse_trace, 0.0);
+
+    // Zero water-content step => zero increment (delta_n_l guard).
+    {
+        auto const no_step_increment =
+            computeReferenceMicroPorositySwellingStressIncrement<2>(
+                0.25, 0.25, 0.7, 1000.0, 1000.0, 1000.0, C_el,
+                potential_exchange_params);
+        EXPECT_NEAR(no_step_increment.norm(), 0.0, 1e-14);
+    }
+
+    // Bulk-density Pi branch (use_micro_liquid_density_for_micro_pressure =
+    // false) must reproduce the formula with rho_LR instead of rho_lR.
+    {
+        potential_exchange_params.use_micro_liquid_density_for_micro_pressure =
+            false;
+        double const n_l_prev = 0.2;
+        double const n_l = 0.3;
+        double const n_S = 0.7;
+        double const rho_LR = 1000.0;
+        double const rho_lR_curr = 1050.0;
+        double const rho_lR_prev = 1000.0;
+        auto const bulk_increment =
+            computeReferenceMicroPorositySwellingStressIncrement<2>(
+                n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, rho_LR, C_el,
+                potential_exchange_params);
+        auto const expected_bulk = expected_increment(
+            n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, rho_LR);
+        EXPECT_NEAR((bulk_increment - expected_bulk).norm(), 0.0,
+                    1e-12 * std::max(1.0, expected_bulk.norm()));
+    }
+}
+
+TEST(RichardsMechanics, DSMMicroMacroSwellingStressFullDisjoiningSign)
+{
+    using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
+
+    // Augmentation OFF (prefactor = 0) but the bare vdW micro-potential is
+    // active (positive Hamaker / specific surface / rho_SR / n_S reference).
+    // The full-p^disj law has NO fallback branch, so the increment must be a
+    // pure vdW disjoining-pressure eigenstress: NON-ZERO, with the sign the
+    // formula gives — we do not pre-judge compressive vs tensile.
+    PotentialExchangeParameters potential_exchange_params;
+    potential_exchange_params.enabled = true;
+    potential_exchange_params.hamaker_constant = 6.0e-20;
+    potential_exchange_params.specific_surface = 1000.0;
+    potential_exchange_params.micro_solid_density_reference = 2650.0;
+    potential_exchange_params.micro_solid_volume_fraction_reference = 0.6;
+    potential_exchange_params.vdw_augmentation_prefactor = 0.0;  // OFF
+    potential_exchange_params.vdw_augmentation_decay_length = 0.0;
+    // Leave the default PositiveReduced convention (sign = +1) so the test does
+    // NOT bake in a swelling sign: the asserted sign comes purely from the
+    // formula below.
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
     KM C_el = KM::Identity();
 
-    auto const loading_increment =
-        computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, 0.7, 1000.0, 1000.0, 1000.0, C_el,
-            potential_exchange_params);
-    auto const expected_loading = -(0.1 * (0.3 - 0.2) / 3.0) * identity2;
-    EXPECT_NEAR((loading_increment - expected_loading).norm(), 0.0, 1e-14);
+    double const sign = microPotentialSignFactor(
+        potential_exchange_params.micro_potential_convention);
 
-    auto const unloading_increment =
-        computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.3, 0.2, 0.7, 1000.0, 1000.0, 1000.0, C_el,
-            potential_exchange_params);
-    auto const expected_unloading = -(0.1 * (0.2 - 0.3) / 3.0) * identity2;
-    EXPECT_NEAR((unloading_increment - expected_unloading).norm(), 0.0, 1e-14);
-
-    potential_exchange_params.micro_water_content_swelling_slope = 0.0;
-    auto const disabled_increment =
-        computeReferenceMicroPorositySwellingStressIncrement<2>(
-            0.2, 0.3, 0.7, 1000.0, 1000.0, 1000.0, C_el,
-            potential_exchange_params);
-    EXPECT_NEAR(disabled_increment.norm(), 0.0, 1e-14);
-
-    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
-    potential_exchange_params.vdw_augmentation_prefactor = 2.0;
-    potential_exchange_params.vdw_augmentation_decay_length = 1e-6;
-    potential_exchange_params.micro_solid_density_reference = 2650.0;
-    potential_exchange_params.specific_surface = 1000.0;
-    potential_exchange_params.accumulate_swelling_contributions = true;
     double const n_l_prev = 0.2;
     double const n_l = 0.3;
     double const n_S = 0.7;
     double const rho_LR = 1000.0;
     double const rho_lR_curr = 1050.0;
     double const rho_lR_prev = 1000.0;
-    auto const combined_increment =
+
+    auto const increment =
         computeReferenceMicroPorositySwellingStressIncrement<2>(
             n_l_prev, n_l, n_S, rho_lR_curr, rho_lR_prev, rho_LR, C_el,
             potential_exchange_params);
 
-    double const denom =
-        potential_exchange_params.vdw_augmentation_decay_length * n_S *
-        potential_exchange_params.micro_solid_density_reference *
-        potential_exchange_params.specific_surface;
-    double const xi_curr = n_l / denom;
-    double const xi_prev = n_l_prev / denom;
-    double const K = potential_exchange_params.vdw_augmentation_prefactor;
-    double const pi_curr = rho_LR * K * std::exp(-xi_curr);
-    double const pi_prev = rho_LR * K * std::exp(-xi_prev);
-    auto const expected_pi =
-        n_S * (n_l_prev * pi_prev - n_l * pi_curr) * identity2;
-    auto const expected_slope = -(0.1 * (n_l - n_l_prev) / 3.0) * identity2;
-    auto const expected_combined = expected_pi + expected_slope;
-    EXPECT_NEAR((combined_increment - expected_combined).norm(), 0.0, 1e-12);
+    // Reconstruct Pi = rho * |mu_vdW| from the formula. With augmentation off,
+    // mu_lR is the bare vdW potential, and |mu_vdW| = sign * mu_lR / sign, i.e.
+    // we evaluate mu_lR directly and form -density * mu_lR exactly as the
+    // production helper does (this equals rho * |mu_vdW| iff mu_lR < 0; the
+    // production Pi = -density * mu_lR is the authoritative definition).
+    auto const expected_Pi = [&](double const n_l_eval,
+                                 double const rho_lR_eval)
+    {
+        double const active_nS = computeActiveMicroSolidVolumeFraction(
+            n_l_eval, PotentialExchangeLocalSolveContext{},
+            potential_exchange_params);
+        double const mu_lR =
+            computeVanDerWaalsMicroPotential(
+                n_l_eval, rho_lR_eval, active_nS,
+                potential_exchange_params.micro_solid_density_reference,
+                potential_exchange_params.hamaker_constant,
+                potential_exchange_params.specific_surface, sign,
+                /*vdw_augmentation_prefactor=*/0.0,
+                /*vdw_augmentation_decay_length=*/0.0)
+                .mu_lR;
+        double const density =
+            potential_exchange_params.use_micro_liquid_density_for_micro_pressure
+                ? rho_lR_eval
+                : rho_LR;
+        return -density * mu_lR;
+    };
+
+    double const Pi_prev = expected_Pi(n_l_prev, rho_lR_prev);
+    double const Pi_curr = expected_Pi(n_l, rho_lR_curr);
+    double const scalar = n_S * (n_l_prev * Pi_prev - n_l * Pi_curr);
+    auto const expected_increment = (scalar * identity2).eval();
+
+    // The disjoining-pressure eigenstress must NOT vanish when only the
+    // augmentation is switched off.
+    EXPECT_GT(increment.norm(), 0.0);
+    EXPECT_NEAR((increment - expected_increment).norm(), 0.0,
+                1e-12 * std::max(1.0, expected_increment.norm()));
+
+    // Sign check: assert WHATEVER the formula gives, not an assumed swelling
+    // sign. The increment's volumetric trace must share the sign of the scalar
+    // n_S * (n_l_prev * Pi_prev - n_l * Pi_curr).
+    double const trace = increment.dot(identity2);
+    ASSERT_NE(scalar, 0.0);
+    EXPECT_EQ(std::signbit(trace), std::signbit(scalar));
+    EXPECT_GT(trace * scalar, 0.0);
 }
 
 TEST(RichardsMechanics, DSMMicroMacroTransportPorositySplitRecomposesTotalPorosity)
@@ -1098,10 +1282,13 @@ TEST(RichardsMechanics, DSMMicroMacroCurrentPorositySplitMicroSolidFractionMode)
 
     auto const active_nS =
         computeActiveMicroSolidVolumeFraction(n_l, local_context, potential_exchange_params);
-    // nS = 1 - phi_M_active (micro-aggregate fraction, not pure solid).
-    // phi_M_active = (phi - n_l) / (1 - n_l) = (0.25 - 0.1) / 0.9 = 1/6
-    // active_nS = 1 - 1/6 = 5/6  (see commit 0d7a9edd64: "use nS=1-phi_M")
-    EXPECT_NEAR(active_nS, 5.0 / 6.0, 1e-12);
+    // active_nS = 1 - n_l (aggregate micro-solid volume fraction), per the
+    // active_nS-denominator incident (CLAUDE.md §2, 2026-05-26): the disjoining
+    // potential uses (1 - n_l), NOT (1 - phi_M). CurrentPorositySplit mode uses
+    // only n_l and ignores the porosity context. This supersedes commit
+    // 0d7a9edd64's "use nS = 1 - phi_M" form (= 5/6 here), the documented bug.
+    // n_l = 0.1 -> active_nS = 0.9.
+    EXPECT_NEAR(active_nS, 1.0 - n_l, 1e-12);
 
     auto const active_output = computeCompatibilityMicroHydraulicOutput(
         n_l, rho_LR, local_context, potential_exchange_params);
@@ -1407,7 +1594,14 @@ TEST(RichardsMechanics, DSMMicroMacroOverlapTransferBaselineHistory)
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.macro_porosity_update_mode = MacroPorosityUpdateMode::AlgebraicSplit;
     potential_exchange_params.initial_micro_water_content = 0.1;
-    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
+
+    // Legacy reversible swelling-strain slope. The struct field
+    // micro_water_content_swelling_slope was removed with the beta_sw branch;
+    // this test only uses it as a LOCAL post-processing multiplier on
+    // delta_phi_m (it never calls the swelling-stress helper and only checks
+    // finiteness), so the same numerical behaviour is preserved with a local
+    // constant. Value unchanged from the previous in-test assignment (0.1).
+    double const micro_water_content_swelling_slope = 0.1;
 
     double const dt = 1.0;
     double const rho_LR = 1000.0;
@@ -1445,7 +1639,7 @@ TEST(RichardsMechanics, DSMMicroMacroOverlapTransferBaselineHistory)
         auto const transport = computeTransportPorosityUpdate(
             phi, split_prev.phi_M, split_prev.phi_m, n_l_update.n_l, 0.0, 0.0,
             potential_exchange_params.macro_porosity_update_mode);
-        double const delta_epsilon_sw = potential_exchange_params.micro_water_content_swelling_slope *
+        double const delta_epsilon_sw = micro_water_content_swelling_slope *
                                         (transport.phi_m - transport.phi_m_prev);
         epsilon_sw += delta_epsilon_sw;
         double const sigma_xx =
@@ -1498,7 +1692,12 @@ TEST(RichardsMechanics, DSMMicroMacroStrainCoupledOverlapBaselineHistory)
         LocalNonlinearSolveMode::ScalarReferenceMassStorage;
     potential_exchange_params.macro_porosity_update_mode = MacroPorosityUpdateMode::AlgebraicSplit;
     potential_exchange_params.initial_micro_water_content = 0.1;
-    potential_exchange_params.micro_water_content_swelling_slope = 0.1;
+
+    // Legacy reversible swelling-strain slope, kept as a LOCAL post-processing
+    // multiplier (the struct field was removed with the beta_sw branch). This
+    // test only uses it to form delta_epsilon_sw = slope * delta_phi_m and to
+    // check finiteness; behaviour is preserved with the same value (0.1).
+    double const micro_water_content_swelling_slope = 0.1;
 
     double const dt = 1.0;
     double const rho_LR = 1000.0;
@@ -1546,7 +1745,7 @@ TEST(RichardsMechanics, DSMMicroMacroStrainCoupledOverlapBaselineHistory)
             n_l_update.n_l, rho_LR, local_context, potential_exchange_params)
                                        .rho_lR;
 
-        double const delta_epsilon_sw = potential_exchange_params.micro_water_content_swelling_slope *
+        double const delta_epsilon_sw = micro_water_content_swelling_slope *
                                         (transport.phi_m - transport.phi_m_prev);
         epsilon_sw += delta_epsilon_sw;
         double const bulk_modulus = E / (3.0 * (1.0 - 2.0 * nu));
