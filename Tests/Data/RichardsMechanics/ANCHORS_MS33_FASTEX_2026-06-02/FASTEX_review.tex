@@ -1,0 +1,111 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\usepackage{graphicx}
+\graphicspath{{/Users/vinaykumar/git/ogs-worktrees/dsm_native_hierarchical_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_FASTEX_2026-06-02/figures/}}
+\setbeamerfont{frametitle}{size=\small}
+\title{BGR MS33 --- FASTEX recalibration: LE vs MCC figure review}
+\subtitle{constant $k_{rel}=0.1$ (temporary) $\cdot$ $\alpha_{exch}=3\times10^{-13}$ $\cdot$ $K\to$ Dixon EMDD$\equiv\rho_d$ \quad (2026-06-02)}
+\date{}
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{Calibration summary}
+\small
+\begin{itemize}
+  \item \textbf{$k_{rel}$ = 0.1 (constant)} --- fixes the dry-macro transport throttle (was $S_e^3$ floored at 0.01). \emph{Temporary; reverts to orthotropic power law.}
+  \item \textbf{$\alpha_{exch}$ = $3\times10^{-13}$} --- the transient: Model I $t_{95}$ = 18/12/10 d ($<$20 d); III flattens $\sim$50 d.
+  \item \textbf{$K$ ($vdw\_augmentation\_prefactor$)} --- to Dixon EMDD$\equiv\rho_d$: dd1.4=34368, dd1.6=83377, dd1.8=224610 J/kg ($\to$ 4.92/14.16/40.86 MPa). III/IV/VII inherit dd1.6 ($\times$0.97729).
+  \item Each figure is tagged \textbf{BGR $\cdot$ LE} or \textbf{BGR $\cdot$ MCC}.
+\end{itemize}
+\end{frame}
+
+% ===================== MODEL I =====================
+\begin{frame}{Model I --- mean stress vs suction path \quad ($p'$ 0--60 lin, $s$ log 0.1--100)}
+\begin{columns}[T]
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_LE_modelI_fig1_ps_path.pdf}
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_MCC_modelI_fig1_ps_path.pdf}
+\end{columns}
+\vspace{2pt}{\footnotesize LE: all three dd on Dixon (dd1.8 now \emph{completes 200\,d} via the power-law $k_{rel}$ exception --- a single element needs no transport floor). MCC: dd1.4 on Dixon, dd1.6 \emph{yields} ($\sim$15 MPa, kinked), dd1.8 absent (crash@0 $\to$ bare Dixon square).}
+\end{frame}
+
+\begin{frame}{Model I --- intrinsic permeability vs suction \quad ($k$ log 1e-23--1e-19, $s$ log)}
+\begin{columns}[T]
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_LE_modelI_fig2_k_suction.pdf}
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_MCC_modelI_fig2_k_suction.pdf}
+\end{columns}
+\vspace{2pt}{\footnotesize $k$ near-constant (Kozeny--Carman; porosity fixed under constant-volume swelling) --- vertical lines, one per dry density.}
+\end{frame}
+
+% ===================== MODEL III =====================
+\begin{frame}{Model III --- technological-gap closure \quad (aperture mm vs time 0--200 d)}
+\begin{columns}[T]
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_LE_modelIII_fig1_gap.pdf}
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_MCC_modelIII_fig1_gap.pdf}
+\end{columns}
+\vspace{2pt}{\footnotesize Gap closes 2.0 $\to$ 0.71 mm (LE) / 0.91 mm (MCC).}
+\end{frame}
+
+\begin{frame}{Model III --- stress evolution at centre \quad (mean/axial/radial, 0--15 MPa vs time)}
+\begin{columns}[T]
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_LE_modelIII_fig2_stress.pdf}
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_MCC_modelIII_fig2_stress.pdf}
+\end{columns}
+\vspace{2pt}{\footnotesize \textbf{Now flattens} (the $k_{rel}$ fix) --- was creeping past 200\,d before. MCC III converges where it crashed at the tension apex previously.}
+\end{frame}
+
+\begin{frame}{Model III --- mean stress vs suction path \quad ($\bar p$ 0--15, $s$ log)}
+\begin{columns}[T]
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_LE_modelIII_fig3_ps_path.pdf}
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_MCC_modelIII_fig3_ps_path.pdf}
+\end{columns}
+\end{frame}
+
+% ===================== MODEL IV =====================
+\begin{frame}{Model IV --- mean stress per zone \quad (clay / pellet, 0--15 MPa vs time)}
+\begin{columns}[T]
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_LE_modelIV_fig1_stress.pdf}
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_MCC_modelIV_fig1_stress.pdf}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Model IV --- dry-density homogenisation \quad (clay / pellet, 900--1700 kg/m$^3$ vs time)}
+\begin{columns}[T]
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_LE_modelIV_fig2_density.pdf}
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_MCC_modelIV_fig2_density.pdf}
+\end{columns}
+\vspace{2pt}{\footnotesize \textbf{MCC homogenises} (clay 1585$\to$1408, pellet 900$\to$1016 --- converging, BExM-style); \textbf{LE does not} (clay/pellet barely move). The double structure carries it.}
+\end{frame}
+
+\begin{frame}{Model IV --- mean stress vs suction path per zone \quad ($\bar p$ 0--15, $s$ log)}
+\begin{columns}[T]
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_LE_modelIV_fig3_ps_path.pdf}
+\column{0.5\linewidth}\centering\includegraphics[width=\linewidth]{ms33_MCC_modelIV_fig3_ps_path.pdf}
+\end{columns}
+\end{frame}
+
+% ===================== MODEL VII =====================
+\begin{frame}{Model VII --- void ratio vs mean net stress \quad ($e$ 0.4--1.2, $\bar p$ log 0.1--10)}
+\centering\includegraphics[height=0.74\textheight]{ms33_LE_modelVII_fig1_void_ratio.pdf}
+\vspace{2pt}\\{\footnotesize LE: free-swell $\to$ load $\to$ unload loop (phase-coloured). \textbf{MCC VII: genuinely broken} --- upstream MFront cam-clay return-map at the tension apex ($p_{net}\to0$ with residual $q$, status $-1$), \emph{not} $k_{rel}$. LE $e$ peaks at 1.22 (just over the spec axis top).}
+\end{frame}
+
+\begin{frame}{Model VII --- intrinsic permeability evolution \quad ($k$ log, vs time)}
+\centering\includegraphics[height=0.74\textheight]{ms33_LE_modelVII_fig2_k.pdf}
+\vspace{2pt}\\{\footnotesize LE: $k$ rises with the free-swelling porosity increase. \textbf{MCC VII: no converged run.}}
+\end{frame}
+
+\begin{frame}{Run status}
+\small
+\begin{tabular}{l|cccccc}
+ & dd1.4 & dd1.6 & dd1.8 & III & IV & VII \\\hline
+\textbf{LE}  & Dixon $-0.1\%$ & Dixon $+0.0\%$ & Dixon (PL)$^{*}$ & flat & done & loop \\
+\textbf{MCC} & Dixon $-0.1\%$ & yields & crash@0 & flat & \textbf{homog.} & crash@0 \\
+\end{tabular}
+\vspace{4pt}\\
+{\footnotesize $^{*}$ LE dd1.8 \emph{resolved}: power-law $k_{rel}$ (min 0.1) on the single element completes 200\,d at K=224610 $\to$ 40.86 MPa (Dixon), no K re-fit. MCC dd1.8 / VII confirmed \emph{upstream MFront} cam-clay return-map (high $K$ / tension apex, status $-1$) --- \emph{not} $k_{rel}$, genuinely broken. Others use the temporary constant $k_{rel}$=0.1.}
+\end{frame}
+
+\end{document}
