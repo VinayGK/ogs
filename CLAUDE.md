@@ -13,7 +13,7 @@ repo. They supersede default behavior.
 
 ### §0.1 You MUST notify the user when a guardrail fires
 
-A guardrail "fires" when applying a rule from §1–§11 would change
+A guardrail "fires" when applying a rule from §1–§12 would change
 what you would otherwise have done — typically: stopping to ASK
 before writing a literal, leaving an expected value as TODO,
 labeling a claim "predicted not verified," refusing to add a
@@ -355,6 +355,22 @@ Conversational discussion is exempt from this section.
 
 3. **Never delete .md files.** If content is superseded, annotate as
    historical/deprecated within the file.
+   - **They must stay under git control — committed, not merely on disk.**
+     CLAUDE.md, every AGENTS.md, and all guardrail/worklog `.md` files MUST
+     be tracked *and committed* (present in git history) so that a fresh
+     `git worktree` and the main checkout inherit them. The failure mode
+     this rule guards against is NOT only `.gitignore`: an **untracked**
+     CLAUDE.md (one that was never `git add`-ed) is silently absent from
+     every new worktree and from `master` — which is exactly how this file
+     went missing and had to be re-borrowed from another tree (2026-06-06).
+     Therefore: (a) never list them in `.gitignore` or `.git/info/exclude`;
+     if a pattern (`CLAUDE.md`, `AGENTS.md`, `AGENTS_*.md`) ever excludes
+     them, remove it and re-add the files; (b) if any is untracked, `git
+     add` and commit it on a **durable branch (master)** so it propagates
+     to all worktrees, not just the throwaway one you are in; (c) verify
+     with `git ls-files CLAUDE.md` — empty output means the rule is being
+     violated right now. These files may only be *cleaned up* (trimmed,
+     reflowed, annotated historical) — never removed from disk or index.
 
 4. **Never remove agent instructions from AGENTS.md.** Mark completed
    steps as DONE with a YYYY-MM-DD timestamp and a one-line outcome.
@@ -427,6 +443,9 @@ If unclear where docs should go → ASK before committing.
 | Calibration-and-verify in same test                | FLAG, STOP  |
 | `=` instead of `+=` on accumulator                 | FLAG, STOP  |
 | Overlap with existing benchmark                    | FLAG        |
+| DSM PRJ missing §12 provenance header              | FLAG, STOP  |
+| DSM PRJ calibration K from non-{Dixon,Villar} src  | FLAG, STOP  |
+| DSM PRJ material param from non-§12 source         | ASK USER    |
 | Coding / refactor / formatting                     | PROCEED     |
 | Documentation update reflecting approved work      | PROCEED     |
 
@@ -475,6 +494,136 @@ When making any artifact change:
   `[[link]]` in CLAUDE.md (never duplicate the full incident).
 
 If unclear where something goes → ASK, do not place by default.
+
+---
+
+## §12 DSM benchmark provenance — calibration anchors and parameter sources
+
+Scope: every DSM PRJ under `Tests/Data/RichardsMechanics/` that uses
+the micro-macro Pi-path / vdW augmentation potential (i.e. invokes
+`<potential_exchange>` or `vdw_augmentation_prefactor`).
+
+### §12.1 Allowed sources — fixed closed lists
+
+**Calibration anchor** (the dataset against which K =
+`vdw_augmentation_prefactor` is fit) — closed list of TWO:
+
+1. **Dixon (2023)** — MX-80 swelling pressure vs EMDD≡ρ_d
+   (Dixon 2023 Fig. 1; medians 1.12 / 2.61 / 6.09 MPa at
+   ρ_d=1400/1600/1800 kg/m³).
+2. **Villar (year, dataset)** — Villar swelling-pressure
+   datasets (target sigma values cited from a specific table /
+   figure of a specific Villar publication, e.g. "Villar 2007
+   Tab. 3" or "Villar 2017 Fig. 5").
+
+Calibration K MUST cite exactly one of these two sources, with the
+specific dataset row and target sigma value in the PRJ header.
+
+**Material parameters** (E, ν, retention curve {P0, λ, S_r, S_max},
+relative permeability {m, η}, ρ_s, n_l, ρ_d target, p_cav, vdW base
+A, micro-EOS parameters, biot_coefficient, intrinsic permeability,
+porosity, mass-transfer coefficient α_M, … and any other dimensioned
+material literal in the PRJ) — closed list of SIX allowed source
+families:
+
+1. **Beacon** — Beacon project benchmark spec / Beacon experimental
+   reports (cite WP / deliverable number, table or figure).
+2. **EPFL** — EPFL bentonite calibration set (Laloui / Salager /
+   Nuth / Romero — cite paper + table/figure).
+3. **Dixon (2023)** — MX-80 EMDD characterisation tables.
+4. **Villar (year)** — Villar swelling / retention / mechanical
+   characterisation papers.
+5. **EURAD-MS** — EURAD-2 MS33 theoretical benchmarking task
+   spec (cite deliverable / task-specification document section).
+6. **FEBEX** — FEBEX bentonite (Cortijo de Archidona / Cabo de Gata
+   clay) THM characterisation. Principal sources: Villar (2002),
+   "Thermo-hydro-mechanical characterisation of a bentonite from Cabo
+   de Gata," ENRESA Publicación Técnica; and Lloret & Villar (2007),
+   "Advances on the knowledge of the THM behaviour of heavily compacted
+   FEBEX bentonite," Phys. Chem. Earth 32, pp. 701–715. Cite the
+   specific report/paper + table/figure per parameter. (FEBEX bentonite
+   ≠ MX-80; do not conflate with the Dixon/MX-80 family.)
+
+Any other source (lab handbook, internal memo, "standard value",
+"typical for bentonite", a tuned value with no provenance) is
+FORBIDDEN. If a parameter has no source from this list → STOP and
+ASK; do not invent or copy from another PRJ without re-citing.
+
+### §12.2 PRJ header — mandatory provenance block
+
+Every DSM PRJ MUST carry, immediately after the root `<OpenGeoSys>`
+opening tag, an XML comment with this shape (lines may wrap; the
+keys are mandatory):
+
+```xml
+<!--
+  DSM provenance (CLAUDE.md §12)
+  Benchmark family : <MS LE | Villar | Beacon | EPFL | EURAD-MS | FEBEX>
+  Geometry / BC    : <one-line description, e.g. axisymmetric 1D column, free swelling, ρ_d=1600>
+  Calibration anchor:
+    source         : <Dixon (2023) | Villar (YYYY)>
+    dataset row    : <e.g. MX-80 Fig.1 median ρ_d=1600 kg/m³>
+    target sigma   : <value with units>
+    fitted K       : <value with units, J/kg>
+  Material parameters (source per parameter group):
+    elastic (E, ν)            : <Beacon | EPFL | Dixon | Villar | EURAD-MS | FEBEX>, <citation>
+    retention curve (P0,λ,Sr) : <…>, <citation>
+    rel. permeability (m, η)  : <…>, <citation>
+    solid density ρ_s         : <…>, <citation>
+    initial porosity n_l      : <…>, <citation>
+    target dry density ρ_d    : <…>, <citation>
+    cavitation pressure p_cav : <…>, <citation>
+    vdW base A_Hamaker        : <…>, <citation>
+    micro EOS (a, p_ref, …)   : <…>, <citation>
+    mass-transfer α_M         : <…>, <citation>
+    (… any other dimensioned literal …)
+-->
+```
+
+A PRJ missing this block, or with any field reading "unknown",
+"standard", "internal", "(empty)", or similar non-cited string, is
+non-compliant and MUST NOT be added to `Tests.cmake` until the block
+is complete and approved.
+
+### §12.3 MS LE is the standard benchmark
+
+The MS LE benchmark suite — currently realised as
+`Tests/Data/RichardsMechanics/ANCHORS_MS33_Model{I,III,IV,VII}/*.prj`
+with LE constitutive — is the **standard** DSM regression baseline.
+It MUST be kept compliant with §12.1 and §12.2 at all times. Any
+break in its CI status is a release blocker.
+
+Villar / Beacon / EPFL / EURAD-MS benchmark families MAY coexist as
+additional verification cases. Each MUST also comply with §12.
+
+### §12.4 Cross-family parameter borrowing
+
+It is permitted (and common) for a benchmark from family X to borrow
+its calibration K from a Villar / Dixon anchor, and its material
+parameters from family Y. Example: a Beacon-geometry benchmark may
+take elastic constants from Beacon, retention curve from EURAD-MS,
+and K from Villar. The provenance block (§12.2) MUST attribute each
+group to its actual source — borrowed values are NOT re-attributed
+to the host family.
+
+### §12.5 Audit trail for material-parameter changes
+
+A change that alters a material-parameter literal in a DSM PRJ MUST:
+
+- Update the §12.2 provenance block in the same commit.
+- Cite the new source per §1.1 in the commit message.
+- Flag (per §5) any predicted impact on K, sigma_sat, or the
+  registered ctest reference VTU.
+
+> **Incident — beacon family orphaned (2026-05-29):** beacon_1a01,
+> 1b, 1c DSM smoke PRJs registered as ctests carry no calibration
+> anchor and no documented material-parameter provenance, and
+> drifted to use BishopsPowerLaw + abstols=5e-8 (in violation of
+> [[project_dsm_mcc_bishop_cutoff]] and
+> [[feedback_ogs_rm_pressure_tolerance]]). Treatment under §12:
+> material params to be re-attributed to Beacon, calibration K to be
+> sourced from a Villar/Dixon anchor, headers added per §12.2 before
+> the next reference-VTU refresh.
 
 ---
 
