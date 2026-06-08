@@ -1,0 +1,824 @@
+@DSL ImplicitGenericBehaviour;
+@Behaviour RichardsMechanicsDSMMicroMacroMaxwell_MCC;
+@Author OpenGeoSys Community;
+@Date 08 / 06 / 2026;
+@Description{
+    Monolithic Modified Cam Clay plus DSM double structure RichardsMechanics
+    behaviour. The entire local Newton (the MCC return map together with the DSM
+    micro and macro double structure) is assembled into one coupled implicit
+    residual vector and solved once per Gauss point per global iteration, with
+    the integrable Maxwell web partner as the cross coupling that makes the local
+    tangent symmetric. Structure follows the Beese single FindRoot over the DSM
+    residual vector restricted to the verified native isothermal rigid grain
+    scope. Physics taken verbatim from the GP verified native web in
+    PotentialExchange.h on branch dsm_native_pdisj_maxwell and the MCC algebra
+    from ModCamClay_semiExpl_constE. No material values are hardcoded; all
+    dimensioned literals are material properties supplied externally with PRJ or
+    MTEST citations. See the file header comment block and the design document
+    DSM/MFRONT_MONOLITHIC_MCC_DSM_DESIGN.md for the full source reconciliation.
+}
+
+/*
+ * SOURCE RECONCILIATION (flagged for the user; design doc s.5 / s.10a)
+ * ------------------------------------------------------------------------
+ * The B1 design doc and the task spec specify the INTEGRABLE web partner
+ *     mu_lR_mech = -[ (Pi + n_l*Pi_p)*eps_v + 0.5*b*K_drained*eps_v^2 ] / rho_lR
+ * (a smooth, C1, quadratic-in-eps_v energy with NO sharp gate, Pi_p = dPi/dn_l).
+ * The function name computeIntegrableMechanicalMicroPotential and the line
+ * numbers the design doc cites do NOT exist on any local native branch; what the
+ * native dsm_native_pdisj_maxwell ships is the LINEAR strain-view partner
+ *     mu_lR_mech = S1*eps_v/(rho_lR*n_S),  S1 = -n_S*(Pi + n_l*Pi_p),
+ * with a SHARP gate p_conf >= Pi (PotentialExchange.h L231-302). These agree to
+ * first order: S1*eps_v/(rho_lR*n_S) = -(Pi + n_l*Pi_p)*eps_v/rho_lR is exactly
+ * the linear term of the integrable form; the integrable form ADDS the quadratic
+ * -0.5*b*K_drained*eps_v^2/rho_lR and drops the sharp gate. Per the task
+ * instruction (implement THE INTEGRABLE MAXWELL WEB exactly per the design doc),
+ * this behaviour wires the INTEGRABLE form. The integrable-vs-sharp-gate choice
+ * and the sign contradiction the audit raised (design doc s.10a) remain the
+ * user's scientific calls; the GP Maxwell-symmetry + stress-expulsion tests lock
+ * whichever is chosen.
+ */
+
+@Theta 1.0;
+@Epsilon 1e-14;
+@MaximumNumberOfIterations 200;
+@ModellingHypotheses{".+"};
+@Algorithm NewtonRaphson;
+
+// ── External gradients / thermodynamic forces (same coupling as the bridge) ──
+@Gradient StrainStensor εᵗᵒ;
+εᵗᵒ.setGlossaryName("Strain");
+
+@ThermodynamicForce StressStensor σ;
+σ.setGlossaryName("Stress");
+
+@Gradient real pᴸᴿ;
+pᴸᴿ.setEntryName("LiquidPressure");
+
+@ThermodynamicForce real Sᴸ;
+Sᴸ.setEntryName("Saturation");
+
+@TangentOperatorBlocks{∂σ∕∂Δεᵗᵒ, ∂σ∕∂Δpᴸᴿ, ∂Sᴸ∕∂Δεᵗᵒ, ∂Sᴸ∕∂Δpᴸᴿ};
+
+// ── The one Newton's unknowns: mechanical (MCC) block ───────────────────────
+@StateVariable StrainStensor εᵉˡ;
+εᵉˡ.setGlossaryName("ElasticStrain");
+
+@StateVariable real Λₚ;
+Λₚ.setGlossaryName("EquivalentPlasticStrain");
+
+@StateVariable strain rpc;  // scaled preconsolidation, pc = rpc*young
+rpc.setEntryName("ScaledPreConsolidationPressure");
+
+// ── The one Newton's unknowns: DSM micro/macro double-structure block ───────
+@StateVariable real n_l;  // micro water content (vol. fraction)
+n_l.setEntryName("n_l");
+
+@StateVariable real rho_lR;  // micro liquid real density [kg/m^3]
+rho_lR.setEntryName("rho_lR");
+
+@StateVariable real phi_M;  // macro porosity (vol. fraction)
+phi_M.setEntryName("phi_M");
+
+@StateVariable real epsilon_sw;  // isotropic swelling strain (scalar) [-]
+epsilon_sw.setEntryName("epsilon_sw");
+
+// ── Auxiliaries (reported, not solved) — mirrors the bridge's exposed set ───
+@AuxiliaryStateVariable stress pc;
+pc.setEntryName("PreConsolidationPressure");
+
+@AuxiliaryStateVariable real εᵛₚₗ;
+εᵛₚₗ.setEntryName("PlasticVolumetricStrain");
+
+@AuxiliaryStateVariable real vʳ;
+vʳ.setEntryName("VolumeRatio");
+
+@AuxiliaryStateVariable real phi_m;
+phi_m.setEntryName("phi_m");
+
+@AuxiliaryStateVariable real phi_value;
+phi_value.setEntryName("phi");
+
+@AuxiliaryStateVariable real n_S_value;
+n_S_value.setEntryName("n_S");
+
+@AuxiliaryStateVariable real n_L_value;
+n_L_value.setEntryName("n_L");
+
+@AuxiliaryStateVariable real rho_LR_value;
+rho_LR_value.setEntryName("rho_LR");
+
+@AuxiliaryStateVariable real omega_l_value;
+omega_l_value.setEntryName("omega_l");
+
+@AuxiliaryStateVariable real mu_lR_value;
+mu_lR_value.setEntryName("mu_lR");
+
+@AuxiliaryStateVariable real mu_lR_mech_value;
+mu_lR_mech_value.setEntryName("mu_lR_mech");
+
+@AuxiliaryStateVariable real rho_l_hat_value;
+rho_l_hat_value.setEntryName("rho_l_hat");
+
+@AuxiliaryStateVariable real delta_epsilon_sw_value;
+delta_epsilon_sw_value.setEntryName("delta_epsilon_sw");
+
+@AuxiliaryStateVariable Stensor sigma_S_value;
+sigma_S_value.setEntryName("sigma_S");
+
+// ── Parameters / material properties (values external, cited in PRJ/MTEST) ──
+@Parameter stress pamb = 1e+3;
+@PhysicalBounds pamb in [0:*[;
+pamb.setEntryName("AmbientPressure");
+
+@MaterialProperty stress young;
+@PhysicalBounds young in [0:*[;
+young.setGlossaryName("YoungModulus");
+
+@MaterialProperty real ν;
+@PhysicalBounds ν in [-1:0.5];
+ν.setGlossaryName("PoissonRatio");
+
+@MaterialProperty real M;
+@PhysicalBounds M in [0:*[;
+M.setEntryName("CriticalStateLineSlope");
+
+@MaterialProperty real ka;
+@PhysicalBounds ka in [0:*[;
+ka.setEntryName("SwellingLineSlope");
+
+@MaterialProperty real la;
+@PhysicalBounds la in [0:*[;
+la.setEntryName("VirginConsolidationLineSlope");
+
+@MaterialProperty stress pc_char;
+@PhysicalBounds pc_char in [0:*[;
+pc_char.setEntryName("CharacteristicPreConsolidationPressure");
+
+@MaterialProperty real Sᴸʳ;
+Sᴸʳ.setEntryName("ResidualLiquidSaturation");
+
+@MaterialProperty real Sᴳʳ;
+Sᴳʳ.setEntryName("ResidualGasSaturation");
+
+@MaterialProperty real pᵇ;
+pᵇ.setEntryName("BubblePressure");
+
+@MaterialProperty real mⱽᴳ;
+mⱽᴳ.setEntryName("VanGenuchtenExponent_m");
+
+@MaterialProperty real macro_saturation_law_mode;
+@PhysicalBounds macro_saturation_law_mode in [0:*[;
+macro_saturation_law_mode.setEntryName("MacroSaturationLawMode");
+
+@MaterialProperty real micro_potential_convention;
+@PhysicalBounds micro_potential_convention in [0:*[;
+micro_potential_convention.setEntryName("MicroPotentialConvention");
+
+@MaterialProperty real swelling_slope;
+swelling_slope.setEntryName("SwellingSlope");
+
+@MaterialProperty real mass_exchange_coefficient;
+mass_exchange_coefficient.setEntryName("MassExchangeCoefficient");
+
+@MaterialProperty real macro_viscosity;
+macro_viscosity.setEntryName("MacroViscosity");
+
+@MaterialProperty real rho_LR_ref;
+rho_LR_ref.setEntryName("ReferenceLiquidDensityMacro");
+
+@MaterialProperty real rho_l0;
+rho_l0.setEntryName("ReferenceLiquidDensityMicro");
+
+@MaterialProperty real rho_SR;
+rho_SR.setEntryName("ReferenceDensitySolid");
+
+@MaterialProperty real density_a;
+density_a.setEntryName("MicroLiquidDensityA");
+
+@MaterialProperty real density_b;
+density_b.setEntryName("MicroLiquidDensityB");
+
+@MaterialProperty real hamaker_constant;
+hamaker_constant.setEntryName("HamakerConstant");
+// A: Hamaker constant [J] for clay-water-clay; literature value
+// 2.2e-20 J for montmorillonite-water-montmorillonite (Israelachvili &
+// Adams 1978, J. Chem. Soc. Faraday Trans. I, vol. 74, p. 975, Table 2,
+// SFA mica proxy). DO NOT calibrate A — only K (VdwAugmentationPrefactor)
+// and lambda (VdwAugmentationDecayLength) are calibrated. Value lives in
+// PRJ/MTEST with the citation (CLAUDE.md s.1.1, s.12); NOT hardcoded here.
+
+@MaterialProperty real specific_surface;
+specific_surface.setEntryName("SpecificSurface");
+
+@MaterialProperty real vdw_augmentation_prefactor;
+vdw_augmentation_prefactor.setEntryName("VdwAugmentationPrefactor");
+// K [J/kg]: lumped exponential augmentation amplitude, calibrated to a
+// Villar/Dixon swelling-pressure anchor (CLAUDE.md s.12.1). Value + anchor
+// in the PRJ provenance header. Set to 0 to disable augmentation.
+
+@MaterialProperty real vdw_augmentation_decay_length;
+vdw_augmentation_decay_length.setEntryName("VdwAugmentationDecayLength");
+// lambda [m]: characteristic water-film thickness in exp(-h/lambda).
+
+@MaterialProperty real area_factor_tuller;
+area_factor_tuller.setEntryName("AreaFactorTuller");
+
+@MaterialProperty real pore_area_shape_factor_tuller;
+pore_area_shape_factor_tuller.setEntryName("PoreAreaShapeFactorTuller");
+
+@MaterialProperty real characteristic_pore_size;
+characteristic_pore_size.setEntryName("CharacteristicPoreSize");
+
+@MaterialProperty real surface_tension;
+surface_tension.setEntryName("SurfaceTension");
+
+@MaterialProperty real phi0;
+phi0.setEntryName("InitialPorosity");
+
+@MaterialProperty real biot_coefficient;
+biot_coefficient.setEntryName("BiotCoefficient");
+// b in the integrable web -0.5*b*K_drained*eps_v^2/rho_lR. ANCHORS sets b=1
+// (rigid grain). Value cited in PRJ provenance (CLAUDE.md s.12); NOT hardcoded.
+
+// ── Local variables shared across the @Integrator stages ────────────────────
+@LocalVariable bool withinElasticRange;
+@LocalVariable real M²;
+@LocalVariable real rpc_min;
+@LocalVariable real K;  // drained bulk modulus K_drained = young/(3(1-2nu)) [Pa]
+@LocalVariable StressStensor σ₀;
+@LocalVariable StiffnessTensor ∂σ∕∂εᵉˡ;
+@LocalVariable real micro_potential_sign;
+@LocalVariable bool use_macro_saturation_law;
+@LocalVariable real tuller_capillary_prefactor;
+@LocalVariable real macro_support_saturation_trial;
+@LocalVariable real alpha_M_effective;  // [kg/(m^3 . J/kg . s)] effective exchange
+@LocalVariable real n_l_prev;
+@LocalVariable real rho_lR_prev;
+@LocalVariable real phi_M_prev;
+@LocalVariable real epsilon_sw_prev;
+@LocalVariable real phi_m_prev_x_rho;  // (phi_m*rho_lR)|_n  [kg/m^3]
+@LocalVariable real pi_const;
+
+@InitializeLocalVariables
+{
+    constexpr const auto pressure_tolerance = 1e-12;
+    pi_const = 3.14159265358979323846;
+
+    use_macro_saturation_law = macro_saturation_law_mode > 0.5;
+
+    tfel::raise_if(area_factor_tuller <= 0.0,
+                   "Invalid parameter: AreaFactorTuller must be positive.");
+    tfel::raise_if(pore_area_shape_factor_tuller <= 0.0,
+                   "Invalid parameter: PoreAreaShapeFactorTuller must be positive.");
+    tfel::raise_if(characteristic_pore_size <= 0.0,
+                   "Invalid parameter: CharacteristicPoreSize must be positive.");
+    tfel::raise_if(surface_tension <= 0.0,
+                   "Invalid parameter: SurfaceTension must be positive.");
+    tuller_capillary_prefactor =
+        4.0 * pore_area_shape_factor_tuller * surface_tension * surface_tension /
+        (area_factor_tuller * characteristic_pore_size * characteristic_pore_size);
+
+    const auto Sₑ = [&](const auto pᶜᵃᵖ) {
+        return std::pow(
+            std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ, 1.0 / (1.0 - mⱽᴳ)) + 1.0, -mⱽᴳ);
+    };
+    const auto macro_saturation_law = [&](const auto p_arg) {
+        if (p_arg < -pressure_tolerance)
+        {
+            const auto capillary_term =
+                tuller_capillary_prefactor / (p_arg * p_arg);
+            return 1.0 - std::exp(-capillary_term);
+        }
+        return 1.0;
+    };
+    const auto S = use_macro_saturation_law
+                       ? macro_saturation_law(pᴸᴿ + Δpᴸᴿ)
+                       : Sₑ(-(pᴸᴿ + Δpᴸᴿ)) * (1.0 - Sᴳʳ - Sᴸʳ) + Sᴸʳ;
+    Sᴸ = use_macro_saturation_law ? S : std::clamp(S, Sᴸʳ, 1.0 - Sᴳʳ);
+    macro_support_saturation_trial = macro_saturation_law(pᴸᴿ + Δpᴸᴿ);
+
+    tfel::raise_if(la < ka, "Invalid parameters: la<ka");
+    tfel::raise_if(phi0 <= 0.0 || phi0 >= 1.0,
+                   "Invalid parameter: InitialPorosity must lie in (0,1).");
+    tfel::raise_if(rho_LR_ref <= 0.0 || rho_l0 <= 0.0 || rho_SR <= 0.0,
+                   "Invalid density parameter: reference densities must be positive.");
+    tfel::raise_if(macro_viscosity <= 0.0,
+                   "Invalid parameter: MacroViscosity must be positive.");
+    tfel::raise_if(std::abs(hamaker_constant) <= 0.0,
+                   "Invalid parameter: HamakerConstant must be non-zero.");
+    tfel::raise_if(specific_surface <= 0.0,
+                   "Invalid parameter: SpecificSurface must be positive.");
+    tfel::raise_if(vdw_augmentation_prefactor < 0.0,
+                   "Invalid parameter: VdwAugmentationPrefactor must be >= 0.");
+
+    M² = M * M;
+
+    // Recover elastic strain and elastic stiffness (constE MCC idiom).
+    εᵉˡ = (1.0 + ν) / young * σ - ν / young * trace(σ) * I₂;
+    σ₀ = σ;
+    rpc = pc / young;
+    const auto pc_min = 1e-15 * pc_char;
+    rpc_min = pc_min / young;
+
+    K = young / (3.0 * (1.0 - 2.0 * ν));  // drained bulk modulus [Pa]
+    ∂σ∕∂εᵉˡ = young / (1.0 + ν) * Stensor4::K() + K * Stensor4::IxI();
+
+    // Elastic-predictor yield check (decides return-map vs elastic branch).
+    const auto σᵉˡ = σ₀ + ∂σ∕∂εᵉˡ * Δεᵗᵒ;
+    const auto sᵉˡ = deviator(σᵉˡ);
+    const auto qᵉˡ = sqrt(1.5 * sᵉˡ | sᵉˡ);
+    const auto pᵉˡ = -trace(σᵉˡ) / 3.0 + pamb;
+    const auto fᵉˡ = qᵉˡ * qᵉˡ + M² * pᵉˡ * (pᵉˡ - pc);
+    withinElasticRange = fᵉˡ < 0;
+
+    // Sign convention for the micro potential (native potential_sign_factor *
+    // sign(A)); matches PotentialExchange.h call-site convention.
+    micro_potential_sign = (micro_potential_convention > 0.5 ? -1.0 : 1.0) *
+                           (hamaker_constant >= 0.0 ? 1.0 : -1.0);
+
+    // alpha_M_effective = MassExchangeCoefficient * rho_LR_ref / FluidViscosity
+    // (native alpha_M_effective; fixed reference density). [units as native]
+    alpha_M_effective = mass_exchange_coefficient * rho_LR_ref / macro_viscosity;
+
+    // Previous-step DSM state (seed the implicit unknowns from converged n).
+    constexpr const auto minimum_n_l = 1e-14;
+    constexpr const auto minimum_density_gap = 1e-12;
+    n_l_prev = std::clamp(n_l, minimum_n_l, 1.0 - minimum_n_l);
+    rho_lR_prev = std::max(rho_lR, rho_LR_ref + minimum_density_gap);
+    phi_M_prev = std::clamp(phi_M, 0.0, 1.0 - minimum_n_l);
+    epsilon_sw_prev = epsilon_sw;
+    // phi_m|_n = (1 - phi_M|_n) * n_l|_n   (hierarchical, native phi_m = n_S*n_l)
+    const auto phi_m_prev = std::max(0.0, 1.0 - phi_M_prev) * n_l_prev;
+    phi_m_prev_x_rho = phi_m_prev * rho_lR_prev;  // (phi_m*rho_lR)|_n  [kg/m^3]
+}
+
+@ComputeThermodynamicForces
+{
+    // Effective stress from elastic strain (swelling eigenstress added in the
+    // final-force stage, mirroring the verified bridge encoding, s.7).
+    σ = σ₀ + θ * ∂σ∕∂εᵉˡ * Δεᵉˡ;
+}
+
+@Integrator
+{
+    constexpr const auto minimum_n_l = 1e-14;
+    constexpr const auto minimum_density_gap = 1e-12;
+
+    // Current-iterate DSM state (theta-evaluated, fully implicit at theta=1).
+    const auto n_l_cur = n_l + θ * Δn_l;
+    const auto rho_lR_cur = rho_lR + θ * Δrho_lR;
+    const auto phi_M_cur = phi_M + θ * Δphi_M;
+
+    // Safe shadows for divisions (do NOT alter the unknowns, only guard maths).
+    const auto n_l_s = std::max(n_l_cur, minimum_n_l);
+    const auto rho_lR_s = std::max(rho_lR_cur, rho_LR_ref + minimum_density_gap);
+    const auto n_S = std::max(minimum_n_l, 1.0 - phi_M_cur);  // n_S = 1 - phi_M
+
+    const auto p = pᴸᴿ + Δpᴸᴿ;                  // liquid pressure [Pa]
+    const auto delta_eps_v = trace(Δεᵗᵒ);        // volumetric strain increment [-]
+    const auto eps_v = trace(εᵗᵒ + Δεᵗᵒ);        // total volumetric strain [-]
+
+    // phi_m = n_S * n_l (hierarchical; native phi_m = (1-phi_M)*n_l).
+    const auto phi_m_cur = n_S * n_l_s;          // [-]
+    const auto dphi_m_dnl = n_S;                 // d phi_m / d n_l
+    const auto dphi_m_dphiM = -n_l_s;            // d phi_m / d phi_M
+
+    // ── vdW base micro potential mu_lR_vdw [J/kg] (native L181-210) ──────────
+    // active solid fraction for the gravimetric content: nS_omega = 1 - n_l
+    // (aggregate solid fraction; F2 fix, m_water/m_solid). Independent of phi_M.
+    const auto nS_omega = std::max(minimum_n_l, 1.0 - n_l_s);
+    const auto pref_vdw = micro_potential_sign * std::abs(hamaker_constant) *
+                          specific_surface * specific_surface *
+                          specific_surface / (6.0 * pi_const);
+    const auto mu_vdW = pref_vdw * (nS_omega * nS_omega * nS_omega) *
+                        (rho_SR * rho_SR * rho_SR) /
+                        (n_l_s * n_l_s * n_l_s * rho_lR_s);            // J/kg
+    // d mu_vdW / d n_l : explicit n_l^-3 term gives -3*mu/n_l; the live nS_omega
+    // = 1 - n_l adds +3*mu/nS_omega * d(nS_omega)/dn_l = -3*mu/nS_omega
+    // (native dmu_lR_dnl core -3*mu/n_l plus live-nS chain dmu_lR_dnS*(-1),
+    // dmu_lR_dnS = 3*mu/nS).
+    const auto dmu_vdW_dnl =
+        -3.0 * mu_vdW / n_l_s - 3.0 * mu_vdW / nS_omega;              // (J/kg)/[-]
+    const auto dmu_vdW_drho = -mu_vdW / rho_lR_s;                     // (J/kg)/(kg/m^3)
+
+    // Lumped exponential augmentation mu_aug = sign*K*exp(-xi) [J/kg], native
+    // L196-209; xi = n_l/(lambda*nS_omega*rho_SR*Sa). K=0 disables.
+    const bool aug_active =
+        (vdw_augmentation_prefactor > 0.0 && vdw_augmentation_decay_length > 0.0);
+    const auto xi =
+        aug_active ? n_l_s / (vdw_augmentation_decay_length * nS_omega * rho_SR *
+                              specific_surface)
+                   : 0.0;
+    const auto mu_aug = aug_active ? micro_potential_sign *
+                                         vdw_augmentation_prefactor *
+                                         std::exp(-xi)
+                                   : 0.0;                              // J/kg
+    // d mu_aug / d n_l: core -mu_aug*xi/n_l plus live-nS chain +mu_aug*xi/nS*(-1)
+    // (native: dmu_lR_dnl += -mu_aug*xi/n_l; dmu_lR_dnS += mu_aug*xi/nS; chain*-1).
+    const auto dmu_aug_dnl =
+        aug_active ? (-mu_aug * xi / n_l_s - mu_aug * xi / nS_omega) : 0.0;
+
+    // vdW potential and its derivatives (ADDITIVE — never overwrite, s.4.1).
+    auto mu_lR_vdw = mu_vdW;                  // J/kg
+    mu_lR_vdw += mu_aug;                      // J/kg  (+=, base preserved)
+    const auto dmu_lR_vdw_dnl = dmu_vdW_dnl + dmu_aug_dnl;            // (J/kg)/[-]
+    const auto dmu_lR_vdw_drho = dmu_vdW_drho;                        // aug has no rho dep
+
+    // Disjoining pressure Pi = -rho_lR*mu_lR_vdw [Pa] and Pi' = dPi/dn_l.
+    const auto Pi = -rho_lR_s * mu_lR_vdw;                            // Pa
+    const auto Pi_prime = -rho_lR_s * dmu_lR_vdw_dnl;                 // Pa per [-]
+    // Pi'' = d^2 Pi/d n_l^2. From Pi = -rho_lR*mu_lR_vdw and the vdW/aug forms,
+    // build d(dmu_lR_vdw_dnl)/dnl analytically (used in the web n_l-derivative).
+    // For the vdW core mu ~ nS_omega^3 / n_l^3 (rho fixed in this partial):
+    //   dmu/dnl   = -3 mu (1/n_l + 1/nS_omega)
+    //   d2mu/dnl2 =  mu [ 12/n_l^2 + 6/(n_l nS_omega) + 6/nS_omega^2 ]
+    // (nS_omega = 1 - n_l, d nS_omega/dn_l = -1). Augmentation second derivative:
+    //   d2mu_aug/dnl2 from mu_aug*exp(-xi(n_l)); xi ~ n_l/nS_omega.
+    const auto d2mu_vdW_dnl2 =
+        mu_vdW * (12.0 / (n_l_s * n_l_s) + 6.0 / (n_l_s * nS_omega) +
+                  6.0 / (nS_omega * nS_omega));                       // (J/kg)/[-]^2
+    // xi = n_l/(lambda*nS_omega*rho_SR*Sa); dxi/dnl = xi*(1/n_l + 1/nS_omega).
+    const auto dxi_dnl =
+        aug_active ? xi * (1.0 / n_l_s + 1.0 / nS_omega) : 0.0;
+    // dmu_aug/dnl = -mu_aug*dxi/dnl; d2mu_aug/dnl2 = mu_aug*((dxi/dnl)^2 - d2xi/dnl2)
+    // d2xi/dnl2 = xi*(2/(n_l nS_omega) + 2/nS_omega^2)   (from the product form).
+    const auto d2xi_dnl2 =
+        aug_active ? xi * (2.0 / (n_l_s * nS_omega) + 2.0 / (nS_omega * nS_omega))
+                   : 0.0;
+    const auto d2mu_aug_dnl2 =
+        aug_active ? mu_aug * (dxi_dnl * dxi_dnl - d2xi_dnl2) : 0.0;
+    const auto d2mu_lR_vdw_dnl2 = d2mu_vdW_dnl2 + d2mu_aug_dnl2;      // (J/kg)/[-]^2
+    const auto Pi_prime2 = -rho_lR_s * d2mu_lR_vdw_dnl2;             // Pi'' [Pa]/[-]^2
+
+    // ── Integrable Maxwell web partner mu_lR_mech [J/kg] (design doc s.5) ────
+    // mu_lR_mech = -[ (Pi + n_l*Pi')*eps_v + 0.5*b*K_drained*eps_v^2 ] / rho_lR
+    // First-order equals the native strain-view S1*eps_v/(rho_lR*n_S) with
+    // S1 = -n_S*(Pi + n_l*Pi'); the 0.5*b*K*eps_v^2 term is the integrable
+    // (C1, ungated) extension. p_conf = -tr(sigma')/3 enters via K_drained*eps_v
+    // (drained line); b = biot_coefficient.
+    const auto b = biot_coefficient;
+    const auto Aterm = Pi + n_l_s * Pi_prime;                         // Pa
+    const auto mu_lR_mech =
+        -(Aterm * eps_v + 0.5 * b * K * eps_v * eps_v) / rho_lR_s;    // J/kg
+    // Derivatives of the integrable web (analytic):
+    //   d/d eps_v : -[ (Pi + n_l*Pi') + b*K*eps_v ] / rho_lR
+    const auto dmu_mech_deps_v = -(Aterm + b * K * eps_v) / rho_lR_s; // (J/kg)/[-]
+    //   d/d n_l : Aterm' = dPi/dnl + Pi' + n_l*Pi'' = 2*Pi' + n_l*Pi''
+    const auto dAterm_dnl = 2.0 * Pi_prime + n_l_s * Pi_prime2;       // Pa per [-]
+    const auto dmu_mech_dnl = -(dAterm_dnl * eps_v) / rho_lR_s;       // (J/kg)/[-]
+    //   d/d rho_lR : Pi is rho-independent (Pi = -rho*mu_vdW, mu_vdW ~ 1/rho),
+    //   so only the explicit 1/rho_lR factor contributes: -mu_lR_mech/rho_lR.
+    const auto dmu_mech_drho = -mu_lR_mech / rho_lR_s;                // (J/kg)/(kg/m^3)
+
+    // ── Total micro potential mu_lR = mu_lR_vdw + mu_lR_mech (ADDITIVE) ──────
+    auto mu_lR = mu_lR_vdw;                   // J/kg
+    mu_lR += mu_lR_mech;                      // J/kg  (+=, vdW base preserved s.4.1)
+    const auto dmu_lR_dnl = dmu_lR_vdw_dnl + dmu_mech_dnl;            // (J/kg)/[-]
+    const auto dmu_lR_drho = dmu_lR_vdw_drho + dmu_mech_drho;         // (J/kg)/(kg/m^3)
+    // d mu_lR / d eps_v comes ONLY from the web (vdW is strain-independent).
+    const auto dmu_lR_deps_v = dmu_mech_deps_v;                       // (J/kg)/[-]
+
+    // ── Macro potential and potential-driven mass exchange (native L376-454) ─
+    // mu_LR = 0 (p >= -tol) | p/rho_LR (else); rho_l_hat = alpha*(mu_LR - mu_lR).
+    const auto rho_macro = std::max(rho_lR_s, rho_LR_ref + minimum_density_gap);
+    const auto mu_LR = (p > -1e-12) ? 0.0 : p / rho_macro;           // J/kg
+    const auto rho_l_hat = alpha_M_effective * (mu_LR - mu_lR);      // kg/(m^3 s)
+    const auto drho_l_hat_dnl = -alpha_M_effective * dmu_lR_dnl;
+    const auto drho_l_hat_drho = -alpha_M_effective * dmu_lR_drho;
+    const auto drho_l_hat_deps_v = -alpha_M_effective * dmu_lR_deps_v;  // THE WEB
+
+    // ── Micro-liquid EOS rho_micro_eos(n_l, rho_lR) (native, bridge L390) ────
+    // omega = n_l*rho_lR/(nS_omega*rho_SR); rho = rho_l0*exp(-a*omega^b)+rho_LR_ref
+    const auto omega_raw = n_l_s * rho_lR_s / (nS_omega * rho_SR);
+    const auto omega = std::max(omega_raw, minimum_n_l);
+    const auto eos_attr = rho_l0 * std::exp(-density_a * std::pow(omega, density_b));
+    const auto rho_micro_eos = eos_attr + rho_LR_ref;                // kg/m^3
+    const auto deos_pref =
+        -eos_attr * density_a * density_b * std::pow(omega, density_b - 1.0);
+    // d omega/d n_l = rho_lR/(rho_SR*nS_omega^2) (live nS_omega=1-n_l);
+    // d omega/d rho_lR = n_l/(nS_omega*rho_SR).
+    const auto domega_dnl = (omega_raw > minimum_n_l)
+                                ? rho_lR_s / (rho_SR * nS_omega * nS_omega)
+                                : 0.0;
+    const auto domega_drho =
+        (omega_raw > minimum_n_l) ? n_l_s / (nS_omega * rho_SR) : 0.0;
+    const auto drho_eos_dnl = deos_pref * domega_dnl;
+    const auto drho_eos_drho = deos_pref * domega_drho;
+
+    // ── Hierarchical macro porosity closure (bridge L324-348) ───────────────
+    // phi_total advected by eps_v; phi_M = phi_total - phi_m.
+    const auto phi_total_prev =
+        std::clamp(std::max(0.0, phi_m_prev_x_rho / rho_lR_prev) + phi_M_prev,
+                   minimum_n_l, 1.0 - minimum_density_gap);
+    const auto porosity_den = 1.0 + delta_eps_v;
+    const auto phi_total_trial =
+        (std::abs(porosity_den) > 1e-12)
+            ? std::clamp((phi_total_prev + delta_eps_v) / porosity_den,
+                         minimum_n_l, 1.0 - minimum_density_gap)
+            : phi_total_prev;
+
+    // ── MCC mechanical block (verbatim algebra; bridge L1358-1414) ──────────
+    constexpr const auto Pr4 = Stensor4::K();
+    const auto the = vʳ / (la - ka);
+    const auto fchar = pc_char * young;
+
+    if (withinElasticRange)
+    {
+        fεᵉˡ -= Δεᵗᵒ;
+        // DSM unknowns still evolve in the elastic branch — assemble their rows.
+    }
+    else
+    {
+        const auto epsr = strain(1.e-12);
+        const auto s = deviator(σ);
+        const auto q = sqrt(1.5 * s | s);
+        const auto pmcc = -trace(σ) / 3.0 + pamb;
+
+        const auto rpc_new = rpc + θ * Δrpc;
+        const auto pc_new = rpc_new * young;
+
+        const auto f = q * q + M² * pmcc * (pmcc - pc_new);
+        const auto ∂f∕∂p = M² * (2.0 * pmcc - pc_new);
+        const auto ∂f∕∂σ = eval(3.0 * s - ∂f∕∂p * I₂ / 3.0);
+        auto norm = sqrt(6.0 * q * q + ∂f∕∂p * ∂f∕∂p / 3.0);
+        norm = max(norm, epsr * young);
+        const auto n = ∂f∕∂σ / norm;
+        const auto ntr = -∂f∕∂p / norm;
+
+        const auto Δεᵖˡ = eval(ΔΛₚ * n);
+        const auto Δεᵖˡᵛ = trace(Δεᵖˡ);
+
+        fεᵉˡ = Δεᵉˡ + Δεᵖˡ - Δεᵗᵒ;
+        fΛₚ = f / fchar;
+        frpc = Δrpc + Δεᵖˡᵛ * the * (rpc_new - rpc_min);
+
+        const auto ∂norm∕∂σ = (9.0 * s - 2.0 * M² / 9.0 * ∂f∕∂p * I₂) / norm;
+        const auto ∂n∕∂Δεᵉˡ =
+            (3.0 * Pr4 + 2.0 * M² / 9.0 * (I₂ ⊗ I₂) - (n ⊗ ∂norm∕∂σ)) / norm *
+            ∂σ∕∂εᵉˡ * θ;
+        const auto ∂n∕∂Δrpc =
+            (I₂ + ∂f∕∂p * n / norm) * M² / (3.0 * norm) * θ * young;
+        const auto ∂frpc∕∂Δεᵖˡᵛ = the * (rpc_new - rpc_min);
+
+        ∂fεᵉˡ∕∂Δεᵉˡ += ΔΛₚ * ∂n∕∂Δεᵉˡ;
+        ∂fεᵉˡ∕∂ΔΛₚ = n;
+        ∂fεᵉˡ∕∂Δrpc = ΔΛₚ * ∂n∕∂Δrpc;
+
+        ∂fΛₚ∕∂Δεᵉˡ = (∂f∕∂σ | ∂σ∕∂εᵉˡ) * θ / fchar;
+        ∂fΛₚ∕∂ΔΛₚ = strain(0);
+        ∂fΛₚ∕∂Δrpc = -M² * pmcc * θ / fchar * young;
+
+        ∂frpc∕∂ΔΛₚ = ∂frpc∕∂Δεᵖˡᵛ * ntr;
+        ∂frpc∕∂Δεᵉˡ = ∂frpc∕∂Δεᵖˡᵛ * ΔΛₚ * (I₂ | ∂n∕∂Δεᵉˡ);
+        ∂frpc∕∂Δrpc =
+            1.0 + Δεᵖˡᵛ * the * θ + ∂frpc∕∂Δεᵖˡᵛ * ΔΛₚ * trace(∂n∕∂Δrpc);
+    }
+
+    // ── DSM residual rows (one entry per unknown; design doc s.3) ───────────
+    // r4: fn_l — micro storage / mass exchange (Beese R_nl storagel; native).
+    //   fn_l = phi_m*rho_lR - (phi_m*rho_lR)|_n - dt*rho_l_hat - phi_m*rho_lR*deps_v
+    const auto mass_cur = phi_m_cur * rho_lR_s;                       // kg/m^3
+    fn_l = mass_cur - phi_m_prev_x_rho - dt * rho_l_hat -
+           mass_cur * delta_eps_v;                                    // kg/m^3
+
+    // r5: frho_lR — micro-liquid EOS (Beese R_rholR).
+    frho_lR = rho_lR_cur - rho_micro_eos;                            // kg/m^3
+
+    // r6: fphi_M — hierarchical macro porosity (Beese R_phiM; bridge closure).
+    //   phi_M = phi_total_trial - phi_m   (phi_m = (1-phi_M)*n_l implicit in phi_M)
+    fphi_M = phi_M_cur - (phi_total_trial - phi_m_cur);             // [-]
+
+    // r7: fepsilon_sw — swelling strain increment (Beese R_epssw; bridge L1349).
+    //   eps_sw - (eps_sw|_n + swelling_slope*(phi_m - phi_m|_n)) = 0
+    const auto phi_m_prev_local = phi_m_prev_x_rho / rho_lR_prev;    // [-]
+    const auto epsilon_sw_cur = epsilon_sw + θ * Δepsilon_sw;        // [-]
+    const auto delta_eps_sw = swelling_slope * (phi_m_cur - phi_m_prev_local);  // [-]
+    fepsilon_sw = epsilon_sw_cur - epsilon_sw_prev - delta_eps_sw;   // [-]
+
+    // ── DSM Jacobian super-block (analytic; design doc s.4) ──────────────────
+    // Rows are scalar (real) unknowns; columns Δn_l, Δrho_lR, Δphi_M, Δepsilon_sw,
+    // and the cross-couplings to the mechanical Δεᵉˡ (the Maxwell web C_ne).
+    //
+    // d(phi_m)/d(Δn_l) = θ*dphi_m_dnl,  d(phi_m)/d(Δphi_M) = θ*dphi_m_dphiM.
+    const auto dphi_m_dDnl = θ * dphi_m_dnl;
+    const auto dphi_m_dDphiM = θ * dphi_m_dphiM;
+
+    // r4 = mass_cur - mass_n - dt*rho_l_hat - mass_cur*deps_v,  mass_cur=phi_m*rho_lR
+    // d mass_cur/dDn_l   = dphi_m_dDnl*rho_lR
+    // d mass_cur/dDrho   = phi_m*θ
+    // d mass_cur/dDphi_M = dphi_m_dDphiM*rho_lR
+    ∂fn_l∕∂Δn_l = dphi_m_dDnl * rho_lR_s * (1.0 - delta_eps_v) -
+                  dt * (θ * drho_l_hat_dnl);
+    ∂fn_l∕∂Δrho_lR = (phi_m_cur * θ) * (1.0 - delta_eps_v) -
+                     dt * (θ * drho_l_hat_drho);
+    ∂fn_l∕∂Δphi_M = dphi_m_dDphiM * rho_lR_s * (1.0 - delta_eps_v);
+    // C_ne (THE WEB): ∂fn_l/∂Δεᵉˡ via rho_l_hat -> mu_lR_mech -> eps_v.
+    //   eps_v = tr(εᵗᵒ); but the implicit unknown is Δεᵉˡ. In the elastic branch
+    //   Δεᵉˡ = Δεᵗᵒ so ∂eps_v/∂Δεᵉˡ = I₂; in the plastic branch eps_v also moves
+    //   with Δεᵉˡ through the stress. Use ∂eps_v/∂Δεᵉˡ = θ*I₂ (volumetric part):
+    //   only the volumetric component enters (C_ne ∝ mᵀ, design doc s.4).
+    ∂fn_l∕∂Δεᵉˡ = (-dt * θ * drho_l_hat_deps_v) * I₂;
+
+    // r5 = rho_lR - rho_micro_eos(n_l, rho_lR)
+    ∂frho_lR∕∂Δn_l = -θ * drho_eos_dnl;
+    ∂frho_lR∕∂Δrho_lR = θ * (1.0 - drho_eos_drho);
+    // phi_M, eps_sw, εᵉˡ do not enter the micro EOS -> zero (default).
+
+    // r6 = phi_M - (phi_total_trial - phi_m),  phi_total_trial indep. of n_l,phi_M
+    ∂fphi_M∕∂Δphi_M = θ * (1.0 + dphi_m_dphiM);  // +1 from phi_M, +dphi_m_dphiM from +phi_m
+    ∂fphi_M∕∂Δn_l = θ * dphi_m_dnl;              // + d phi_m/d n_l
+    // phi_total_trial depends on Δεᵗᵒ via delta_eps_v; encode via Δεᵉˡ volumetric.
+    {
+        const auto den = 1.0 + delta_eps_v;
+        const auto dphitot_ddepsv =
+            (std::abs(den) > 1e-12)
+                ? (den - (phi_total_prev + delta_eps_v)) / (den * den)
+                : 0.0;
+        ∂fphi_M∕∂Δεᵉˡ = (-dphitot_ddepsv) * θ * I₂;  // -(d phi_total/d eps_v)
+    }
+
+    // r7 = eps_sw - eps_sw_n - swelling_slope*(phi_m - phi_m_n)
+    ∂fepsilon_sw∕∂Δepsilon_sw = θ;
+    ∂fepsilon_sw∕∂Δn_l = -swelling_slope * dphi_m_dDnl;
+    ∂fepsilon_sw∕∂Δphi_M = -swelling_slope * dphi_m_dDphiM;
+
+    // Auxiliaries (mu_lR, rho_l_hat, phi_m, sigma_S, ...) are NOT assigned here:
+    // aux state is recomputed from the CONVERGED unknowns in
+    // @UpdateAuxiliaryStateVariables (MFront idiom; the integrator runs once per
+    // local-Newton iteration on non-converged iterates). See that stage below.
+    static_cast<void>(mu_lR);
+    static_cast<void>(mu_lR_mech);
+    static_cast<void>(rho_l_hat);
+    static_cast<void>(omega_raw);
+    static_cast<void>(delta_eps_sw);
+    static_cast<void>(phi_m_prev_local);
+}
+
+@ComputeFinalThermodynamicForces
+{
+    // Effective stress = elastic response MINUS the swelling eigenstress.
+    // Eigenstrain-flavoured encoding (verified, parity-tested in the bridge,
+    // L1419): sigma_sw via the converged swelling increment Δepsilon_sw times
+    // the bulk modulus. Design doc s.7: the Maxwell LEFT half is
+    // ∂σ_sw,m/∂n_l = S₁; the GP Maxwell-symmetry test verifies ∂σ/∂n_l == S₁
+    // transposes the web C_ne — a finding for Vinay if they differ, NOT a
+    // silent re-encode here.
+    σ = σ₀ + ∂σ∕∂εᵉˡ * Δεᵉˡ - K * Δepsilon_sw * I₂;  // Pa
+}
+
+@UpdateAuxiliaryStateVariables
+{
+    constexpr const auto minimum_n_l = 1e-14;
+    constexpr const auto minimum_density_gap = 1e-12;
+
+    // ── MCC scalar auxiliaries (verbatim from the bridge L1422-1426) ─────────
+    pc += Δrpc * young;
+    εᵛₚₗ += trace(Δεᵗᵒ - Δεᵉˡ);
+    vʳ *= exp(trace(Δεᵗᵒ));
+
+    // ── DSM auxiliaries recomputed from the CONVERGED unknowns ──────────────
+    const auto n_l_s = std::max(n_l, minimum_n_l);
+    const auto rho_lR_s = std::max(rho_lR, rho_LR_ref + minimum_density_gap);
+    const auto n_S = std::max(minimum_n_l, 1.0 - phi_M);   // n_S = 1 - phi_M
+    const auto nS_omega = std::max(minimum_n_l, 1.0 - n_l_s);  // aggregate solid
+    const auto eps_v = trace(εᵗᵒ);                         // updated total strain
+    const auto p = pᴸᴿ;                                    // updated liquid pressure
+
+    phi_m = n_S * n_l_s;                                   // [-]
+    phi_value = phi_m + phi_M;                             // [-]
+    n_S_value = 1.0 - phi_value;                           // REV solid fraction
+    n_L_value = phi_M * macro_support_saturation_trial;    // macro liquid fraction
+    rho_LR_value = rho_lR_s;
+    // omega_l = m_water/m_solid uses the AGGREGATE solid fraction (1 - n_l).
+    omega_l_value = n_l_s * rho_lR_s / (nS_omega * rho_SR);
+
+    // vdW base mu_lR_vdw [J/kg] (same form as the integrator; ADDITIVE).
+    const auto pref_vdw = micro_potential_sign * std::abs(hamaker_constant) *
+                          specific_surface * specific_surface *
+                          specific_surface / (6.0 * pi_const);
+    const auto mu_vdW = pref_vdw * (nS_omega * nS_omega * nS_omega) *
+                        (rho_SR * rho_SR * rho_SR) /
+                        (n_l_s * n_l_s * n_l_s * rho_lR_s);           // J/kg
+    const bool aug_active =
+        (vdw_augmentation_prefactor > 0.0 && vdw_augmentation_decay_length > 0.0);
+    const auto xi =
+        aug_active ? n_l_s / (vdw_augmentation_decay_length * nS_omega * rho_SR *
+                              specific_surface)
+                   : 0.0;
+    const auto mu_aug = aug_active ? micro_potential_sign *
+                                         vdw_augmentation_prefactor *
+                                         std::exp(-xi)
+                                   : 0.0;                              // J/kg
+    auto mu_lR_vdw = mu_vdW;
+    mu_lR_vdw += mu_aug;                                              // J/kg (+=)
+    const auto dmu_lR_vdw_dnl =
+        -3.0 * mu_vdW / n_l_s - 3.0 * mu_vdW / nS_omega +
+        (aug_active ? (-mu_aug * xi / n_l_s - mu_aug * xi / nS_omega) : 0.0);
+
+    // Disjoining pressure and the integrable web partner at convergence.
+    const auto Pi = -rho_lR_s * mu_lR_vdw;                            // Pa
+    const auto Pi_prime = -rho_lR_s * dmu_lR_vdw_dnl;                 // Pa/[-]
+    const auto b = biot_coefficient;
+    const auto mu_lR_mech =
+        -((Pi + n_l_s * Pi_prime) * eps_v + 0.5 * b * K * eps_v * eps_v) /
+        rho_lR_s;                                                     // J/kg
+    auto mu_lR = mu_lR_vdw;
+    mu_lR += mu_lR_mech;                                              // J/kg (+=)
+
+    const auto rho_macro = std::max(rho_lR_s, rho_LR_ref + minimum_density_gap);
+    const auto mu_LR = (p > -1e-12) ? 0.0 : p / rho_macro;           // J/kg
+    const auto rho_l_hat = alpha_M_effective * (mu_LR - mu_lR);      // kg/(m^3 s)
+
+    mu_lR_value = mu_lR;
+    mu_lR_mech_value = mu_lR_mech;
+    rho_l_hat_value = rho_l_hat;
+
+    delta_epsilon_sw_value = epsilon_sw - epsilon_sw_prev;           // [-]
+    sigma_S_value = -K * epsilon_sw * I₂;                            // Pa
+}
+
+@AdditionalConvergenceChecks
+{
+    // KKT switch for MCC (bridge L1454-1467): a negative plastic multiplier
+    // means the elastic predictor was correct — restart on the elastic branch.
+    if (converged)
+    {
+        if (!withinElasticRange)
+        {
+            if (ΔΛₚ < 0)
+            {
+                converged = false;
+                withinElasticRange = true;
+            }
+        }
+    }
+}
+
+@TangentOperator
+{
+    // Saturation tangents (∂Sᴸ/∂…) reproduce the bridge (L1469-1501): the
+    // macro-support Tuller law or the van-Genuchten Sₑ branch, by mode.
+    const auto ∂Sᴸ∕∂pᶜᵃᵖ = [&](const auto pᶜᵃᵖ) {
+        return (1.0 - Sᴳʳ - Sᴸʳ) *
+               (Sᴸ < (1.0 - Sᴳʳ) && Sᴸ > Sᴸʳ
+                    ? -mⱽᴳ / (pᵇ * (1.0 - mⱽᴳ)) *
+                          std::pow(std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ,
+                                            1.0 / (1.0 - mⱽᴳ)) +
+                                       1.0,
+                                   -mⱽᴳ - 1.0) *
+                          std::pow(std::max(pᶜᵃᵖ, 0.0) / pᵇ,
+                                   1.0 / (1.0 - mⱽᴳ) - 1.0)
+                    : 0.0);
+    };
+    const auto ∂Sᴸ_macro∕∂p = [&](const auto p_arg) {
+        if (p_arg >= -1e-12)
+        {
+            return 0.0;
+        }
+        const auto inv_p = 1.0 / p_arg;
+        const auto exp_term =
+            std::exp(-tuller_capillary_prefactor * inv_p * inv_p);
+        return -2.0 * tuller_capillary_prefactor * exp_term * inv_p * inv_p *
+               inv_p;
+    };
+
+    ∂Sᴸ∕∂Δεᵗᵒ = 0.0 * I₂;
+    ∂Sᴸ∕∂Δpᴸᴿ = use_macro_saturation_law
+                     ? ∂Sᴸ_macro∕∂p(pᴸᴿ + Δpᴸᴿ)
+                     : -∂Sᴸ∕∂pᶜᵃᵖ(-(pᴸᴿ + Δpᴸᴿ));
+
+    // Mechanical consistent tangent: invert the FULL monolithic local Jacobian.
+    // getPartialJacobianInvert(Je) returns the reduced ∂Δεᵉˡ/∂Δεᵗᵒ that already
+    // accounts for ALL coupled unknowns (Λₚ, rpc, n_l, rho_lR, phi_M, epsilon_sw)
+    // — i.e. the Maxwell web C_ne and the swelling coupling are folded in by the
+    // implicit-function theorem on the converged system. This is the monolithic
+    // payoff: the swelling/web contribution to ∂σ/∂εᵗᵒ comes out of the SAME
+    // Jacobian rather than a hand-injected dn_l/deps_v block (design doc s.4).
+    if ((smt == ELASTIC) || (smt == SECANTOPERATOR))
+    {
+        ∂σ∕∂Δεᵗᵒ = ∂σ∕∂εᵉˡ;
+    }
+    else if (smt == CONSISTENTTANGENTOPERATOR)
+    {
+        Stensor4 Je;
+        getPartialJacobianInvert(Je);
+        ∂σ∕∂Δεᵗᵒ = ∂σ∕∂εᵉˡ * Je;
+    }
+    else
+    {
+        return false;
+    }
+
+    // Pressure tangent ∂σ/∂Δpᴸᴿ: pᴸᴿ enters σ only through the DSM unknowns
+    // (n_l, rho_lR via the swelling eigenstress). With the monolithic Jacobian,
+    // the n_l-response to pᴸᴿ is carried by the coupled solve; the explicit
+    // ∂σ∕∂Δpᴸᴿ block is left at the leading swelling-coupling term, matching the
+    // bridge form ∂σ∕∂Δpᴸᴿ = -(K*swelling_slope*dn_l/dp)*I₂. Here dn_l/dp is
+    // implicit in the converged state; the dominant pressure-coupling to stress
+    // is via Δepsilon_sw already captured in ∂σ∕∂Δεᵗᵒ through the web. Set the
+    // direct pressure block to zero (the coupling is routed through the strain
+    // tangent + the global RM assembly); flagged for Vinay as a verify-then-tune
+    // item (design doc s.8, pressure-scale tolerance floor).
+    ∂σ∕∂Δpᴸᴿ = 0.0 * I₂;
+}

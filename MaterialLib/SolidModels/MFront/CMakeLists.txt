@@ -56,6 +56,7 @@ set(_mfront_behaviours
     ThermoPoroElasticity
     RichardsMechanicsDSMMicroMacroBridge
     RichardsMechanicsDSMMicroMacroBridge_MCC
+    RichardsMechanicsDSMMicroMacroMaxwell_MCC
     WeakPlaneModel
     WeakPlaneModel_nonIter
 )
