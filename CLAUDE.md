@@ -453,6 +453,17 @@ Conversational discussion is exempt from this section.
      NEW run folder; the old README is annotated "superseded by <run>".
    - The §6.7 provenance gate applies to the snapshot before pushing.
    See `runs/README.md` in the results repo for the full template.
+   - **Universal scope (Vinay 2026-06-10: "make this the rule for all
+     simulation folders"):** the naming-plus-status convention applies
+     to EVERY simulation campaign folder anywhere — scratch dirs in the
+     OGS checkout/worktrees, `~/ogs-models/`, tex bundles — not only
+     `runs/`. Any folder holding a campaign's runs MUST carry the
+     `_successful` / `_failed` / `_last_successful` suffix (status per
+     the standard-suite criterion above; for pre-existing folders,
+     append the suffix to the existing name). Exempt: in-flight output
+     dirs referenced by live scripts (e.g. `Inputs/`, `Outputs/stgN`,
+     `out_*` inside a PRJ dir) — the campaign FOLDER gets the suffix,
+     not every sub-output.
 
 ---
 
