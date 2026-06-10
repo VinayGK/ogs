@@ -434,10 +434,12 @@ Conversational discussion is exempt from this section.
    models run, key numbers, calibration anchor / parameter provenance,
    what changed vs the previous run, and open items. Conventions:
    - **Status suffix (Vinay 2026-06-10), mandatory:** `_successful`
-     (campaign delivered its results; documented partials inside do
-     not demote it), `_failed` (primary goal did not complete —
-     error-terminated / majority of cases dead; kept, never deleted:
-     failures are findings), `_last_successful` (exactly ONE folder at
+     (the STANDARD MS LE suite — MS33 I/III/IV/VII — ran; experimental
+     side-cases do not gate the status), `_failed` (primary goal did
+     not complete — error-terminated / majority of cases dead; failed
+     standard-suite runs are kept: failures are findings; experimental
+     ventures that do not run the standard suite MAY be deleted, per
+     Vinay 2026-06-10), `_last_successful` (exactly ONE folder at
      any time — the most recent successful run; when a newer successful
      run lands, rename the previous holder back to `_successful`; this
      status rename + the README cross-reference updates it entails is
