@@ -428,16 +428,27 @@ Conversational discussion is exempt from this section.
    Every completed simulation campaign that produces deliverables
    (figures, report, beamer, metrics) gets ONE snapshot folder in the
    results repo (`~/git/eurad-anchors/runs/`), named
-   `<YYYY-MM-DD>_<HHMM>_<ogs-branch>/` (local completion time). Each
-   folder is the complete frozen picture of that run and MUST carry a
-   `README.md` run card with: branch + commit (+ binary), models run,
-   key numbers, calibration anchor / parameter provenance, what changed
-   vs the previous run, and open items. Conventions:
+   `<YYYY-MM-DD>_<HHMM>_<ogs-branch>_<status>/` (local completion
+   time). Each folder is the complete frozen picture of that run and
+   MUST carry a `README.md` run card with: branch + commit (+ binary),
+   models run, key numbers, calibration anchor / parameter provenance,
+   what changed vs the previous run, and open items. Conventions:
+   - **Status suffix (Vinay 2026-06-10), mandatory:** `_successful`
+     (campaign delivered its results; documented partials inside do
+     not demote it), `_failed` (primary goal did not complete —
+     error-terminated / majority of cases dead; kept, never deleted:
+     failures are findings), `_last_successful` (exactly ONE folder at
+     any time — the most recent successful run; when a newer successful
+     run lands, rename the previous holder back to `_successful`; this
+     status rename + the README cross-reference updates it entails is
+     the ONE allowed mutation of a pushed snapshot).
    - Snapshots are COPIES; canonical living sources stay where they
      are. Run-output VTU series are not committed (size) — the README
-     says where they live; PRJs and input meshes are welcome.
-   - A pushed snapshot is immutable: corrections go into a NEW run
-     folder; the old README is annotated "superseded by <run>".
+     says where they live; PRJs and input meshes are welcome. A FULL
+     mirror (including output VTUs) goes to
+     `~/ogs-models/eurad-ANCHORS/runs/<same-folder-name>/`.
+   - A pushed snapshot is otherwise immutable: corrections go into a
+     NEW run folder; the old README is annotated "superseded by <run>".
    - The §6.7 provenance gate applies to the snapshot before pushing.
    See `runs/README.md` in the results repo for the full template.
 
