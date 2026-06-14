@@ -727,7 +727,13 @@ inline void applyFilmPressureMicroPotential(
             potential_exchange_params.micro_solid_density_reference,
             potential_exchange_params.hamaker_constant,
             potential_exchange_params.specific_surface, sign_ex,
-            potential_exchange_params.potential_augmentation_prefactor,
+            // Live K(rho_d): rho_d = rho_SR*(1-phi); off / phi sentinel ->
+            // parse scalar (K_OF_RHO_D_LIVE.md). H2 fix (2026-06-14): use the
+            // SAME effective K the bare out.mu_lR was built with (:1364), so
+            // g_cut = out.mu_lR/pair.mu_bare_pre stays the macro-floor cutoff
+            // factor under live K (scalar-mode bit-for-bit; matches :768/:2084).
+            effectiveAugmentationPrefactor(potential_exchange_params,
+                                           local_context.phi),  // K [J/kg]
             potential_exchange_params.potential_augmentation_exponent,
             0.0 /*dnS_dnl: frozen nS (B1)*/,
             potential_exchange_params.micro_water_content_floor);
