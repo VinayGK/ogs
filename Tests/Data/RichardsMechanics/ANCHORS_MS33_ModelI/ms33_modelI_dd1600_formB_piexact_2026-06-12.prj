@@ -35,7 +35,18 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         target sigma : 14.161 MPa
         fitted K     : 103879.0 J/kg (potential_augmentation_prefactor)
       Material parameters (source per group):
-        elastic (E, nu)              : EURAD-2 MS33 spec, Table TH-G_model_parameters  [TODO(Vinay): confirm E,nu are the TH-G values]
+        elastic (E=52 MPa, nu=0.3)   : SOURCE UNRESOLVED — TODO(Vinay): supply locator.
+                       BLOCKED 2026-06-14: the EURAD-2 MS33 TH-G table
+                       (MS33/theoretical_benchmarking.tex Tab. tab:TH-G_model_parameters,
+                       lines 431-452; mirror MSXX/c_theoretical_benchmarking/
+                       theoretical_benchmarking.tex lines 106-143) lists ONLY hydraulic /
+                       thermal parameters (P0, alpha, k0, phi0, rel.perm A/n, tortuosity,
+                       diffusion, lambda_dry/sat) — it does NOT contain E or nu. The spec
+                       states mechanical parameters are team-calibrated (executivesummary.tex
+                       "calibration of mechanical model parameters"). E=52 MPa / nu=0.3 do not
+                       appear anywhere in the MS33/MSXX spec. Prior "Table TH-G" attribution
+                       was incorrect and has been removed. Provide the actual §12.1 source
+                       (Beacon / EPFL / Dixon / Villar / EURAD-MS / FEBEX) for E,nu.
         retention (P0=27MPa, a=0.45)  : EURAD-2 MS33 spec (van Genuchten)
         rel. permeability (S_e^3)     : EURAD-2 MS33 spec (A=1, n=3)
         solid density rho_s=2780      : EURAD-2 MS33 spec
@@ -44,10 +55,38 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         cavitation p_cav=1.4e8 Pa     : Or-Tuller 2002
         vdW base A_Hamaker=2.2e-20 J  : Israelachvili & Adams 1978
         vdW decay lambda=7.5e-7 m     : co-calibrated with K to the Dixon anchor
-        micro EOS (a, b, ...)         : TODO(Vinay): primary source
+        micro EOS (a=1e-16, b=1.0)   : SOURCE UNRESOLVED — TODO(Vinay): supply source/justification.
+                       BLOCKED 2026-06-14: no §12.1 candidate found in the thm-lit library.
+                       NOTE these are NOT physical EOS coefficients: a=1e-16 makes the micro
+                       liquid-density EOS effectively constant (rho_lR ~ 1100 kg/m3 fixed), a
+                       deliberate numerical BYPASS of the micro EOS (see CLAUDE.md §2 "EOS bypass
+                       via small a" incident). The 1100 kg/m3 interlayer-density anchor itself is
+                       cited inline (Boek & Sprik 2003; Marry et al. 2008). If a/b are to be
+                       treated as bypass settings rather than sourced material params, say so.
         mass-transfer alpha_M         : phenomenological; not identified by sigma_sw (fast-exchange limit)
-        Tuller geom (beta_T=0.85840..., char_pore_size=10um, area_factor=1) : Tuller-Or family + calibration parity  [TODO(Vinay): primary locator]
-        specific_surface=523 m2/g     : literature MX-80  [TODO(Vinay): primary locator]
+        Tuller geom:
+          pore_area_shapefactor beta_T=0.8584073464102069 : PINNED 2026-06-14.
+                       = 4 - pi (matches the literal bit-for-bit). This is the Tuller-Or-Dudley
+                       angular-pore AREA SHAPE FACTOR F(gamma) for a SQUARE (4-corner) pore
+                       cross-section: the corner water-area fraction = (unit square area) -
+                       (inscribed-circle area) = 1 - pi/4, with the 4 corners giving 4 - pi.
+                       Source: Tuller, Or & Dudley (1999), "Adsorption and capillary condensation
+                       in porous media: Liquid retention and interfacial configurations in angular
+                       pores", Water Resources Research 35(7), 1949-1964, doi:10.1029/1999WR900098,
+                       Appendix B (eq. B2-B3, F(gamma) angular-pore area factor). Pure analytical
+                       geometric constant (CLAUDE.md §1.1 item 4, in-file derivation: 4 - pi).
+          characteristic_pore_size=1e-5 m (10 um) : SOURCE UNRESOLVED — TODO(Vinay): locator.
+                       Ported from the parity branch; no primary locator yet. (Per NOTE below this
+                       is INERT for the swelling-pressure deliverable under BishopsSaturationCutoff=1.)
+          area_factor_tuller=1.0 : unit normalisation (dimensionless), no source needed.
+        specific_surface=523 m2/g     : SOURCE UNRESOLVED — TODO(Vinay): primary locator.
+                       BLOCKED 2026-06-14: no exact "523 m2/g" match located in the thm-lit
+                       library. PROPOSED search direction (pending Vinay approval, NOT pinned):
+                       total (internal+external) specific surface of Na-montmorillonite / MX-80 is
+                       commonly ~500-800 m2/g by EGME, vs ~30-70 m2/g by N2-BET (external only)
+                       — candidate primary sources to confirm 523: Madsen (1998) / Karnland et al.
+                       (NTB-06 / Karnland, Olsson, Nilsson 2006 mineralogy) / Tournassat & Appelo.
+                       (Per NOTE below this is INERT for the deliverable under cutoff=1.)
       NOTE: deliverable swelling pressure is K-governed under BishopsSaturationCutoff=1,
             hence insensitive to beta_T / char_pore_size / specific_surface.
     -->

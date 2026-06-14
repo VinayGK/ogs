@@ -57,14 +57,35 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1600 kg/m3
         target sigma : 14.161 MPa
         fitted K     : 103879.0 J/kg (potential_augmentation_prefactor)
-      Material parameters (source per group): as Model I dd1600; elastic E,nu: EURAD-2 MS33
-        Table TH-G [TODO(Vinay): confirm] — SINGLE material, E=52 MPa Constant (no per-material
-        split needed; 2026-06-08 correction left VII E untouched); nu=0.3. geometry = 50 mm
-        reference cell (r25 mesh). retention P0=27MPa,a=0.45; rel.perm S_e^3; rho_s=2780;
-        cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20 Israelachvili & Adams 1978; lambda=7.5e-7
-        co-calibrated; micro EOS / Tuller geom / specific_surface 523 m2/g [TODO(Vinay): primary
-        locators]; alpha_M phenomenological.
-      NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
+      Material parameters (source per group): as Model I dd1600 (SINGLE material, E=52 MPa
+        Constant, nu=0.3; geometry = 50 mm reference cell, r25 mesh). retention P0=27MPa,a=0.45;
+        rel.perm S_e^3; rho_s=2780; cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20
+        Israelachvili & Adams 1978; lambda=7.5e-7 co-calibrated; alpha_M phenomenological.
+      Provenance resolution 2026-06-14 (same findings as Model I dd1600 piexact header):
+        elastic (E=52 MPa, nu=0.3) : SOURCE UNRESOLVED — TODO(Vinay): supply locator.
+                       BLOCKED: the EURAD-2 MS33 TH-G table (MS33/theoretical_benchmarking.tex
+                       Tab. tab:TH-G_model_parameters lines 431-452; mirror MSXX lines 106-143)
+                       lists ONLY hydraulic/thermal parameters — it does NOT contain E or nu, and
+                       52 MPa / 0.3 appear nowhere in the MS33/MSXX spec. The prior "Table TH-G"
+                       attribution was incorrect and has been removed. Provide the actual §12.1
+                       source for E,nu.
+        Tuller pore_area_shapefactor beta_T=0.8584073464102069 : PINNED = 4 - pi (bit-for-bit).
+                       Tuller-Or-Dudley (1999) WRR 35(7) 1949-1964, doi:10.1029/1999WR900098,
+                       Appendix B (F(gamma) angular-pore area factor); square (4-corner) pore
+                       corner-area = 1 - pi/4 per corner, 4 corners => 4 - pi. Analytical geometric
+                       constant (CLAUDE.md §1.1 item 4).
+        characteristic_pore_size=1e-5 m : SOURCE UNRESOLVED — TODO(Vinay): locator (parity-ported).
+        micro EOS (a=1e-16,b=1.0)  : SOURCE UNRESOLVED — TODO(Vinay). Numerical bypass (a=1e-16 =>
+                       EOS constant; CLAUDE.md §2 incident); 1100 kg/m3 anchor cited inline
+                       (Boek & Sprik 2003; Marry et al. 2008).
+        specific_surface=523 m2/g  : SOURCE UNRESOLVED — TODO(Vinay): primary locator. No exact
+                       "523 m2/g" match in thm-lit. PROPOSED direction (NOT pinned): total (EGME)
+                       specific surface of Na-montmorillonite/MX-80 ~500-800 m2/g — candidates to
+                       confirm 523: Madsen (1998) / Karnland et al. (2006, NTB-06) / Tournassat &
+                       Appelo.
+      NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1); therefore beta_T,
+            characteristic_pore_size, micro-EOS a/b and specific_surface are INERT for the
+            delivered swelling-pressure quantity (they do not change the deliverable).
     -->
     <meshes>
         <mesh axially_symmetric="true">ms33_cylinder_r25_h70.vtu</mesh>
