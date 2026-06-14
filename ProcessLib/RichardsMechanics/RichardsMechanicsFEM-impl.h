@@ -2029,17 +2029,104 @@ computeReferenceMicroPorositySwellingStressIncrement(
         potential_exchange_params, total_porosity);  // K [J/kg]
     auto const& params = potential_exchange_params;
 
-    // C_el is unused on BOTH branches now (the film-ON branch is a transmitted
-    // PRESSURE over the contact fraction, no longer an elastic eigenstress, so it
-    // no longer needs a drained K here; the OFF disjoining-eigenstress path never
-    // touched it). Kept in the signature for call-site stability.
-    (void)C_el;
+    // C_el is unused on the OFF and operational film branches (transmitted-
+    // pressure form, no drained K needed); the EXACT route (H1) DOES use it for
+    // the drained-line eigenstress half. Kept in the signature for call-site
+    // stability.
 
     KV delta_sigma_sw = KV::Zero();
     double const delta_n_l = n_l - n_l_prev;
     if (!(std::isfinite(delta_n_l) &&
           std::abs(delta_n_l) > std::numeric_limits<double>::epsilon()))
     {
+        return delta_sigma_sw;
+    }
+
+    // ── H1 (review 2026-06-14; RESIDUAL-CHANGING, Vinay-authorized) ──────────
+    // Under film_energy_route = Exact, source the eigenstress half from the SAME
+    // one-Psi functional whose mu_mech half is folded into mu_lR
+    // (applyFilmPressureMicroPotential exact branch, L703), so the assembled
+    // Maxwell pair dsigma_sw/dn_l == nS*rho_lR*dmu_mech/deps_v holds in the
+    // residual (the §9a operational defect |W|/scale=0.93 the exact route exists
+    // to cure is NOT cured if the eigenstress half stays operational). The pair
+    // gives the drained-line LEVEL sigma_sw_m = -nS*n_l*(Pi(w_eff) + b*K_d*eps);
+    // telescope to the step increment as the operational branch does:
+    //   delta_sigma_sw = (sigma_sw_m_curr - sigma_sw_m_prev)*I.
+    // PHYSICS TRADEOFF (predicted, §5): the pair's eigenstress is on the DRAINED
+    // LINE p_conf = -K_d*eps_v, whereas the operational branch uses the ACTUAL
+    // GP p_conf (held fixed across the step). On the drained line the two agree;
+    // off it (e.g. fully confined, eps_v~0 with p_conf growing) they differ by
+    // the off-line p_conf excursion. This is the deliberate one-Psi consistency
+    // choice. Exact route requires Kinematic coupling (create-time validated,
+    // mirrored at the mu fold L707).
+    if (potential_exchange_params.film_pressure_coupling &&
+        potential_exchange_params.film_strain_coupling !=
+            FilmStrainCouplingMode::Off &&
+        potential_exchange_params.film_energy_route == FilmEnergyRoute::Exact &&
+        std::isfinite(eps_v))
+    {
+        auto const& params_h1 = potential_exchange_params;
+        if (!(params_h1.hamaker_constant > 0.0) ||
+            !(params_h1.specific_surface > 0.0) ||
+            !(params_h1.micro_solid_density_reference > 0.0))
+        {
+            OGS_FATAL(
+                "The exact-route DSM swelling stress requires positive vdW "
+                "parameters: hamaker_constant > 0 (got {:g}), specific_surface "
+                "> 0 (got {:g}) and micro_solid_density_reference > 0 (got "
+                "{:g}).",
+                params_h1.hamaker_constant, params_h1.specific_surface,
+                params_h1.micro_solid_density_reference);
+        }
+        auto const& identity2_h1 = MathLib::KelvinVector::Invariants<
+            MathLib::KelvinVector::kelvin_vector_dimensions(
+                DisplacementDim)>::identity2;
+        double const sign_h1 =
+            microPotentialSignFactorFromParameters(params_h1);
+        double const K_drained_h1 =
+            drainedBulkModulusFromStiffness<DisplacementDim>(C_el);  // Pa
+        double const eps_v_prev_h1 =
+            std::isfinite(eps_v_prev) ? eps_v_prev : eps_v;
+        double const rho_pi_prev_h1 =
+            params_h1.use_micro_liquid_density_for_micro_pressure ? rho_lR_prev
+                                                                  : rho_LR;
+        double const rho_pi_curr_h1 =
+            params_h1.use_micro_liquid_density_for_micro_pressure ? rho_lR
+                                                                  : rho_LR;
+        double const active_nS_prev_h1 = computeActiveMicroSolidVolumeFraction(
+            n_l_prev, PotentialExchangeLocalSolveContext{}, params_h1);
+        double const active_nS_curr_h1 = computeActiveMicroSolidVolumeFraction(
+            n_l, PotentialExchangeLocalSolveContext{}, params_h1);
+        double const kappa_prev_h1 =
+            params_h1.film_strain_kappa == FilmStrainKappaMode::Aggregate
+                ? active_nS_prev_h1
+                : 1.0;
+        double const kappa_curr_h1 =
+            params_h1.film_strain_kappa == FilmStrainKappaMode::Aggregate
+                ? active_nS_curr_h1
+                : 1.0;
+        double const sigma_sw_m_prev_h1 =
+            computeStrainedFilmEnergyPair(
+                n_l_prev, eps_v_prev_h1, kappa_prev_h1, biot_coefficient,
+                K_drained_h1, true /*include_S, route R3*/, rho_pi_prev_h1,
+                active_nS_prev_h1, params_h1.micro_solid_density_reference,
+                params_h1.hamaker_constant, params_h1.specific_surface, sign_h1,
+                K_aug_sw, params_h1.potential_augmentation_exponent,
+                0.0 /*dnS_dnl: frozen nS (B1)*/,
+                params_h1.micro_water_content_floor)
+                .sigma_sw_m;  // Pa
+        double const sigma_sw_m_curr_h1 =
+            computeStrainedFilmEnergyPair(
+                n_l, eps_v, kappa_curr_h1, biot_coefficient, K_drained_h1,
+                true /*include_S, route R3*/, rho_pi_curr_h1, active_nS_curr_h1,
+                params_h1.micro_solid_density_reference,
+                params_h1.hamaker_constant, params_h1.specific_surface, sign_h1,
+                K_aug_sw, params_h1.potential_augmentation_exponent,
+                0.0 /*dnS_dnl: frozen nS (B1)*/,
+                params_h1.micro_water_content_floor)
+                .sigma_sw_m;  // Pa
+        delta_sigma_sw.noalias() +=
+            (sigma_sw_m_curr_h1 - sigma_sw_m_prev_h1) * identity2_h1;  // Pa
         return delta_sigma_sw;
     }
 

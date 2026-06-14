@@ -313,6 +313,87 @@ TEST(RichardsMechanicsExactFilmPair, ReversibilityLoopClosesExactOnly)
     EXPECT_GE(std::abs(W_op), 100.0 * rel_bound * Wabs_op);
 }
 
+// H1 assembled-pair discriminator (review 2026-06-14). Anchor: conservation
+// law (closed-loop work of a gradient field vanishes). The ASSEMBLED residual
+// folds the EXACT mu_mech into mu_lR (post-H2), but BEFORE H1 the eigenstress
+// site sourced the OPERATIONAL sigma half (Pi(w_eff)*micro-weight, NOT the
+// one-Psi pair.sigma_sw_m). This test traces the loop with the assembled
+// MIXED pair (exact mu half + operational sigma half) and shows it does NOT
+// close, vs the CONSISTENT pair (exact mu half + exact pair.sigma_sw_m, the
+// post-H1 assembled choice) which DOES close. The operational sigma half is
+// the micro-weighted bare disjoining pressure -nS*n_l*Pi(w_eff) (the p_conf
+// drain is held fixed across a step in the assembled telescope -> path-
+// independent, cancels on a closed loop). Same drained-line path and scale as
+// ReversibilityLoopClosesExactOnly. predicted/measured reported per §5.1.
+TEST(RichardsMechanicsExactFilmPair, AssembledExactPairClosesOperationalSigmaDoesNot)
+{
+    auto const st = withAug();
+    double const kappa = st.active_nS;
+    double const e0 = -0.03, e1 = 0.0;  // eps_v range (compression leg)
+    double const n0 = 0.27, n1 = 0.33;  // n_l range around the sample state
+
+    // sigma half [Pa] options: exact one-Psi pair vs operational micro-weighted
+    // bare disjoining stress (the pre-H1 assembled eigenstress source).
+    auto const sigma_exact = [&](double const n_l, double const eps_v)
+    { return pairAt(st, n_l, eps_v, kappa).sigma_sw_m; };  // Pa
+    auto const sigma_operational = [&](double const n_l, double const eps_v)
+    {
+        // -nS*n_l*Pi(w_eff), Pi = -rho_lR*mu_lR(w_eff) (BARE disjoining at the
+        // strained content). Matches the assembled operational eigenstress's
+        // n_l-weighted bare-Pi piece (the held-fixed p_conf drain cancels on a
+        // closed loop).
+        double const w_eff = n_l * std::max(1e-6, 1.0 + kappa * eps_v);
+        double const Pi_weff = -st.rho_lR * bare(st, w_eff).mu_lR;  // Pa
+        return -st.active_nS * n_l * Pi_weff;                       // Pa
+    };
+    // mu half [J/kg]: the EXACT mu_mech (what the assembled mu_lR folds, post-H2).
+    auto const mu_exact = [&](double const n_l, double const eps_v)
+    { return pairAt(st, n_l, eps_v, kappa).mu_mech; };  // J/kg
+
+    auto const loop = [&](int const N, bool const exact_sigma)
+    {
+        double W = 0.0, Wabs = 0.0;
+        auto const seg = [&](double const xa, double const ya, double const xb,
+                             double const yb)
+        {
+            for (int i = 0; i < N; ++i)  // x = eps_v, y = n_l
+            {
+                double const t0 = static_cast<double>(i) / N;
+                double const t1 = static_cast<double>(i + 1) / N;
+                double const xA = xa + (xb - xa) * t0, xB = xa + (xb - xa) * t1;
+                double const yA = ya + (yb - ya) * t0, yB = ya + (yb - ya) * t1;
+                double const dx = xB - xA, dy = yB - yA;
+                auto const sig = [&](double const y, double const x)
+                { return exact_sigma ? sigma_exact(y, x)
+                                     : sigma_operational(y, x); };
+                double const fA = sig(yA, xA) * dx + st.active_nS * st.rho_lR *
+                                                         mu_exact(yA, xA) * dy;
+                double const fB = sig(yB, xB) * dx + st.active_nS * st.rho_lR *
+                                                         mu_exact(yB, xB) * dy;
+                W += 0.5 * (fA + fB);
+                Wabs += std::abs(0.5 * (fA + fB));
+            }
+        };
+        seg(e0, n0, e1, n0);  // strain up at n0
+        seg(e1, n0, e1, n1);  // wet at e1
+        seg(e1, n1, e0, n1);  // strain down at n1
+        seg(e0, n1, e0, n0);  // dry at e0
+        return std::pair{W, Wabs};
+    };
+
+    int const N = 400;
+    double const rel_bound = 50.0 / (static_cast<double>(N) * N);
+    auto const [W_exact, Wabs_exact] = loop(N, true);
+    auto const [W_op, Wabs_op] = loop(N, false);
+    std::cout << "[H1-assembled] |W|/scale: exact-sigma (post-H1) = "
+              << std::abs(W_exact) / Wabs_exact
+              << ", operational-sigma (pre-H1) = " << std::abs(W_op) / Wabs_op
+              << " (N=" << N << ")\n";
+    // Post-H1 (exact sigma) closes; pre-H1 (operational sigma) does not.
+    EXPECT_LE(std::abs(W_exact), rel_bound * Wabs_exact);
+    EXPECT_GE(std::abs(W_op), 100.0 * rel_bound * Wabs_op);
+}
+
 // T-6 — blocked on decisions Q3 (mass-derivative freeze) and Q4 (K_liq
 // value+source); see PI_OF_NL_EV_IMPLEMENTATION.md §8.
 TEST(RichardsMechanicsExactFilmPair, LiquidCarrierEnergyPressureConsistency)
