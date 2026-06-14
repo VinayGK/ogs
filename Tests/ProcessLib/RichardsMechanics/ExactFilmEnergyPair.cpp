@@ -227,12 +227,24 @@ TEST(RichardsMechanicsExactFilmPair, FrozenHLimitMatchesShippedPartner)
 
 // T-5. Anchor: conservation law — for the EXACT pair the work integral around
 // a closed (eps_v, n_l) loop vanishes (gradient field); the OPERATIONAL cut
-// has a Maxwell defect O(Pi*eps_v) and must NOT vanish (predicted in
+// has a Maxwell defect O(Pi*kappa*eps_v) and must NOT vanish (predicted in
 // STRAINED_FILM_IMPLEMENTATION.md §9a — this test measures it; report per
 // CLAUDE.md §5.1). Trapezoid quadrature is O(N^-2): the exact loop residual
 // must fall below rel_bound = 50/N^2 of the path work scale (50 bounds the
 // curvature-to-scale ratio on this path, checked by the N-halving assert);
-// the operational defect must sit ABOVE the same bound by x100.
+// the operational defect must sit ABOVE the same bound by the separation
+// factor below.
+// N2 (review 2026-06-14): the 100x separation is the MEASURED margin, not a
+// derived bound. The §9a operational defect scales as O(Pi*kappa*eps_v)
+// (relative |W|/scale -> a finite O(1) number independent of N), while the
+// quadrature bound is 50/N^2; their ratio therefore grows like N^2 and is NOT
+// a fixed 100. At N=400 the MEASURED defect/bound ratio is ~3.0e3 (|W|/scale =
+// 0.933, bound 3.125e-4); 100 is a deliberately conservative floor well below
+// that. Deriving the exact O(Pi*kappa*eps_v) leading coefficient analytically
+// would require the closed-form path integral (the operational mu-share is
+// non-conservative by construction); the conservative measured floor is used
+// instead. measured: defect/bound ~3.0e3 at N=400 (this test, commit of this
+// change); floor asserted: 100.
 // Loop ranges are structural probes around the sample state (CLAUDE.md §1.2),
 // matching the strain magnitudes already used in the approved tests.
 TEST(RichardsMechanicsExactFilmPair, ReversibilityLoopClosesExactOnly)
