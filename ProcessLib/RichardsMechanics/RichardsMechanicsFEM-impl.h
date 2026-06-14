@@ -4727,6 +4727,223 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                          drho_LR_dpL;
                     use_custom_dmu_lR_vdw_dpL = true;
 
+                    // ── M2+L2: displacement-side live-K swelling-eigenstress
+                    // tangent (review fix 2026-06-14; the 1b compliant-top cure)
+                    // ───────────────────────────────────────────────────────
+                    // The residual swelling eigenstress (computeReferenceMicro-
+                    // PorositySwellingStressIncrement, L1983/L2090-2169) sources
+                    // its K from K_aug_sw = effectiveAugmentationPrefactor(params,
+                    // total_porosity=phi), so in live-K mode delta_sigma_sw
+                    // depends on eps_v and p_L through phi. That dependence was
+                    // present in the residual but ABSENT from K[u,u]/K[u,p] (the
+                    // only swelling strain tangent was the constexpr-false dead
+                    // block below, which carries no dK/dphi chain). Wire ONLY the
+                    // live-K chain here -- NOT the pre-existing swelling u-p/u-u
+                    // term Vinay set OFF on 2026-06-01 (enable_dsm_swelling_up_
+                    // jacobian stays at its default; the two are independent).
+                    //   d(delta_sigma_sw)/d(.) = d(delta_sigma_sw)/dK
+                    //                            * dK/dphi * dphi/d(.),
+                    //   delta_sigma_sw = n_S*(n_l_prev*p_film_prev
+                    //                          - n_l*p_film_curr)*I,
+                    //   p_film = Pi - b*p_conf,  Pi = -rho*mu_lR(w_eff; K),
+                    //   => d(delta_sigma_sw)/dK
+                    //      = -n_S*( n_l_prev*rho_prev*dmu_lR_prev/dK
+                    //               - n_l*rho_curr*dmu_lR_curr/dK )*I,
+                    // mapped to R_u via dsigma'/d(.) = C*C_el^{-1}
+                    // *d(delta_sigma_sw)/d(.). dphi/deps_v = (alpha-phi)/(1+w)
+                    // (PorosityFromMassBalance; w = delta_eps_v
+                    // + delta_p_eff*beta_SR) and dphi/dp = dphi/deps_v*beta_SR
+                    // (dw/dp_eff = beta_SR). Gated on dK/dphi != 0 -> fires ONLY
+                    // when live K is active inside the table interior; off /
+                    // frozen / clamped edge -> skipped -> Jacobian bit-for-bit.
+                    // JACOBIAN-ONLY: residual untouched.
+                    if (film_pressure_coupling)
+                    {
+                        double const dK_dphi_sw =
+                            effectiveAugmentationPrefactorPhiDerivative(
+                                *potential_exchange_params_ptr,
+                                phi);  // J/kg per unit phi
+                        bool const is_pfmb =
+                            dynamic_cast<MPL::PorosityFromMassBalance const*>(
+                                &medium->property(
+                                    MPL::PropertyType::porosity)) != nullptr;
+                        if (dK_dphi_sw != 0.0 && is_pfmb)
+                        {
+                            auto const& pep_sw = *potential_exchange_params_ptr;
+                            // Residual-identical state inputs (mirror
+                            // updateSwellingStateWithMicroPorosity, L2325-2371).
+                            double const n_l_prev_sw =
+                                **std::get<PrevState<MicroWaterContent>>(
+                                    this->prev_states_[ip]);
+                            double const phi_M_sw =
+                                std::get<ProcessLib::ThermoRichardsMechanics::
+                                             TransportPorosityData>(
+                                    this->current_states_[ip])
+                                    .phi;
+                            double const n_S_sw =
+                                std::max(1e-16, 1.0 - phi_M_sw);  // [-]
+                            double const rho_lR_curr_micro_sw =
+                                *std::get<MicroLiquidDensity>(
+                                    this->current_states_[ip]);
+                            double const rho_lR_prev_micro_sw =
+                                **std::get<PrevState<MicroLiquidDensity>>(
+                                    this->prev_states_[ip]);
+                            // Density mirrors the residual's p_L_m choice
+                            // (micro rho_lR when enabled, bulk otherwise).
+                            double const rho_pi_prev_sw =
+                                pep_sw
+                                        .use_micro_liquid_density_for_micro_pressure
+                                    ? rho_lR_prev_micro_sw
+                                    : rho_LR;
+                            double const rho_pi_curr_sw =
+                                pep_sw
+                                        .use_micro_liquid_density_for_micro_pressure
+                                    ? rho_lR_curr_micro_sw
+                                    : rho_LR;
+                            double const eps_v_sw = variables.volumetric_strain;
+                            double const eps_v_prev_sw =
+                                variables_prev.volumetric_strain;
+                            double const sign_sw =
+                                microPotentialSignFactorFromParameters(pep_sw);
+                            double const K_aug_sw_j =
+                                effectiveAugmentationPrefactor(pep_sw,
+                                                               phi);  // K [J/kg]
+                            double const active_nS_prev_sw =
+                                computeActiveMicroSolidVolumeFraction(
+                                    n_l_prev_sw,
+                                    PotentialExchangeLocalSolveContext{},
+                                    pep_sw);  // [-]
+                            double const active_nS_curr_sw =
+                                computeActiveMicroSolidVolumeFraction(
+                                    n_l, PotentialExchangeLocalSolveContext{},
+                                    pep_sw);  // [-]
+                            // w_eff at prev/curr exactly as the residual (Off /
+                            // NaN eps_v -> w_eff = n_l, bit-for-bit).
+                            double w_eval_prev_sw = n_l_prev_sw;
+                            double w_eval_curr_sw = n_l;
+                            if (pep_sw.film_strain_coupling !=
+                                    FilmStrainCouplingMode::Off &&
+                                std::isfinite(eps_v_sw))
+                            {
+                                double const eps_v_prev_used_sw =
+                                    std::isfinite(eps_v_prev_sw) ? eps_v_prev_sw
+                                                                 : eps_v_sw;
+                                w_eval_prev_sw =
+                                    computeStrainedFilmState(
+                                        pep_sw.film_strain_coupling,
+                                        pep_sw.film_strain_kappa, n_l_prev_sw,
+                                        active_nS_prev_sw, eps_v_prev_used_sw,
+                                        p_conf_assembly, rho_lR_prev_micro_sw,
+                                        pep_sw.micro_solid_density_reference,
+                                        pep_sw.hamaker_constant,
+                                        pep_sw.specific_surface, sign_sw,
+                                        K_aug_sw_j,
+                                        pep_sw.potential_augmentation_exponent,
+                                        pep_sw.micro_water_content_floor,
+                                        rho_pi_prev_sw)
+                                        .w_eff;
+                                w_eval_curr_sw =
+                                    computeStrainedFilmState(
+                                        pep_sw.film_strain_coupling,
+                                        pep_sw.film_strain_kappa, n_l,
+                                        active_nS_curr_sw, eps_v_sw,
+                                        p_conf_assembly, rho_lR_curr_micro_sw,
+                                        pep_sw.micro_solid_density_reference,
+                                        pep_sw.hamaker_constant,
+                                        pep_sw.specific_surface, sign_sw,
+                                        K_aug_sw_j,
+                                        pep_sw.potential_augmentation_exponent,
+                                        pep_sw.micro_water_content_floor,
+                                        rho_pi_curr_sw)
+                                        .w_eff;
+                            }
+                            // dmu_lR/dK of the bare law at the two states (the
+                            // augmentation channel is linear in K -> dmu_lR_dK).
+                            double const dmu_lR_prev_dK_sw =
+                                computeVanDerWaalsMicroPotential(
+                                    w_eval_prev_sw, rho_lR_prev_micro_sw,
+                                    active_nS_prev_sw,
+                                    pep_sw.micro_solid_density_reference,
+                                    pep_sw.hamaker_constant,
+                                    pep_sw.specific_surface, sign_sw, K_aug_sw_j,
+                                    pep_sw.potential_augmentation_exponent,
+                                    0.0 /*dnS_dnl*/,
+                                    pep_sw.micro_water_content_floor)
+                                    .dmu_lR_dK;  // [-] (J/kg per J/kg)
+                            double const dmu_lR_curr_dK_sw =
+                                computeVanDerWaalsMicroPotential(
+                                    w_eval_curr_sw, rho_lR_curr_micro_sw,
+                                    active_nS_curr_sw,
+                                    pep_sw.micro_solid_density_reference,
+                                    pep_sw.hamaker_constant,
+                                    pep_sw.specific_surface, sign_sw, K_aug_sw_j,
+                                    pep_sw.potential_augmentation_exponent,
+                                    0.0 /*dnS_dnl*/,
+                                    pep_sw.micro_water_content_floor)
+                                    .dmu_lR_dK;  // [-]
+                            // d(delta_sigma_sw)/dK scalar (on identity2):
+                            // -n_S*( n_l_prev*rho_prev*dmu_prev/dK
+                            //        - n_l*rho_curr*dmu_curr/dK ).  [Pa per J/kg]
+                            double const d_delta_sigma_sw_dK_scalar =
+                                -n_S_sw *
+                                (n_l_prev_sw * rho_pi_prev_sw *
+                                     dmu_lR_prev_dK_sw -
+                                 n_l * rho_pi_curr_sw * dmu_lR_curr_dK_sw);
+                            // dphi/deps_v and dphi/dp_eff (PorosityFromMassBalance).
+                            double const w_phi_sw =
+                                (variables.volumetric_strain -
+                                 variables_prev.volumetric_strain) +
+                                (variables.effective_pore_pressure -
+                                 variables_prev.effective_pore_pressure) *
+                                    beta_SR;  // [-]
+                            double const dphi_deps_v_sw =
+                                (alpha - phi) / (1.0 + w_phi_sw);  // [-]
+                            double const dphi_dp_sw =
+                                dphi_deps_v_sw * beta_SR;  // 1/Pa
+                            // d(delta_sigma_sw)/deps_v and /dp via the live-K chain.
+                            double const dsig_sw_deps_v_scalar =
+                                d_delta_sigma_sw_dK_scalar * dK_dphi_sw *
+                                dphi_deps_v_sw;  // Pa per unit strain
+                            double const dsig_sw_dp_scalar =
+                                d_delta_sigma_sw_dK_scalar * dK_dphi_sw *
+                                dphi_dp_sw;  // Pa/Pa
+                            // Map to R_u: dsigma'/d(.) = C*C_el^{-1}
+                            // *d(delta_sigma_sw)/d(.) (the swelling eigenstress
+                            // enters eps_m = eps + C_el^{-1}:sigma_sw).
+                            auto const& C_consistent_sw =
+                                *std::get<StiffnessTensor<DisplacementDim>>(
+                                    constitutive_data);
+                            auto const C_el_sw =
+                                ip_data_[ip].computeElasticTangentStiffness(
+                                    variables, t, x_position, dt,
+                                    this->solid_material_,
+                                    *this->material_states_[ip]
+                                         .material_state_variables);
+                            auto const C_el_inv_sw = C_el_sw.inverse().eval();
+                            MathLib::KelvinVector::KelvinVectorType<
+                                DisplacementDim> const dsig_sw_deps_v =
+                                dsig_sw_deps_v_scalar * identity2;  // Pa
+                            MathLib::KelvinVector::KelvinVectorType<
+                                DisplacementDim> const dsig_sw_dp =
+                                dsig_sw_dp_scalar * identity2;  // Pa
+                            // K[u,u]: eps_v = identity2^T B u.
+                            local_Jac
+                                .template block<displacement_size,
+                                                displacement_size>(
+                                    displacement_index, displacement_index)
+                                .noalias() += B.transpose() * C_consistent_sw *
+                                              C_el_inv_sw * dsig_sw_deps_v *
+                                              identity2.transpose() * B * w;
+                            // K[u,p].
+                            local_Jac
+                                .template block<displacement_size,
+                                                pressure_size>(
+                                    displacement_index, pressure_index)
+                                .noalias() += B.transpose() * C_consistent_sw *
+                                              C_el_inv_sw * dsig_sw_dp * N_p * w;
+                        }
+                    }
+
                     // --- DSM swelling-eigenstress u-p Jacobian (full p^disj) -
                     // Consistent-tangent completeness term for the swelling
                     // eigenstress that enters R_u through the mechanical strain
