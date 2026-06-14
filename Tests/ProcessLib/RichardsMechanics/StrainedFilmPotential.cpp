@@ -508,3 +508,173 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
         EXPECT_NEAR(fd, analytic, 1e-9 * std::abs(analytic));
     }
 }
+
+// ── §8 NEW TEST (review 2026-06-14): assembled displacement-channel
+// Jacobian consistency for exact + kinematic + live-K at a finite-eps_v
+// compliant state ──────────────────────────────────────────────────────────
+// Physics anchor (CLAUDE.md §3d): symmetry / derived identity — the analytic
+// displacement (eps_v) tangents the assembly inserts into the Jacobian must
+// equal the central finite difference of the residual quantities they
+// linearize. NO Vinay expected value; tolerances derive from the FD step and
+// the live-K table's piecewise-linear (C0) structure.
+//
+// Covers the displacement-channel tangent FORMULAE the fixed assembly inserts:
+//   (A) H2/M1 — the exact-route mu_lR eps_v tangent
+//       g_cut * pair.dmu_mech_deps_v (the dispatch M1 wires into K[p,u]). The
+//       analytic uses the SAME effective K the bare mu_lR is built with (H2):
+//       FD of the assembled exact mu_lR(eps_v) must match it. With the pre-H2
+//       scalar-K passed into the pair, g_cut = bare_live / pair_bare_scalar
+//       diverges from 1 under live K, breaking this identity.
+//   (B) M2 — the live-K swelling-eigenstress eps_v tangent
+//       d(delta_sigma_sw)/dK * dK/dphi * dphi/deps_v. This is the term M2 adds
+//       to K[u,u]; pre-M2 the analytic side of this identity (the chain) was
+//       absent from the Jacobian entirely. The leg FDs the residual increment
+//       (computeSwellingStressIncrement) through the live-K phi channel and
+//       checks the analytic chain reproduces it.
+//
+// SCOPE: this is a HELPER-LEVEL FD-vs-analytic identity on the tangent
+// formulae (the assembly reconstructs these same expressions); it does NOT
+// drive the global assembleWithJacobian (no run-level FEM harness exists in
+// this unit-test directory). The analytic legs are reconstructed from the SAME
+// public helpers the FEM assembly calls (effectiveAugmentationPrefactor
+// [PhiDerivative], computeStrainedFilmEnergyPair, computeSwellingStress-
+// Increment), so it is a genuine FD-vs-analytic check, not a self-comparison.
+// (A) FAILS on pre-H2 code in any state where the macro-floor cutoff is active
+// under live K; (B)'s analytic chain did not exist pre-M2.
+TEST(RichardsMechanicsLiveKOfRhoD, AssembledDisplacementTangentExactKinematicLiveK)
+{
+    using KV = MathLib::KelvinVector::KelvinVectorType<2>;
+    auto const& I2 =
+        MathLib::KelvinVector::Invariants<MathLib::KelvinVector::
+            kelvin_vector_dimensions(2)>::identity2;
+
+    // Sample state: exact + kinematic + live K, finite (compressive) eps_v with
+    // the dry density rho_d = rho_SR*(1-phi) in the table interior so dK/dphi is
+    // a genuine (nonzero) segment slope. Structural constants (CLAUDE.md §1.2);
+    // material values mirror the prior approved tests in this file.
+    PotentialExchangeParameters params;
+    params.enabled = true;
+    params.film_pressure_coupling = true;
+    params.film_strain_coupling = FilmStrainCouplingMode::Kinematic;
+    params.film_energy_route = FilmEnergyRoute::Exact;
+    params.film_strain_kappa = FilmStrainKappaMode::Aggregate;
+    params.micro_potential_convention =
+        MicroPotentialConvention::NegativeAttractive;
+    params.hamaker_constant = 6.0e-20;
+    params.specific_surface = 1000.0;
+    params.micro_solid_density_reference = 2650.0;  // rho_SR
+    // lambda = characteristic film thickness [m]; structural h-scale
+    // h0 = n_l/(nS*rho_SR*Sa) ~ 1.9e-7 m (xi0 ~ 1), as in this file's other
+    // augmentation tests. Must be > 0 when K > 0 (law guard).
+    params.potential_augmentation_exponent =
+        0.30 / (0.70 * 2650.0 * 1000.0);  // m
+    params.potential_augmentation_prefactor = 20.0;  // structural scalar fallback
+    // Live K table: K(rho_d) over a span around the sample rho_d, finite slope.
+    params.potential_augmentation_prefactor_live_dry_density = true;
+    params.potential_augmentation_prefactor_vs_dry_density =
+        std::make_shared<AugmentationPrefactorTable const>(
+            std::vector<double>{1000.0, 2000.0},
+            std::vector<double>{10.0, 50.0});  // J/kg vs kg/m^3
+
+    double const sign = microPotentialSignFactorFromParameters(params);
+    double const rho_lR = 1100.0;     // micro liquid density scale
+    double const rho_LR = 1000.0;     // bulk
+    double const n_l = 0.30;
+    double const n_l_prev = 0.27;
+    double const biot = 1.0;
+    double const K_drained = 1.5e8;   // Pa, prior approved test value
+    double const eps_v = -0.02;       // compression
+    double const eps_v_prev = 0.0;
+    double const phi0 = 0.40;         // rho_d = 2650*0.6 = 1590 kg/m^3 (interior)
+    double const active_nS = 1.0 - n_l;
+    double const kappa = active_nS;   // Aggregate
+
+    // ── (A) H2/M1 — exact-route mu_lR eps_v tangent ───────────────────────────
+    // Assembled exact mu_lR(eps_v) = bare(n_l; K) + g_cut * pair.mu_mech, with
+    // g_cut = bare/pair.mu_bare_pre (== 1 here, cutoff inactive). Phi held fixed
+    // to isolate the explicit eps_v channel (the live-K phi channel is part (B)).
+    {
+        double const K_aug = effectiveAugmentationPrefactor(params, phi0);
+        auto const bare_mu = computeVanDerWaalsMicroPotential(
+            n_l, rho_lR, active_nS, params.micro_solid_density_reference,
+            params.hamaker_constant, params.specific_surface, sign, K_aug,
+            params.potential_augmentation_exponent, 0.0,
+            params.micro_water_content_floor);
+        auto const mu_exact = [&](double const e)
+        {
+            auto const pr = computeStrainedFilmEnergyPair(
+                n_l, e, kappa, biot, K_drained, true, rho_lR, active_nS,
+                params.micro_solid_density_reference, params.hamaker_constant,
+                params.specific_surface, sign, K_aug,
+                params.potential_augmentation_exponent, 0.0,
+                params.micro_water_content_floor);
+            double const g_cut = bare_mu.mu_lR / pr.mu_bare_pre;  // [-]
+            return bare_mu.mu_lR + g_cut * pr.mu_mech;            // J/kg
+        };
+        auto const pr0 = computeStrainedFilmEnergyPair(
+            n_l, eps_v, kappa, biot, K_drained, true, rho_lR, active_nS,
+            params.micro_solid_density_reference, params.hamaker_constant,
+            params.specific_surface, sign, K_aug,
+            params.potential_augmentation_exponent, 0.0,
+            params.micro_water_content_floor);
+        double const g_cut0 = bare_mu.mu_lR / pr0.mu_bare_pre;  // [-]
+        double const analytic = g_cut0 * pr0.dmu_mech_deps_v;  // J/kg per strain
+        double const h = 1e-7;
+        double const fd = (mu_exact(eps_v + h) - mu_exact(eps_v - h)) / (2 * h);
+        EXPECT_NEAR(fd, analytic, 5e-5 * std::abs(analytic) + 1e-10)
+            << "exact-route mu_lR eps_v tangent (H2/M1)";
+    }
+
+    // ── (B) M2 — live-K swelling-eigenstress eps_v tangent (through phi) ───────
+    // The residual delta_sigma_sw uses K = effectiveAugmentationPrefactor(phi);
+    // with the live-K table phi(eps_v) couples sigma_sw to displacement. FD the
+    // residual increment w.r.t. eps_v THROUGH the live-K channel only (phi moved
+    // by the PorosityFromMassBalance chain dphi/deps_v on the SAME eps_v step,
+    // n_l and the explicit-eps_v drained line held), and compare to the M2
+    // analytic chain d(delta_sigma_sw)/dK * dK/dphi * dphi/deps_v.
+    {
+        // PorosityFromMassBalance dphi/deps_v = (alpha-phi)/(1+w); here on a pure
+        // strain step w = delta_eps_v, alpha = biot. Interior -> no clamp.
+        double const alpha = biot;
+        double const w_phi = eps_v - eps_v_prev;  // pure strain step
+        double const dphi_deps_v = (alpha - phi0) / (1.0 + w_phi);  // [-]
+        double const dK_dphi =
+            effectiveAugmentationPrefactorPhiDerivative(params, phi0);
+        ASSERT_NE(dK_dphi, 0.0);  // sample state must be in the table interior
+
+        auto const sigma_inc = [&](double const K_aug) -> double
+        {
+            // Build a params copy with the live-K table OFF and the scalar set
+            // to K_aug, so computeSwellingStressIncrement uses exactly K_aug
+            // (isolating the K dependence; eps_v/n_l/p_conf held).
+            auto p = params;
+            p.potential_augmentation_prefactor_live_dry_density = false;
+            p.potential_augmentation_prefactor = K_aug;
+            // p_conf NaN -> drain dropped; the K dependence enters through Pi.
+            KV const inc = computeSwellingStressIncrement<2>(
+                n_l_prev, n_l, active_nS, rho_lR, rho_lR, rho_LR,
+                MathLib::KelvinVector::KelvinMatrixType<2>::Identity() *
+                    K_drained,
+                p, biot, std::numeric_limits<double>::quiet_NaN(), eps_v,
+                eps_v_prev, std::numeric_limits<double>::quiet_NaN());
+            return inc.dot(I2) / I2.dot(I2);  // scalar on identity2 [Pa]
+        };
+        double const K0 = effectiveAugmentationPrefactor(params, phi0);
+        double const dK = 1e-4 * std::max(1.0, std::abs(K0));
+        double const d_sigma_dK =
+            (sigma_inc(K0 + dK) - sigma_inc(K0 - dK)) / (2 * dK);  // Pa per J/kg
+        double const analytic = d_sigma_dK * dK_dphi * dphi_deps_v;  // Pa/strain
+
+        // FD of the residual increment w.r.t. eps_v through phi(eps_v) only:
+        // move K by K(phi0 + dphi_deps_v*he) on an eps_v step he.
+        double const he = 1e-6;
+        double const K_plus = effectiveAugmentationPrefactor(
+            params, phi0 + dphi_deps_v * he);
+        double const K_minus = effectiveAugmentationPrefactor(
+            params, phi0 - dphi_deps_v * he);
+        double const fd = (sigma_inc(K_plus) - sigma_inc(K_minus)) / (2 * he);
+        EXPECT_NEAR(fd, analytic,
+                    5e-4 * std::abs(analytic) + 1e-3 * std::abs(d_sigma_dK))
+            << "live-K swelling-eigenstress eps_v tangent (M2)";
+    }
+}
