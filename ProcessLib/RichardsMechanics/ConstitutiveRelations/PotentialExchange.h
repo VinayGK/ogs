@@ -342,6 +342,10 @@ struct MaxwellConjugateMicroPotentialData
 // RETIRED 2026-06-08 (Vinay's Option-B): superseded by
 // computeIntegrableMechanicalMicroPotential; no callers. Definition retained
 // (historical); do NOT re-wire.
+// N3 (review 2026-06-14): re-confirmed fully dead — grep shows zero live
+// callers in ProcessLib/ and Tests/ (only docs and this helper's own FATAL
+// strings reference the name). Kept on disk per CLAUDE.md §6.3 (historical
+// record, never delete); this banner is the deprecation marker.
 inline MaxwellConjugateMicroPotentialData computeMaxwellConjugateMicroPotential(
     double const S1, double const dS1_dnl, double const eps_v,
     double const p_conf, double const Pi, double const rho_lR,
