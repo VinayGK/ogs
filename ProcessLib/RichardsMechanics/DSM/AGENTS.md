@@ -366,11 +366,45 @@ final-VTU SHA256 = 91f404a5...577 (the STEP-0 reference) BYTE-FOR-BYTE.
   dphi/deps_v=(alpha-phi)/(1+w) chain when PorosityFromMassBalance clamps phi
   (detect via unclamped-vs-stored phi; bounds are private). Applied at the
   live-K p-u block and the new M2 block. Off-mode bitwise verified.
-- DONE 2026-06-14 (L3, DOC-only, commit f23f69c5b4): documented the live-K
-  dn_l/dK local-solve strain channel in ScalarReferenceMassStorage mode as a
-  DELIBERATE PARTIAL TANGENT (not wired). Judgment call (prompt-authorized):
+- SUPERSEDED 2026-06-14 (L3, DOC-only, commit f23f69c5b4): documented the
+  live-K dn_l/dK local-solve strain channel in ScalarReferenceMassStorage mode
+  as a DELIBERATE PARTIAL TANGENT (not wired). Judgment call (prompt-authorized):
   wiring it would risk the converged forward solve for a LOW-severity gap; the
-  dominant cure is M2. Off-mode bitwise verified.
+  dominant cure is M2. Off-mode bitwise verified. NOTE: the "risks the converged
+  forward solve" concern was the basis for not wiring; it is resolved below by
+  keeping the wiring strictly Jacobian-only (the local solve / residual / the
+  computeImplicitNlDpL return are all untouched). See the WIRED entry next.
+- DONE 2026-06-14 (L3, JAC-only, WIRES the above): the L3 implicit-n_l(K) strain
+  channel is now wired into the global displacement Jacobian, RESIDUAL-SAFE.
+  - New sibling helper computeImplicitNlDK (RichardsMechanicsFEM-impl.h, right
+    after computeImplicitNlDpL): returns dn_l/dK = -(dr/dK)/(dr/dn_l) for
+    ScalarReferenceMassStorage (0 in every other mode and at dt<=0). It rebuilds
+    dr_dn_l by the SAME REV-mass reduction as computeImplicitNlDpL and uses
+    dr/dK = -dt*exchange.drho_l_hat_dmu_lR*micro_potential.dmu_lR_dK (K enters r
+    only through the exchange/mu_lR; the mass term carries no K). Reads ONLY the
+    already-converged (n_l, rho_lR, micro_potential, exchange) the caller
+    threads in -- it never re-solves and never mutates forward state.
+  - Wired at the M2 swelling-eigenstress site as the implicit half of M2's
+    explicit-K chain: d(delta_sigma_sw)/dn_l * dn_l/dK * dK/dphi * dphi/d(.),
+    folded into the SAME dsig_sw_deps_v_scalar / dsig_sw_dp_scalar that ride the
+    existing C*C_el^-1*identity2 map into K[u,u]/K[u,p]. d(delta_sigma_sw)/dn_l
+    = -n_S*(Pi_curr - n_l*rho_curr*dmu_lR/dw_eval*dw_eval/dn_l) (dw_eval/dn_l=1
+    on the OFF branch, film_state.dw_eff_dnl on the strained branch), matching
+    the residual increment's argument chain and its dnS_dnl=0.
+  - SCOPE (residual-consistency): the implicit chain fires only where the
+    telescoped eigenstress IS the assembled residual (OFF + film-ON-operational);
+    on the EXACT route (H1, residual = one-Psi pair) it is gated OFF -> the
+    cured 1b_B tangent is left bit-for-bit untouched. Off / frozen K / clamped
+    table edge / non-mass-storage -> all factors 0 -> Jacobian bit-for-bit.
+  - JACOBIAN-ONLY: the local forward n_l solve, the residual, and the
+    computeImplicitNlDpL return value are all unchanged. The prior agent's note
+    inside computeImplicitNlDpL is replaced with a WIRED note.
+  - PREDICTED (not yet verified, §5; build is a later phase): this completes the
+    live-K mass-storage displacement tangent and is the candidate cure for the
+    1b_A form-(a) step-1 divergence the 1b cure verdict left open; the converged
+    root is unaffected by construction. Off-mode bitwise: NOT re-run here (build
+    deferred) -> the off/frozen/clamped/non-mass-storage gates make the change a
+    no-op there by construction, to be confirmed at build.
 - DONE 2026-06-14 (H1, RESIDUAL-CHANGING, Vinay-authorized, commit 6391e357a2):
   under film_energy_route=Exact, source the eigenstress increment from the
   one-Psi pair.sigma_sw_m (drained-line, telescoped curr-prev) instead of the
@@ -426,3 +460,14 @@ Pre-fix baseline (out_1b_*_Kl/run.log in task42): BOTH died in time step #1
    (f23f69c5b4) — Vinay's call whether to wire it next.
 VERDICT: M2 (+H1/H2/M1) CURES the exact-route 1b_B; the operational-route 1b_A
 remains a step-1 failure (open, points at L3 / a distinct mechanism).
+
+UPDATE 2026-06-14 (L3 now WIRED): the L3 dn_l/dK local-solve strain channel —
+the strong candidate this verdict flagged for 1b_A — has since been wired into
+the displacement Jacobian (Jacobian-only; see the L3 WIRED worklog entry above).
+It is the implicit-n_l(K) partner of the M2 eigenstress tangent and fires on the
+1b_A OFF/operational regime (the M2 gate fired the explicit-K half there but the
+local-solve n_l(K) half was missing). PREDICTED candidate cure for the 1b_A
+step-1 divergence; NOT yet re-run (build is the next phase) — re-run task42
+1b_A_Kl.prj with the new binary to confirm or refute (§5 predicted, not
+verified). If 1b_A still fails after L3, the residual points to a genuinely
+distinct mechanism beyond the live-K tangent gaps.
