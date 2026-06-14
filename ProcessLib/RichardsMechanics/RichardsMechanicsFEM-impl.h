@@ -4664,8 +4664,25 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                 (variables.effective_pore_pressure -
                                  variables_prev.effective_pore_pressure) *
                                     beta_SR;  // [-]
+                            // N1 fix (2026-06-14): PorosityFromMassBalance
+                            // CLAMPS phi to [phi_min, phi_max] (its value(),
+                            // PorosityFromMassBalance.cpp L56). When the clamp
+                            // is active phi is flat in eps_v -> dphi/deps_v = 0;
+                            // the analytic (alpha-phi)/(1+w) would be a spurious
+                            // nonzero tangent. The bounds are private, so detect
+                            // the clamp by comparing the unclamped law value to
+                            // the stored (clamped) phi: a mismatch beyond a
+                            // relative floor means a bound is active.
+                            double const phi_unclamped_pu =
+                                (variables_prev.porosity + alpha * w_phi_pu) /
+                                (1.0 + w_phi_pu);  // [-]
+                            bool const clamp_active_pu =
+                                std::abs(phi_unclamped_pu - phi) >
+                                1e-12 * std::max(1.0, std::abs(phi));  // [-]
                             dphi_deps_v_pu =
-                                (alpha - phi) / (1.0 + w_phi_pu);  // [-]
+                                clamp_active_pu
+                                    ? 0.0
+                                    : (alpha - phi) / (1.0 + w_phi_pu);  // [-]
                         }
                         if (dphi_deps_v_pu != 0.0)
                         {
@@ -4922,8 +4939,21 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                 (variables.effective_pore_pressure -
                                  variables_prev.effective_pore_pressure) *
                                     beta_SR;  // [-]
+                            // N1 clamp guard (2026-06-14): zero the chain when
+                            // PorosityFromMassBalance clamps phi to a bound
+                            // (flat in eps_v/p there); detect via unclamped vs
+                            // stored phi (bounds are private). Same logic as the
+                            // live-K p-u block below.
+                            double const phi_unclamped_sw =
+                                (variables_prev.porosity + alpha * w_phi_sw) /
+                                (1.0 + w_phi_sw);  // [-]
+                            bool const clamp_active_sw =
+                                std::abs(phi_unclamped_sw - phi) >
+                                1e-12 * std::max(1.0, std::abs(phi));  // [-]
                             double const dphi_deps_v_sw =
-                                (alpha - phi) / (1.0 + w_phi_sw);  // [-]
+                                clamp_active_sw
+                                    ? 0.0
+                                    : (alpha - phi) / (1.0 + w_phi_sw);  // [-]
                             double const dphi_dp_sw =
                                 dphi_deps_v_sw * beta_SR;  // 1/Pa
                             // d(delta_sigma_sw)/deps_v and /dp via the live-K chain.
