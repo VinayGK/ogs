@@ -405,3 +405,24 @@ OPEN (for Vinay): (1) the 1b cure verdict (M2) — run task42 1b_*_Kl with the
 new binary; (2) whether to also flip enable_dsm_swelling_up_jacobian (the
 pre-existing OFF swelling tangent), kept untouched here; (3) §12.2 locators to
 register the piexact PRJs.
+
+## 1b cure verdict (2026-06-14, the M2 headline)
+
+Ran task42 1b_A_Kl.prj and 1b_B_Kl.prj (live K(rho_d) table, film_pressure_
+coupling OFF, ScalarReferenceMassStorage; 1b_A = form (a) Off coupling, 1b_B =
+form (b) kinematic + exact route) with the review-fixed binary (commit
+936488482c), scratch ~/git/build/pi_fofnlev_fixes_20260614/cure_1b_test.
+Pre-fix baseline (out_1b_*_Kl/run.log in task42): BOTH died in time step #1
+("Newton: the linear solver failed"). MEASURED with the new binary:
+ - 1b_B_Kl (exact route, H1+H2+M1+M2 all active): CURED — passes step #1 and
+   keeps stepping (reached Time step #200+ with ZERO step-1 failures and zero
+   nonlinear failures; observed VTUs out to t=2.59e6 s in an earlier run).
+ - 1b_A_Kl (form (a), Off film_strain_coupling): NOT cured — still fails in
+   time step #1 (terminated with error). The M2 live-K eigenstress tangent now
+   fires for it (gate = live-K flag), so this confirms the review §3 "second,
+   still unidentified mechanism" is NOT (only) the M2 eigenstress tangent for
+   the form-(a) ScalarReferenceMassStorage case. Strong candidate: the L3
+   dn_l/dK local-solve strain channel left as a DOCUMENTED partial tangent
+   (f23f69c5b4) — Vinay's call whether to wire it next.
+VERDICT: M2 (+H1/H2/M1) CURES the exact-route 1b_B; the operational-route 1b_A
+remains a step-1 failure (open, points at L3 / a distinct mechanism).
