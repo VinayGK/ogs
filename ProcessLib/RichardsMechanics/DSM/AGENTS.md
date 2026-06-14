@@ -330,3 +330,78 @@ Variant PRJs committed next to the base files (suffix _formB_piexact_2026-06-12)
   (hypothesis, not verified); evidence in task42_case1_2026-06-12/
   out_1b_{A,B}_Kl/run.log + _diagnostics_1bKl/README_DIAG.md addendum.
   OPEN: Vinay's call on the next probe; no further patching done.
+
+## Ultracode-review fixes (2026-06-14) — branch dsm_native_Pi_fofnlev_review_fixes_2026-06-14
+
+Implements the fixes in DSM/ULTRACODE_REVIEW_2026-06-14.md, one commit per
+fix. Branch off dsm_native_Pi_fofnlev tip 9795f252e1. Build:
+~/git/build/pi_fofnlev_fixes_20260614. Baseline: 39 RM unit tests pass + 2
+designed skips. Every Jacobian-only fix re-verified the off-mode dd1400
+final-VTU SHA256 = 91f404a5...577 (the STEP-0 reference) BYTE-FOR-BYTE.
+
+- DONE 2026-06-14 (H2, JAC-only, commit 7e2eee0190): exact-route fold passed
+  the parse-time scalar K into computeStrainedFilmEnergyPair while the bare
+  out.mu_lR used the live effectiveAugmentationPrefactor(phi); g_cut corrupted
+  under live K. Now uses effectiveAugmentationPrefactor(params, local_context
+  .phi) at L730 (matches :768/:1364/:2084). Scalar-mode bit-for-bit; off-mode
+  bitwise verified.
+- DONE 2026-06-14 (M1, JAC-only, commit 6708ef1d98): the p-u Maxwell exchange
+  tangent always used the integrable-partner dmu_lR_mech_deps_v; now dispatches
+  dmu_lR/deps_v on the route (Off -> integrable; operational-strained ->
+  d(bare(w_eff))/deps_v + b*(dp_conf/deps_v)/rho with dp_conf/deps_v=-K_drained;
+  exact -> g_cut*pair.dmu_mech_deps_v). Off-mode bitwise verified.
+- DONE 2026-06-14 (M2+L2, JAC-only, commit cbe3e11ed6): wired the displacement-
+  side live-K swelling-eigenstress tangent d(delta_sigma_sw)/dK*dK/dphi*
+  (dphi/deps_v, dphi/dp) into K[u,u]/K[u,p] (the 1b compliant-top cure
+  candidate). SCOPE DECISION (announced): wired ONLY the live-K chain, NOT the
+  pre-existing swelling u-p/u-u term Vinay set OFF 2026-06-01 (enable_dsm_
+  swelling_up_jacobian left at its default; independent term). Gated on
+  film_pressure_coupling && dK/dphi != 0 && PorosityFromMassBalance. Off-mode
+  bitwise verified.
+- DONE 2026-06-14 (L1, JAC-only, commit 78a71ae6df): exact-fold dg_dnl mixed
+  live-nS out.dmu_lR_dnl with frozen-nS pair.dmu_bare_dnl_pre under
+  CurrentPorositySplit; recompute the bare-pre derivative with the caller's
+  dnS_dnl. Reference mode bit-for-bit. Off-mode bitwise verified.
+- DONE 2026-06-14 (N1, JAC-only, commit 6a03a58213): zero the live-K
+  dphi/deps_v=(alpha-phi)/(1+w) chain when PorosityFromMassBalance clamps phi
+  (detect via unclamped-vs-stored phi; bounds are private). Applied at the
+  live-K p-u block and the new M2 block. Off-mode bitwise verified.
+- DONE 2026-06-14 (L3, DOC-only, commit f23f69c5b4): documented the live-K
+  dn_l/dK local-solve strain channel in ScalarReferenceMassStorage mode as a
+  DELIBERATE PARTIAL TANGENT (not wired). Judgment call (prompt-authorized):
+  wiring it would risk the converged forward solve for a LOW-severity gap; the
+  dominant cure is M2. Off-mode bitwise verified.
+- DONE 2026-06-14 (H1, RESIDUAL-CHANGING, Vinay-authorized, commit 6391e357a2):
+  under film_energy_route=Exact, source the eigenstress increment from the
+  one-Psi pair.sigma_sw_m (drained-line, telescoped curr-prev) instead of the
+  operational Pi(w_eff)-b*p_conf. VALIDATED by the new assembled loop-closure
+  probe (AssembledExactPairClosesOperationalSigmaDoesNot): |W|/scale = 8.41e-09
+  with exact sigma (post-H1, CLOSES) vs 0.0675 with operational sigma (pre-H1,
+  does NOT close). H1 is CORRECT (not reverted). PHYSICS TRADEOFF (predicted):
+  drained-line p_conf vs actual GP p_conf; they agree on the drained line,
+  differ off it (e.g. fully confined). Off-mode unaffected (film off -> branch
+  not entered): bitwise verified.
+- DONE 2026-06-14 (NEW TEST §8, commit 9732b46498): added
+  RichardsMechanicsLiveKOfRhoD.AssembledDisplacementTangentExactKinematicLiveK
+  (StrainedFilmPotential.cpp) — helper-level FD-vs-analytic identity on the
+  exact-route mu_lR eps_v tangent (H2/M1) and the live-K eigenstress eps_v
+  tangent (M2), anchor (d), scale-derived tolerances, no Vinay expected value.
+  Scope-noted: no run-level assembleWithJacobian harness exists in the unit-
+  test dir, so this checks the tangent FORMULAE the assembly reconstructs.
+- DONE 2026-06-14 (N2/N3, DOC-only, commit 9c8423766c): N2 labelled the loop-
+  test 100x separation as the MEASURED conservative floor per §5.1 (defect/
+  bound ~3.0e3 at N=400, grows like N^2; not a derived 100). N3 re-confirmed
+  computeMaxwellConjugateMicroPotential fully dead (zero live callers) and
+  strengthened the RETIRED banner; kept on disk per §6.3.
+- L5 — NOT FIXED (deliberate, guardrail §1.1/§12.2). The two formB_piexact
+  PRJs on disk (ms33_modelI_dd1600_formB_piexact_2026-06-12.prj,
+  ms33_modelVII_freeswelling_formB_piexact_2026-06-12.prj) carry TODO(Vinay)
+  §12.2 provenance locators (E/nu, micro-EOS, Tuller geom, specific_surface,
+  lambda) inherited verbatim from the base PRJs. They are NOT in Tests.cmake
+  and STAY OUT pending Vinay's cited source locators (cannot be invented).
+  Their calibration K=103879 J/kg is §12.1-clean (Dixon 2023 Fig.1).
+
+OPEN (for Vinay): (1) the 1b cure verdict (M2) — run task42 1b_*_Kl with the
+new binary; (2) whether to also flip enable_dsm_swelling_up_jacobian (the
+pre-existing OFF swelling tangent), kept untouched here; (3) §12.2 locators to
+register the piexact PRJs.
