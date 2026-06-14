@@ -1790,6 +1790,25 @@ inline double computeImplicitNlDpL(
         double const drho_l_dpL_fixed_n = phi_m * drho_lR_dpL_fixed_n;
         double const dr_dpL =
             drho_l_dpL_fixed_n * time_factor - dt_safe * drho_l_hat_dpL_fixed_n;
+        // L3 (review 2026-06-14) — DELIBERATE PARTIAL TANGENT, DOCUMENTED-NOT-
+        // WIRED. In live-K mode the REV-mass residual r also depends on the
+        // augmentation prefactor K through micro_potential.mu_lR, and K =
+        // K_table(rho_SR*(1-phi)) couples to displacement via phi(eps_v). The
+        // converged local n_l therefore carries an implicit strain channel
+        //   dn_l/d eps_v |_K = (dt * drho_l_hat_dmu_lR * dmu_lR_dK
+        //                       * dK/dphi * dphi/deps_v) / dr_dn_l,
+        // which this dn_l/dpL (a FIXED-n_l-vs-pL sensitivity) does NOT carry.
+        // It is INTENTIONALLY omitted, consistent with the established fixed-n_l
+        // strain-channel approximation in mass-storage mode (see the assembly
+        // note at the dmu_lR_vdw_dpL site, ~L4760, and CLAUDE.md project memory
+        // project_alpha_M_identifiability / K_OF_RHO_D_LIVE.md). Wiring it would
+        // mean threading a new dn_l/dK out of this local-solve sensitivity AND
+        // a new K[p,u]/K[u,u] coupling term at assembly; that risks the
+        // converged forward solve consistency for a LOW-severity tangent gap
+        // (review L3). The dominant compliant-top live-K cure is the eigenstress
+        // tangent M2 (assembly, dsigma_sw/dK chain), wired separately. PARTIAL
+        // TANGENT (predicted): may slightly slow Newton on live-K mass-storage
+        // runs near a moving rho_d; the converged root is unaffected.
         return -dr_dpL / dr_dn_l;
     }
 
