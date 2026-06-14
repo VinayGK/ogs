@@ -742,8 +742,34 @@ inline void applyFilmPressureMicroPotential(
         // cutoff is inactive; g == 0 at full bulk -> film physics off).
         // |mu_bare_pre| > 0 is guaranteed by the bare law's OGS_FATALs.
         double const g_cut = out.mu_lR / pair.mu_bare_pre;            // [-]
+        // L1 fix (2026-06-14): pair.dmu_bare_dnl_pre was computed with frozen
+        // nS (dnS_dnl = 0, L738), but out.dmu_lR_dnl carries the caller's F2
+        // chain (dnS_dnl = -1 under CurrentPorositySplit; see computeActive-
+        // MicroPotential L1353). Mixing the two legs corrupts dg_dnl under
+        // CurrentPorositySplit. Recompute the bare-pre derivative with the
+        // caller's dnS_dnl so both legs of dg_dnl use the SAME nS chain.
+        // mu_bare_pre (the value) is dnS-independent, so g_cut is unaffected;
+        // only the derivative changes. Reference mode -> dnS_dnl = 0 ->
+        // bit-for-bit identical.
+        double const dnS_dnl_caller =
+            potential_exchange_params.micro_solid_volume_fraction_mode ==
+                    MicroSolidVolumeFractionMode::CurrentPorositySplit
+                ? -1.0
+                : 0.0;
+        double const dmu_bare_dnl_pre_caller =
+            computeVanDerWaalsMicroPotential(
+                n_l, rho_lR_used, active_nS,
+                potential_exchange_params.micro_solid_density_reference,
+                potential_exchange_params.hamaker_constant,
+                potential_exchange_params.specific_surface, sign_ex,
+                effectiveAugmentationPrefactor(potential_exchange_params,
+                                               local_context.phi),  // K [J/kg]
+                potential_exchange_params.potential_augmentation_exponent,
+                dnS_dnl_caller,
+                potential_exchange_params.micro_water_content_floor)
+                .dmu_lR_dnl;  // J/kg per n_l (caller's nS chain)
         double const dg_dnl =
-            (out.dmu_lR_dnl - g_cut * pair.dmu_bare_dnl_pre) /
+            (out.dmu_lR_dnl - g_cut * dmu_bare_dnl_pre_caller) /
             pair.mu_bare_pre;  // [1 per n_l]
 
         out.mu_lR += g_cut * pair.mu_mech;  // J/kg, additive (never =)
