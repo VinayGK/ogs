@@ -4902,11 +4902,19 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // *d(delta_sigma_sw)/d(.). dphi/deps_v = (alpha-phi)/(1+w)
                     // (PorosityFromMassBalance; w = delta_eps_v
                     // + delta_p_eff*beta_SR) and dphi/dp = dphi/deps_v*beta_SR
-                    // (dw/dp_eff = beta_SR). Gated on dK/dphi != 0 -> fires ONLY
-                    // when live K is active inside the table interior; off /
-                    // frozen / clamped edge -> skipped -> Jacobian bit-for-bit.
+                    // (dw/dp_eff = beta_SR). Gated on live-K mode AND dK/dphi !=
+                    // 0 -> fires ONLY when live K is active inside the table
+                    // interior; off / frozen / clamped edge -> skipped ->
+                    // Jacobian bit-for-bit. The residual eigenstress uses live K
+                    // in BOTH its film-ON branch and its OFF (disjoining) branch
+                    // (computeReferenceMicroPorositySwellingStressIncrement
+                    // L2380/L2389 use K_aug_sw), so this gate is the live-K flag,
+                    // NOT film_pressure_coupling -- otherwise the 1b family (live
+                    // K, film coupling OFF) keeps the residual dependence without
+                    // the matching tangent (the 1b_A step-1 divergence).
                     // JACOBIAN-ONLY: residual untouched.
-                    if (film_pressure_coupling)
+                    if (potential_exchange_params_ptr
+                            ->potential_augmentation_prefactor_live_dry_density)
                     {
                         double const dK_dphi_sw =
                             effectiveAugmentationPrefactorPhiDerivative(
@@ -4966,11 +4974,18 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                 computeActiveMicroSolidVolumeFraction(
                                     n_l, PotentialExchangeLocalSolveContext{},
                                     pep_sw);  // [-]
-                            // w_eff at prev/curr exactly as the residual (Off /
-                            // NaN eps_v -> w_eff = n_l, bit-for-bit).
+                            // w_eff at prev/curr EXACTLY as the residual: the
+                            // strained w_eval is taken ONLY inside the residual's
+                            // film_pressure_coupling block (L2073); the OFF
+                            // (disjoining) branch uses w_eval = n_l. So gate the
+                            // strained state on film_pressure_coupling here too --
+                            // NOT on film_strain_coupling -- otherwise 1b_B
+                            // (kinematic coupling, film OFF) would strain w_eval
+                            // while its residual eigenstress does not.
                             double w_eval_prev_sw = n_l_prev_sw;
                             double w_eval_curr_sw = n_l;
-                            if (pep_sw.film_strain_coupling !=
+                            if (film_pressure_coupling &&
+                                pep_sw.film_strain_coupling !=
                                     FilmStrainCouplingMode::Off &&
                                 std::isfinite(eps_v_sw))
                             {
