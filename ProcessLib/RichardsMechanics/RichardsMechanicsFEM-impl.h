@@ -4496,12 +4496,106 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                             variables.volumetric_strain, /*biot_b=*/alpha,
                             K_drained, rho_film);
                     double const alpha_M_eff_film = alpha_bar * rho_LR / mu;
+
+                    // ── M1 route dispatch (review fix 2026-06-14) ────────────
+                    // The residual mu_lR's eps_v dependence differs by route:
+                    //   Off (no strain coupling): the integrable partner
+                    //     mu_lR_mech (folded at L844), d/deps_v = mech_pu
+                    //     .dmu_lR_mech_deps_v -- the historical default below.
+                    //   Operational-strained (film_strain_coupling != Off,
+                    //     route != Exact, L759-817): mu_lR = bare(w_eff(eps_v))
+                    //     + b*p_conf(eps_v)/rho, so
+                    //       dmu_lR/deps_v = bare'(w_eff)*dw_eff/deps_v
+                    //                       + b*(dp_conf/deps_v)/rho,
+                    //     with bare'(w_eff) = the law's d/d(arg) (its dmu_lR_dnl
+                    //     BEFORE the dw_eff_dnl chain at L796) and dp_conf/deps_v
+                    //     = -K_drained (drainedBulkModulusFromStiffness = dsigma'
+                    //     _m/deps_v = -dp_conf/deps_v; L61).
+                    //   Exact (film_energy_route == Exact, L703-748): mu_lR +=
+                    //     g_cut*pair.mu_mech with the bare evaluated at the TRUE
+                    //     n_l (no eps_v), so dmu_lR/deps_v = g_cut*pair
+                    //     .dmu_mech_deps_v.
+                    // JACOBIAN-ONLY: residual untouched. Off-mode reaches the
+                    // default branch unchanged (bit-for-bit).
+                    double dmu_lR_deps_v_film =
+                        mech_pu.dmu_lR_mech_deps_v;  // J/kg per strain (Off)
+                    auto const& pep_m1 = *potential_exchange_params_ptr;
+                    if (pep_m1.film_strain_coupling !=
+                        FilmStrainCouplingMode::Off)
+                    {
+                        double const sign_m1 =
+                            microPotentialSignFactorFromParameters(pep_m1);
+                        double const K_aug_m1 = effectiveAugmentationPrefactor(
+                            pep_m1, phi);  // K [J/kg]
+                        if (pep_m1.film_energy_route == FilmEnergyRoute::Exact)
+                        {
+                            double const kappa_m1 =
+                                pep_m1.film_strain_kappa ==
+                                        FilmStrainKappaMode::Aggregate
+                                    ? active_nS_pu
+                                    : 1.0;  // [-]
+                            auto const pair_m1 = computeStrainedFilmEnergyPair(
+                                n_l, variables.volumetric_strain, kappa_m1,
+                                alpha, K_drained, true /*include_S, R3*/,
+                                rho_film, active_nS_pu,
+                                pep_m1.micro_solid_density_reference,
+                                pep_m1.hamaker_constant, pep_m1.specific_surface,
+                                sign_m1, K_aug_m1,
+                                pep_m1.potential_augmentation_exponent,
+                                0.0 /*dnS_dnl: frozen nS (B1)*/,
+                                pep_m1.micro_water_content_floor);
+                            // g_cut = mu_lR(post macro-floor cutoff)/mu_bare_pre,
+                            // matching the residual fold (L738). The residual
+                            // mu_lR_vdw already carries the cutoff; recover g via
+                            // bare_pre. |mu_bare_pre| > 0 by the bare law FATALs.
+                            double const g_cut_m1 =
+                                vdw_pu.mu_lR / pair_m1.mu_bare_pre;  // [-]
+                            dmu_lR_deps_v_film =
+                                g_cut_m1 * pair_m1.dmu_mech_deps_v;  // J/kg/strain
+                        }
+                        else
+                        {
+                            // Operational-strained route.
+                            auto const film_state_m1 = computeStrainedFilmState(
+                                pep_m1.film_strain_coupling,
+                                pep_m1.film_strain_kappa, n_l, active_nS_pu,
+                                variables.volumetric_strain, p_conf_assembly,
+                                rho_film,
+                                pep_m1.micro_solid_density_reference,
+                                pep_m1.hamaker_constant, pep_m1.specific_surface,
+                                sign_m1, K_aug_m1,
+                                pep_m1.potential_augmentation_exponent,
+                                pep_m1.micro_water_content_floor,
+                                rho_film /*rho_pi*/);
+                            // Bare law at w_eff; its dmu_lR_dnl is d(bare)/d(arg)
+                            // (the arg plays the role of n_l), so multiplying by
+                            // dw_eff/deps_v gives d(bare(w_eff))/deps_v.
+                            auto const bare_weff_m1 =
+                                computeVanDerWaalsMicroPotential(
+                                    film_state_m1.w_eff, rho_film, active_nS_pu,
+                                    pep_m1.micro_solid_density_reference,
+                                    pep_m1.hamaker_constant,
+                                    pep_m1.specific_surface, sign_m1, K_aug_m1,
+                                    pep_m1.potential_augmentation_exponent,
+                                    0.0 /*dnS_dnl: frozen nS (B1)*/,
+                                    pep_m1.micro_water_content_floor);
+                            double const dbare_deps_v =
+                                bare_weff_m1.dmu_lR_dnl *
+                                film_state_m1.dw_eff_deps_v;  // J/kg per strain
+                            // d(mu_load)/deps_v = b*(dp_conf/deps_v)/rho,
+                            // dp_conf/deps_v = -K_drained (L61 sign).
+                            double const dmuload_deps_v =
+                                alpha * (-K_drained) / rho_film;  // J/kg/strain
+                            dmu_lR_deps_v_film =
+                                dbare_deps_v + dmuload_deps_v;  // J/kg per strain
+                        }
+                    }
                     local_Jac
                         .template block<pressure_size, displacement_size>(
                             pressure_index, displacement_index)
                         .noalias() -=
                         N_p.transpose() *
-                        (alpha_M_eff_film * mech_pu.dmu_lR_mech_deps_v) *
+                        (alpha_M_eff_film * dmu_lR_deps_v_film) *
                         identity2.transpose() * B * w;
 
                     // ── Live K(rho_d) analytic tangent (K_OF_RHO_D_LIVE.md;
