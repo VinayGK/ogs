@@ -71,6 +71,67 @@ LocalNonlinearSolveMode parseLocalNonlinearSolveMode(
         mode);
 }
 
+FilmStrainCouplingMode parseFilmStrainCouplingMode(std::string const& mode)
+{
+    if (mode == "off")
+    {
+        return FilmStrainCouplingMode::Off;
+    }
+    if (mode == "kinematic")
+    {
+        return FilmStrainCouplingMode::Kinematic;
+    }
+    if (mode == "equilibrium")
+    {
+        return FilmStrainCouplingMode::Equilibrium;
+    }
+
+    OGS_FATAL(
+        "RichardsMechanics: unsupported potential_exchange "
+        "film_strain_coupling '{}'. Currently supported: 'off', 'kinematic', "
+        "'equilibrium'. (DSM/STRAINED_FILM_IMPLEMENTATION.md)",
+        mode);
+}
+
+FilmStrainKappaMode parseFilmStrainKappaMode(std::string const& mode)
+{
+    if (mode == "aggregate")
+    {
+        return FilmStrainKappaMode::Aggregate;
+    }
+    if (mode == "unity")
+    {
+        return FilmStrainKappaMode::Unity;
+    }
+
+    OGS_FATAL(
+        "RichardsMechanics: unsupported potential_exchange "
+        "film_strain_kappa '{}'. Currently supported: 'aggregate' "
+        "(kappa = 1 - phi_M, the integrable completion of the eigenstress "
+        "scale), 'unity' (kappa = 1, naive geometric reading).",
+        mode);
+}
+
+FilmEnergyRoute parseFilmEnergyRoute(std::string const& route)
+{
+    if (route == "operational")
+    {
+        return FilmEnergyRoute::Operational;
+    }
+    if (route == "exact")
+    {
+        return FilmEnergyRoute::Exact;
+    }
+
+    OGS_FATAL(
+        "RichardsMechanics: unsupported potential_exchange "
+        "film_energy_route '{}'. Currently supported: 'operational' (shipped "
+        "Derjaguin cut, default) and 'exact' (one-Psi energy pair; requires "
+        "film_strain_coupling = 'kinematic'). "
+        "(DSM/PI_OF_NL_EV_IMPLEMENTATION.md)",
+        route);
+}
+
 MacroPorosityUpdateMode parseMacroPorosityUpdateMode(
     std::string const& mode)
 {
@@ -433,7 +494,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
     // in time (initial/target rho_d, Vinay 2026-06-08) so no Jacobian term is
     // introduced. The shared table inherits into per-<medium id> overrides via
     // `defaults`, while each medium supplies its own <dry_density>.
-    std::shared_ptr<MathLib::PiecewiseLinearInterpolation const>
+    std::shared_ptr<AugmentationPrefactorTable const>
         potential_augmentation_prefactor_vs_dry_density =
             defaults ? defaults->potential_augmentation_prefactor_vs_dry_density
                      : nullptr;
@@ -457,7 +518,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
                 context, dry_densities.size(), prefactors.size());
         }
         potential_augmentation_prefactor_vs_dry_density =
-            std::make_shared<MathLib::PiecewiseLinearInterpolation const>(
+            std::make_shared<AugmentationPrefactorTable const>(
                 std::move(dry_densities), std::move(prefactors));
     }
 
@@ -466,6 +527,29 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
     if (!dry_density && defaults)
     {
         dry_density = defaults->dry_density;
+    }
+
+    // ── LIVE K(rho_d) (K_OF_RHO_D_LIVE.md; Vinay 2026-06-10) ───────────────
+    // When true, the parse-time freeze below is SKIPPED for the live
+    // evaluation path: the table stays live and K is re-evaluated at the
+    // evolving rho_d = rho_SR*(1-phi) at run time (see
+    // effectiveAugmentationPrefactor). The scalar stored into
+    // potential_augmentation_prefactor then only serves as the FALLBACK for
+    // evaluation sites without a porosity in scope.
+    auto const potential_augmentation_prefactor_live_dry_density =
+        config.getConfigParameter<bool>(
+            "potential_augmentation_prefactor_live_dry_density",
+            defaults
+                ? defaults->potential_augmentation_prefactor_live_dry_density
+                : false);
+    if (potential_augmentation_prefactor_live_dry_density &&
+        !potential_augmentation_prefactor_vs_dry_density)
+    {
+        OGS_FATAL(
+            "RichardsMechanics: {} "
+            "potential_augmentation_prefactor_live_dry_density=true requires "
+            "a <potential_augmentation_prefactor_vs_dry_density> table.",
+            context);
     }
 
     auto const potential_augmentation_prefactor_scalar =
@@ -484,7 +568,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
                 "given; they are mutually exclusive.",
                 context);
         }
-        if (!dry_density)
+        if (!dry_density && !potential_augmentation_prefactor_live_dry_density)
         {
             OGS_FATAL(
                 "RichardsMechanics: {} "
@@ -492,9 +576,15 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
                 "<dry_density> (rho_d, kg/m^3) to evaluate K(rho_d).",
                 context);
         }
+        // Live mode: this is NOT a freeze — the table stays live; the value
+        // stored here is only the fallback K for phi-less evaluation sites
+        // (initial/target rho_d if given, else inherited scalar / 0).
         potential_augmentation_prefactor =
-            potential_augmentation_prefactor_vs_dry_density->getValue(
-                *dry_density);
+            dry_density
+                ? potential_augmentation_prefactor_vs_dry_density->getValue(
+                      *dry_density)
+                : (defaults ? defaults->potential_augmentation_prefactor
+                            : 0.0);
     }
     else
     {
@@ -573,6 +663,40 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context, film_pressure_swelling_modulus);
     }
 
+    // ── Strained-film disjoining law h(w_m, eps_v) ──────────────────────────
+    // (DSM/STRAINED_FILM_IMPLEMENTATION.md; Vinay 2026-06-09.) PRJ-selectable
+    // variants: 'off' (default, frozen geometry, bit-for-bit), 'kinematic'
+    // (variant A, spacing follows the volumetric strain), 'equilibrium'
+    // (variant B, spacing tracks the film force balance Pi = p_conf). When ON,
+    // the strained law REPLACES the shipped integrable mechanical partner (its
+    // frozen-h truncation) — never both (no double counting).
+    auto const film_strain_coupling = parseFilmStrainCouplingMode(
+        config.getConfigParameter<std::string>(
+            "film_strain_coupling",
+            defaults ? toString(defaults->film_strain_coupling) : "off"));
+    auto const film_strain_kappa = parseFilmStrainKappaMode(
+        config.getConfigParameter<std::string>(
+            "film_strain_kappa",
+            defaults ? toString(defaults->film_strain_kappa) : "aggregate"));
+
+    // ── Film energy route (DSM/PI_OF_NL_EV_IMPLEMENTATION.md §3) ───────────
+    // 'operational' (default, bit-for-bit): shipped Derjaguin cut. 'exact':
+    // the one-Psi pair; admissible only with film_strain_coupling='kinematic'
+    // (the closed-form strain integrals are for the kinematic h-law).
+    auto const film_energy_route = parseFilmEnergyRoute(
+        config.getConfigParameter<std::string>(
+            "film_energy_route",
+            defaults ? toString(defaults->film_energy_route) : "operational"));
+    if (!isValidFilmEnergyRouteCombination(film_strain_coupling,
+                                           film_energy_route))
+    {
+        OGS_FATAL(
+            "RichardsMechanics: {} film_energy_route = 'exact' requires "
+            "film_strain_coupling = 'kinematic', got '{}'. "
+            "(DSM/PI_OF_NL_EV_IMPLEMENTATION.md §3 mode matrix)",
+            context, toString(film_strain_coupling));
+    }
+
     // Macro-porosity floor phi_M,min: keeps the macro pore from collapsing into
     // the interlayer (n_l capped at (phi-floor)/(1-floor)); 0 -> no floor.
     auto const macro_porosity_floor = config.getConfigParameter<double>(
@@ -637,8 +761,12 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         film_pressure_swelling_modulus,
         macro_porosity_floor,
         macro_floor_cutoff_width,
+        film_strain_coupling,
+        film_strain_kappa,
+        film_energy_route,
         potential_augmentation_prefactor_vs_dry_density,
-        dry_density};
+        dry_density,
+        potential_augmentation_prefactor_live_dry_density};
 }
 
 template <int DisplacementDim>

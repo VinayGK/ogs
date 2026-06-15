@@ -3,9 +3,11 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 
 #include "BaseLib/Error.h"
+#include "ProcessLib/RichardsMechanics/PotentialExchangeParameters.h"
 
 namespace ProcessLib::RichardsMechanics
 {
@@ -75,6 +77,17 @@ struct VanDerWaalsMicroPotentialData
     // second partial (tangent-only path; the integrable partner's n_l-tangent
     // is used in the analytic predictor/scalar micro-solve Jacobians only).
     double d2mu_lR_dnl2 = 0.0;
+    // PARTIAL derivatives w.r.t. the augmentation prefactor K (all other
+    // state held fixed), needed by the live-K(rho_d) Jacobian chain
+    // (K_OF_RHO_D_LIVE.md; Vinay 2026-06-12): every K-channel below is
+    // LINEAR in K, so these are exact:
+    //   mu_aug = sign*K*exp(-xi)        -> dmu_lR/dK        = sign*exp(-xi)
+    //   d mu_aug/d n_l = -mu_aug*xi/n_l -> d(dmu_lR/dnl)/dK = -dmu_lR_dK*xi/n_l
+    // Both are 0 when the augmentation is inactive (K == 0: the residual then
+    // carries no aug term; the tangent at that isolated point is left 0) and
+    // ddmu_lR_dnl_dK is 0 when the disjoining floor clamps (flat in n_l).
+    double dmu_lR_dK = 0.0;        // [-] = (J/kg) per (J/kg)
+    double ddmu_lR_dnl_dK = 0.0;   // [1/n_l] = (J/kg per n_l) per (J/kg)
 };
 
 // DSM dsm_micromacro microscale vdW potential helper:
@@ -267,6 +280,11 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
         // 0 when clamped (flat in n_l).
         out.d2mu_lR_dnl2 +=
             clamped ? 0.0 : mu_aug * xi * xi / (n_l_eff * n_l_eff);  // J/kg
+        // Exact K-partials (mu_aug LINEAR in K; live-K(rho_d) Jacobian chain,
+        // K_OF_RHO_D_LIVE.md). Clamped: value flat in n_l -> mixed partial 0.
+        out.dmu_lR_dK = potential_sign_factor * std::exp(-xi);  // [-]
+        out.ddmu_lR_dnl_dK =
+            clamped ? 0.0 : -out.dmu_lR_dK * xi / n_l_eff;  // [1/n_l]
     }
 
     // ── F2 (2026-06-06, tangent-only): live-nS chain for dmu_lR/dnl ──────────
@@ -324,6 +342,10 @@ struct MaxwellConjugateMicroPotentialData
 // RETIRED 2026-06-08 (Vinay's Option-B): superseded by
 // computeIntegrableMechanicalMicroPotential; no callers. Definition retained
 // (historical); do NOT re-wire.
+// N3 (review 2026-06-14): re-confirmed fully dead — grep shows zero live
+// callers in ProcessLib/ and Tests/ (only docs and this helper's own FATAL
+// strings reference the name). Kept on disk per CLAUDE.md §6.3 (historical
+// record, never delete); this banner is the deprecation marker.
 inline MaxwellConjugateMicroPotentialData computeMaxwellConjugateMicroPotential(
     double const S1, double const dS1_dnl, double const eps_v,
     double const p_conf, double const Pi, double const rho_lR,
@@ -571,6 +593,375 @@ computeIntegrableMechanicalMicroPotential(
         -((2.0 * dPi_dnl + n_l * d2Pi_dnl2) * eps_v) / rho_lR;
     // d(mu_lR_mech)/d(rho_lR) = -mu_lR_mech/rho_lR   [(J/kg)/(kg/m^3)]
     out.dmu_lR_mech_drho_lR = -out.mu_lR_mech / rho_lR;
+    return out;
+}
+
+// ── Strained-film disjoining state — h(w_m, eps_v) ──────────────────────────
+// Design: ProcessLib/RichardsMechanics/DSM/STRAINED_FILM_IMPLEMENTATION.md.
+// Both variants reduce to evaluating the EXISTING bare law at an effective
+// micro water content w_eff (the law depends on n_l only through the film
+// thickness h = n_l/(nS*rho_SR*Sa), so straining h is straining the
+// evaluation point):
+//   Kinematic   (A): w_eff = n_l*(1 + kappa*eps_v), kappa = active_nS
+//                    (Aggregate, the integrable completion of the existing
+//                    eigenstress scale) or 1 (Unity). kappa is FROZEN at the
+//                    GP (B1) — no d(kappa)/d(eps_v) chain.
+//   Equilibrium (B): on the loaded branch (p_conf > Pi(n_l) > 0) w_eff solves
+//                    Pi(w_eff) = p_conf (film force balance; emergent branch
+//                    point, no bolted-on gate); else w_eff = n_l.
+// Mass bookkeeping stays at n_l everywhere; only the disjoining evaluation
+// point is strained.
+struct StrainedFilmStateData
+{
+    double w_eff = 0.0;          // effective content fed to the law [-]
+    double dw_eff_dnl = 1.0;     // d w_eff / d n_l [-]
+    double dw_eff_deps_v = 0.0;  // d w_eff / d eps_v [-]
+    bool loaded_branch = false;  // equilibrium mode: Pi(w_eff) = p_conf branch
+};
+
+// Invert the bare disjoining law Pi(w) = -rho_pi * mu_lR_bare(w) for w at a
+// target pressure (equilibrium-spacing variant B). Pi is strictly decreasing
+// in w (vdW core ~ w^-3 plus exponential augmentation), so the root in
+// (w_floor, w_upper] is unique when it exists. Newton on f(w) = Pi(w) -
+// p_target with the analytic dPi/dw from the law, seeded by the cubic-core
+// inverse and guarded by bisection on the bracket. All law arguments mirror
+// computeVanDerWaalsMicroPotential.
+inline double invertDisjoiningPressure(
+    double const p_target, double const w_upper, double const rho_lR,
+    double const nS, double const rho_SR, double const hamaker_constant,
+    double const specific_surface, double const potential_sign_factor,
+    double const potential_augmentation_prefactor,
+    double const potential_augmentation_exponent, double const n_l_floor,
+    double const rho_pi)
+{
+    auto const Pi_and_slope = [&](double const w)
+    {
+        auto const v = computeVanDerWaalsMicroPotential(
+            w, rho_lR, nS, rho_SR, hamaker_constant, specific_surface,
+            potential_sign_factor, potential_augmentation_prefactor,
+            potential_augmentation_exponent, 0.0 /*dnS_dnl*/, n_l_floor);
+        return std::pair{-rho_pi * v.mu_lR, -rho_pi * v.dmu_lR_dnl};
+    };
+
+    // Bracket: Pi(w_upper) < p_target (caller-checked loaded branch). Lower
+    // end: the law floor (Pi capped there) or a structural tiny fraction of
+    // w_upper. 1e-8 is a bracket-width guard, not a physical value.
+    double w_lo = std::max(n_l_floor, 1e-8 * w_upper);
+    double w_hi = w_upper;
+    auto const [Pi_lo, dPi_lo] = Pi_and_slope(w_lo);
+    if (!(Pi_lo > p_target))
+    {
+        // Law cannot reach the target (e.g. floored Pi cap below p_target):
+        // the film is squeezed to its cap; return the lower end.
+        return w_lo;
+    }
+
+    // Seed: cubic-core inverse Pi ~ w^-3 => w0 = w_upper*(Pi(w_upper)/p)^(1/3).
+    auto const [Pi_up, dPi_up] = Pi_and_slope(w_upper);
+    double w = w_upper *
+               std::cbrt(std::max(1e-300, Pi_up) / std::max(1e-300, p_target));
+    w = std::clamp(w, w_lo, w_hi);
+
+    // Iteration cap 50 (structural bound, not physics); relative tolerance on
+    // the pressure residual scaled by the target per the tolerance-from-
+    // problem-scale rule.
+    for (int i = 0; i < 50; ++i)
+    {
+        auto const [Pi_w, dPi_dw] = Pi_and_slope(w);
+        double const f = Pi_w - p_target;
+        if (std::abs(f) <= 1e-12 * std::abs(p_target))
+        {
+            break;
+        }
+        // Maintain the bracket (Pi decreasing in w).
+        if (f > 0.0)
+        {
+            w_lo = w;  // Pi too high -> root at larger w
+        }
+        else
+        {
+            w_hi = w;
+        }
+        double const step = (std::isfinite(dPi_dw) && std::abs(dPi_dw) > 0.0)
+                                ? -f / dPi_dw
+                                : 0.0;
+        double w_next = w + step;
+        if (!(w_next > w_lo && w_next < w_hi))
+        {
+            w_next = 0.5 * (w_lo + w_hi);  // bisection fallback
+        }
+        if (std::abs(w_next - w) <= 1e-15 * std::max(1.0, std::abs(w)))
+        {
+            w = w_next;
+            break;
+        }
+        w = w_next;
+    }
+    return w;
+}
+
+inline StrainedFilmStateData computeStrainedFilmState(
+    FilmStrainCouplingMode const mode, FilmStrainKappaMode const kappa_mode,
+    double const n_l, double const active_nS, double const eps_v,
+    double const p_conf, double const rho_lR, double const rho_SR,
+    double const hamaker_constant, double const specific_surface,
+    double const potential_sign_factor,
+    double const potential_augmentation_prefactor,
+    double const potential_augmentation_exponent, double const n_l_floor,
+    double const rho_pi)
+{
+    StrainedFilmStateData out;
+    out.w_eff = n_l;
+
+    switch (mode)
+    {
+        case FilmStrainCouplingMode::Off:
+            return out;
+        case FilmStrainCouplingMode::Kinematic:
+        {
+            double const kappa =
+                kappa_mode == FilmStrainKappaMode::Aggregate ? active_nS : 1.0;
+            // Positivity guard on the spacing factor (1e-6 is a numeric
+            // floor against w_eff <= 0 at extreme compression, not physics).
+            double const f =
+                std::max(1e-6, 1.0 + kappa * (std::isfinite(eps_v) ? eps_v
+                                                                   : 0.0));
+            out.w_eff = n_l * f;
+            out.dw_eff_dnl = f;
+            // kappa frozen at the GP (B1): d w_eff/d eps_v = n_l*kappa on the
+            // unclamped branch, 0 when the positivity guard clamps.
+            out.dw_eff_deps_v =
+                (f > 1e-6) ? n_l * kappa : 0.0;
+            return out;
+        }
+        case FilmStrainCouplingMode::Equilibrium:
+        {
+            if (!(std::isfinite(p_conf) && p_conf > 0.0))
+            {
+                return out;  // no load supplied -> unloaded branch
+            }
+            auto const bare = computeVanDerWaalsMicroPotential(
+                n_l, rho_lR, active_nS, rho_SR, hamaker_constant,
+                specific_surface, potential_sign_factor,
+                potential_augmentation_prefactor,
+                potential_augmentation_exponent, 0.0 /*dnS_dnl*/, n_l_floor);
+            double const Pi_unloaded = -rho_pi * bare.mu_lR;
+            if (!(Pi_unloaded > 0.0 && p_conf > Pi_unloaded))
+            {
+                return out;  // below the branch point: film carries the load
+            }
+            out.loaded_branch = true;
+            out.w_eff = invertDisjoiningPressure(
+                p_conf, n_l, rho_lR, active_nS, rho_SR, hamaker_constant,
+                specific_surface, potential_sign_factor,
+                potential_augmentation_prefactor,
+                potential_augmentation_exponent, n_l_floor, rho_pi);
+            // On the loaded branch the film state is pinned by the load:
+            // w_eff solves Pi(w_eff) = p_conf, independent of n_l and eps_v
+            // (implicit-function chains enter via p_conf only, which the
+            // outer Newton iteration carries).
+            out.dw_eff_dnl = 0.0;
+            out.dw_eff_deps_v = 0.0;
+            return out;
+        }
+    }
+    return out;
+}
+
+// ── EXACT one-Psi strained-film energy pair (film_energy_route = exact) ─────
+// Design: ProcessLib/RichardsMechanics/DSM/PI_OF_NL_EV_IMPLEMENTATION.md §2.1;
+// closes STRAINED_FILM_IMPLEMENTATION.md §9a. Kinematic h-law only:
+// w(e) = n_l*(1 + kappa*e). One energy
+//
+//   Psi_film(n_l, eps_v) = -(1-phi_M)*n_l*[ I_vdw + I_aug + S ],
+//   I_T = int_0^{eps_v} Pi_T(w(e)) de  (closed form per term),
+//   S   = 0.5*b*K_drained*eps_v^2      (transmitted-load work, route R3;
+//                                       caller may drop it via include_S)
+//
+// gives BOTH halves by differentiation; Maxwell holds identically. In mu-space
+// (mu_T = -Pi_T/rho_lR; sign conventions inherited from the bare law):
+//
+//   M_v = mu_v(n_l)*G3,  G3 = [1-(1+x)^-2]/(2*kappa),  x = kappa*eps_v
+//   M_a = mu_a(n_l)*Gx,  Gx = -expm1(-xi0*x)/(xi0*kappa),
+//                        xi0 = n_l_eff/(lambda*nS*rho_SR*Sa)
+//   mu_mech       = -2*M_v + mu_a*[x*E/kappa - xi0*Gx] - 0.5*b*K_d*eps_v^2/rho_lR
+//                   with E = exp(-xi0*x)                                  [J/kg]
+//   dmu_mech/deps = -2*mu_v*(1+x)^-3 + mu_a*E*(1-xi0-xi0*x) - b*K_d*eps_v/rho_lR
+//   dmu_mech/dnl  = 6*mu_v*G3/n_l
+//                   - (xi0*mu_a/n_l)*[ (x*E/kappa)*(2+x) - xi0*Gx ]
+//   dmu_mech/drho = -(vdW part + S part)/rho_lR   (mu_a carries no rho_lR)
+//
+// kappa->0 limits: G3, Gx -> eps_v and the pair reduces EXACTLY to
+// computeIntegrableMechanicalMicroPotential (unit-tested) — unlike the
+// OPERATIONAL route. Eigenstress half (for tests; the FEM eigenstress site is
+// unchanged — it already evaluates Pi(w_eff) with the actual p_conf):
+//   sigma_sw_m = -(1-phi_M)*n_l*[ Pi(w_eff) + b*K_d*eps_v ]   (drained line)
+struct StrainedFilmEnergyPairData
+{
+    double Psi_film = 0.0;     // J/m^3 REV (drained-line S-form)
+    double mu_mech = 0.0;      // J/kg
+    double dmu_mech_dnl = 0.0;       // J/kg per unit n_l
+    double dmu_mech_deps_v = 0.0;    // J/kg per unit strain
+    double dmu_mech_drho_lR = 0.0;   // (J/kg)/(kg/m^3)
+    double sigma_sw_m = 0.0;         // Pa (drained-line eigenstress half)
+    double dsigma_sw_dnl = 0.0;      // Pa per unit n_l
+    // Pre-cutoff bare-law reference values, exposed so the fold point can
+    // recover the macro-floor cutoff factor g = mu_post/mu_pre and its chain.
+    double mu_bare_pre = 0.0;        // J/kg
+    double dmu_bare_dnl_pre = 0.0;   // J/kg per unit n_l
+};
+
+inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
+    double const n_l, double const eps_v, double const kappa,
+    double const biot_b, double const K_drained, bool const include_S,
+    double const rho_lR, double const nS, double const rho_SR,
+    double const hamaker_constant, double const specific_surface,
+    double const potential_sign_factor,
+    double const potential_augmentation_prefactor,
+    double const potential_augmentation_exponent, double const dnS_dnl,
+    double const n_l_floor)
+{
+    StrainedFilmEnergyPairData out;
+
+    // Per-term bare values at the TRUE n_l (floor handled inside the law).
+    // vdW-only call (augmentation off) + full call; aug term by subtraction —
+    // keeps the split in sync with any future change of the bare law.
+    auto const full = computeVanDerWaalsMicroPotential(
+        n_l, rho_lR, nS, rho_SR, hamaker_constant, specific_surface,
+        potential_sign_factor, potential_augmentation_prefactor,
+        potential_augmentation_exponent, dnS_dnl, n_l_floor);
+    auto const vdw = computeVanDerWaalsMicroPotential(
+        n_l, rho_lR, nS, rho_SR, hamaker_constant, specific_surface,
+        potential_sign_factor, 0.0, 0.0, dnS_dnl, n_l_floor);
+    double const mu_v = vdw.mu_lR;                // J/kg (cubic core)
+    double const mu_a = full.mu_lR - vdw.mu_lR;   // J/kg (augmentation)
+    out.mu_bare_pre = full.mu_lR;                 // J/kg
+    out.dmu_bare_dnl_pre = full.dmu_lR_dnl;       // J/kg per n_l
+
+    // Strained geometry x = kappa*eps_v with the SAME positivity guard and
+    // freeze convention as computeStrainedFilmState (1e-6 numeric floor, not
+    // physics; strain derivatives 0 when clamped).
+    double const eps = std::isfinite(eps_v) ? eps_v : 0.0;
+    double const x_raw = kappa * eps;
+    bool const clamped_f = !(1.0 + x_raw > 1e-6);
+    double const f = std::max(1e-6, 1.0 + x_raw);  // 1 + x, guarded
+    double const x = f - 1.0;
+    // x/kappa == eps algebraically; computing it as (f-1)/kappa amplifies the
+    // rounding of 1+kappa*eps by 1/kappa (catastrophic for kappa -> 0 when
+    // multiplied by a large mu_a). Use eps exactly on the unclamped branch.
+    double const x_over_kappa = clamped_f ? x / kappa : eps;  // [-]
+
+    // Floor-consistent xi0 (mirrors the bare law's n_l_eff clamping).
+    bool const floored = (n_l_floor > 0.0) && (n_l < n_l_floor);
+    double const n_l_eff = floored ? n_l_floor : n_l;
+    double const xi0 =
+        (potential_augmentation_prefactor > 0.0)
+            ? n_l_eff / (potential_augmentation_exponent * nS * rho_SR *
+                         specific_surface)
+            : 0.0;  // unused when no augmentation
+
+    // Stable strain integrals (series switch 1e-5: relative series error
+    // < 1e-10 at the switch — scoped numeric default, PI_OF_NL_EV §4.6).
+    double const y = xi0 * x;
+    double G3;  // [-]; G3 -> eps_v as kappa -> 0
+    if (std::abs(x) > 1e-5)
+    {
+        G3 = (1.0 - 1.0 / (f * f)) / (2.0 * kappa);
+    }
+    else
+    {
+        G3 = eps * (1.0 - 1.5 * x + 2.0 * x * x);  // series, O(x^3)
+    }
+    double Gx = 0.0;  // [-]; Gx -> eps_v as kappa -> 0
+    double E = 1.0;   // exp(-xi0*x) [-]
+    if (potential_augmentation_prefactor > 0.0)
+    {
+        E = std::exp(-y);
+        if (std::abs(y) > 1e-5)
+        {
+            Gx = -std::expm1(-y) / (xi0 * kappa);
+        }
+        else
+        {
+            Gx = eps * (1.0 - 0.5 * y + y * y / 6.0);  // series, O(y^3)
+        }
+    }
+
+    // Transmitted-load work S (route R3; NaN K_drained -> 0, mirrors the
+    // shipped partner's sentinel convention).
+    double const K_d =
+        (include_S && std::isfinite(K_drained)) ? K_drained : 0.0;
+
+    // ── mu half (J/kg; see derivation in the comment block above) ──────────
+    double const mu_mech_vdw = -2.0 * mu_v * G3;                       // J/kg
+    double const mu_mech_aug =
+        (potential_augmentation_prefactor > 0.0)
+            ? mu_a * (x_over_kappa * E - xi0 * Gx)
+            : 0.0;                                                     // J/kg
+    double const mu_mech_S = -0.5 * biot_b * K_d * eps * eps / rho_lR;  // J/kg
+    out.mu_mech = mu_mech_vdw + mu_mech_aug + mu_mech_S;               // J/kg
+
+    // d(mu_mech)/d(eps_v): strain derivatives 0 when the positivity guard
+    // clamps (frozen geometry there, same convention as the kinematic state).
+    if (!clamped_f)
+    {
+        out.dmu_mech_deps_v =
+            -2.0 * mu_v / (f * f * f)                       // vdW    [J/kg per -]
+            + ((potential_augmentation_prefactor > 0.0)
+                   ? mu_a * E * (1.0 - xi0 - xi0 * x)
+                   : 0.0)                                   // aug    [J/kg per -]
+            - biot_b * K_d * eps / rho_lR;                  // S      [J/kg per -]
+    }
+    // d(mu_mech)/d(n_l): flat when the disjoining floor clamps (bare
+    // derivatives are 0 there, same convention as the bare law).
+    if (!floored)
+    {
+        out.dmu_mech_dnl =
+            6.0 * mu_v * G3 / n_l_eff  // vdW [J/kg per n_l]
+            - ((potential_augmentation_prefactor > 0.0)
+                   ? (xi0 * mu_a / n_l_eff) *
+                         ((x_over_kappa * E) * (2.0 + x) - xi0 * Gx)
+                   : 0.0);  // aug [J/kg per n_l]
+    }
+    // d(mu_mech)/d(rho_lR): mu_v ~ 1/rho_lR and the S term ~ 1/rho_lR; the
+    // augmentation mu_a carries no rho_lR.   [(J/kg)/(kg/m^3)]
+    out.dmu_mech_drho_lR = -(mu_mech_vdw + mu_mech_S) / rho_lR;
+
+    // ── eigenstress half (drained line; for the Maxwell/loop tests) ────────
+    // Pi(w_eff) = -rho_lR*[mu_v*(1+x)^-3 + mu_a*E]   [Pa]
+    double const Pi_weff =
+        -rho_lR * (mu_v / (f * f * f) +
+                   ((potential_augmentation_prefactor > 0.0) ? mu_a * E
+                                                             : 0.0));  // Pa
+    out.sigma_sw_m = -nS * n_l * (Pi_weff + biot_b * K_d * eps);       // Pa
+    // d(sigma_sw)/d(n_l) — exact chain through BOTH the n_l prefactor and
+    // w_eff = n_l*(1+x):  d/dn_l[n_l*Pi_T(n_l*f)]:
+    //   vdW: (1-3)*Pi_v(w_eff) = -2*Pi_v(w_eff)
+    //   aug: Pi_a(w_eff)*(1 - xi0*f)
+    if (!floored)
+    {
+        double const Pi_v_weff = -rho_lR * mu_v / (f * f * f);  // Pa
+        double const Pi_a_weff =
+            (potential_augmentation_prefactor > 0.0) ? -rho_lR * mu_a * E
+                                                     : 0.0;  // Pa
+        out.dsigma_sw_dnl =
+            -nS * (-2.0 * Pi_v_weff + Pi_a_weff * (1.0 - xi0 * f) +
+                   biot_b * K_d * eps);  // Pa per n_l
+    }
+    else
+    {
+        out.dsigma_sw_dnl = -nS * (Pi_weff + biot_b * K_d * eps);  // Pa per n_l
+    }
+
+    // ── energy (drained-line S-form; for the loop test) ────────────────────
+    // Psi_film = -(1-phi_M)*n_l*[I_vdw + I_aug + S], I_T = -rho_lR*M_T.
+    out.Psi_film =
+        -nS * n_l *
+        (-rho_lR * (mu_v * G3 + ((potential_augmentation_prefactor > 0.0)
+                                     ? mu_a * Gx
+                                     : 0.0)) +
+         0.5 * biot_b * K_d * eps * eps);  // J/m^3 REV
+
     return out;
 }
 

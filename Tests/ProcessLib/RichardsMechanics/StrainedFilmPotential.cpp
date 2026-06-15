@@ -1,0 +1,680 @@
+// SPDX-FileCopyrightText: Copyright (c) OpenGeoSys Community (opengeosys.org)
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Strained-film disjoining law h(w_m, eps_v) — unit tests.
+// Design: ProcessLib/RichardsMechanics/DSM/STRAINED_FILM_IMPLEMENTATION.md.
+// Physics anchors (CLAUDE.md §3): derived identities (FD-vs-analytic chains,
+// force-balance inversion residual), analytical limits (zero strain + zero
+// load reduction), sign-only physical limits (load raises the potential).
+// No fitted expected values; tolerances derive from the FD step / solver
+// residual scales.
+//
+// Sample-state parameter values mirror the prior approved unit tests in
+// DSMMicroMacroSingleIntegrationPoint.cpp (hamaker 6.0e-20 J, Sa 1000 m^2/kg,
+// rho_SR 2650 kg/m^3, nS 0.6) — citation source: prior user-approved test
+// code in this repository.
+
+#include <gtest/gtest.h>
+
+#include <cmath>
+#include <limits>
+
+#include "ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h"
+
+using namespace ProcessLib::RichardsMechanics;
+
+namespace
+{
+struct StrainedFilmSampleState
+{
+    double n_l = 0.3;
+    double rho_lR = 1100.0;  // confined micro-liquid density scale, mirrors
+                             // the memory note "micro EOS ~1100 kg/m^3"
+    double active_nS = 0.6;
+    double rho_SR = 2650.0;
+    double hamaker = 6.0e-20;
+    double Sa = 1000.0;
+    // NegativeAttractive convention (the MS33 PRJ family): mu_lR < 0,
+    // Pi = -rho*mu_lR > 0 (repulsive operational disjoining pressure).
+    double sign = -1.0;
+    double K_aug = 0.0;
+    double lambda_aug = 0.0;
+    double floor = 0.0;
+};
+
+double bareMu(StrainedFilmSampleState const& st, double const w)
+{
+    return computeVanDerWaalsMicroPotential(
+               w, st.rho_lR, st.active_nS, st.rho_SR, st.hamaker, st.Sa,
+               st.sign, st.K_aug, st.lambda_aug, 0.0, st.floor)
+        .mu_lR;
+}
+
+double barePi(StrainedFilmSampleState const& st, double const w)
+{
+    return -st.rho_lR * bareMu(st, w);
+}
+
+StrainedFilmStateData state(StrainedFilmSampleState const& st,
+                            FilmStrainCouplingMode const mode,
+                            FilmStrainKappaMode const kappa,
+                            double const eps_v, double const p_conf)
+{
+    return computeStrainedFilmState(mode, kappa, st.n_l, st.active_nS, eps_v,
+                                    p_conf, st.rho_lR, st.rho_SR, st.hamaker,
+                                    st.Sa, st.sign, st.K_aug, st.lambda_aug,
+                                    st.floor, st.rho_lR);
+}
+}  // namespace
+
+// Anchor: approved baseline — the defaults must stay Off/Aggregate so every
+// existing PRJ is bit-for-bit unaffected.
+TEST(RichardsMechanicsStrainedFilm, DefaultsAreOffAggregate)
+{
+    PotentialExchangeParameters params;
+    EXPECT_EQ(params.film_strain_coupling, FilmStrainCouplingMode::Off);
+    EXPECT_EQ(params.film_strain_kappa, FilmStrainKappaMode::Aggregate);
+}
+
+// Anchor: derived identity — FD-vs-analytic chains of the kinematic state.
+TEST(RichardsMechanicsStrainedFilm, KinematicChainsFDConsistent)
+{
+    StrainedFilmSampleState st;
+    double const eps_v = -0.02;  // compression
+    double const p_conf = 1.0e6;
+    double const d = 1e-7;
+
+    for (auto const kappa :
+         {FilmStrainKappaMode::Aggregate, FilmStrainKappaMode::Unity})
+    {
+        auto const s0 =
+            state(st, FilmStrainCouplingMode::Kinematic, kappa, eps_v, p_conf);
+        double const kappa_value =
+            kappa == FilmStrainKappaMode::Aggregate ? st.active_nS : 1.0;
+        EXPECT_NEAR(s0.w_eff, st.n_l * (1.0 + kappa_value * eps_v),
+                    1e-14 * st.n_l);
+
+        // d w_eff / d eps_v by central FD on the helper itself.
+        auto const sp = state(st, FilmStrainCouplingMode::Kinematic, kappa,
+                              eps_v + d, p_conf);
+        auto const sm = state(st, FilmStrainCouplingMode::Kinematic, kappa,
+                              eps_v - d, p_conf);
+        double const fd_deps = (sp.w_eff - sm.w_eff) / (2.0 * d);
+        EXPECT_NEAR(s0.dw_eff_deps_v, fd_deps, 1e-6 * std::abs(fd_deps));
+
+        // d w_eff / d n_l by central FD in n_l.
+        StrainedFilmSampleState stp = st;
+        stp.n_l += d;
+        StrainedFilmSampleState stm = st;
+        stm.n_l -= d;
+        double const fd_dnl =
+            (state(stp, FilmStrainCouplingMode::Kinematic, kappa, eps_v,
+                   p_conf)
+                 .w_eff -
+             state(stm, FilmStrainCouplingMode::Kinematic, kappa, eps_v,
+                   p_conf)
+                 .w_eff) /
+            (2.0 * d);
+        EXPECT_NEAR(s0.dw_eff_dnl, fd_dnl, 1e-6 * std::abs(fd_dnl));
+    }
+}
+
+// Anchor: derived identity — on the loaded branch the inverted state must
+// satisfy the film force balance Pi(w_eff) = p_conf to the solver residual
+// scale (1e-9 relative; the Newton terminates at 1e-12 relative).
+TEST(RichardsMechanicsStrainedFilm, EquilibriumInversionSolvesForceBalance)
+{
+    StrainedFilmSampleState st;
+    double const Pi_unloaded = barePi(st, st.n_l);
+    ASSERT_GT(Pi_unloaded, 0.0);
+
+    // Loaded branch: p_conf above the unloaded disjoining pressure.
+    double const p_loaded = 2.0 * Pi_unloaded;
+    auto const s_loaded =
+        state(st, FilmStrainCouplingMode::Equilibrium,
+              FilmStrainKappaMode::Aggregate, 0.0, p_loaded);
+    EXPECT_TRUE(s_loaded.loaded_branch);
+    EXPECT_LT(s_loaded.w_eff, st.n_l);  // squeezed film
+    EXPECT_NEAR(barePi(st, s_loaded.w_eff), p_loaded, 1e-9 * p_loaded);
+
+    // Unloaded branch: p_conf below the branch point -> identity state.
+    auto const s_unloaded =
+        state(st, FilmStrainCouplingMode::Equilibrium,
+              FilmStrainKappaMode::Aggregate, 0.0, 0.5 * Pi_unloaded);
+    EXPECT_FALSE(s_unloaded.loaded_branch);
+    EXPECT_DOUBLE_EQ(s_unloaded.w_eff, st.n_l);
+    EXPECT_DOUBLE_EQ(s_unloaded.dw_eff_dnl, 1.0);
+}
+
+// Anchor: derived identity — the equilibrium inversion with the exponential
+// augmentation active (exercises the Newton off the pure cubic seed).
+TEST(RichardsMechanicsStrainedFilm, EquilibriumInversionWithAugmentation)
+{
+    StrainedFilmSampleState st;
+    // Augmentation amplitude/decay from the prior approved dd1600 PRJ family
+    // (potential_augmentation_prefactor 103879 J/kg, exponent 7.5e-7 m) —
+    // citation source: Tests/Data/.../ANCHORS_MS33_ModelI/ms33_modelI_dd1600.prj.
+    st.K_aug = 103879.0;
+    st.lambda_aug = 7.5e-7;
+
+    double const Pi_unloaded = barePi(st, st.n_l);
+    ASSERT_GT(Pi_unloaded, 0.0);
+    double const p_loaded = 3.0 * Pi_unloaded;
+    auto const s =
+        state(st, FilmStrainCouplingMode::Equilibrium,
+              FilmStrainKappaMode::Aggregate, 0.0, p_loaded);
+    ASSERT_TRUE(s.loaded_branch);
+    EXPECT_NEAR(barePi(st, s.w_eff), p_loaded, 1e-9 * p_loaded);
+}
+
+// Anchor: analytical limit — at zero strain and zero confining pressure both
+// strained modes reduce EXACTLY to the frozen-geometry evaluation point.
+TEST(RichardsMechanicsStrainedFilm, ZeroStrainZeroLoadReducesToBareState)
+{
+    StrainedFilmSampleState st;
+    for (auto const mode : {FilmStrainCouplingMode::Kinematic,
+                            FilmStrainCouplingMode::Equilibrium})
+    {
+        auto const s =
+            state(st, mode, FilmStrainKappaMode::Aggregate, 0.0, 0.0);
+        EXPECT_DOUBLE_EQ(s.w_eff, st.n_l);
+        EXPECT_DOUBLE_EQ(s.dw_eff_dnl, 1.0);
+        EXPECT_DOUBLE_EQ(s.dw_eff_deps_v, mode ==
+                             FilmStrainCouplingMode::Kinematic
+                             ? st.n_l * st.active_nS
+                             : 0.0);
+        EXPECT_FALSE(s.loaded_branch);
+    }
+}
+
+// Anchor: physical limit (sign only) — through the fold point, raising the
+// confining pressure at fixed water content must RAISE mu_lR (the Derjaguin
+// load term: squeezing confined liquid raises its chemical potential; the
+// expulsion channel). No magnitude asserted.
+TEST(RichardsMechanicsStrainedFilm, LoadRaisesPotentialAtFixedWaterContent)
+{
+    StrainedFilmSampleState st;
+    PotentialExchangeParameters params;
+    params.enabled = true;
+    params.hamaker_constant = st.hamaker;
+    params.specific_surface = st.Sa;
+    params.micro_solid_density_reference = st.rho_SR;
+    params.micro_solid_volume_fraction_reference = st.active_nS;
+    params.micro_potential_convention =
+        MicroPotentialConvention::NegativeAttractive;
+    params.film_pressure_coupling = true;
+    params.film_strain_coupling = FilmStrainCouplingMode::Kinematic;
+    params.film_strain_kappa = FilmStrainKappaMode::Aggregate;
+
+    auto const mu_at = [&](double const p_conf)
+    {
+        auto out = computeVanDerWaalsMicroPotential(
+            st.n_l, st.rho_lR, st.active_nS, st.rho_SR, st.hamaker, st.Sa,
+            st.sign, 0.0, 0.0, 0.0, 0.0);
+        PotentialExchangeLocalSolveContext ctx;
+        ctx.phi = 0.4;
+        ctx.volumetric_strain = -0.01;  // compression, fixed
+        ctx.volumetric_strain_prev = 0.0;
+        ctx.confining_pressure_p_conf = p_conf;
+        ctx.biot_coefficient = 1.0;
+        applyFilmPressureMicroPotential(out, st.n_l, st.rho_lR, st.active_nS,
+                                        ctx, params);
+        return out.mu_lR;
+    };
+
+    double const mu_low = mu_at(1.0e5);
+    double const mu_high = mu_at(1.0e6);
+    EXPECT_GT(mu_high, mu_low);
+}
+
+// Anchor: approved baseline — with the strain coupling Off, the fold point
+// must follow the existing (shipped) path: the integrable partner is active
+// and the result differs from the bare law only by that partner; with the
+// coupling ON the shipped partner must NOT also be applied (no double
+// counting; replacement is exclusive). Verified structurally: Off and
+// Kinematic disagree at finite strain (different mechanisms), while at zero
+// strain and zero load Kinematic equals the bare law exactly but Off equals
+// bare law + (zero) partner = bare law as well.
+TEST(RichardsMechanicsStrainedFilm, ReplacementIsExclusiveAtZeroStrain)
+{
+    StrainedFilmSampleState st;
+    PotentialExchangeParameters params;
+    params.enabled = true;
+    params.hamaker_constant = st.hamaker;
+    params.specific_surface = st.Sa;
+    params.micro_solid_density_reference = st.rho_SR;
+    params.micro_solid_volume_fraction_reference = st.active_nS;
+    params.micro_potential_convention =
+        MicroPotentialConvention::NegativeAttractive;
+    params.film_pressure_coupling = true;
+
+    auto const mu_for = [&](FilmStrainCouplingMode const mode,
+                            double const eps_v, double const p_conf)
+    {
+        auto out = computeVanDerWaalsMicroPotential(
+            st.n_l, st.rho_lR, st.active_nS, st.rho_SR, st.hamaker, st.Sa,
+            st.sign, 0.0, 0.0, 0.0, 0.0);
+        PotentialExchangeLocalSolveContext ctx;
+        ctx.phi = 0.4;
+        ctx.volumetric_strain = eps_v;
+        ctx.volumetric_strain_prev = 0.0;
+        ctx.confining_pressure_p_conf = p_conf;
+        ctx.biot_coefficient = 1.0;
+        ctx.drained_bulk_modulus = 1.0e9;  // structural sample stiffness
+        params.film_strain_coupling = mode;
+        applyFilmPressureMicroPotential(out, st.n_l, st.rho_lR, st.active_nS,
+                                        ctx, params);
+        return out.mu_lR;
+    };
+
+    double const mu_bare = bareMu(st, st.n_l);
+
+    // Zero strain, zero load: both reduce to the bare law (the Off path's
+    // partner vanishes at eps_v = 0 and p_conf = 0; the strained path's
+    // evaluation point and load term are identities there).
+    EXPECT_DOUBLE_EQ(mu_for(FilmStrainCouplingMode::Off, 0.0, 0.0), mu_bare);
+    EXPECT_DOUBLE_EQ(mu_for(FilmStrainCouplingMode::Kinematic, 0.0, 0.0),
+                     mu_bare);
+
+    // Finite strain + load: the two mechanisms must DIFFER (if the shipped
+    // partner were still added on top of the strained law, the strained value
+    // would carry both and this distinction would collapse).
+    double const eps_v = -0.02;
+    double const p_conf = 1.0e6;
+    EXPECT_NE(mu_for(FilmStrainCouplingMode::Off, eps_v, p_conf),
+              mu_for(FilmStrainCouplingMode::Kinematic, eps_v, p_conf));
+}
+
+// ── Live K(rho_d) helper (K_OF_RHO_D_LIVE.md; Vinay 2026-06-10) ────────────
+// Physics anchor (CLAUDE.md §3a): analytical limit / derived identity — the
+// helper must reproduce the piecewise-linear table exactly at its knots and
+// hold the endpoint values outside the range; off-mode must return the
+// parse-time scalar bit-for-bit. The knot values below are STRUCTURAL
+// in-test constants (not physical material parameters); expected values are
+// derived in-file from the linear-interpolation identity.
+namespace
+{
+PotentialExchangeParameters liveKSampleParams()
+{
+    PotentialExchangeParameters params;
+    params.micro_solid_density_reference = 2650.0;  // rho_SR, mirrors the
+        // prior approved sample state above (kg/m^3).
+    params.potential_augmentation_prefactor = 7.0;  // structural scalar K
+    // Structural knots: K(1000) = 10, K(2000) = 30 (J/kg vs kg/m^3).
+    params.potential_augmentation_prefactor_vs_dry_density =
+        std::make_shared<AugmentationPrefactorTable const>(
+            std::vector<double>{1000.0, 2000.0},
+            std::vector<double>{10.0, 30.0});
+    return params;
+}
+
+// phi such that rho_d = rho_SR*(1-phi) equals the requested dry density.
+double phiForDryDensity(PotentialExchangeParameters const& params,
+                        double const rho_d)
+{
+    return 1.0 - rho_d / params.micro_solid_density_reference;
+}
+}  // namespace
+
+TEST(RichardsMechanicsLiveKOfRhoD, OffModeReturnsScalar)
+{
+    auto params = liveKSampleParams();
+    params.potential_augmentation_prefactor_live_dry_density = false;
+    // Off mode: scalar, regardless of table presence and finite phi.
+    EXPECT_DOUBLE_EQ(7.0, effectiveAugmentationPrefactor(
+                              params, phiForDryDensity(params, 1500.0)));
+
+    // No table: scalar even when the mode flag is on.
+    auto params_no_table = liveKSampleParams();
+    params_no_table.potential_augmentation_prefactor_live_dry_density = true;
+    params_no_table.potential_augmentation_prefactor_vs_dry_density = nullptr;
+    EXPECT_DOUBLE_EQ(7.0,
+                     effectiveAugmentationPrefactor(
+                         params_no_table, phiForDryDensity(params, 1500.0)));
+}
+
+TEST(RichardsMechanicsLiveKOfRhoD, LiveModeEvaluatesTable)
+{
+    auto params = liveKSampleParams();
+    params.potential_augmentation_prefactor_live_dry_density = true;
+
+    // At the knots: exact knot values.
+    EXPECT_DOUBLE_EQ(10.0, effectiveAugmentationPrefactor(
+                               params, phiForDryDensity(params, 1000.0)));
+    EXPECT_DOUBLE_EQ(30.0, effectiveAugmentationPrefactor(
+                               params, phiForDryDensity(params, 2000.0)));
+
+    // Interior points (two distinct phis): linear-interpolation identity
+    // K(rho_d) = 10 + 20*(rho_d - 1000)/1000, derived in-file.
+    double const rho_d_1 = 1500.0;
+    double const rho_d_2 = 1750.0;
+    double const expected_1 = 10.0 + 20.0 * (rho_d_1 - 1000.0) / 1000.0;
+    double const expected_2 = 10.0 + 20.0 * (rho_d_2 - 1000.0) / 1000.0;
+    EXPECT_DOUBLE_EQ(expected_1,
+                     effectiveAugmentationPrefactor(
+                         params, phiForDryDensity(params, rho_d_1)));
+    EXPECT_DOUBLE_EQ(expected_2,
+                     effectiveAugmentationPrefactor(
+                         params, phiForDryDensity(params, rho_d_2)));
+
+    // Non-finite phi (the context sentinel): fall back to the scalar.
+    EXPECT_DOUBLE_EQ(7.0,
+                     effectiveAugmentationPrefactor(
+                         params, std::numeric_limits<double>::infinity()));
+    EXPECT_DOUBLE_EQ(7.0,
+                     effectiveAugmentationPrefactor(
+                         params, std::numeric_limits<double>::quiet_NaN()));
+}
+
+TEST(RichardsMechanicsLiveKOfRhoD, ClampsAtTableRangeEnds)
+{
+    auto params = liveKSampleParams();
+    params.potential_augmentation_prefactor_live_dry_density = true;
+
+    // Below rho_d_min and above rho_d_max the endpoint values are held
+    // (PiecewiseLinearInterpolation::getValue endpoint hold).
+    EXPECT_DOUBLE_EQ(10.0, effectiveAugmentationPrefactor(
+                               params, phiForDryDensity(params, 500.0)));
+    EXPECT_DOUBLE_EQ(30.0, effectiveAugmentationPrefactor(
+                               params, phiForDryDensity(params, 2600.0)));
+}
+
+// ── Live K(rho_d) analytic tangent (Vinay 2026-06-12 Jacobian completion) ──
+// Physics anchor (per Vinay's task spec, 2026-06-12): FD-vs-analytic
+// agreement (derived identity) of the live-K tangent against a central
+// finite difference of the VALUE actually used in the residual. Inside a
+// table segment the value is exactly linear in phi, so the central FD is
+// exact to roundoff; tolerances are derived in-file from the tangent scale.
+// Knot values are STRUCTURAL in-test constants (not physical parameters),
+// mirroring the approved live-K tests above.
+TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentMatchesFDInsideSegment)
+{
+    auto params = liveKSampleParams();
+    params.potential_augmentation_prefactor_live_dry_density = true;
+
+    // Derived in-file: segment slope dK/drho_d = (30-10)/(2000-1000)
+    // = 0.02 (J/kg)/(kg/m^3); chain dK/dphi = -rho_SR * slope.
+    double const slope = (30.0 - 10.0) / (2000.0 - 1000.0);
+    double const expected_dK_dphi =
+        -params.micro_solid_density_reference * slope;
+
+    double const phi_mid = phiForDryDensity(params, 1500.0);  // mid-segment
+    double const analytic =
+        effectiveAugmentationPrefactorPhiDerivative(params, phi_mid);
+    EXPECT_NEAR(expected_dK_dphi, analytic,
+                1e-12 * std::abs(expected_dK_dphi));
+
+    // Central FD of the residual-side value (stays within the segment).
+    double const d_phi = 1e-6;  // step on the O(1) phi scale
+    double const fd = (effectiveAugmentationPrefactor(params, phi_mid + d_phi) -
+                       effectiveAugmentationPrefactor(params, phi_mid - d_phi)) /
+                      (2.0 * d_phi);
+    // Linear-in-phi value -> FD exact up to roundoff of the difference.
+    EXPECT_NEAR(fd, analytic, 1e-9 * std::abs(analytic));
+
+    // Off mode / sentinel phi / no table: tangent identically zero
+    // (residual uses the parse-time scalar there).
+    auto params_off = liveKSampleParams();
+    params_off.potential_augmentation_prefactor_live_dry_density = false;
+    EXPECT_DOUBLE_EQ(
+        0.0, effectiveAugmentationPrefactorPhiDerivative(params_off, phi_mid));
+    EXPECT_DOUBLE_EQ(0.0,
+                     effectiveAugmentationPrefactorPhiDerivative(
+                         params, std::numeric_limits<double>::quiet_NaN()));
+
+    // The mu-level aug K-partials feeding the Jacobian chain: mu_aug is
+    // LINEAR in K, so central FD in K of the vdW helper is exact to
+    // roundoff. Sample state mirrors the approved StrainedFilmSampleState
+    // (file header citation); lambda chosen so xi = h/lambda is O(1)
+    // (structural, not physical).
+    StrainedFilmSampleState st;
+    st.K_aug = 10.0;     // structural K (J/kg), matches the table knot
+    st.lambda_aug = 2e-7;  // m, structural; h = n_l/(nS*rho_SR*Sa) ~ 1.9e-7 m
+    auto const vdw = computeVanDerWaalsMicroPotential(
+        st.n_l, st.rho_lR, st.active_nS, st.rho_SR, st.hamaker, st.Sa, st.sign,
+        st.K_aug, st.lambda_aug, 0.0, st.floor);
+    double const dK = 1e-3 * st.K_aug;  // step derived from K scale
+    auto const mu_at_K = [&](double const K)
+    {
+        return computeVanDerWaalsMicroPotential(
+            st.n_l, st.rho_lR, st.active_nS, st.rho_SR, st.hamaker, st.Sa,
+            st.sign, K, st.lambda_aug, 0.0, st.floor);
+    };
+    double const fd_dmu_dK =
+        (mu_at_K(st.K_aug + dK).mu_lR - mu_at_K(st.K_aug - dK).mu_lR) /
+        (2.0 * dK);
+    EXPECT_NEAR(fd_dmu_dK, vdw.dmu_lR_dK, 1e-9 * std::abs(vdw.dmu_lR_dK));
+    double const fd_ddmudnl_dK = (mu_at_K(st.K_aug + dK).dmu_lR_dnl -
+                                  mu_at_K(st.K_aug - dK).dmu_lR_dnl) /
+                                 (2.0 * dK);
+    EXPECT_NEAR(fd_ddmudnl_dK, vdw.ddmu_lR_dnl_dK,
+                1e-9 * std::abs(vdw.ddmu_lR_dnl_dK));
+}
+
+TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
+{
+    // Three structural knots so an INTERIOR knot exists:
+    // K(1000)=10, K(1500)=16, K(2000)=30 (J/kg vs kg/m^3); slopes 0.012
+    // and 0.028 (derived in-file).
+    PotentialExchangeParameters params;
+    params.micro_solid_density_reference = 2650.0;  // mirrors sample state
+    params.potential_augmentation_prefactor_live_dry_density = true;
+    params.potential_augmentation_prefactor_vs_dry_density =
+        std::make_shared<AugmentationPrefactorTable const>(
+            std::vector<double>{1000.0, 1500.0, 2000.0},
+            std::vector<double>{10.0, 16.0, 30.0});
+    auto const phi_of = [&](double const rho_d)
+    { return 1.0 - rho_d / params.micro_solid_density_reference; };
+
+    // Outside the range: the clamped evaluation is flat -> tangent 0.
+    // (Strictly-outside points only here: the phi round-trip
+    // rho_SR*(1 - phi_of(rho_d)) is not exact to the last ulp, so the
+    // AT-knot convention is tested on the table directly below.)
+    for (double const rho_d : {500.0, 2600.0})
+    {
+        EXPECT_DOUBLE_EQ(0.0, effectiveAugmentationPrefactorPhiDerivative(
+                                  params, phi_of(rho_d)));
+    }
+    // AT the edge knots (exact arguments): slope 0, the documented
+    // one-sided/zero convention of AugmentationPrefactorTable, mirroring
+    // getValue's <=/>= clamp branches.
+    auto const& table = *params.potential_augmentation_prefactor_vs_dry_density;
+    EXPECT_DOUBLE_EQ(0.0, table.getSegmentSlope(1000.0));
+    EXPECT_DOUBLE_EQ(0.0, table.getSegmentSlope(2000.0));
+    double const d_phi = 1e-6;
+    double const phi_out = phi_of(500.0);  // fully outside, FD stays outside
+    EXPECT_DOUBLE_EQ(
+        0.0, (effectiveAugmentationPrefactor(params, phi_out + d_phi) -
+              effectiveAugmentationPrefactor(params, phi_out - d_phi)) /
+                 (2.0 * d_phi));
+
+    // Interior knot rho_d = 1500 (exact argument): LEFT-segment slope
+    // (one-sided), consistent with getValue's lower_bound interval
+    // selection. Derived in-file: (16-10)/500 = 0.012 (J/kg)/(kg/m^3).
+    double const expected_left_slope = (16.0 - 10.0) / 500.0;
+    EXPECT_NEAR(expected_left_slope, table.getSegmentSlope(1500.0),
+                1e-12 * expected_left_slope);
+
+    // Interior of each segment: FD-vs-analytic (exact, linear value).
+    for (double const rho_d : {1250.0, 1750.0})
+    {
+        double const phi_c = phi_of(rho_d);
+        double const analytic =
+            effectiveAugmentationPrefactorPhiDerivative(params, phi_c);
+        double const fd =
+            (effectiveAugmentationPrefactor(params, phi_c + d_phi) -
+             effectiveAugmentationPrefactor(params, phi_c - d_phi)) /
+            (2.0 * d_phi);
+        EXPECT_NEAR(fd, analytic, 1e-9 * std::abs(analytic));
+    }
+}
+
+// ── §8 NEW TEST (review 2026-06-14): assembled displacement-channel
+// Jacobian consistency for exact + kinematic + live-K at a finite-eps_v
+// compliant state ──────────────────────────────────────────────────────────
+// Physics anchor (CLAUDE.md §3d): symmetry / derived identity — the analytic
+// displacement (eps_v) tangents the assembly inserts into the Jacobian must
+// equal the central finite difference of the residual quantities they
+// linearize. NO Vinay expected value; tolerances derive from the FD step and
+// the live-K table's piecewise-linear (C0) structure.
+//
+// Covers the displacement-channel tangent FORMULAE the fixed assembly inserts:
+//   (A) H2/M1 — the exact-route mu_lR eps_v tangent
+//       g_cut * pair.dmu_mech_deps_v (the dispatch M1 wires into K[p,u]). The
+//       analytic uses the SAME effective K the bare mu_lR is built with (H2):
+//       FD of the assembled exact mu_lR(eps_v) must match it. With the pre-H2
+//       scalar-K passed into the pair, g_cut = bare_live / pair_bare_scalar
+//       diverges from 1 under live K, breaking this identity.
+//   (B) M2 — the live-K swelling-eigenstress eps_v tangent
+//       d(delta_sigma_sw)/dK * dK/dphi * dphi/deps_v. This is the term M2 adds
+//       to K[u,u]; pre-M2 the analytic side of this identity (the chain) was
+//       absent from the Jacobian entirely. The leg FDs the residual increment
+//       (computeSwellingStressIncrement) through the live-K phi channel and
+//       checks the analytic chain reproduces it.
+//
+// SCOPE: this is a HELPER-LEVEL FD-vs-analytic identity on the tangent
+// formulae (the assembly reconstructs these same expressions); it does NOT
+// drive the global assembleWithJacobian (no run-level FEM harness exists in
+// this unit-test directory). The analytic legs are reconstructed from the SAME
+// public helpers the FEM assembly calls (effectiveAugmentationPrefactor
+// [PhiDerivative], computeStrainedFilmEnergyPair, computeSwellingStress-
+// Increment), so it is a genuine FD-vs-analytic check, not a self-comparison.
+// (A) FAILS on pre-H2 code in any state where the macro-floor cutoff is active
+// under live K; (B)'s analytic chain did not exist pre-M2.
+TEST(RichardsMechanicsLiveKOfRhoD, AssembledDisplacementTangentExactKinematicLiveK)
+{
+    using KV = MathLib::KelvinVector::KelvinVectorType<2>;
+    auto const& I2 =
+        MathLib::KelvinVector::Invariants<MathLib::KelvinVector::
+            kelvin_vector_dimensions(2)>::identity2;
+
+    // Sample state: exact + kinematic + live K, finite (compressive) eps_v with
+    // the dry density rho_d = rho_SR*(1-phi) in the table interior so dK/dphi is
+    // a genuine (nonzero) segment slope. Structural constants (CLAUDE.md §1.2);
+    // material values mirror the prior approved tests in this file.
+    PotentialExchangeParameters params;
+    params.enabled = true;
+    params.film_pressure_coupling = true;
+    params.film_strain_coupling = FilmStrainCouplingMode::Kinematic;
+    params.film_energy_route = FilmEnergyRoute::Exact;
+    params.film_strain_kappa = FilmStrainKappaMode::Aggregate;
+    params.micro_potential_convention =
+        MicroPotentialConvention::NegativeAttractive;
+    params.hamaker_constant = 6.0e-20;
+    params.specific_surface = 1000.0;
+    params.micro_solid_density_reference = 2650.0;  // rho_SR
+    // lambda = characteristic film thickness [m]; structural h-scale
+    // h0 = n_l/(nS*rho_SR*Sa) ~ 1.9e-7 m (xi0 ~ 1), as in this file's other
+    // augmentation tests. Must be > 0 when K > 0 (law guard).
+    params.potential_augmentation_exponent =
+        0.30 / (0.70 * 2650.0 * 1000.0);  // m
+    params.potential_augmentation_prefactor = 20.0;  // structural scalar fallback
+    // Live K table: K(rho_d) over a span around the sample rho_d, finite slope.
+    params.potential_augmentation_prefactor_live_dry_density = true;
+    params.potential_augmentation_prefactor_vs_dry_density =
+        std::make_shared<AugmentationPrefactorTable const>(
+            std::vector<double>{1000.0, 2000.0},
+            std::vector<double>{10.0, 50.0});  // J/kg vs kg/m^3
+
+    double const sign = microPotentialSignFactorFromParameters(params);
+    double const rho_lR = 1100.0;     // micro liquid density scale
+    double const rho_LR = 1000.0;     // bulk
+    double const n_l = 0.30;
+    double const n_l_prev = 0.27;
+    double const biot = 1.0;
+    double const K_drained = 1.5e8;   // Pa, prior approved test value
+    double const eps_v = -0.02;       // compression
+    double const eps_v_prev = 0.0;
+    double const phi0 = 0.40;         // rho_d = 2650*0.6 = 1590 kg/m^3 (interior)
+    double const active_nS = 1.0 - n_l;
+    double const kappa = active_nS;   // Aggregate
+
+    // ── (A) H2/M1 — exact-route mu_lR eps_v tangent ───────────────────────────
+    // Assembled exact mu_lR(eps_v) = bare(n_l; K) + g_cut * pair.mu_mech, with
+    // g_cut = bare/pair.mu_bare_pre (== 1 here, cutoff inactive). Phi held fixed
+    // to isolate the explicit eps_v channel (the live-K phi channel is part (B)).
+    {
+        double const K_aug = effectiveAugmentationPrefactor(params, phi0);
+        auto const bare_mu = computeVanDerWaalsMicroPotential(
+            n_l, rho_lR, active_nS, params.micro_solid_density_reference,
+            params.hamaker_constant, params.specific_surface, sign, K_aug,
+            params.potential_augmentation_exponent, 0.0,
+            params.micro_water_content_floor);
+        auto const mu_exact = [&](double const e)
+        {
+            auto const pr = computeStrainedFilmEnergyPair(
+                n_l, e, kappa, biot, K_drained, true, rho_lR, active_nS,
+                params.micro_solid_density_reference, params.hamaker_constant,
+                params.specific_surface, sign, K_aug,
+                params.potential_augmentation_exponent, 0.0,
+                params.micro_water_content_floor);
+            double const g_cut = bare_mu.mu_lR / pr.mu_bare_pre;  // [-]
+            return bare_mu.mu_lR + g_cut * pr.mu_mech;            // J/kg
+        };
+        auto const pr0 = computeStrainedFilmEnergyPair(
+            n_l, eps_v, kappa, biot, K_drained, true, rho_lR, active_nS,
+            params.micro_solid_density_reference, params.hamaker_constant,
+            params.specific_surface, sign, K_aug,
+            params.potential_augmentation_exponent, 0.0,
+            params.micro_water_content_floor);
+        double const g_cut0 = bare_mu.mu_lR / pr0.mu_bare_pre;  // [-]
+        double const analytic = g_cut0 * pr0.dmu_mech_deps_v;  // J/kg per strain
+        double const h = 1e-7;
+        double const fd = (mu_exact(eps_v + h) - mu_exact(eps_v - h)) / (2 * h);
+        EXPECT_NEAR(fd, analytic, 5e-5 * std::abs(analytic) + 1e-10)
+            << "exact-route mu_lR eps_v tangent (H2/M1)";
+    }
+
+    // ── (B) M2 — live-K swelling-eigenstress eps_v tangent (through phi) ───────
+    // The residual delta_sigma_sw uses K = effectiveAugmentationPrefactor(phi);
+    // with the live-K table phi(eps_v) couples sigma_sw to displacement. FD the
+    // residual increment w.r.t. eps_v THROUGH the live-K channel only (phi moved
+    // by the PorosityFromMassBalance chain dphi/deps_v on the SAME eps_v step,
+    // n_l and the explicit-eps_v drained line held), and compare to the M2
+    // analytic chain d(delta_sigma_sw)/dK * dK/dphi * dphi/deps_v.
+    {
+        // PorosityFromMassBalance dphi/deps_v = (alpha-phi)/(1+w); here on a pure
+        // strain step w = delta_eps_v, alpha = biot. Interior -> no clamp.
+        double const alpha = biot;
+        double const w_phi = eps_v - eps_v_prev;  // pure strain step
+        double const dphi_deps_v = (alpha - phi0) / (1.0 + w_phi);  // [-]
+        double const dK_dphi =
+            effectiveAugmentationPrefactorPhiDerivative(params, phi0);
+        ASSERT_NE(dK_dphi, 0.0);  // sample state must be in the table interior
+
+        auto const sigma_inc = [&](double const K_aug) -> double
+        {
+            // Build a params copy with the live-K table OFF and the scalar set
+            // to K_aug, so computeSwellingStressIncrement uses exactly K_aug
+            // (isolating the K dependence; eps_v/n_l/p_conf held).
+            auto p = params;
+            p.potential_augmentation_prefactor_live_dry_density = false;
+            p.potential_augmentation_prefactor = K_aug;
+            // p_conf NaN -> drain dropped; the K dependence enters through Pi.
+            KV const inc = computeSwellingStressIncrement<2>(
+                n_l_prev, n_l, active_nS, rho_lR, rho_lR, rho_LR,
+                MathLib::KelvinVector::KelvinMatrixType<2>::Identity() *
+                    K_drained,
+                p, biot, std::numeric_limits<double>::quiet_NaN(), eps_v,
+                eps_v_prev, std::numeric_limits<double>::quiet_NaN());
+            return inc.dot(I2) / I2.dot(I2);  // scalar on identity2 [Pa]
+        };
+        double const K0 = effectiveAugmentationPrefactor(params, phi0);
+        double const dK = 1e-4 * std::max(1.0, std::abs(K0));
+        double const d_sigma_dK =
+            (sigma_inc(K0 + dK) - sigma_inc(K0 - dK)) / (2 * dK);  // Pa per J/kg
+        double const analytic = d_sigma_dK * dK_dphi * dphi_deps_v;  // Pa/strain
+
+        // FD of the residual increment w.r.t. eps_v through phi(eps_v) only:
+        // move K by K(phi0 + dphi_deps_v*he) on an eps_v step he.
+        double const he = 1e-6;
+        double const K_plus = effectiveAugmentationPrefactor(
+            params, phi0 + dphi_deps_v * he);
+        double const K_minus = effectiveAugmentationPrefactor(
+            params, phi0 - dphi_deps_v * he);
+        double const fd = (sigma_inc(K_plus) - sigma_inc(K_minus)) / (2 * he);
+        EXPECT_NEAR(fd, analytic,
+                    5e-4 * std::abs(analytic) + 1e-3 * std::abs(d_sigma_dK))
+            << "live-K swelling-eigenstress eps_v tangent (M2)";
+    }
+}

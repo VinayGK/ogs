@@ -3,16 +3,52 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <iterator>
 #include <memory>
 #include <optional>
+#include <vector>
 
-namespace MathLib
-{
-class PiecewiseLinearInterpolation;
-}
+#include "MathLib/InterpolationAlgorithms/PiecewiseLinearInterpolation.h"
 
 namespace ProcessLib::RichardsMechanics
 {
+// Piecewise-linear K(rho_d) table with an EXACT per-segment slope accessor.
+// MathLib::PiecewiseLinearInterpolation::getDerivative blends the two
+// adjacent segment slopes (quadratic smoothing, see its .cpp), which is NOT
+// the derivative of getValue's clamped piecewise-linear evaluation. The
+// live-K(rho_d) Jacobian (K_OF_RHO_D_LIVE.md) needs the slope of the VALUE
+// actually fed into the residual, so this thin subclass exposes the exact
+// segment slope via the protected knot vectors.
+class AugmentationPrefactorTable final
+    : public MathLib::PiecewiseLinearInterpolation
+{
+public:
+    using MathLib::PiecewiseLinearInterpolation::PiecewiseLinearInterpolation;
+
+    // Exact d(getValue)/dx of the clamped piecewise-linear evaluation.
+    // Convention (documented choice, mirrors getValue's branch structure):
+    //  - x <= x_min or x >= x_max: 0 (getValue holds the endpoint value, so
+    //    the clamped evaluation is FLAT there; this is the one-sided outward
+    //    slope AT the edge knots as well).
+    //  - interior knots: the LEFT segment slope (one-sided), consistent with
+    //    getValue's lower_bound interval selection (idx = lower_bound - 1).
+    double getSegmentSlope(double const x) const
+    {
+        if (x <= supp_pnts_.front() || supp_pnts_.back() <= x)
+        {
+            return 0.0;
+        }
+        auto const it =
+            std::lower_bound(supp_pnts_.begin(), supp_pnts_.end(), x);
+        std::size_t const i = std::distance(supp_pnts_.begin(), it) - 1;
+        return (values_at_supp_pnts_[i + 1] - values_at_supp_pnts_[i]) /
+               (supp_pnts_[i + 1] - supp_pnts_[i]);
+    }
+};
+
 enum class MicroPotentialConvention
 {
     PositiveReduced,
@@ -37,6 +73,60 @@ enum class MicroSolidVolumeFractionMode
     Reference,
     CurrentPorositySplit
 };
+
+// ── Strained-film disjoining law h(w_m, eps_v) (DSM/STRAINED_FILM_IMPLEMENTATION.md) ──
+// Off:         film geometry frozen (current behavior, bit-for-bit).
+// Kinematic:   variant A — spacing follows the volumetric strain,
+//              h = h0(n_l)*(1 + kappa*eps_v)  <=>  evaluate the bare law at
+//              w_eff = n_l*(1 + kappa*eps_v).
+// Equilibrium: variant B — spacing tracks the film force balance once the load
+//              can compress the film: w_eff solves Pi(w_eff) = p_conf on the
+//              loaded branch (p_conf > Pi(n_l)), else w_eff = n_l (emergent
+//              branch point; no bolted-on gate).
+enum class FilmStrainCouplingMode
+{
+    Off,
+    Kinematic,
+    Equilibrium
+};
+
+// Spacing-strain weighting kappa in dh/deps_v = kappa*h0 (design doc §3, D1):
+// Aggregate: kappa = (1 - phi_M) (active_nS at the GP) — the integrable
+//            completion of the existing eigenstress scale (recommended).
+// Unity:     kappa = 1 — naive geometric reading (spacing follows REV strain
+//            one-to-one); kept PRJ-selectable for discrimination (Vinay,
+//            2026-06-09).
+enum class FilmStrainKappaMode
+{
+    Aggregate,
+    Unity
+};
+
+// ── Film energy route (DSM/PI_OF_NL_EV_IMPLEMENTATION.md, Vinay 2026-06-11) ──
+// Operational: the shipped Derjaguin cut — bare law evaluated at w_eff plus the
+//              hand-added load term +b*p_conf/rho_lR (NOT Maxwell-exact; defect
+//              O(Pi*eps_v), strained-film design doc §9a). Default, bit-for-bit.
+// Exact:       the one-Psi energy route — Psi_film(n_l, eps_v) with closed-form
+//              strain integrals of the disjoining law along the kinematic
+//              h-law; mu_mech = (1/(nS*rho_lR)) dPsi/dn_l. Maxwell holds
+//              identically; kappa->0 reduces EXACTLY to the shipped integrable
+//              partner. Requires film_strain_coupling == Kinematic (the closed
+//              forms are for the kinematic h-law).
+enum class FilmEnergyRoute
+{
+    Operational,
+    Exact
+};
+
+// Create-time admissibility of the (film_strain_coupling, film_energy_route)
+// combination (PI_OF_NL_EV_IMPLEMENTATION.md §3 mode matrix). Pure predicate so
+// it is unit-testable; the OGS_FATAL lives at the parse site.
+inline constexpr bool isValidFilmEnergyRouteCombination(
+    FilmStrainCouplingMode const mode, FilmEnergyRoute const route)
+{
+    return route == FilmEnergyRoute::Operational ||
+           mode == FilmStrainCouplingMode::Kinematic;
+}
 
 inline constexpr char const* toString(
     MicroPotentialConvention const convention)
@@ -93,6 +183,44 @@ inline constexpr char const* toString(
             return "reference";
         case MicroSolidVolumeFractionMode::CurrentPorositySplit:
             return "current_porosity_split";
+    }
+    return "unknown";
+}
+
+inline constexpr char const* toString(FilmStrainCouplingMode const mode)
+{
+    switch (mode)
+    {
+        case FilmStrainCouplingMode::Off:
+            return "off";
+        case FilmStrainCouplingMode::Kinematic:
+            return "kinematic";
+        case FilmStrainCouplingMode::Equilibrium:
+            return "equilibrium";
+    }
+    return "unknown";
+}
+
+inline constexpr char const* toString(FilmStrainKappaMode const mode)
+{
+    switch (mode)
+    {
+        case FilmStrainKappaMode::Aggregate:
+            return "aggregate";
+        case FilmStrainKappaMode::Unity:
+            return "unity";
+    }
+    return "unknown";
+}
+
+inline constexpr char const* toString(FilmEnergyRoute const route)
+{
+    switch (route)
+    {
+        case FilmEnergyRoute::Operational:
+            return "operational";
+        case FilmEnergyRoute::Exact:
+            return "exact";
     }
     return "unknown";
 }
@@ -188,6 +316,24 @@ struct PotentialExchangeParameters
     double macro_porosity_floor = 0.0;
     double macro_floor_cutoff_width = 0.0;  // film-to-bulk cutoff width in n_l [-]; 0 -> default 5% of n_l_cap [Vinay's call]
 
+    // ── Strained-film disjoining law (DSM/STRAINED_FILM_IMPLEMENTATION.md) ──
+    // When != Off, the bare disjoining law is evaluated at the strained film
+    // state w_eff and mu_lR gains the load term +b*p_conf/rho_lR; the shipped
+    // integrable mechanical partner is REPLACED (it is the frozen-h, O(eps_v)
+    // truncation of the same physics — running both double-counts; D3
+    // provisional, demonstrated by the shipped-limit unit test). Off (default)
+    // is bit-for-bit the current behavior.
+    FilmStrainCouplingMode film_strain_coupling = FilmStrainCouplingMode::Off;
+    FilmStrainKappaMode film_strain_kappa = FilmStrainKappaMode::Aggregate;
+
+    // ── Film energy route (DSM/PI_OF_NL_EV_IMPLEMENTATION.md) ───────────────
+    // Operational (default): shipped Derjaguin cut, bit-for-bit. Exact: the
+    // one-Psi pair — REPLACES the operational mu assembly when ON (kinematic
+    // only; create-time validated). The eigenstress half is identical in both
+    // routes (Pi at w_eff with the actual p_conf), so only the fold-point mu
+    // assembly differs.
+    FilmEnergyRoute film_energy_route = FilmEnergyRoute::Operational;
+
     // ── K(rho_d): augmentation prefactor as a function of dry density ──────
     // Optional piecewise-linear table K = K(rho_d) [J/kg vs kg/m^3]. When set
     // together with `dry_density`, the augmentation prefactor above is
@@ -199,8 +345,72 @@ struct PotentialExchangeParameters
     // and dry density are carried here only so a per-<medium id> override can
     // inherit the shared table from the global block as its default.
     // getValue() clamps outside [rho_d_min, rho_d_max] (endpoint hold).
-    std::shared_ptr<MathLib::PiecewiseLinearInterpolation const>
+    std::shared_ptr<AugmentationPrefactorTable const>
         potential_augmentation_prefactor_vs_dry_density = nullptr;
     std::optional<double> dry_density;  // rho_d [kg/m^3], initial/target
+
+    // ── LIVE K(rho_d) (K_OF_RHO_D_LIVE.md; Vinay 2026-06-10 "K(rho_d) try
+    // it") ──. When true, the table above is NOT frozen at parse time;
+    // instead K is re-evaluated at the EVOLVING dry density rho_d =
+    // rho_SR*(1-phi) at every evaluation site that has the current total
+    // porosity phi in scope (see effectiveAugmentationPrefactor below).
+    // Sites without phi fall back to the scalar `potential_augmentation_
+    // prefactor`. The analytic dK/dphi = -rho_SR*(table segment slope)
+    // tangent is wired into the live p-u augmentation Jacobian block since
+    // 2026-06-12 (Vinay's approved completion; see
+    // effectiveAugmentationPrefactorPhiDerivative below and
+    // K_OF_RHO_D_LIVE.md) — the first cut's omission note is historical.
+    // false (default) -> parse-time freeze, bit-for-bit the existing
+    // behavior.
+    bool potential_augmentation_prefactor_live_dry_density = false;
 };
+
+// Effective augmentation prefactor K [J/kg] at the current state.
+// Live mode + table + finite phi -> K(rho_d) with rho_d = rho_SR*(1-phi)
+// [kg/m^3] (rho_SR = micro_solid_density_reference; phi = current TOTAL
+// porosity). PiecewiseLinearInterpolation::getValue holds the endpoint
+// values outside [rho_d_min, rho_d_max] (verified: MathLib/
+// InterpolationAlgorithms/PiecewiseLinearInterpolation.cpp, getValue),
+// so K is clamped at the table range ends. Any other case (mode off, no
+// table, phi sentinel/NaN) -> the parse-time scalar, bit-for-bit.
+inline double effectiveAugmentationPrefactor(
+    PotentialExchangeParameters const& params, double const phi)
+{
+    if (params.potential_augmentation_prefactor_live_dry_density &&
+        params.potential_augmentation_prefactor_vs_dry_density &&
+        std::isfinite(phi))
+    {
+        // rho_d = rho_SR * (1 - phi)  [kg/m^3]
+        return params.potential_augmentation_prefactor_vs_dry_density
+            ->getValue(params.micro_solid_density_reference *
+                       (1.0 - phi));  // K [J/kg]
+    }
+    return params.potential_augmentation_prefactor;  // K [J/kg]
+}
+
+// d K_eff/d phi of effectiveAugmentationPrefactor above, at the same state.
+// Chain (analytic derivation, this file; Vinay 2026-06-12 approved Jacobian
+// completion of live K(rho_d)): rho_d = rho_SR*(1-phi) [kg/m^3], so
+//   dK/dphi = (dK/drho_d) * (drho_d/dphi) = (table segment slope) * (-rho_SR).
+// Returns 0 in EVERY case where effectiveAugmentationPrefactor returns the
+// parse-time scalar (mode off, no table, phi sentinel/NaN) and at/outside the
+// clamped table edges (where the clamped value is flat in rho_d) — exactly
+// the one-sided/zero-slope convention documented on getSegmentSlope. The
+// RESIDUAL is untouched by this helper; it feeds the Jacobian only.
+inline double effectiveAugmentationPrefactorPhiDerivative(
+    PotentialExchangeParameters const& params, double const phi)
+{
+    if (params.potential_augmentation_prefactor_live_dry_density &&
+        params.potential_augmentation_prefactor_vs_dry_density &&
+        std::isfinite(phi))
+    {
+        double const rho_SR = params.micro_solid_density_reference;  // kg/m^3
+        return -rho_SR *
+               params.potential_augmentation_prefactor_vs_dry_density
+                   ->getSegmentSlope(
+                       rho_SR * (1.0 - phi));  // dK/dphi [J/kg per unit phi]:
+                                               // [kg/m^3]*[J/kg / (kg/m^3)]
+    }
+    return 0.0;  // J/kg per unit phi
+}
 }  // namespace ProcessLib::RichardsMechanics

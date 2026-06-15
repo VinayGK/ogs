@@ -199,3 +199,275 @@ Process.cpp` (parse + resolve). DONE.
   (ii) the *current/evolving* rho_d variant (K riding porosity, needs a tangent
   term, double-count risk vs the exp(-xi) porosity dependence) is NOT
   implemented -- this delivery is initial/target rho_d only.
+
+## Strained-film disjoining law h(w_m, eps_v) (2026-06-09, branch dsm_native_h_of_eps)
+
+Goal (Vinay): reversible de-swelling/expulsion under load — film thickness
+varies with compressive stress so the potential reverses; the dissipative
+residual stays a future flow rule. Design + decision record:
+**STRAINED_FILM_IMPLEMENTATION.md** (this directory).
+
+- DONE 2026-06-09: enums + params (film_strain_coupling off|kinematic|
+  equilibrium, film_strain_kappa aggregate|unity), computeStrainedFilmState +
+  invertDisjoiningPressure (PotentialExchange.h), fold-point rewiring
+  (applyFilmPressureMicroPotential REPLACES the shipped integrable partner when
+  ON — D3 provisional), eigenstress threading (eps_v sentinel args), PRJ
+  parsing, unit tests (StrainedFilmPotential.cpp). Off = bit-for-bit.
+- STRUCTURAL FINDING [D]: a pure geometric squeeze of any repulsive Pi(h) can
+  never reverse the potential (Pi'(h)<0 ⇒ imbibition); the reversal lives in
+  the Derjaguin load term +b*p_conf/rho_lR, made h-live here. Emergent gate
+  b*K_drained > 3*kappa*Pi(h) (kinematic) / min()-branch at p_conf = Pi(w_m)
+  (equilibrium) — no bolted-on Macaulay gate.
+- HONESTY NOTE: implemented cut = operational Derjaguin form, NOT yet
+  Maxwell-exact; exact one-Psi closed forms derived in the design doc §9a,
+  AWAITING Vinay's review before coding. Do not cite the branch as
+  "Maxwell-exact".
+- TODO: build + unit tests + dd1400 off-mode regression (in progress
+  2026-06-09); §9a exact forms; confined expulsion probe; K re-calibration
+  [PRED: saturated swelling-pressure equilibrium shifts in both modes].
+
+## 2026-06-11 — LIVE K(rho_d) variant (Vinay: "K(rho_d) try it")
+
+- DONE (2026-06-11): live (evolving dry-density) K(rho_d) implemented per
+  Vinay's order; see K_OF_RHO_D_LIVE.md. New PRJ bool
+  `potential_augmentation_prefactor_live_dry_density` (default false =
+  parse-time freeze, bit-for-bit); helper effectiveAugmentationPrefactor
+  (PotentialExchangeParameters.h) evaluates K_table(rho_SR*(1-phi)) at all
+  FEM sites with porosity in scope (context phi / new defaulted
+  total_porosity arg on the swelling increment / assembly phi); scalar
+  fallback where no phi exists. Endpoint-clamped (getValue endpoint hold).
+- Verified: 31/31 RichardsMechanics unit tests (3 new
+  RichardsMechanicsLiveKOfRhoD, structural knots); dd1400 off-mode
+  regression sigma_zz = -4.9218 MPa = recorded baseline
+  (runs/2026-06-10_0841_dsm_native_h_of_eps_successful).
+- PROVISIONAL: linear knot interpolation (shape undecided); dK tangent
+  OMITTED first cut [PRED: extra Newton iterations, not benchmarked]; no
+  live-mode production run yet (behavior under live K = predicted only).
+
+## Equipresent Pi(n_l, eps_v) + compressible-liquid carrier D2 (2026-06-11, branch dsm_native_Pi_fofnlev)
+
+Goal (Vinay, 2026-06-11): make the load coupling energetically compliant —
+"Pi does not carry p_conf; the p_conf is still a bolt-on to the micro, not an
+energetically compliant bolt-on; equipresence says Pi(n_l, <mech. state>)."
+Equipresent argument is eps_v (configuration), not p_conf (force). Two
+deliverables, PRJ-selectable, default off (bit-for-bit):
+(E) exact one-Psi film pair (closes STRAINED_FILM_IMPLEMENTATION.md §9a) and
+(L) compressible-liquid carrier (D2 proper — over-pressure from Psi_liq with
+confined K_liq instead of the bolted +b*p_conf/rho_lR).
+
+Design + decision record: **PI_OF_NL_EV_IMPLEMENTATION.md** (this directory) —
+complete implementation/test/docs/beamer plan, written for an implementing
+agent; decision queue Q1–Q5 (Vinay) inside.
+
+- DONE 2026-06-11: branch + worktree created off 7ff8861847; design doc
+  written; memory file project_dsm_pi_fofnlev + MEMORY.md pointer; beamer
+  maxwell_from_psi.tex Step 19/23 "in design" markers.
+- DONE 2026-06-11 (was: blocked on Q1; resolved by Vinay's "implement that
+  now"): (E) implemented — FilmEnergyRoute enum/param/predicate,
+  computeStrainedFilmEnergyPair (x_over_kappa-stable closed forms), exact
+  fold branch (bare at TRUE n_l + one-Psi partner, g-cutoff product rule,
+  eigenstress site unchanged), film_energy_route parsing + mode-matrix
+  OGS_FATAL, ExactFilmEnergyPair.cpp (8 tests: 6 active + 2 Q3/Q4 skips).
+  VERIFIED: 36/36 unit tests; T-5 loop measured |∮|/scale 8.4e-9 (exact) vs
+  0.93 (operational — §9a "small" prediction corrected by measurement);
+  T-1 dd1400 off-mode bitwise-identical (12/12 VTUs, parent-head binary vs
+  new, one input). Build ~/git/build/Pi_fofnlev_20260611. UNCOMMITTED.
+- PARKED 2026-06-11 (Vinay: "park it, this is getting very intricate"):
+  (L) computeMicroLiquidCompression + tests T-6/T-8. Self-contained decision
+  brief (routes (a)/(b), K_liq candidate + magnitudes, Q3<->Q4 coupling,
+  unpark conditions) is in PI_OF_NL_EV_IMPLEMENTATION.md §8 — read THAT
+  before any (L) work; do not unpark without Vinay's Q3+Q4 answers.
+- DONE 2026-06-11 (partial): STRAINED_FILM_IMPLEMENTATION.md §9a annotated
+  (measured correction); beamer Step 21/23/7b updated to implemented+measured
+  status. STILL TODO: "Step 24 first numbers" frame (gated on T-8 / MS33 VII
+  runs); Doxygen tag doc for film_energy_route (joint TODO with the
+  undocumented film_strain tags).
+
+## Form (a) vs Form (b) paired comparison (2026-06-12) — READ BEFORE TOUCHING THE FILM ROUTES
+
+Definitions (the two FORMS of the micro potential; beamer maxwell_from_psi.tex Step 21b):
+- FORM (a): mu(Pi(n_l), eps_v) — Pi frozen at n_l, strain a separate argument
+  (the ch.1 maxwell partner; default/off mode; maxwell_conjugate lineage).
+- FORM (b): mu(Pi(n_l, eps_v)) — strain enters THROUGH the film state
+  (film_strain_coupling=kinematic + film_energy_route=exact on THIS branch).
+- [D] (a) = (b) Taylor-truncated at eps_v->0. Mutually exclusive at runtime
+  (create-time guard); coexistent in one build as limit test + baseline.
+
+Paired runs (common pre-recalibration K base, two binaries:
+mc_20260608 d98f5f8324 for (a), pi_fofnlev_20260611 @4c7a5d03b2 for (b)),
+record: ogs/formAB_2026-06-12/FORMAB_RESULTS.md + eurad-anchors snapshot. MEASURED:
+1. dd1600 control (eps_v~0): BITWISE identical across forms AND binaries —
+   the truncation identity holds exactly in running code.
+2. VII discriminator: e_end 1.4995 (a) vs 1.3530 (b) — self-relaxing drive
+   removes 0.146 of the over-swell; exact within 3e-4 of operational here.
+3. OPPOSITE PULL: Task-13 DD 1.4592 (a) vs 1.4839 (b) vs expt 1.4139 —
+   (b) helps VII but hurts Task-13. No reversible form satisfies both =>
+   Task-13 residual is the IRREVERSIBLE channel (see TASK13_MCC_BLOCKAGE.md
+   + MCC_INTERNAL_SWELLING_IMPLEMENTATION.md design).
+4. (b) also better-conditioned on the Task-13 wetting front (1256 steps/138 s
+   vs 2673/713 s) and ends force-balanced (Pi +0.55 MPa ~ load vs -1.85).
+Variant PRJs committed next to the base files (suffix _formB_piexact_2026-06-12).
+
+## Live-K(rho_d) analytic tangent completion (2026-06-12)
+
+- DONE 2026-06-12: analytic dK/dphi = -rho_SR*(table segment slope) tangent
+  (Vinay-approved completion of the live-K first cut; Jacobian-only,
+  residual untouched) wired into the live p-u augmentation Jacobian block.
+  New `AugmentationPrefactorTable::getSegmentSlope` (exact clamped
+  piecewise-linear slope; zero outside/at edges, left slope at interior
+  knots), `effectiveAugmentationPrefactorPhiDerivative`, mu-level exact
+  K-partials `dmu_lR_dK`/`ddmu_lR_dnl_dK` (mu_aug linear in K), and the
+  `PorosityFromMassBalance` dphi/deps_v = (alpha-phi)/(1+w) chain. Details +
+  measured verification: K_OF_RHO_D_LIVE.md "Analytic tangent completion".
+- MEASURED: 41 RM unit tests (39 pass + 2 designed skips; 2 new FD-vs-
+  analytic tangent tests); dd1400 off-mode bitwise-identical vs the
+  pre-tangent h_of_eps_20260609 binary (12/12 VTUs); truncated 1a_robin_A_Kl
+  live-K sanity converges with iterations equal to before (17/2/2).
+- CURE TEST (task42 1b *_Kl step-1 singularity): NOT CURED — both 1b_A_Kl
+  and 1b_B_Kl still die in step #1, but the Newton trajectory measurably
+  changed (contraction to |dx|_uz=1.09 over 7 its before the it.8 blow-up,
+  vs pre-tangent monotonic divergence). Second mechanism suspected
+  (hypothesis, not verified); evidence in task42_case1_2026-06-12/
+  out_1b_{A,B}_Kl/run.log + _diagnostics_1bKl/README_DIAG.md addendum.
+  OPEN: Vinay's call on the next probe; no further patching done.
+
+## Ultracode-review fixes (2026-06-14) — branch dsm_native_Pi_fofnlev_review_fixes_2026-06-14
+
+Implements the fixes in DSM/ULTRACODE_REVIEW_2026-06-14.md, one commit per
+fix. Branch off dsm_native_Pi_fofnlev tip 9795f252e1. Build:
+~/git/build/pi_fofnlev_fixes_20260614. Baseline: 39 RM unit tests pass + 2
+designed skips. Every Jacobian-only fix re-verified the off-mode dd1400
+final-VTU SHA256 = 91f404a5...577 (the STEP-0 reference) BYTE-FOR-BYTE.
+
+- DONE 2026-06-14 (H2, JAC-only, commit 7e2eee0190): exact-route fold passed
+  the parse-time scalar K into computeStrainedFilmEnergyPair while the bare
+  out.mu_lR used the live effectiveAugmentationPrefactor(phi); g_cut corrupted
+  under live K. Now uses effectiveAugmentationPrefactor(params, local_context
+  .phi) at L730 (matches :768/:1364/:2084). Scalar-mode bit-for-bit; off-mode
+  bitwise verified.
+- DONE 2026-06-14 (M1, JAC-only, commit 6708ef1d98): the p-u Maxwell exchange
+  tangent always used the integrable-partner dmu_lR_mech_deps_v; now dispatches
+  dmu_lR/deps_v on the route (Off -> integrable; operational-strained ->
+  d(bare(w_eff))/deps_v + b*(dp_conf/deps_v)/rho with dp_conf/deps_v=-K_drained;
+  exact -> g_cut*pair.dmu_mech_deps_v). Off-mode bitwise verified.
+- DONE 2026-06-14 (M2+L2, JAC-only, commit cbe3e11ed6): wired the displacement-
+  side live-K swelling-eigenstress tangent d(delta_sigma_sw)/dK*dK/dphi*
+  (dphi/deps_v, dphi/dp) into K[u,u]/K[u,p] (the 1b compliant-top cure
+  candidate). SCOPE DECISION (announced): wired ONLY the live-K chain, NOT the
+  pre-existing swelling u-p/u-u term Vinay set OFF 2026-06-01 (enable_dsm_
+  swelling_up_jacobian left at its default; independent term). Gated on
+  film_pressure_coupling && dK/dphi != 0 && PorosityFromMassBalance. Off-mode
+  bitwise verified.
+- DONE 2026-06-14 (L1, JAC-only, commit 78a71ae6df): exact-fold dg_dnl mixed
+  live-nS out.dmu_lR_dnl with frozen-nS pair.dmu_bare_dnl_pre under
+  CurrentPorositySplit; recompute the bare-pre derivative with the caller's
+  dnS_dnl. Reference mode bit-for-bit. Off-mode bitwise verified.
+- DONE 2026-06-14 (N1, JAC-only, commit 6a03a58213): zero the live-K
+  dphi/deps_v=(alpha-phi)/(1+w) chain when PorosityFromMassBalance clamps phi
+  (detect via unclamped-vs-stored phi; bounds are private). Applied at the
+  live-K p-u block and the new M2 block. Off-mode bitwise verified.
+- SUPERSEDED 2026-06-14 (L3, DOC-only, commit f23f69c5b4): documented the
+  live-K dn_l/dK local-solve strain channel in ScalarReferenceMassStorage mode
+  as a DELIBERATE PARTIAL TANGENT (not wired). Judgment call (prompt-authorized):
+  wiring it would risk the converged forward solve for a LOW-severity gap; the
+  dominant cure is M2. Off-mode bitwise verified. NOTE: the "risks the converged
+  forward solve" concern was the basis for not wiring; it is resolved below by
+  keeping the wiring strictly Jacobian-only (the local solve / residual / the
+  computeImplicitNlDpL return are all untouched). See the WIRED entry next.
+- DONE 2026-06-14 (L3, JAC-only, WIRES the above): the L3 implicit-n_l(K) strain
+  channel is now wired into the global displacement Jacobian, RESIDUAL-SAFE.
+  - New sibling helper computeImplicitNlDK (RichardsMechanicsFEM-impl.h, right
+    after computeImplicitNlDpL): returns dn_l/dK = -(dr/dK)/(dr/dn_l) for
+    ScalarReferenceMassStorage (0 in every other mode and at dt<=0). It rebuilds
+    dr_dn_l by the SAME REV-mass reduction as computeImplicitNlDpL and uses
+    dr/dK = -dt*exchange.drho_l_hat_dmu_lR*micro_potential.dmu_lR_dK (K enters r
+    only through the exchange/mu_lR; the mass term carries no K). Reads ONLY the
+    already-converged (n_l, rho_lR, micro_potential, exchange) the caller
+    threads in -- it never re-solves and never mutates forward state.
+  - Wired at the M2 swelling-eigenstress site as the implicit half of M2's
+    explicit-K chain: d(delta_sigma_sw)/dn_l * dn_l/dK * dK/dphi * dphi/d(.),
+    folded into the SAME dsig_sw_deps_v_scalar / dsig_sw_dp_scalar that ride the
+    existing C*C_el^-1*identity2 map into K[u,u]/K[u,p]. d(delta_sigma_sw)/dn_l
+    = -n_S*(Pi_curr - n_l*rho_curr*dmu_lR/dw_eval*dw_eval/dn_l) (dw_eval/dn_l=1
+    on the OFF branch, film_state.dw_eff_dnl on the strained branch), matching
+    the residual increment's argument chain and its dnS_dnl=0.
+  - SCOPE (residual-consistency): the implicit chain fires only where the
+    telescoped eigenstress IS the assembled residual (OFF + film-ON-operational);
+    on the EXACT route (H1, residual = one-Psi pair) it is gated OFF -> the
+    cured 1b_B tangent is left bit-for-bit untouched. Off / frozen K / clamped
+    table edge / non-mass-storage -> all factors 0 -> Jacobian bit-for-bit.
+  - JACOBIAN-ONLY: the local forward n_l solve, the residual, and the
+    computeImplicitNlDpL return value are all unchanged. The prior agent's note
+    inside computeImplicitNlDpL is replaced with a WIRED note.
+  - PREDICTED (not yet verified, §5; build is a later phase): this completes the
+    live-K mass-storage displacement tangent and is the candidate cure for the
+    1b_A form-(a) step-1 divergence the 1b cure verdict left open; the converged
+    root is unaffected by construction. Off-mode bitwise: NOT re-run here (build
+    deferred) -> the off/frozen/clamped/non-mass-storage gates make the change a
+    no-op there by construction, to be confirmed at build.
+- DONE 2026-06-14 (H1, RESIDUAL-CHANGING, Vinay-authorized, commit 6391e357a2):
+  under film_energy_route=Exact, source the eigenstress increment from the
+  one-Psi pair.sigma_sw_m (drained-line, telescoped curr-prev) instead of the
+  operational Pi(w_eff)-b*p_conf. VALIDATED by the new assembled loop-closure
+  probe (AssembledExactPairClosesOperationalSigmaDoesNot): |W|/scale = 8.41e-09
+  with exact sigma (post-H1, CLOSES) vs 0.0675 with operational sigma (pre-H1,
+  does NOT close). H1 is CORRECT (not reverted). PHYSICS TRADEOFF (predicted):
+  drained-line p_conf vs actual GP p_conf; they agree on the drained line,
+  differ off it (e.g. fully confined). Off-mode unaffected (film off -> branch
+  not entered): bitwise verified.
+- DONE 2026-06-14 (NEW TEST §8, commit 9732b46498): added
+  RichardsMechanicsLiveKOfRhoD.AssembledDisplacementTangentExactKinematicLiveK
+  (StrainedFilmPotential.cpp) — helper-level FD-vs-analytic identity on the
+  exact-route mu_lR eps_v tangent (H2/M1) and the live-K eigenstress eps_v
+  tangent (M2), anchor (d), scale-derived tolerances, no Vinay expected value.
+  Scope-noted: no run-level assembleWithJacobian harness exists in the unit-
+  test dir, so this checks the tangent FORMULAE the assembly reconstructs.
+- DONE 2026-06-14 (N2/N3, DOC-only, commit 9c8423766c): N2 labelled the loop-
+  test 100x separation as the MEASURED conservative floor per §5.1 (defect/
+  bound ~3.0e3 at N=400, grows like N^2; not a derived 100). N3 re-confirmed
+  computeMaxwellConjugateMicroPotential fully dead (zero live callers) and
+  strengthened the RETIRED banner; kept on disk per §6.3.
+- L5 — NOT FIXED (deliberate, guardrail §1.1/§12.2). The two formB_piexact
+  PRJs on disk (ms33_modelI_dd1600_formB_piexact_2026-06-12.prj,
+  ms33_modelVII_freeswelling_formB_piexact_2026-06-12.prj) carry TODO(Vinay)
+  §12.2 provenance locators (E/nu, micro-EOS, Tuller geom, specific_surface,
+  lambda) inherited verbatim from the base PRJs. They are NOT in Tests.cmake
+  and STAY OUT pending Vinay's cited source locators (cannot be invented).
+  Their calibration K=103879 J/kg is §12.1-clean (Dixon 2023 Fig.1).
+
+OPEN (for Vinay): (1) the 1b cure verdict (M2) — run task42 1b_*_Kl with the
+new binary; (2) whether to also flip enable_dsm_swelling_up_jacobian (the
+pre-existing OFF swelling tangent), kept untouched here; (3) §12.2 locators to
+register the piexact PRJs.
+
+## 1b cure verdict (2026-06-14, the M2 headline)
+
+Ran task42 1b_A_Kl.prj and 1b_B_Kl.prj (live K(rho_d) table, film_pressure_
+coupling OFF, ScalarReferenceMassStorage; 1b_A = form (a) Off coupling, 1b_B =
+form (b) kinematic + exact route) with the review-fixed binary (commit
+936488482c), scratch ~/git/build/pi_fofnlev_fixes_20260614/cure_1b_test.
+Pre-fix baseline (out_1b_*_Kl/run.log in task42): BOTH died in time step #1
+("Newton: the linear solver failed"). MEASURED with the new binary:
+ - 1b_B_Kl (exact route, H1+H2+M1+M2 all active): CURED — passes step #1 and
+   keeps stepping (reached Time step #200+ with ZERO step-1 failures and zero
+   nonlinear failures; observed VTUs out to t=2.59e6 s in an earlier run).
+ - 1b_A_Kl (form (a), Off film_strain_coupling): NOT cured — still fails in
+   time step #1 (terminated with error). The M2 live-K eigenstress tangent now
+   fires for it (gate = live-K flag), so this confirms the review §3 "second,
+   still unidentified mechanism" is NOT (only) the M2 eigenstress tangent for
+   the form-(a) ScalarReferenceMassStorage case. Strong candidate: the L3
+   dn_l/dK local-solve strain channel left as a DOCUMENTED partial tangent
+   (f23f69c5b4) — Vinay's call whether to wire it next.
+VERDICT: M2 (+H1/H2/M1) CURES the exact-route 1b_B; the operational-route 1b_A
+remains a step-1 failure (open, points at L3 / a distinct mechanism).
+
+UPDATE 2026-06-14 (L3 now WIRED): the L3 dn_l/dK local-solve strain channel —
+the strong candidate this verdict flagged for 1b_A — has since been wired into
+the displacement Jacobian (Jacobian-only; see the L3 WIRED worklog entry above).
+It is the implicit-n_l(K) partner of the M2 eigenstress tangent and fires on the
+1b_A OFF/operational regime (the M2 gate fired the explicit-K half there but the
+local-solve n_l(K) half was missing). PREDICTED candidate cure for the 1b_A
+step-1 divergence; NOT yet re-run (build is the next phase) — re-run task42
+1b_A_Kl.prj with the new binary to confirm or refute (§5 predicted, not
+verified). If 1b_A still fails after L3, the residual points to a genuinely
+distinct mechanism beyond the live-K tangent gaps.

@@ -16,6 +16,7 @@
 #include "ConstitutiveRelations/PotentialExchange.h"
 #include "IntegrationPointData.h"
 #include "MaterialLib/MPL/Medium.h"
+#include "MaterialLib/MPL/Properties/PorosityFromMassBalance.h"
 #include "MaterialLib/MPL/Utils/FormEigenTensor.h"
 #include "MaterialLib/SolidModels/SelectSolidConstitutiveRelation.h"
 #include "MathLib/EigenBlockMatrixView.h"
@@ -683,13 +684,171 @@ inline void applyFilmPressureMicroPotential(
     PotentialExchangeLocalSolveContext const& local_context,
     PotentialExchangeParameters const& potential_exchange_params)
 {
-    (void)active_nS;
     applyMacroFloorCutoff(out, n_l, local_context, potential_exchange_params);
     if (!(potential_exchange_params.film_pressure_coupling &&
           std::isfinite(local_context.confining_pressure_p_conf)))
     {
         return;  // flag OFF or NaN p_conf -> unchanged (pure vdW), bit-for-bit.
     }
+
+    // ── EXACT energy route (film_energy_route = exact; PI_OF_NL_EV §4.4) ───
+    // REPLACES the operational mu assembly below: the bare adsorption part
+    // stays evaluated at the TRUE n_l (already in `out`, cutoff-folded above —
+    // mirror of the shipped Off-path structure), and the strain coupling is
+    // the one-Psi partner mu_mech from computeStrainedFilmEnergyPair (closed-
+    // form strain integrals; Maxwell-exact pair with the unchanged eigenstress
+    // half). No +b*p_conf/rho_lR bolt-on. The macro-floor cutoff factor g is
+    // recovered from post/pre bare values and product-ruled into the n_l
+    // chain. nS chains FROZEN (B1), as in the operational route.
+    if (potential_exchange_params.film_strain_coupling !=
+            FilmStrainCouplingMode::Off &&
+        potential_exchange_params.film_energy_route == FilmEnergyRoute::Exact)
+    {
+        if (potential_exchange_params.film_strain_coupling !=
+            FilmStrainCouplingMode::Kinematic)
+        {
+            OGS_FATAL(
+                "film_energy_route = 'exact' requires film_strain_coupling = "
+                "'kinematic' (create-time validated; "
+                "DSM/PI_OF_NL_EV_IMPLEMENTATION.md §3).");
+        }
+        double const eps_v_ex = local_context.volumetric_strain;
+        double const sign_ex =
+            microPotentialSignFactorFromParameters(potential_exchange_params);
+        double const kappa_ex =
+            potential_exchange_params.film_strain_kappa ==
+                    FilmStrainKappaMode::Aggregate
+                ? active_nS
+                : 1.0;
+        auto const pair = computeStrainedFilmEnergyPair(
+            n_l, eps_v_ex, kappa_ex, local_context.biot_coefficient,
+            local_context.drained_bulk_modulus, true /*include_S, route R3*/,
+            rho_lR_used, active_nS,
+            potential_exchange_params.micro_solid_density_reference,
+            potential_exchange_params.hamaker_constant,
+            potential_exchange_params.specific_surface, sign_ex,
+            // Live K(rho_d): rho_d = rho_SR*(1-phi); off / phi sentinel ->
+            // parse scalar (K_OF_RHO_D_LIVE.md). H2 fix (2026-06-14): use the
+            // SAME effective K the bare out.mu_lR was built with (:1364), so
+            // g_cut = out.mu_lR/pair.mu_bare_pre stays the macro-floor cutoff
+            // factor under live K (scalar-mode bit-for-bit; matches :768/:2084).
+            effectiveAugmentationPrefactor(potential_exchange_params,
+                                           local_context.phi),  // K [J/kg]
+            potential_exchange_params.potential_augmentation_exponent,
+            0.0 /*dnS_dnl: frozen nS (B1)*/,
+            potential_exchange_params.micro_water_content_floor);
+
+        // Macro-floor cutoff factor g = mu_post/mu_pre (g == 1 when the
+        // cutoff is inactive; g == 0 at full bulk -> film physics off).
+        // |mu_bare_pre| > 0 is guaranteed by the bare law's OGS_FATALs.
+        double const g_cut = out.mu_lR / pair.mu_bare_pre;            // [-]
+        // L1 fix (2026-06-14): pair.dmu_bare_dnl_pre was computed with frozen
+        // nS (dnS_dnl = 0, L738), but out.dmu_lR_dnl carries the caller's F2
+        // chain (dnS_dnl = -1 under CurrentPorositySplit; see computeActive-
+        // MicroPotential L1353). Mixing the two legs corrupts dg_dnl under
+        // CurrentPorositySplit. Recompute the bare-pre derivative with the
+        // caller's dnS_dnl so both legs of dg_dnl use the SAME nS chain.
+        // mu_bare_pre (the value) is dnS-independent, so g_cut is unaffected;
+        // only the derivative changes. Reference mode -> dnS_dnl = 0 ->
+        // bit-for-bit identical.
+        double const dnS_dnl_caller =
+            potential_exchange_params.micro_solid_volume_fraction_mode ==
+                    MicroSolidVolumeFractionMode::CurrentPorositySplit
+                ? -1.0
+                : 0.0;
+        double const dmu_bare_dnl_pre_caller =
+            computeVanDerWaalsMicroPotential(
+                n_l, rho_lR_used, active_nS,
+                potential_exchange_params.micro_solid_density_reference,
+                potential_exchange_params.hamaker_constant,
+                potential_exchange_params.specific_surface, sign_ex,
+                effectiveAugmentationPrefactor(potential_exchange_params,
+                                               local_context.phi),  // K [J/kg]
+                potential_exchange_params.potential_augmentation_exponent,
+                dnS_dnl_caller,
+                potential_exchange_params.micro_water_content_floor)
+                .dmu_lR_dnl;  // J/kg per n_l (caller's nS chain)
+        double const dg_dnl =
+            (out.dmu_lR_dnl - g_cut * dmu_bare_dnl_pre_caller) /
+            pair.mu_bare_pre;  // [1 per n_l]
+
+        out.mu_lR += g_cut * pair.mu_mech;  // J/kg, additive (never =)
+        out.dmu_lR_dnl +=
+            g_cut * pair.dmu_mech_dnl + pair.mu_mech * dg_dnl;  // J/kg per n_l
+        out.dmu_lR_drho_lR += g_cut * pair.dmu_mech_drho_lR;  // (J/kg)/(kg/m^3)
+        return;
+    }
+
+    // ── Strained-film modes (DSM/STRAINED_FILM_IMPLEMENTATION.md) ───────────
+    // film_strain_coupling != Off REPLACES the frozen-geometry path below: the
+    // bare law is evaluated at the strained film state w_eff and mu_lR carries
+    // the Derjaguin load term +b*p_conf/rho_lR (squeezing confined liquid
+    // raises its chemical potential). The shipped integrable partner is NOT
+    // added on top — it is the frozen-h, O(eps_v) truncation of the same
+    // coupling (no double counting; D3 provisional, see the shipped-limit unit
+    // test). nS chains are FROZEN here (B1): the strained re-evaluation uses
+    // dnS_dnl = 0 regardless of the caller's F2 mode.
+    if (potential_exchange_params.film_strain_coupling !=
+        FilmStrainCouplingMode::Off)
+    {
+        double const p_conf_sf = local_context.confining_pressure_p_conf;
+        double const eps_v_sf = local_context.volumetric_strain;
+        double const sign_sf =
+            microPotentialSignFactorFromParameters(potential_exchange_params);
+        // Live K(rho_d) (K_OF_RHO_D_LIVE.md): rho_d = rho_SR*(1-phi) from the
+        // context's total porosity; off-mode / phi sentinel -> parse scalar.
+        double const K_aug_sf = effectiveAugmentationPrefactor(
+            potential_exchange_params, local_context.phi);  // K [J/kg]
+
+        auto const film_state = computeStrainedFilmState(
+            potential_exchange_params.film_strain_coupling,
+            potential_exchange_params.film_strain_kappa, n_l, active_nS,
+            eps_v_sf, p_conf_sf, rho_lR_used,
+            potential_exchange_params.micro_solid_density_reference,
+            potential_exchange_params.hamaker_constant,
+            potential_exchange_params.specific_surface, sign_sf,
+            K_aug_sf,
+            potential_exchange_params.potential_augmentation_exponent,
+            potential_exchange_params.micro_water_content_floor,
+            rho_lR_used /*rho_pi: mirrors Pi = -rho_lR_used*mu_lR below*/);
+
+        // Bare law at the strained state (frozen nS, B1).
+        auto strained = computeVanDerWaalsMicroPotential(
+            film_state.w_eff, rho_lR_used, active_nS,
+            potential_exchange_params.micro_solid_density_reference,
+            potential_exchange_params.hamaker_constant,
+            potential_exchange_params.specific_surface, sign_sf,
+            K_aug_sf,
+            potential_exchange_params.potential_augmentation_exponent,
+            0.0 /*dnS_dnl: frozen nS in strained modes*/,
+            potential_exchange_params.micro_water_content_floor);
+
+        // Chain the law's n_l-derivative through w_eff BEFORE the cutoff
+        // product rule (the cutoff factor g is a function of the TRUE n_l).
+        strained.dmu_lR_dnl *= film_state.dw_eff_dnl;
+        strained.d2mu_lR_dnl2 *=
+            film_state.dw_eff_dnl * film_state.dw_eff_dnl;
+        applyMacroFloorCutoff(strained, n_l, local_context,
+                              potential_exchange_params);
+
+        // Derjaguin load term, UNCUT (mirrors the Off path, where the
+        // mechanical partner is added after the cutoff):
+        //   mu_load = +b*p_conf/rho_lR  [J/kg]  — compression raises mu_lR
+        //   (expulsion channel); reversible because the disjoining half
+        //   Pi(w_eff) stiffens through the SAME strained state (one Psi).
+        double const b_sf = local_context.biot_coefficient;
+        double const mu_load = b_sf * p_conf_sf / rho_lR_used;  // J/kg
+
+        out.mu_lR = strained.mu_lR + mu_load;               // J/kg
+        out.dmu_lR_dnl = strained.dmu_lR_dnl;               // J/kg per n_l
+        out.d2mu_lR_dnl2 = strained.d2mu_lR_dnl2;           // J/kg per n_l^2
+        out.dmu_lR_dnS = strained.dmu_lR_dnS;
+        out.dmu_lR_drho_SR = strained.dmu_lR_drho_SR;
+        out.dmu_lR_drho_lR =
+            strained.dmu_lR_drho_lR - mu_load / rho_lR_used;  // (J/kg)/(kg/m^3)
+        return;
+    }
+    (void)active_nS;
     // ── INTEGRABLE Maxwell mechanical partner (spec item 2; REPLACES the old
     // non-integrable +g*b*p_conf/rho_lR film delta) ─────────────────────────
     // mu_lR_mech = -[ (Pi + n_l*Pi')*eps_v + 0.5*b*K_drained*eps_v^2 ]/rho_lR,
@@ -780,7 +939,10 @@ solveReferenceMassStoragePredictorState(
             potential_exchange_params.micro_solid_density_reference, potential_exchange_params.hamaker_constant,
             potential_exchange_params.specific_surface,
             microPotentialSignFactorFromParameters(potential_exchange_params),
-            potential_exchange_params.potential_augmentation_prefactor,
+            // Live K(rho_d): rho_d = rho_SR*(1-phi); off / phi sentinel ->
+            // parse scalar (K_OF_RHO_D_LIVE.md).
+            effectiveAugmentationPrefactor(potential_exchange_params,
+                                           local_context.phi),  // K [J/kg]
             potential_exchange_params.potential_augmentation_exponent,
             0.0 /*dnS_dnl*/,
             potential_exchange_params.micro_water_content_floor);
@@ -955,7 +1117,10 @@ solveReferenceMassStorageCoupledState(
             n_l, rho_lR, active_nS, potential_exchange_params.micro_solid_density_reference,
             potential_exchange_params.hamaker_constant, potential_exchange_params.specific_surface,
             microPotentialSignFactorFromParameters(potential_exchange_params),
-            potential_exchange_params.potential_augmentation_prefactor,
+            // Live K(rho_d): rho_d = rho_SR*(1-phi); off / phi sentinel ->
+            // parse scalar (K_OF_RHO_D_LIVE.md).
+            effectiveAugmentationPrefactor(potential_exchange_params,
+                                           local_context.phi),  // K [J/kg]
             potential_exchange_params.potential_augmentation_exponent,
             0.0 /*dnS_dnl*/,
             potential_exchange_params.micro_water_content_floor);
@@ -1226,7 +1391,10 @@ inline VanDerWaalsMicroPotentialData computeActiveMicroPotential(
         n_l, rho_lR_effective, active_nS, potential_exchange_params.micro_solid_density_reference,
         potential_exchange_params.hamaker_constant, potential_exchange_params.specific_surface,
         microPotentialSignFactorFromParameters(potential_exchange_params),
-            potential_exchange_params.potential_augmentation_prefactor,
+            // Live K(rho_d): rho_d = rho_SR*(1-phi); off / phi sentinel ->
+            // parse scalar (K_OF_RHO_D_LIVE.md).
+            effectiveAugmentationPrefactor(potential_exchange_params,
+                                           local_context.phi),  // K [J/kg]
             potential_exchange_params.potential_augmentation_exponent, dnS_dnl,
             potential_exchange_params.micro_water_content_floor);
 
@@ -1622,6 +1790,28 @@ inline double computeImplicitNlDpL(
         double const drho_l_dpL_fixed_n = phi_m * drho_lR_dpL_fixed_n;
         double const dr_dpL =
             drho_l_dpL_fixed_n * time_factor - dt_safe * drho_l_hat_dpL_fixed_n;
+        // L3 (review 2026-06-14) — NOW WIRED (Jacobian-only), supersedes the
+        // earlier DOCUMENTED-NOT-WIRED note. In live-K mode the REV-mass
+        // residual r also depends on the augmentation prefactor K through
+        // micro_potential.mu_lR, and K = K_table(rho_SR*(1-phi)) couples to
+        // displacement via phi(eps_v). The converged local n_l therefore carries
+        // an implicit strain channel
+        //   dn_l/d eps_v |_K = dn_l/dK * dK/dphi * dphi/deps_v,
+        //   dn_l/dK = -(dr/dK)/(dr/dn_l)
+        //           = (dt * drho_l_hat_dmu_lR * dmu_lR_dK) / dr_dn_l,
+        // which THIS dn_l/dpL (a FIXED-n_l-vs-pL sensitivity) does NOT carry.
+        // That gap is now closed by the SIBLING helper computeImplicitNlDK
+        // (above), consumed at the M2 swelling-eigenstress assembly site to add
+        // the implicit-n_l(K) half of the K[u,u]/K[u,p] tangent. The wiring is
+        // JACOBIAN-ONLY: this function's return value, the local FORWARD n_l
+        // solve, and the residual are all UNCHANGED here — only a new analytic
+        // tangent contribution was added at assembly. (The original concern that
+        // wiring "risks the converged forward solve" was avoided by NOT touching
+        // this return / the solve and adding the sensitivity purely on the
+        // Jacobian side; review L3, K_OF_RHO_D_LIVE.md.) PREDICTED (not yet
+        // verified by re-run): completes the live-K mass-storage displacement
+        // tangent (1b_A form-(a) candidate cure); the converged root is
+        // unaffected by construction.
         return -dr_dpL / dr_dn_l;
     }
 
@@ -1671,6 +1861,110 @@ inline double computeImplicitNlDpL(
         -dt_safe * (drho_l_hat_dpL_fixed_n / rho_LR -
                     exchange.rho_l_hat / (rho_LR * rho_LR) * drho_LR_dpL);
     return -dr_dp_l / dr_dn_l;
+}
+
+// ── L3 (review 2026-06-14, JACOBIAN-ONLY) ────────────────────────────────────
+// Sensitivity of the LOCALLY-SOLVED micro water content n_l to the augmentation
+// prefactor K, for ScalarReferenceMassStorage mode. Sibling of
+// computeImplicitNlDpL: identical 1x1 REV-mass reduction (rho_lR slaved along
+// the density EOS r2=0), differing only in which partial of the residual r is
+// taken. K enters r ONLY through the exchange term rho_l_hat (via mu_lR; the
+// rho_l = phi_m*rho_lR mass term carries no K), so
+//   dr/dK = -dt * drho_l_hat/dK = -dt * exchange.drho_l_hat_dmu_lR
+//                                 * micro_potential.dmu_lR_dK,
+// and by the implicit-function theorem on r(n_l;K)=0 at the converged state
+//   dn_l/dK = -(dr/dK) / (dr/dn_l).                                  [n_l per (J/kg)]
+// This is the channel the fixed-n_l dn_l/dpL does NOT carry; in live-K mode it
+// closes the implicit n_l(K(phi(eps_v))) strain channel of the swelling
+// eigenstress (review L3), wired at the M2 displacement-Jacobian site.
+//
+// RESIDUAL-SAFE: reads ONLY the already-converged (n_l, rho_lR, micro_potential,
+// exchange) the caller threads in -- it never re-solves, never mutates the
+// forward state, and is identically 0 outside ScalarReferenceMassStorage (and
+// when dt<=0). dr_dn_l is rebuilt here by the SAME expression as
+// computeImplicitNlDpL so numerator and denominator are linearized about one
+// state. Returns 0 on a singular/non-finite dr_dn_l (matching the dn_l/dpL
+// guard), so a degenerate tangent silently drops rather than poisoning K[u,u].
+inline double computeImplicitNlDK(
+    double const n_l_prev, double const dt, double const rho_LR,
+    double const mu,
+    VanDerWaalsMicroPotentialData const& micro_potential,
+    PotentialDrivenMassExchangeData const& exchange,
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& potential_exchange_params,
+    double const n_l_converged = std::numeric_limits<double>::quiet_NaN(),
+    double const rho_lR_micro = std::numeric_limits<double>::quiet_NaN())
+{
+    requirePositiveViscosity("computeImplicitNlDK", mu);
+    double const dt_safe = std::isfinite(dt) && dt > 0.0 ? dt : 0.0;
+    if (dt_safe <= 0.0)
+    {
+        return 0.0;
+    }
+    if (potential_exchange_params.local_nonlinear_solve_mode !=
+        LocalNonlinearSolveMode::ScalarReferenceMassStorage)
+    {
+        // dn_l/dK only defined for the local mass-storage solve; other modes
+        // do not solve a K-dependent n_l here (the channel is absent / handled
+        // elsewhere), so the L3 chain is exactly zero.
+        return 0.0;
+    }
+
+    double const eps_v_rate =
+        (local_context.volumetric_strain -
+         local_context.volumetric_strain_prev) /
+        dt_safe;  // 1/s
+    double const time_factor = 1.0 - dt_safe * eps_v_rate;  // [-]
+
+    // Converged n_l (fall back to n_l_prev only if the caller omitted it) --
+    // identical guard to computeImplicitNlDpL so dr_dn_l linearizes about the
+    // same state.
+    double const n_l =
+        std::max(1e-16, std::isfinite(n_l_converged) ? n_l_converged
+                                                     : n_l_prev);
+    double const nS = computeActiveMicroSolidVolumeFraction(
+        n_l, local_context, potential_exchange_params);  // [-]
+    auto const eos = computeReducedMicroLiquidDensity(
+        n_l, rho_LR, nS, potential_exchange_params);
+    double const rho_lR = (std::isfinite(rho_lR_micro) && rho_lR_micro > 0.0)
+                              ? rho_lR_micro
+                              : eos.rho_lR;  // kg/m^3
+
+    double const phi = std::isfinite(local_context.phi)
+                           ? std::clamp(local_context.phi, 0.0, 1.0 - 1e-12)
+                           : std::clamp(local_context.phi_M_prev +
+                                            local_context.phi_m_prev,
+                                        0.0, 1.0 - 1e-12);  // [-]
+    double const c = 1.0 - phi;  // [-]
+    double const one_minus_n_l = std::max(1e-12, 1.0 - n_l);  // [-]
+    double const f = n_l / one_minus_n_l;                     // [-]
+    double const f_prime = 1.0 / (one_minus_n_l * one_minus_n_l);  // [1/n_l]
+
+    // dr/dn_l rebuilt EXACTLY as computeImplicitNlDpL (mass-storage branch):
+    // r = rho_l*time_factor - rho_l_prev - dt*rho_l_hat, rho_l = c*f*rho_lR.
+    double const drho_l_dn_l =
+        c * (f_prime * rho_lR + f * eos.drho_lR_dnl);  // kg/m^3 per n_l
+    double const dmu_lR_dn_l_tot =
+        micro_potential.dmu_lR_dnl +
+        micro_potential.dmu_lR_drho_lR * eos.drho_lR_dnl;  // (J/kg) per n_l
+    double const drho_l_hat_dn_l =
+        exchange.drho_l_hat_dmu_lR * dmu_lR_dn_l_tot;  // (kg/m^3/s) per n_l
+    double const dr_dn_l =
+        drho_l_dn_l * time_factor - dt_safe * drho_l_hat_dn_l;  // kg/m^3 per n_l
+    if (!(std::isfinite(dr_dn_l) && std::abs(dr_dn_l) > 1e-20))
+    {
+        return 0.0;
+    }
+
+    // dr/dK: K enters r ONLY via rho_l_hat = exchange(mu_lR(.;K)); the mass term
+    // rho_l = c*f*rho_lR has no K dependence (the EOS omega has no K). So
+    //   dr/dK = -dt * drho_l_hat/dmu_lR * dmu_lR/dK.            [kg/m^3 per (J/kg)]
+    // micro_potential.dmu_lR_dK is the augmentation channel (linear in K), the
+    // SAME field the M2 explicit-K eigenstress chain consumes.
+    double const dr_dK =
+        -dt_safe * exchange.drho_l_hat_dmu_lR * micro_potential.dmu_lR_dK;
+    double const dn_l_dK = -dr_dK / dr_dn_l;  // n_l per (J/kg)
+    return std::isfinite(dn_l_dK) ? dn_l_dK : 0.0;
 }
 
 template <int DisplacementDim>
@@ -1827,22 +2121,119 @@ computeReferenceMicroPorositySwellingStressIncrement(
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params,
     double const biot_coefficient = 1.0,
-    double const p_conf = std::numeric_limits<double>::quiet_NaN())
+    double const p_conf = std::numeric_limits<double>::quiet_NaN(),
+    double const eps_v = std::numeric_limits<double>::quiet_NaN(),
+    double const eps_v_prev = std::numeric_limits<double>::quiet_NaN(),
+    // TOTAL porosity phi for live K(rho_d) (K_OF_RHO_D_LIVE.md); NaN sentinel
+    // (callers without porosity in scope) -> parse-time scalar K.
+    double const total_porosity = std::numeric_limits<double>::quiet_NaN())
 {
     using KV = MathLib::KelvinVector::KelvinVectorType<DisplacementDim>;
+    // Live K(rho_d): rho_d = rho_SR*(1-phi) [kg/m^3]; one K for BOTH the prev
+    // and curr Pi evaluations of this increment (phi is the current state —
+    // mirrors the held-fixed p_conf telescoping convention).
+    double const K_aug_sw = effectiveAugmentationPrefactor(
+        potential_exchange_params, total_porosity);  // K [J/kg]
     auto const& params = potential_exchange_params;
 
-    // C_el is unused on BOTH branches now (the film-ON branch is a transmitted
-    // PRESSURE over the contact fraction, no longer an elastic eigenstress, so it
-    // no longer needs a drained K here; the OFF disjoining-eigenstress path never
-    // touched it). Kept in the signature for call-site stability.
-    (void)C_el;
+    // C_el is unused on the OFF and operational film branches (transmitted-
+    // pressure form, no drained K needed); the EXACT route (H1) DOES use it for
+    // the drained-line eigenstress half. Kept in the signature for call-site
+    // stability.
 
     KV delta_sigma_sw = KV::Zero();
     double const delta_n_l = n_l - n_l_prev;
     if (!(std::isfinite(delta_n_l) &&
           std::abs(delta_n_l) > std::numeric_limits<double>::epsilon()))
     {
+        return delta_sigma_sw;
+    }
+
+    // ── H1 (review 2026-06-14; RESIDUAL-CHANGING, Vinay-authorized) ──────────
+    // Under film_energy_route = Exact, source the eigenstress half from the SAME
+    // one-Psi functional whose mu_mech half is folded into mu_lR
+    // (applyFilmPressureMicroPotential exact branch, L703), so the assembled
+    // Maxwell pair dsigma_sw/dn_l == nS*rho_lR*dmu_mech/deps_v holds in the
+    // residual (the §9a operational defect |W|/scale=0.93 the exact route exists
+    // to cure is NOT cured if the eigenstress half stays operational). The pair
+    // gives the drained-line LEVEL sigma_sw_m = -nS*n_l*(Pi(w_eff) + b*K_d*eps);
+    // telescope to the step increment as the operational branch does:
+    //   delta_sigma_sw = (sigma_sw_m_curr - sigma_sw_m_prev)*I.
+    // PHYSICS TRADEOFF (predicted, §5): the pair's eigenstress is on the DRAINED
+    // LINE p_conf = -K_d*eps_v, whereas the operational branch uses the ACTUAL
+    // GP p_conf (held fixed across the step). On the drained line the two agree;
+    // off it (e.g. fully confined, eps_v~0 with p_conf growing) they differ by
+    // the off-line p_conf excursion. This is the deliberate one-Psi consistency
+    // choice. Exact route requires Kinematic coupling (create-time validated,
+    // mirrored at the mu fold L707).
+    if (potential_exchange_params.film_pressure_coupling &&
+        potential_exchange_params.film_strain_coupling !=
+            FilmStrainCouplingMode::Off &&
+        potential_exchange_params.film_energy_route == FilmEnergyRoute::Exact &&
+        std::isfinite(eps_v))
+    {
+        auto const& params_h1 = potential_exchange_params;
+        if (!(params_h1.hamaker_constant > 0.0) ||
+            !(params_h1.specific_surface > 0.0) ||
+            !(params_h1.micro_solid_density_reference > 0.0))
+        {
+            OGS_FATAL(
+                "The exact-route DSM swelling stress requires positive vdW "
+                "parameters: hamaker_constant > 0 (got {:g}), specific_surface "
+                "> 0 (got {:g}) and micro_solid_density_reference > 0 (got "
+                "{:g}).",
+                params_h1.hamaker_constant, params_h1.specific_surface,
+                params_h1.micro_solid_density_reference);
+        }
+        auto const& identity2_h1 = MathLib::KelvinVector::Invariants<
+            MathLib::KelvinVector::kelvin_vector_dimensions(
+                DisplacementDim)>::identity2;
+        double const sign_h1 =
+            microPotentialSignFactorFromParameters(params_h1);
+        double const K_drained_h1 =
+            drainedBulkModulusFromStiffness<DisplacementDim>(C_el);  // Pa
+        double const eps_v_prev_h1 =
+            std::isfinite(eps_v_prev) ? eps_v_prev : eps_v;
+        double const rho_pi_prev_h1 =
+            params_h1.use_micro_liquid_density_for_micro_pressure ? rho_lR_prev
+                                                                  : rho_LR;
+        double const rho_pi_curr_h1 =
+            params_h1.use_micro_liquid_density_for_micro_pressure ? rho_lR
+                                                                  : rho_LR;
+        double const active_nS_prev_h1 = computeActiveMicroSolidVolumeFraction(
+            n_l_prev, PotentialExchangeLocalSolveContext{}, params_h1);
+        double const active_nS_curr_h1 = computeActiveMicroSolidVolumeFraction(
+            n_l, PotentialExchangeLocalSolveContext{}, params_h1);
+        double const kappa_prev_h1 =
+            params_h1.film_strain_kappa == FilmStrainKappaMode::Aggregate
+                ? active_nS_prev_h1
+                : 1.0;
+        double const kappa_curr_h1 =
+            params_h1.film_strain_kappa == FilmStrainKappaMode::Aggregate
+                ? active_nS_curr_h1
+                : 1.0;
+        double const sigma_sw_m_prev_h1 =
+            computeStrainedFilmEnergyPair(
+                n_l_prev, eps_v_prev_h1, kappa_prev_h1, biot_coefficient,
+                K_drained_h1, true /*include_S, route R3*/, rho_pi_prev_h1,
+                active_nS_prev_h1, params_h1.micro_solid_density_reference,
+                params_h1.hamaker_constant, params_h1.specific_surface, sign_h1,
+                K_aug_sw, params_h1.potential_augmentation_exponent,
+                0.0 /*dnS_dnl: frozen nS (B1)*/,
+                params_h1.micro_water_content_floor)
+                .sigma_sw_m;  // Pa
+        double const sigma_sw_m_curr_h1 =
+            computeStrainedFilmEnergyPair(
+                n_l, eps_v, kappa_curr_h1, biot_coefficient, K_drained_h1,
+                true /*include_S, route R3*/, rho_pi_curr_h1, active_nS_curr_h1,
+                params_h1.micro_solid_density_reference,
+                params_h1.hamaker_constant, params_h1.specific_surface, sign_h1,
+                K_aug_sw, params_h1.potential_augmentation_exponent,
+                0.0 /*dnS_dnl: frozen nS (B1)*/,
+                params_h1.micro_water_content_floor)
+                .sigma_sw_m;  // Pa
+        delta_sigma_sw.noalias() +=
+            (sigma_sw_m_curr_h1 - sigma_sw_m_prev_h1) * identity2_h1;  // Pa
         return delta_sigma_sw;
     }
 
@@ -1906,21 +2297,65 @@ computeReferenceMicroPorositySwellingStressIncrement(
             n_l, PotentialExchangeLocalSolveContext{}, params);
         double const sign_factor_film =
             microPotentialSignFactorFromParameters(params);
+
+        // ── Strained-film modes (DSM/STRAINED_FILM_IMPLEMENTATION.md) ──────
+        // Evaluate Pi at the SAME strained state w_eff the micro-potential
+        // fold point uses, so both halves of Psi_film see one film thickness
+        // (one-Psi consistency). The density fed to the strained state mirrors
+        // the hydraulic p_L_m choice exactly like the Pi evaluation below.
+        // eps_v NaN sentinel (callers without strain in scope) or mode Off ->
+        // w_eval = n_l, bit-for-bit the frozen-geometry path. p_conf is HELD
+        // FIXED across the step for BOTH states (mirrors the telescoping
+        // convention for the -b*p_conf drain).
+        double w_eval_prev = n_l_prev;
+        double w_eval_curr = n_l;
+        if (params.film_strain_coupling != FilmStrainCouplingMode::Off &&
+            std::isfinite(eps_v))
+        {
+            double const rho_pi_prev =
+                params.use_micro_liquid_density_for_micro_pressure ? rho_lR_prev
+                                                                   : rho_LR;
+            double const rho_pi_curr =
+                params.use_micro_liquid_density_for_micro_pressure ? rho_lR
+                                                                   : rho_LR;
+            double const eps_v_prev_used =
+                std::isfinite(eps_v_prev) ? eps_v_prev : eps_v;
+            w_eval_prev =
+                computeStrainedFilmState(
+                    params.film_strain_coupling, params.film_strain_kappa,
+                    n_l_prev, active_nS_prev_film, eps_v_prev_used, p_conf,
+                    rho_lR_prev, params.micro_solid_density_reference,
+                    params.hamaker_constant, params.specific_surface,
+                    sign_factor_film, K_aug_sw /*live K(rho_d), J/kg*/,
+                    params.potential_augmentation_exponent,
+                    params.micro_water_content_floor, rho_pi_prev)
+                    .w_eff;
+            w_eval_curr =
+                computeStrainedFilmState(
+                    params.film_strain_coupling, params.film_strain_kappa, n_l,
+                    active_nS_curr_film, eps_v, p_conf, rho_lR,
+                    params.micro_solid_density_reference,
+                    params.hamaker_constant, params.specific_surface,
+                    sign_factor_film, K_aug_sw /*live K(rho_d), J/kg*/,
+                    params.potential_augmentation_exponent,
+                    params.micro_water_content_floor, rho_pi_curr)
+                    .w_eff;
+        }
         double const mu_lR_prev_film =
             computeVanDerWaalsMicroPotential(
-                n_l_prev, rho_lR_prev, active_nS_prev_film,
+                w_eval_prev, rho_lR_prev, active_nS_prev_film,
                 params.micro_solid_density_reference, params.hamaker_constant,
                 params.specific_surface, sign_factor_film,
-                params.potential_augmentation_prefactor,
+                K_aug_sw /*live K(rho_d), J/kg*/,
                 params.potential_augmentation_exponent, 0.0 /*dnS_dnl*/,
                 params.micro_water_content_floor)
                 .mu_lR;
         double const mu_lR_curr_film =
             computeVanDerWaalsMicroPotential(
-                n_l, rho_lR, active_nS_curr_film,
+                w_eval_curr, rho_lR, active_nS_curr_film,
                 params.micro_solid_density_reference, params.hamaker_constant,
                 params.specific_surface, sign_factor_film,
-                params.potential_augmentation_prefactor,
+                K_aug_sw /*live K(rho_d), J/kg*/,
                 params.potential_augmentation_exponent, 0.0 /*dnS_dnl*/,
                 params.micro_water_content_floor)
                 .mu_lR;
@@ -2049,7 +2484,7 @@ computeReferenceMicroPorositySwellingStressIncrement(
             n_l_prev, rho_lR_prev, active_nS_prev,
             params.micro_solid_density_reference, params.hamaker_constant,
             params.specific_surface, sign_factor,
-            params.potential_augmentation_prefactor,
+            K_aug_sw /*live K(rho_d), J/kg*/,
             params.potential_augmentation_exponent, 0.0 /*dnS_dnl*/,
             params.micro_water_content_floor)
             .mu_lR;
@@ -2058,7 +2493,7 @@ computeReferenceMicroPorositySwellingStressIncrement(
             n_l, rho_lR, active_nS_curr,
             params.micro_solid_density_reference, params.hamaker_constant,
             params.specific_surface, sign_factor,
-            params.potential_augmentation_prefactor,
+            K_aug_sw /*live K(rho_d), J/kg*/,
             params.potential_augmentation_exponent, 0.0 /*dnS_dnl*/,
             params.micro_water_content_floor)
             .mu_lR;
@@ -2089,11 +2524,17 @@ computeSwellingStressIncrement(
     MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> const& C_el,
     PotentialExchangeParameters const& potential_exchange_params,
     double const biot_coefficient = 1.0,
-    double const p_conf = std::numeric_limits<double>::quiet_NaN())
+    double const p_conf = std::numeric_limits<double>::quiet_NaN(),
+    double const eps_v = std::numeric_limits<double>::quiet_NaN(),
+    double const eps_v_prev = std::numeric_limits<double>::quiet_NaN(),
+    // TOTAL porosity phi for live K(rho_d) (K_OF_RHO_D_LIVE.md); NaN sentinel
+    // -> parse-time scalar K.
+    double const total_porosity = std::numeric_limits<double>::quiet_NaN())
 {
     return computeReferenceMicroPorositySwellingStressIncrement<DisplacementDim>(
         n_l_prev, n_l, n_S, rho_lR, rho_lR_prev, rho_LR, C_el,
-        potential_exchange_params, biot_coefficient, p_conf);
+        potential_exchange_params, biot_coefficient, p_conf, eps_v,
+        eps_v_prev, total_porosity);
 }
 
 template <int DisplacementDim>
@@ -2161,7 +2602,12 @@ inline void updateSwellingState(
     sigma_sw.sigma_sw +=
         computeSwellingStressIncrement<DisplacementDim>(
             n_l_prev, n_l, n_S, rho_lR, rho_lR_prev, rho_LR, C_el,
-            potential_exchange_params, biot_coefficient, p_conf_swelling);
+            potential_exchange_params, biot_coefficient, p_conf_swelling,
+            variables.volumetric_strain, variables_prev.volumetric_strain,
+            // TOTAL porosity (live K(rho_d); rho_d = rho_SR*(1-phi)).
+            std::get<ProcessLib::ThermoRichardsMechanics::PorosityData>(
+                state_current)
+                .phi);
 
     auto const C_el_inverse = C_el.inverse().eval();
 
@@ -4255,8 +4701,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         potential_exchange_params_ptr->specific_surface,
                         microPotentialSignFactorFromParameters(
                             *potential_exchange_params_ptr),
-                        potential_exchange_params_ptr
-                            ->potential_augmentation_prefactor,
+                        // Live K(rho_d): rho_d = rho_SR*(1-phi) (total
+                        // porosity in scope); off -> parse scalar.
+                        effectiveAugmentationPrefactor(
+                            *potential_exchange_params_ptr, phi),  // K [J/kg]
                         potential_exchange_params_ptr
                             ->potential_augmentation_exponent,
                         dnS_dnl_pu,
@@ -4284,13 +4732,192 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                             variables.volumetric_strain, /*biot_b=*/alpha,
                             K_drained, rho_film);
                     double const alpha_M_eff_film = alpha_bar * rho_LR / mu;
+
+                    // ── M1 route dispatch (review fix 2026-06-14) ────────────
+                    // The residual mu_lR's eps_v dependence differs by route:
+                    //   Off (no strain coupling): the integrable partner
+                    //     mu_lR_mech (folded at L844), d/deps_v = mech_pu
+                    //     .dmu_lR_mech_deps_v -- the historical default below.
+                    //   Operational-strained (film_strain_coupling != Off,
+                    //     route != Exact, L759-817): mu_lR = bare(w_eff(eps_v))
+                    //     + b*p_conf(eps_v)/rho, so
+                    //       dmu_lR/deps_v = bare'(w_eff)*dw_eff/deps_v
+                    //                       + b*(dp_conf/deps_v)/rho,
+                    //     with bare'(w_eff) = the law's d/d(arg) (its dmu_lR_dnl
+                    //     BEFORE the dw_eff_dnl chain at L796) and dp_conf/deps_v
+                    //     = -K_drained (drainedBulkModulusFromStiffness = dsigma'
+                    //     _m/deps_v = -dp_conf/deps_v; L61).
+                    //   Exact (film_energy_route == Exact, L703-748): mu_lR +=
+                    //     g_cut*pair.mu_mech with the bare evaluated at the TRUE
+                    //     n_l (no eps_v), so dmu_lR/deps_v = g_cut*pair
+                    //     .dmu_mech_deps_v.
+                    // JACOBIAN-ONLY: residual untouched. Off-mode reaches the
+                    // default branch unchanged (bit-for-bit).
+                    double dmu_lR_deps_v_film =
+                        mech_pu.dmu_lR_mech_deps_v;  // J/kg per strain (Off)
+                    auto const& pep_m1 = *potential_exchange_params_ptr;
+                    if (pep_m1.film_strain_coupling !=
+                        FilmStrainCouplingMode::Off)
+                    {
+                        double const sign_m1 =
+                            microPotentialSignFactorFromParameters(pep_m1);
+                        double const K_aug_m1 = effectiveAugmentationPrefactor(
+                            pep_m1, phi);  // K [J/kg]
+                        if (pep_m1.film_energy_route == FilmEnergyRoute::Exact)
+                        {
+                            double const kappa_m1 =
+                                pep_m1.film_strain_kappa ==
+                                        FilmStrainKappaMode::Aggregate
+                                    ? active_nS_pu
+                                    : 1.0;  // [-]
+                            auto const pair_m1 = computeStrainedFilmEnergyPair(
+                                n_l, variables.volumetric_strain, kappa_m1,
+                                alpha, K_drained, true /*include_S, R3*/,
+                                rho_film, active_nS_pu,
+                                pep_m1.micro_solid_density_reference,
+                                pep_m1.hamaker_constant, pep_m1.specific_surface,
+                                sign_m1, K_aug_m1,
+                                pep_m1.potential_augmentation_exponent,
+                                0.0 /*dnS_dnl: frozen nS (B1)*/,
+                                pep_m1.micro_water_content_floor);
+                            // g_cut = mu_lR(post macro-floor cutoff)/mu_bare_pre,
+                            // matching the residual fold (L738). The residual
+                            // mu_lR_vdw already carries the cutoff; recover g via
+                            // bare_pre. |mu_bare_pre| > 0 by the bare law FATALs.
+                            double const g_cut_m1 =
+                                vdw_pu.mu_lR / pair_m1.mu_bare_pre;  // [-]
+                            dmu_lR_deps_v_film =
+                                g_cut_m1 * pair_m1.dmu_mech_deps_v;  // J/kg/strain
+                        }
+                        else
+                        {
+                            // Operational-strained route.
+                            auto const film_state_m1 = computeStrainedFilmState(
+                                pep_m1.film_strain_coupling,
+                                pep_m1.film_strain_kappa, n_l, active_nS_pu,
+                                variables.volumetric_strain, p_conf_assembly,
+                                rho_film,
+                                pep_m1.micro_solid_density_reference,
+                                pep_m1.hamaker_constant, pep_m1.specific_surface,
+                                sign_m1, K_aug_m1,
+                                pep_m1.potential_augmentation_exponent,
+                                pep_m1.micro_water_content_floor,
+                                rho_film /*rho_pi*/);
+                            // Bare law at w_eff; its dmu_lR_dnl is d(bare)/d(arg)
+                            // (the arg plays the role of n_l), so multiplying by
+                            // dw_eff/deps_v gives d(bare(w_eff))/deps_v.
+                            auto const bare_weff_m1 =
+                                computeVanDerWaalsMicroPotential(
+                                    film_state_m1.w_eff, rho_film, active_nS_pu,
+                                    pep_m1.micro_solid_density_reference,
+                                    pep_m1.hamaker_constant,
+                                    pep_m1.specific_surface, sign_m1, K_aug_m1,
+                                    pep_m1.potential_augmentation_exponent,
+                                    0.0 /*dnS_dnl: frozen nS (B1)*/,
+                                    pep_m1.micro_water_content_floor);
+                            double const dbare_deps_v =
+                                bare_weff_m1.dmu_lR_dnl *
+                                film_state_m1.dw_eff_deps_v;  // J/kg per strain
+                            // d(mu_load)/deps_v = b*(dp_conf/deps_v)/rho,
+                            // dp_conf/deps_v = -K_drained (L61 sign).
+                            double const dmuload_deps_v =
+                                alpha * (-K_drained) / rho_film;  // J/kg/strain
+                            dmu_lR_deps_v_film =
+                                dbare_deps_v + dmuload_deps_v;  // J/kg per strain
+                        }
+                    }
                     local_Jac
                         .template block<pressure_size, displacement_size>(
                             pressure_index, displacement_index)
                         .noalias() -=
                         N_p.transpose() *
-                        (alpha_M_eff_film * mech_pu.dmu_lR_mech_deps_v) *
+                        (alpha_M_eff_film * dmu_lR_deps_v_film) *
                         identity2.transpose() * B * w;
+
+                    // ── Live K(rho_d) analytic tangent (K_OF_RHO_D_LIVE.md;
+                    // Vinay 2026-06-12 approved Jacobian completion) ─────────
+                    // JACOBIAN-ONLY: the residual's live K is untouched. In
+                    // live mode K = K_table(rho_SR*(1-phi)) makes mu_lR depend
+                    // on eps_v through phi, so the exchange p-u tangent gains
+                    // the product-rule chain
+                    //   d mu_lR/d eps_v |_K = dmu_lR/dK * dK/dphi * dphi/deps_v
+                    // with dK/dphi = -rho_SR*(table segment slope) (exact,
+                    // clamped-edge slope 0; PotentialExchangeParameters.h) and
+                    // dmu_lR/dK covering the two LINEAR K-channels the residual
+                    // mu_lR carries: the direct mu_aug term and, via Pi/Pi' in
+                    // the integrable mechanical partner mu_lR_mech,
+                    //   d mu_lR_mech/dK = (dmu_lR/dK + n_l*d(dmu_lR/dnl)/dK)
+                    //                     * eps_v
+                    // (computeIntegrableMechanicalMicroPotential form; Pi =
+                    // -rho*mu_lR makes the rho factors cancel). Off-mode /
+                    // frozen table / clamped edge -> dK/dphi == 0 -> block
+                    // skipped, bit-for-bit identical Jacobian.
+                    double const dK_dphi_pu =
+                        effectiveAugmentationPrefactorPhiDerivative(
+                            *potential_exchange_params_ptr,
+                            phi);  // J/kg per unit phi
+                    if (dK_dphi_pu != 0.0)
+                    {
+                        // dphi/deps_v of the porosity law the residual actually
+                        // evaluated. PorosityFromMassBalance (the MS33 law):
+                        //   phi = (phi_prev + alpha*w)/(1 + w),
+                        //   w = delta_eps_v + delta_p_eff*beta_SR
+                        // => dphi/deps_v = (alpha - phi)/(1 + w)  (analytic,
+                        // derived here from that law's value()). Any other
+                        // porosity law (e.g. Constant: exact) is treated as
+                        // strain-independent -> chain 0.
+                        double dphi_deps_v_pu = 0.0;  // [-]
+                        if (dynamic_cast<
+                                MPL::PorosityFromMassBalance const*>(
+                                &medium->property(MPL::PropertyType::porosity)))
+                        {
+                            double const w_phi_pu =
+                                (variables.volumetric_strain -
+                                 variables_prev.volumetric_strain) +
+                                (variables.effective_pore_pressure -
+                                 variables_prev.effective_pore_pressure) *
+                                    beta_SR;  // [-]
+                            // N1 fix (2026-06-14): PorosityFromMassBalance
+                            // CLAMPS phi to [phi_min, phi_max] (its value(),
+                            // PorosityFromMassBalance.cpp L56). When the clamp
+                            // is active phi is flat in eps_v -> dphi/deps_v = 0;
+                            // the analytic (alpha-phi)/(1+w) would be a spurious
+                            // nonzero tangent. The bounds are private, so detect
+                            // the clamp by comparing the unclamped law value to
+                            // the stored (clamped) phi: a mismatch beyond a
+                            // relative floor means a bound is active.
+                            double const phi_unclamped_pu =
+                                (variables_prev.porosity + alpha * w_phi_pu) /
+                                (1.0 + w_phi_pu);  // [-]
+                            bool const clamp_active_pu =
+                                std::abs(phi_unclamped_pu - phi) >
+                                1e-12 * std::max(1.0, std::abs(phi));  // [-]
+                            dphi_deps_v_pu =
+                                clamp_active_pu
+                                    ? 0.0
+                                    : (alpha - phi) / (1.0 + w_phi_pu);  // [-]
+                        }
+                        if (dphi_deps_v_pu != 0.0)
+                        {
+                            double const dmu_lR_dK_tot_pu =
+                                vdw_pu.dmu_lR_dK +
+                                (vdw_pu.dmu_lR_dK +
+                                 n_l * vdw_pu.ddmu_lR_dnl_dK) *
+                                    variables.volumetric_strain;  // [-]
+                            // Same sign/shape as the dmu_lR_mech_deps_v block
+                            // above: an additional contribution to
+                            // d mu_lR/d eps_v in d rho_L_hat/d u.
+                            local_Jac
+                                .template block<pressure_size,
+                                                displacement_size>(
+                                    pressure_index, displacement_index)
+                                .noalias() -=
+                                N_p.transpose() *
+                                (alpha_M_eff_film * dmu_lR_dK_tot_pu *
+                                 dK_dphi_pu * dphi_deps_v_pu) *  // J/kg per eps_v
+                                identity2.transpose() * B * w;
+                        }
+                    }
                 }
                 use_fd_jacobian_for_direct_macro_derivative =
                     potential_exchange_params_ptr
@@ -4355,6 +4982,353 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                      micro_potential.dmu_lR_drho_lR *
                                          drho_LR_dpL;
                     use_custom_dmu_lR_vdw_dpL = true;
+
+                    // ── M2+L2: displacement-side live-K swelling-eigenstress
+                    // tangent (review fix 2026-06-14; the 1b compliant-top cure)
+                    // ───────────────────────────────────────────────────────
+                    // The residual swelling eigenstress (computeReferenceMicro-
+                    // PorositySwellingStressIncrement, L1983/L2090-2169) sources
+                    // its K from K_aug_sw = effectiveAugmentationPrefactor(params,
+                    // total_porosity=phi), so in live-K mode delta_sigma_sw
+                    // depends on eps_v and p_L through phi. That dependence was
+                    // present in the residual but ABSENT from K[u,u]/K[u,p] (the
+                    // only swelling strain tangent was the constexpr-false dead
+                    // block below, which carries no dK/dphi chain). Wire ONLY the
+                    // live-K chain here -- NOT the pre-existing swelling u-p/u-u
+                    // term Vinay set OFF on 2026-06-01 (enable_dsm_swelling_up_
+                    // jacobian stays at its default; the two are independent).
+                    //   d(delta_sigma_sw)/d(.) = d(delta_sigma_sw)/dK
+                    //                            * dK/dphi * dphi/d(.),
+                    //   delta_sigma_sw = n_S*(n_l_prev*p_film_prev
+                    //                          - n_l*p_film_curr)*I,
+                    //   p_film = Pi - b*p_conf,  Pi = -rho*mu_lR(w_eff; K),
+                    //   => d(delta_sigma_sw)/dK
+                    //      = -n_S*( n_l_prev*rho_prev*dmu_lR_prev/dK
+                    //               - n_l*rho_curr*dmu_lR_curr/dK )*I,
+                    // mapped to R_u via dsigma'/d(.) = C*C_el^{-1}
+                    // *d(delta_sigma_sw)/d(.). dphi/deps_v = (alpha-phi)/(1+w)
+                    // (PorosityFromMassBalance; w = delta_eps_v
+                    // + delta_p_eff*beta_SR) and dphi/dp = dphi/deps_v*beta_SR
+                    // (dw/dp_eff = beta_SR). Gated on live-K mode AND dK/dphi !=
+                    // 0 -> fires ONLY when live K is active inside the table
+                    // interior; off / frozen / clamped edge -> skipped ->
+                    // Jacobian bit-for-bit. The residual eigenstress uses live K
+                    // in BOTH its film-ON branch and its OFF (disjoining) branch
+                    // (computeReferenceMicroPorositySwellingStressIncrement
+                    // L2380/L2389 use K_aug_sw), so this gate is the live-K flag,
+                    // NOT film_pressure_coupling -- otherwise the 1b family (live
+                    // K, film coupling OFF) keeps the residual dependence without
+                    // the matching tangent (the 1b_A step-1 divergence).
+                    // JACOBIAN-ONLY: residual untouched.
+                    if (potential_exchange_params_ptr
+                            ->potential_augmentation_prefactor_live_dry_density)
+                    {
+                        double const dK_dphi_sw =
+                            effectiveAugmentationPrefactorPhiDerivative(
+                                *potential_exchange_params_ptr,
+                                phi);  // J/kg per unit phi
+                        bool const is_pfmb =
+                            dynamic_cast<MPL::PorosityFromMassBalance const*>(
+                                &medium->property(
+                                    MPL::PropertyType::porosity)) != nullptr;
+                        if (dK_dphi_sw != 0.0 && is_pfmb)
+                        {
+                            auto const& pep_sw = *potential_exchange_params_ptr;
+                            // Residual-identical state inputs (mirror
+                            // updateSwellingStateWithMicroPorosity, L2325-2371).
+                            double const n_l_prev_sw =
+                                **std::get<PrevState<MicroWaterContent>>(
+                                    this->prev_states_[ip]);
+                            double const phi_M_sw =
+                                std::get<ProcessLib::ThermoRichardsMechanics::
+                                             TransportPorosityData>(
+                                    this->current_states_[ip])
+                                    .phi;
+                            double const n_S_sw =
+                                std::max(1e-16, 1.0 - phi_M_sw);  // [-]
+                            double const rho_lR_curr_micro_sw =
+                                *std::get<MicroLiquidDensity>(
+                                    this->current_states_[ip]);
+                            double const rho_lR_prev_micro_sw =
+                                **std::get<PrevState<MicroLiquidDensity>>(
+                                    this->prev_states_[ip]);
+                            // Density mirrors the residual's p_L_m choice
+                            // (micro rho_lR when enabled, bulk otherwise).
+                            double const rho_pi_prev_sw =
+                                pep_sw
+                                        .use_micro_liquid_density_for_micro_pressure
+                                    ? rho_lR_prev_micro_sw
+                                    : rho_LR;
+                            double const rho_pi_curr_sw =
+                                pep_sw
+                                        .use_micro_liquid_density_for_micro_pressure
+                                    ? rho_lR_curr_micro_sw
+                                    : rho_LR;
+                            double const eps_v_sw = variables.volumetric_strain;
+                            double const eps_v_prev_sw =
+                                variables_prev.volumetric_strain;
+                            double const sign_sw =
+                                microPotentialSignFactorFromParameters(pep_sw);
+                            double const K_aug_sw_j =
+                                effectiveAugmentationPrefactor(pep_sw,
+                                                               phi);  // K [J/kg]
+                            double const active_nS_prev_sw =
+                                computeActiveMicroSolidVolumeFraction(
+                                    n_l_prev_sw,
+                                    PotentialExchangeLocalSolveContext{},
+                                    pep_sw);  // [-]
+                            double const active_nS_curr_sw =
+                                computeActiveMicroSolidVolumeFraction(
+                                    n_l, PotentialExchangeLocalSolveContext{},
+                                    pep_sw);  // [-]
+                            // w_eff at prev/curr EXACTLY as the residual: the
+                            // strained w_eval is taken ONLY inside the residual's
+                            // film_pressure_coupling block (L2073); the OFF
+                            // (disjoining) branch uses w_eval = n_l. So gate the
+                            // strained state on film_pressure_coupling here too --
+                            // NOT on film_strain_coupling -- otherwise 1b_B
+                            // (kinematic coupling, film OFF) would strain w_eval
+                            // while its residual eigenstress does not.
+                            double w_eval_prev_sw = n_l_prev_sw;
+                            double w_eval_curr_sw = n_l;
+                            // L3 also needs d(w_eval_curr)/dn_l of the residual's
+                            // eval argument: 1 on the OFF branch (w_eval = n_l),
+                            // dw_eff/dn_l on the strained branch.
+                            double dw_eval_curr_dnl_sw = 1.0;  // [-]
+                            if (film_pressure_coupling &&
+                                pep_sw.film_strain_coupling !=
+                                    FilmStrainCouplingMode::Off &&
+                                std::isfinite(eps_v_sw))
+                            {
+                                double const eps_v_prev_used_sw =
+                                    std::isfinite(eps_v_prev_sw) ? eps_v_prev_sw
+                                                                 : eps_v_sw;
+                                w_eval_prev_sw =
+                                    computeStrainedFilmState(
+                                        pep_sw.film_strain_coupling,
+                                        pep_sw.film_strain_kappa, n_l_prev_sw,
+                                        active_nS_prev_sw, eps_v_prev_used_sw,
+                                        p_conf_assembly, rho_lR_prev_micro_sw,
+                                        pep_sw.micro_solid_density_reference,
+                                        pep_sw.hamaker_constant,
+                                        pep_sw.specific_surface, sign_sw,
+                                        K_aug_sw_j,
+                                        pep_sw.potential_augmentation_exponent,
+                                        pep_sw.micro_water_content_floor,
+                                        rho_pi_prev_sw)
+                                        .w_eff;
+                                auto const film_state_curr_sw =
+                                    computeStrainedFilmState(
+                                        pep_sw.film_strain_coupling,
+                                        pep_sw.film_strain_kappa, n_l,
+                                        active_nS_curr_sw, eps_v_sw,
+                                        p_conf_assembly, rho_lR_curr_micro_sw,
+                                        pep_sw.micro_solid_density_reference,
+                                        pep_sw.hamaker_constant,
+                                        pep_sw.specific_surface, sign_sw,
+                                        K_aug_sw_j,
+                                        pep_sw.potential_augmentation_exponent,
+                                        pep_sw.micro_water_content_floor,
+                                        rho_pi_curr_sw);
+                                w_eval_curr_sw = film_state_curr_sw.w_eff;
+                                dw_eval_curr_dnl_sw =
+                                    film_state_curr_sw.dw_eff_dnl;  // [-]
+                            }
+                            // dmu_lR/dK of the bare law at the two states (the
+                            // augmentation channel is linear in K -> dmu_lR_dK).
+                            double const dmu_lR_prev_dK_sw =
+                                computeVanDerWaalsMicroPotential(
+                                    w_eval_prev_sw, rho_lR_prev_micro_sw,
+                                    active_nS_prev_sw,
+                                    pep_sw.micro_solid_density_reference,
+                                    pep_sw.hamaker_constant,
+                                    pep_sw.specific_surface, sign_sw, K_aug_sw_j,
+                                    pep_sw.potential_augmentation_exponent,
+                                    0.0 /*dnS_dnl*/,
+                                    pep_sw.micro_water_content_floor)
+                                    .dmu_lR_dK;  // [-] (J/kg per J/kg)
+                            // Full curr-state vdW struct (L3 also reads .mu_lR
+                            // and .dmu_lR_dnl from it; dnS_dnl frozen to 0
+                            // matches the residual eigenstress, L2390).
+                            auto const vdw_curr_sw =
+                                computeVanDerWaalsMicroPotential(
+                                    w_eval_curr_sw, rho_lR_curr_micro_sw,
+                                    active_nS_curr_sw,
+                                    pep_sw.micro_solid_density_reference,
+                                    pep_sw.hamaker_constant,
+                                    pep_sw.specific_surface, sign_sw, K_aug_sw_j,
+                                    pep_sw.potential_augmentation_exponent,
+                                    0.0 /*dnS_dnl*/,
+                                    pep_sw.micro_water_content_floor);
+                            double const dmu_lR_curr_dK_sw =
+                                vdw_curr_sw.dmu_lR_dK;  // [-]
+                            // d(delta_sigma_sw)/dK scalar (on identity2):
+                            // -n_S*( n_l_prev*rho_prev*dmu_prev/dK
+                            //        - n_l*rho_curr*dmu_curr/dK ).  [Pa per J/kg]
+                            double const d_delta_sigma_sw_dK_scalar =
+                                -n_S_sw *
+                                (n_l_prev_sw * rho_pi_prev_sw *
+                                     dmu_lR_prev_dK_sw -
+                                 n_l * rho_pi_curr_sw * dmu_lR_curr_dK_sw);
+                            // dphi/deps_v and dphi/dp_eff (PorosityFromMassBalance).
+                            double const w_phi_sw =
+                                (variables.volumetric_strain -
+                                 variables_prev.volumetric_strain) +
+                                (variables.effective_pore_pressure -
+                                 variables_prev.effective_pore_pressure) *
+                                    beta_SR;  // [-]
+                            // N1 clamp guard (2026-06-14): zero the chain when
+                            // PorosityFromMassBalance clamps phi to a bound
+                            // (flat in eps_v/p there); detect via unclamped vs
+                            // stored phi (bounds are private). Same logic as the
+                            // live-K p-u block below.
+                            double const phi_unclamped_sw =
+                                (variables_prev.porosity + alpha * w_phi_sw) /
+                                (1.0 + w_phi_sw);  // [-]
+                            bool const clamp_active_sw =
+                                std::abs(phi_unclamped_sw - phi) >
+                                1e-12 * std::max(1.0, std::abs(phi));  // [-]
+                            double const dphi_deps_v_sw =
+                                clamp_active_sw
+                                    ? 0.0
+                                    : (alpha - phi) / (1.0 + w_phi_sw);  // [-]
+                            double const dphi_dp_sw =
+                                dphi_deps_v_sw * beta_SR;  // 1/Pa
+                            // d(delta_sigma_sw)/deps_v and /dp via the live-K
+                            // chain. This is the EXPLICIT-K channel (M2): K(phi)
+                            // varies with strain at FIXED converged n_l.
+                            double dsig_sw_deps_v_scalar =
+                                d_delta_sigma_sw_dK_scalar * dK_dphi_sw *
+                                dphi_deps_v_sw;  // Pa per unit strain
+                            double dsig_sw_dp_scalar =
+                                d_delta_sigma_sw_dK_scalar * dK_dphi_sw *
+                                dphi_dp_sw;  // Pa/Pa
+
+                            // ── L3 (review 2026-06-14, JACOBIAN-ONLY) ─────────
+                            // IMPLICIT n_l(K) channel of the SAME eigenstress.
+                            // In ScalarReferenceMassStorage mode the local solve
+                            // returns n_l satisfying the REV-mass residual
+                            // r(n_l;K)=0, and K=K(phi(eps_v)), so the converged
+                            // n_l ALSO moves with strain through K -- a channel
+                            // the explicit-K term above (n_l held) omits and the
+                            // fixed-n_l dn_l/dpL does not carry (review L3). By
+                            // the chain rule on delta_sigma_sw(n_l(K(phi)),K):
+                            //   d(delta_sigma_sw)/d(.) |_implicit
+                            //     = d(delta_sigma_sw)/dn_l * dn_l/dK
+                            //       * dK/dphi * dphi/d(.),
+                            // with dn_l/dK from computeImplicitNlDK (same 1x1
+                            // REV-mass reduction as dn_l/dpL; returns 0 outside
+                            // mass-storage mode -> this whole channel vanishes
+                            // for ScalarExchange/ReferenceStorage). The explicit
+                            // partial d(delta_sigma_sw)/dn_l is taken at FIXED K
+                            // and FIXED prev state, from the residual increment
+                            // delta_sigma_sw = n_S*(n_l_prev*Pi_prev
+                            //                        - n_l*Pi_curr) (L2406/L2301),
+                            // Pi_curr = -rho_curr*mu_lR_curr(n_l;K):
+                            //   d(delta_sigma_sw)/dn_l
+                            //     = -n_S*( Pi_curr + n_l*dPi_curr/dn_l )
+                            //     = -n_S*( Pi_curr - n_l*rho_curr
+                            //              * dmu_lR_curr/dw_eval
+                            //              * dw_eval/dn_l ),
+                            // where dmu_lR_curr/dw_eval = vdw_curr_sw.dmu_lR_dnl
+                            // (the law's derivative w.r.t. its eval argument) and
+                            // dw_eval/dn_l = 1 on the OFF branch (w_eval=n_l) or
+                            // film_state.dw_eff_dnl on the strained branch --
+                            // EXACTLY the residual's argument-chain (L2384/L2073).
+                            // Mirrors the residual's dnS_dnl=0 (active_nS frozen)
+                            // and held rho_curr. JACOBIAN-ONLY: the local FORWARD
+                            // n_l solve and the residual are untouched; this only
+                            // completes the assembled displacement tangent.
+                            // Folded into the SAME scalars so it rides the
+                            // identical C*C_el^{-1}*identity2 map below. Off /
+                            // frozen / clamped edge / non-mass-storage -> the
+                            // factors are 0 -> bit-for-bit.
+                            // Exact route (H1) sources the residual eigenstress
+                            // from the one-Psi pair, NOT this telescoped form, so
+                            // the telescoped d(delta_sigma_sw)/dn_l here is not
+                            // the assembled residual's partial there. Restrict
+                            // the implicit chain to the telescoped-residual
+                            // regimes (OFF + film-ON-operational) so it stays a
+                            // true partial of the assembled eigenstress and is a
+                            // bit-for-bit no-op on the exact-route 1b_B (which is
+                            // already converging; its tangent is left untouched).
+                            bool const exact_route_l3 =
+                                film_pressure_coupling &&
+                                pep_sw.film_strain_coupling !=
+                                    FilmStrainCouplingMode::Off &&
+                                pep_sw.film_energy_route ==
+                                    FilmEnergyRoute::Exact &&
+                                std::isfinite(eps_v_sw);
+                            double const dn_l_dK_sw =
+                                exact_route_l3
+                                    ? 0.0
+                                    : computeImplicitNlDK(
+                                          n_l_prev_sw, dt, rho_LR, mu,
+                                          micro_potential, exchange,
+                                          local_solve_context,
+                                          *potential_exchange_params_ptr,
+                                          /*n_l_converged=*/n_l,
+                                          /*rho_lR_micro=*/
+                                          rho_lR_exchange_input);  // n_l/(J/kg)
+                            if (dn_l_dK_sw != 0.0)
+                            {
+                                double const Pi_curr_sw =
+                                    -rho_pi_curr_sw * vdw_curr_sw.mu_lR;  // Pa
+                                // d(delta_sigma_sw)/dn_l at fixed K, prev
+                                // (argument chain dw_eval/dn_l included):
+                                double const d_delta_sigma_sw_dnl_sw =
+                                    -n_S_sw *
+                                    (Pi_curr_sw -
+                                     n_l * rho_pi_curr_sw *
+                                         vdw_curr_sw.dmu_lR_dnl *
+                                         dw_eval_curr_dnl_sw);  // Pa per n_l
+                                // [Pa per n_l]*[n_l/(J/kg)]*[(J/kg)/phi] = Pa/phi.
+                                double const d_delta_sigma_sw_dphi_implicit_sw =
+                                    d_delta_sigma_sw_dnl_sw * dn_l_dK_sw *
+                                    dK_dphi_sw;  // Pa per unit phi
+                                dsig_sw_deps_v_scalar +=
+                                    d_delta_sigma_sw_dphi_implicit_sw *
+                                    dphi_deps_v_sw;  // Pa per unit strain
+                                dsig_sw_dp_scalar +=
+                                    d_delta_sigma_sw_dphi_implicit_sw *
+                                    dphi_dp_sw;  // Pa/Pa
+                            }
+                            // Map to R_u: dsigma'/d(.) = C*C_el^{-1}
+                            // *d(delta_sigma_sw)/d(.) (the swelling eigenstress
+                            // enters eps_m = eps + C_el^{-1}:sigma_sw).
+                            auto const& C_consistent_sw =
+                                *std::get<StiffnessTensor<DisplacementDim>>(
+                                    constitutive_data);
+                            auto const C_el_sw =
+                                ip_data_[ip].computeElasticTangentStiffness(
+                                    variables, t, x_position, dt,
+                                    this->solid_material_,
+                                    *this->material_states_[ip]
+                                         .material_state_variables);
+                            auto const C_el_inv_sw = C_el_sw.inverse().eval();
+                            MathLib::KelvinVector::KelvinVectorType<
+                                DisplacementDim> const dsig_sw_deps_v =
+                                dsig_sw_deps_v_scalar * identity2;  // Pa
+                            MathLib::KelvinVector::KelvinVectorType<
+                                DisplacementDim> const dsig_sw_dp =
+                                dsig_sw_dp_scalar * identity2;  // Pa
+                            // K[u,u]: eps_v = identity2^T B u.
+                            local_Jac
+                                .template block<displacement_size,
+                                                displacement_size>(
+                                    displacement_index, displacement_index)
+                                .noalias() += B.transpose() * C_consistent_sw *
+                                              C_el_inv_sw * dsig_sw_deps_v *
+                                              identity2.transpose() * B * w;
+                            // K[u,p].
+                            local_Jac
+                                .template block<displacement_size,
+                                                pressure_size>(
+                                    displacement_index, pressure_index)
+                                .noalias() += B.transpose() * C_consistent_sw *
+                                              C_el_inv_sw * dsig_sw_dp * N_p * w;
+                        }
+                    }
 
                     // --- DSM swelling-eigenstress u-p Jacobian (full p^disj) -
                     // Consistent-tangent completeness term for the swelling
@@ -4440,8 +5414,15 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                             potential_exchange_params_ptr->specific_surface,
                             microPotentialSignFactorFromParameters(
                                 *potential_exchange_params_ptr),
-                            potential_exchange_params_ptr
-                                ->potential_augmentation_prefactor,
+                            // Live K(rho_d): rho_d = rho_SR*(1-phi) (total
+                            // porosity in scope); off -> parse scalar.
+                            // NOTE (2026-06-12): the live-K dK/dphi chain is
+                            // NOT added in this default-OFF block (dead code,
+                            // enable_dsm_swelling_up_jacobian=false); wire it
+                            // per the live p-u block above if ever enabled.
+                            effectiveAugmentationPrefactor(
+                                *potential_exchange_params_ptr,
+                                phi),  // K [J/kg]
                             potential_exchange_params_ptr
                                 ->potential_augmentation_exponent,
                             0.0 /*dnS_dnl*/,
