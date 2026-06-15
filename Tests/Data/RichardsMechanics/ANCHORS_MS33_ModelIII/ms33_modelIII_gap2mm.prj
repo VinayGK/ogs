@@ -4,7 +4,7 @@ EURAD-2 MS33 Theoretical Benchmarking — Model III
 Swelling pressure with 2 mm lateral technological gap
 BGR / DSM native hierarchical vdW-augmented model
 
-Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=71900 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes Villar 29999.25)
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=103879 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes Villar 29999.25)
 Geometry: 50mm diam × 70mm height axisymmetric cylinder, PLUS 2mm lateral gap
   Clay zone  (medium id=0): r=0 to 0.025m, z=0 to 0.070m  (MaterialID=0)
   Gap zone   (medium id=1): r=0.025 to 0.027m, z=0 to 0.070m  (MaterialID=1)
@@ -43,9 +43,18 @@ Boundary conditions (official spec):
                        median fit sigma_swell [MPa] = 0.003 * exp(5.2883 * EMDD [Mg/m3]).
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), clay rho_d=1600 kg/m3
         target sigma : 14.161 MPa
-        fitted K     : 103879 J/kg (clay; Dixon EMDD=rho_d dd1600 = 14.161 MPa (Dixon 2023 Fig.1), re-fit on maxwell_conjugate 2026-06-09 -> Ps 14.01; potential_augmentation_prefactor)
+        fitted K     : 103879 J/kg (clay; Dixon EMDD=rho_d dd1600 = 14.161 MPa (Dixon 2023 Fig.1), re-fit on maxwell_conjugate 2026-06-09 -> Ps 14.16 (merged-line clean code, 2026-06-15; the 14.01 was a dirty-tree re-fit value); potential_augmentation_prefactor)
       Material parameters (source per group):
-        elastic (E, nu)              : EURAD-2 MS33 spec, Table TH-G_model_parameters  [TODO(Vinay): confirm]
+        elastic — Poisson nu=0.3      : EURAD-MS / CIMNE-UPC (CIMNE-UPC.tex Tab. tab:CIMNE_BBM L283).
+        elastic — Young E=52 MPa      : *** WARNING: UNCITED WORKING VALUE — NOT A §12.1 MATERIAL
+                       CONSTANT. *** Vinay-approved 2026-06-15 for use WITH this explicit warning
+                       (§1.1 source = user approval). NO literature/spec source for E=52 MPa: ABSENT
+                       from the EURAD-2 MS33/MSXX spec (TH-G lists only hydraulic/thermal params; the
+                       spec states mechanical params are TEAM-CALIBRATED against a lab test) and from
+                       the thm-lit library. Borrow/working value, NOT calibrated. USE WITH CAUTION;
+                       supersede if a real §12.1 source (Beacon/EPFL/Dixon/Villar/EURAD-MS/FEBEX) or
+                       a Model-I lab calibration appears. SUPERSEDES the prior incorrect "EURAD-2 MS33
+                       spec TH-G" attribution of E (that value is NOT in the spec).
         retention (P0=27MPa, a=0.45)  : EURAD-2 MS33 spec (van Genuchten)
         rel. permeability (S_e^3)     : EURAD-2 MS33 spec (A=1, n=3)
         solid density rho_s=2780      : EURAD-2 MS33 spec
@@ -239,7 +248,7 @@ Boundary conditions (official spec):
                      phi_M is computed by the hierarchical split phi_M=(phi-n_l)/(1-n_l) in
                      computeTransportPorosityUpdate. Sentinel no longer needed after C++ else-branch fix. -->
                 <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
-                <!-- Gap: elevated permeability relative to clay (3 orders of magnitude),
+                <!-- Gap: elevated permeability relative to clay (~1 order of magnitude, x8.5: gap k=1e-18 vs clay 1.17406e-19),
                      not extreme (would destabilize pressure system) -->
                 <property><name>permeability</name><type>Constant</type><value>1e-18</value></property>
                 <property>

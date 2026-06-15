@@ -8,7 +8,7 @@ Geometry: 50mm diam × 70mm height axisymmetric cylinder
   Bentonite block (medium id=0): r=0–0.025m, z=0.035–0.070m  (MaterialID=0)
   Pellet zone     (medium id=1): r=0–0.025m, z=0–0.035m      (MaterialID=1)
 
-Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=71900 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes Villar 29999.25)
+Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=103879 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes Villar 29999.25)
 Pellets:   rho_d=900  kg/m³, phi0=0.676259, K≈150 J/kg
   (Villar target at 0.9 g/cm³ ≈ 0.051 MPa; K extrapolated from calibration curve)
   Pellet k0 from Kozeny-Carman with k_ref=5.6e-21 m² at phi_ref=0.42
@@ -39,7 +39,7 @@ Official benchmark spec (MSXX §Model IV):
                        properties of MX-80 bentonite", Applied Clay Science 241:106998;
                        median fit sigma_swell [MPa] = 0.003 * exp(5.2883 * EMDD [Mg/m3]).
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27)
-        bentonite    : rho_d=1600 kg/m3, target 14.161 MPa, fitted K=103879 J/kg (clay; Dixon dd1600 EMDD=rho_d, maxwell_conjugate 2026-06-09 -> Ps 14.01; pellet override 20600, dd900 NaN) (potential_augmentation_prefactor)
+        bentonite    : rho_d=1600 kg/m3, target 14.161 MPa, fitted K=103879 J/kg (clay; Dixon dd1600 EMDD=rho_d, maxwell_conjugate 2026-06-09 -> Ps 14.16 (merged-line clean code, 2026-06-15; the 14.01 was a dirty-tree re-fit value); pellet override 20600, dd900 NaN) (potential_augmentation_prefactor)
         pellet       : rho_d=900 kg/m3, target sigma_sat=0.400 MPa (Vinay 2026-06-08), fitted
                        K_pellet=20600 J/kg via the per-medium <medium id="1"> override (calibrated in
                        a standalone constant-volume cell; gentle-VG calibration WRC, sigma_sat
@@ -50,9 +50,20 @@ Official benchmark spec (MSXX §Model IV):
                        [RESOLVED 2026-06-08: pellet carries a distinct calibrated K override;
                         §12.1 extrapolation edge confirmed by Vinay.]
       Material parameters (source per group): as Model I; elastic — PER-MATERIAL Young's modulus
-        (Group parameter keyed by MaterialID; Vinay 2026-06-08): MaterialID 0 (clay block) E=52 MPa
-        (EURAD-2 MS33 Table TH-G [TODO(Vinay): confirm]); MaterialID 1 (pellet zone) E=2 MPa
-        (Vinay-approved 2026-06-08 soft-pellet convergence value, NOT a measured constant); nu=0.3 both.
+        (Group parameter keyed by MaterialID; Vinay 2026-06-08): MaterialID 0 (clay block) E=52 MPa,
+        MaterialID 1 (pellet zone) E=2 MPa (Vinay-approved 2026-06-08 soft-pellet convergence value,
+        NOT a measured constant); nu=0.3 both.
+        elastic — Poisson nu=0.3      : EURAD-MS / CIMNE-UPC (CIMNE-UPC.tex Tab. tab:CIMNE_BBM L283).
+        elastic — Young E=52 MPa      : *** WARNING: UNCITED WORKING VALUE — NOT A §12.1 MATERIAL
+                       CONSTANT. *** Vinay-approved 2026-06-15 for use WITH this explicit warning
+                       (§1.1 source = user approval). NO literature/spec source for E=52 MPa: ABSENT
+                       from the EURAD-2 MS33/MSXX spec (TH-G lists only hydraulic/thermal params; the
+                       spec states mechanical params are TEAM-CALIBRATED against a lab test) and from
+                       the thm-lit library. Borrow/working value, NOT calibrated. USE WITH CAUTION;
+                       supersede if a real §12.1 source (Beacon/EPFL/Dixon/Villar/EURAD-MS/FEBEX) or
+                       a Model-I lab calibration appears. SUPERSEDES the prior incorrect "EURAD-2 MS33
+                       spec TH-G" attribution of E (that value is NOT in the spec).
+                       (IV pellet zone MaterialID 1 E=2 MPa is the same uncited working-value family.)
         geometry = 50 mm reference cell (r25 mesh). retention P0=27MPa,a=0.45; rel.perm S_e^3; rho_s=2780; pellet
         phi0=0.676259 = 1-rho_d/rho_s; cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20
         Israelachvili & Adams 1978; lambda=7.5e-7 co-calibrated; micro EOS / Tuller geom /
