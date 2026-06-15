@@ -4,7 +4,7 @@ EURAD-2 MS33 Theoretical Benchmarking — Model VII
 Free swelling, loading and unloading
 BGR / DSM native hierarchical vdW-augmented model
 
-Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=71900 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes earlier 27371.90)
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=103879 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes earlier 27371.90)
 Geometry: 50mm diam × 70mm height axisymmetric cylinder (r=0–0.025m, z=0–0.070m)
 
 Free swelling under constant axial stress = 0.2 MPa (1-D oedometer-like):
@@ -57,13 +57,24 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1600 kg/m3
         target sigma : 14.161 MPa
         fitted K     : 103879.0 J/kg (potential_augmentation_prefactor)
-      Material parameters (source per group): as Model I dd1600; elastic E,nu: EURAD-2 MS33
-        Table TH-G [TODO(Vinay): confirm] — SINGLE material, E=52 MPa Constant (no per-material
-        split needed; 2026-06-08 correction left VII E untouched); nu=0.3. geometry = 50 mm
+      Material parameters (source per group): as Model I dd1600; elastic E,nu: see the
+        dedicated "elastic — Young/Poisson" warning block at the end of this provenance comment
+        (SINGLE material, E=52 MPa Constant, no per-material split needed; 2026-06-08 correction
+        left VII E untouched; nu=0.3). geometry = 50 mm
         reference cell (r25 mesh). retention P0=27MPa,a=0.45; rel.perm S_e^3; rho_s=2780;
         cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20 Israelachvili & Adams 1978; lambda=7.5e-7
         co-calibrated; micro EOS / Tuller geom / specific_surface 523 m2/g [TODO(Vinay): primary
         locators]; alpha_M phenomenological.
+        elastic — Poisson nu=0.3      : EURAD-MS / CIMNE-UPC (CIMNE-UPC.tex Tab. tab:CIMNE_BBM L283).
+        elastic — Young E=52 MPa      : *** WARNING: UNCITED WORKING VALUE — NOT A §12.1 MATERIAL
+                       CONSTANT. *** Vinay-approved 2026-06-15 for use WITH this explicit warning
+                       (§1.1 source = user approval). NO literature/spec source for E=52 MPa: ABSENT
+                       from the EURAD-2 MS33/MSXX spec (TH-G lists only hydraulic/thermal params; the
+                       spec states mechanical params are TEAM-CALIBRATED against a lab test) and from
+                       the thm-lit library. Borrow/working value, NOT calibrated. USE WITH CAUTION;
+                       supersede if a real §12.1 source (Beacon/EPFL/Dixon/Villar/EURAD-MS/FEBEX) or
+                       a Model-I lab calibration appears. SUPERSEDES the prior incorrect "EURAD-2 MS33
+                       spec TH-G" attribution of E (that value is NOT in the spec).
       NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
     -->
     <meshes>

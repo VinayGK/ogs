@@ -35,7 +35,16 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         target sigma : 4.922 MPa
         fitted K     : 45217.0 J/kg (potential_augmentation_prefactor; Dixon EMDD=rho_d target 4.922 -> Ps 4.9218 on clean committed code, restored 2026-06-15; supersedes stale 46431.6 [a 2026-06-09 dirty-tree re-fit that gives Ps 5.0516 = +3% on the clean code, NOT reproducible])
       Material parameters (source per group):
-        elastic (E, nu)              : EURAD-2 MS33 spec, Table TH-G_model_parameters  [TODO(Vinay): confirm E,nu are the TH-G values]
+        elastic — Poisson nu=0.3      : EURAD-MS / CIMNE-UPC (CIMNE-UPC.tex Tab. tab:CIMNE_BBM L283).
+        elastic — Young E=52 MPa      : *** WARNING: UNCITED WORKING VALUE — NOT A §12.1 MATERIAL
+                       CONSTANT. *** Vinay-approved 2026-06-15 for use WITH this explicit warning
+                       (§1.1 source = user approval). NO literature/spec source for E=52 MPa: ABSENT
+                       from the EURAD-2 MS33/MSXX spec (TH-G lists only hydraulic/thermal params; the
+                       spec states mechanical params are TEAM-CALIBRATED against a lab test) and from
+                       the thm-lit library. Borrow/working value, NOT calibrated. USE WITH CAUTION;
+                       supersede if a real §12.1 source (Beacon/EPFL/Dixon/Villar/EURAD-MS/FEBEX) or
+                       a Model-I lab calibration appears. SUPERSEDES the prior incorrect "EURAD-2 MS33
+                       spec TH-G" attribution of E (that value is NOT in the spec).
         retention (P0=27MPa, a=0.45)  : EURAD-2 MS33 spec (van Genuchten)
         rel. permeability (S_e^3)     : EURAD-2 MS33 spec (A=1, n=3)
         solid density rho_s=2780      : EURAD-2 MS33 spec
