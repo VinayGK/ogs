@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64" compressor="vtkZLibDataCompressor">
+  <UnstructuredGrid>
+    <FieldData>
+      <DataArray type="Int8" Name="OGS_VERSION" NumberOfTuples="54" format="appended" RangeMin="45"                   RangeMax="118"                  offset="0"                   />
+    </FieldData>
+    <Piece NumberOfPoints="4"                    NumberOfCells="1"                   >
+      <PointData>
+        <DataArray type="Float64" Name="displacement" NumberOfComponents="2" format="appended" RangeMin="0"                    RangeMax="0"                    offset="124"                 />
+        <DataArray type="Float64" Name="dry_density_solid" format="appended" RangeMin="1400"                 RangeMax="1400"                 offset="184"                 />
+        <DataArray type="Float64" Name="intrinsic_permeability" NumberOfComponents="4" format="appended" RangeMin="1.7343915129e-20"     RangeMax="1.7343915129e-20"     offset="256"                 />
+        <DataArray type="Float64" Name="micro_exchange_source" format="appended" RangeMin="0.0010392881729"      RangeMax="0.0010392881729"      offset="352"                 />
+        <DataArray type="Float64" Name="micro_porosity" format="appended" RangeMin="0.26921181063"        RangeMax="0.26921181063"        offset="428"                 />
+        <DataArray type="Float64" Name="micro_pressure" format="appended" RangeMin="16932169.902"         RangeMax="16932169.902"         offset="504"                 />
+        <DataArray type="Float64" Name="micro_water_content" format="appended" RangeMin="0.34835494151"        RangeMax="0.34835494151"        offset="584"                 />
+        <DataArray type="Float64" Name="porosity" format="appended" RangeMin="0.4964028777"         RangeMax="0.4964028777"         offset="660"                 />
+        <DataArray type="Float64" Name="pressure" format="appended" RangeMin="-5000000"             RangeMax="-5000000"             offset="736"                 />
+        <DataArray type="Float64" Name="relative_permeability" format="appended" RangeMin="0.01"                 RangeMax="0.01"                 offset="808"                 />
+        <DataArray type="Float64" Name="saturation" format="appended" RangeMin="7.0214040805e-06"     RangeMax="7.0214040805e-06"     offset="884"                 />
+        <DataArray type="Float64" Name="sigma" NumberOfComponents="4" format="appended" RangeMin="6665539.7973"         RangeMax="6665539.7973"         offset="964"                 />
+        <DataArray type="Float64" Name="swelling_stress" NumberOfComponents="4" format="appended" RangeMin="6405732.1762"         RangeMax="6405732.1762"         offset="1068"                />
+        <DataArray type="Float64" Name="transport_porosity" format="appended" RangeMin="0.22719106707"        RangeMax="0.22719106707"        offset="1168"                />
+      </PointData>
+      <CellData>
+      </CellData>
+      <Points>
+        <DataArray type="Float64" Name="Points" NumberOfComponents="3" format="appended" RangeMin="0"                    RangeMax="0.014142135624"       offset="1244"                />
+      </Points>
+      <Cells>
+        <DataArray type="Int64" Name="connectivity" format="appended" RangeMin=""                     RangeMax=""                     offset="1328"                />
+        <DataArray type="Int64" Name="offsets" format="appended" RangeMin=""                     RangeMax=""                     offset="1400"                />
+        <DataArray type="UInt8" Name="types" format="appended" RangeMin=""                     RangeMax=""                     offset="1460"                />
+      </Cells>
+    </Piece>
+  </UnstructuredGrid>
+  <AppendedData encoding="base64">
+   _AQAAAAAAAAAAgAAAAAAAADYAAAAAAAAAPAAAAAAAAAA=eF5LLErOyCxL1U8pzo1Pzs8rzs/JTEksSY3Pz4tPy8zJjTcyMDLTNQAiC11z3XSTZPNE0xQDYwAmeRIBAQAAAAAAAAAAgAAAAAAAAEAAAAAAAAAADAAAAAAAAAA=eF5jYKAMAAAAQAABAQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAFAAAAAAAAAA=eF7jYACCB1MdeKA0BxofAGU4Bv0=AQAAAAAAAAAAgAAAAAAAAIAAAAAAAAAAJQAAAAAAAAA=eF7zmt4povT1jDUDGvCCirvgkIeJO+CQh4kn4JCHiQMAOwEc7Q==AQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAGAAAAAAAAAA=eF77+n+Drjh7oP06KL0USl+A0gDu8A1BAQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAGAAAAAAAAAA=eF4Tc5yqc8Tqon0RlK6C0n5QGgDZoA2RAQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAGQAAAAAAAAA=eF7TCyiYd0W1wJEJSv/1h9ASUD4A2ykNZQ==AQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAGAAAAAAAAAA=eF4rPejVVuR9zf4IlD4BpVdDaQAOaxA5AQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAGAAAAAAAAAA=eF6b3h82WeDofftpUHoilF4IpQEIpxAMAQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAEwAAAAAAAAA=eF5jZWBguCAUfJAVBw0Ac0QH7Q==AQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAGAAAAAAAAAA=eF6rEFnn/rCqxb4KSpdB6VooDQDuGA6CAQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAGgAAAAAAAAA=eF5jYGi6rVN8144RSv/63wimWaB8AOB7Dlo=AQAAAAAAAAAAgAAAAAAAAIAAAAAAAAAALAAAAAAAAAA=eF7TspSf6R/je1ALSstDaQYocIbyYbQbmrwHlO+BQ94ayofRVmjyACYDIr4=AQAAAAAAAAAAgAAAAAAAAIAAAAAAAAAAKAAAAAAAAAA=eF5TsJSfGW7uc1ABjWaAAgcoH52GybtD+eg0TN4SykenYfIAuhghMQ==AQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAGAAAAAAAAAA=eF77N6fp7AyRs/ZuUFoXSi+C0gAcBxCgAQAAAAAAAAAAgAAAAAAAAGAAAAAAAAAAHAAAAAAAAAA=eF5jYMAOqkXWuT+sarHHIY0hD+OjiwMA9K8OiQ==AQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAEwAAAAAAAAA=eF5jYIAARijNDKWZoDQAAHgABw==AQAAAAAAAAAAgAAAAAAAAAgAAAAAAAAACwAAAAAAAAA=eF5jYYAAAAAoAAU=AQAAAAAAAAAAgAAAAAAAAAEAAAAAAAAACQAAAAAAAAA=eF7jBAAACgAK
+  </AppendedData>
+</VTKFile>
