@@ -1,4 +1,5 @@
 {
+  "_status_2026_06_15": "SUPERSEDED. This 2026-06-09 re-fit (K=46431.55912763596, Ps_sim 4.9016 vs target 4.9) was a DIRTY-TREE artifact, NOT reproducible on the clean committed code (gives Ps 5.0516, +3% off Dixon). REVERTED 2026-06-15 to the in-tree Dixon knot K=45217.0 (Ps 4.9218, target 4.922). The live PRJ ms33_modelI_dd1400.prj uses 45217.0; this file is retained as the historical re-fit record, NOT the live calibration. Do not treat K below as current.",
   "dd": 1400,
   "K": 46431.55912763596,
   "Ps_sim_MPa": 4.9016101429704175,
