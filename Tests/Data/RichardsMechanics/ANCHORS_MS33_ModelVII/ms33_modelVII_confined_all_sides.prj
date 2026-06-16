@@ -4,7 +4,7 @@ EURAD-2 MS33 Theoretical Benchmarking — Model VII
 Free swelling, loading and unloading
 BGR / DSM native hierarchical vdW-augmented model
 
-Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=85312.6 J/kg
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=103879 J/kg
 Geometry: 50mm diam × 70mm height axisymmetric cylinder (r=0–0.025m, z=0–0.070m)
 
 Free swelling under constant axial stress = 0.2 MPa (1-D oedometer-like):
