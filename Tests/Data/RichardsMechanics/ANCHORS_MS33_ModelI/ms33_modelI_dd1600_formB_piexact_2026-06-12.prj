@@ -146,7 +146,7 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                 <film_strain_coupling>kinematic</film_strain_coupling>
                 <film_strain_kappa>aggregate</film_strain_kappa>
                 <film_energy_route>exact</film_energy_route>
-                <micro_water_content_floor>0.0</micro_water_content_floor>  <!-- mandatory (Vinay 2026-06-17); 0.0 = no floor, preserves prior behaviour -->
+                <micro_water_content_floor>7.06e-5</micro_water_content_floor>  <!-- mandatory (Vinay 2026-06-17); 0.0 = no floor, preserves prior behaviour -->
 </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
