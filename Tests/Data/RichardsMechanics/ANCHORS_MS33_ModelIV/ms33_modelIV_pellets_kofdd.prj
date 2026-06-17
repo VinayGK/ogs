@@ -148,7 +148,7 @@ Official benchmark spec (MSXX §Model IV):
                          resolves to K=20600 J/kg (= the scalar override it replaces). -->
                     <dry_density>900</dry_density>
                 </medium>
-                <micro_water_content_floor>0.0</micro_water_content_floor>
+                <micro_water_content_floor>7.06e-5</micro_water_content_floor>
             </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
