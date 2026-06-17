@@ -720,11 +720,17 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
 
     // Disjoining-pressure floor via a micro-water-content lower bound: clamps the
     // water content used in the vdW disjoining law so Pi = Pi(max(n_l, floor)),
-    // capping Pi instead of diverging as n_l -> 0. 0 (default) -> no floor -> the
-    // disjoining evaluation is byte-identical to before.
-    auto const micro_water_content_floor = config.getConfigParameter<double>(
-        "micro_water_content_floor",
-        defaults ? defaults->micro_water_content_floor : 0.0);
+    // capping Pi instead of diverging as n_l -> 0.
+    // MANDATORY (Vinay 2026-06-17): the floor MUST be declared in every top-level
+    // <potential_exchange> block. A silently-absent floor let Pi ~ 1/n_l^3 diverge
+    // and detonate the micro solve (Task-14a Tuller resaturation). Per-medium
+    // overrides inherit the top-level value. An explicit 0.0 is still permitted
+    // (= no floor) but must now be a conscious declaration, not a default.
+    auto const micro_water_content_floor =
+        defaults ? config.getConfigParameter<double>(
+                       "micro_water_content_floor",
+                       defaults->micro_water_content_floor)
+                 : config.getConfigParameter<double>("micro_water_content_floor");
     if (!(micro_water_content_floor >= 0.0))
     {
         OGS_FATAL(
