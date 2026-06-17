@@ -85,6 +85,7 @@ to the Model I dd1600 VTU state at suction = 2 MPa (micro-macro exchange in equi
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
                 <potential_augmentation_exponent>7.5e-7</potential_augmentation_exponent>
+                <micro_water_content_floor>0.0</micro_water_content_floor>  <!-- mandatory (Vinay 2026-06-17); 0.0 = no floor, preserves prior behaviour -->
             </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
