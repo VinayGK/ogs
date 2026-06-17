@@ -277,8 +277,12 @@ struct PotentialExchangeParameters
     // of diverging as n_l -> 0. This is local to the disjoining evaluation: it
     // does NOT change the global n_l, the exchange, or the porosity. Below the
     // floor the clamped Pi is FLAT in n_l, so its n_l-derivatives are 0 there.
-    // 0.0 (default) -> no floor -> evaluation is byte-identical to before.
+    // 0.0 -> no floor -> evaluation is byte-identical to before.
     // Value source: PRJ-supplied (Vinay's call), not defaulted in code.
+    // MANDATORY in the PRJ (Vinay 2026-06-17): the top-level <potential_exchange>
+    // MUST declare <micro_water_content_floor>; the parser no longer defaults it
+    // (see parsePotentialExchangeParameters). The 0.0 here is only the in-struct
+    // fallback for medium-override inheritance, never a parse default.
     double micro_water_content_floor = 0.0;  // n_l,min [-], must be >= 0
 
     // Optional consistency switches for the hierarchical DSM branch.
