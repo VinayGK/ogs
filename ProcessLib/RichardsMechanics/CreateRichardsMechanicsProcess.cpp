@@ -699,9 +699,14 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
 
     // Macro-porosity floor phi_M,min: keeps the macro pore from collapsing into
     // the interlayer (n_l capped at (phi-floor)/(1-floor)); 0 -> no floor.
-    auto const macro_porosity_floor = config.getConfigParameter<double>(
-        "macro_porosity_floor",
-        defaults ? defaults->macro_porosity_floor : 0.0);
+    // MANDATORY (Vinay 2026-06-17): like micro_water_content_floor, the top-level
+    // <potential_exchange> MUST declare macro_porosity_floor; the parser no longer
+    // defaults it (per-medium overrides inherit). An explicit 0.0 (= no floor) is
+    // permitted but must be a conscious declaration.
+    auto const macro_porosity_floor =
+        defaults ? config.getConfigParameter<double>(
+                       "macro_porosity_floor", defaults->macro_porosity_floor)
+                 : config.getConfigParameter<double>("macro_porosity_floor");
     if (!(macro_porosity_floor >= 0.0 && macro_porosity_floor < 1.0))
     {
         OGS_FATAL(

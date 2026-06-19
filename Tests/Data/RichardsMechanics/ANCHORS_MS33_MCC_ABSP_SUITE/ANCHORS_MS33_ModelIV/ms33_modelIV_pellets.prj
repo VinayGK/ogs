@@ -75,6 +75,7 @@ Official benchmark spec (MSXX §Model IV):
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
                 <potential_augmentation_exponent>7.5e-7</potential_augmentation_exponent>
                 <micro_water_content_floor>7.06e-5</micro_water_content_floor>  <!-- mandatory (Vinay 2026-06-17); 0.0 = no floor, preserves prior behaviour -->
+                <macro_porosity_floor>0.08</macro_porosity_floor> <!-- macro-porosity floor (Vinay 2026-06-17: MS33=0.08) -->
             </potential_exchange>
                         <constitutive_relation>
                 <type>MFront</type>

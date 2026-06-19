@@ -149,6 +149,7 @@ Official benchmark spec (MSXX §Model IV):
                     <dry_density>900</dry_density>
                 </medium>
                 <micro_water_content_floor>7.06e-5</micro_water_content_floor>
+                <macro_porosity_floor>0.08</macro_porosity_floor> <!-- macro-porosity floor (Vinay 2026-06-17: MS33=0.08) -->
             </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
