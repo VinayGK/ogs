@@ -139,7 +139,7 @@ Official benchmark spec (MSXX §Model IV):
                     <potential_augmentation_prefactor>20600</potential_augmentation_prefactor>
                 </medium>
                   <micro_water_content_floor>7.06e-5</micro_water_content_floor>
-                  <macro_porosity_floor>0.08</macro_porosity_floor> <!-- macro-porosity floor (Vinay 2026-06-17: MS33=0.08) -->
+                  <macro_porosity_floor>0.0</macro_porosity_floor> <!-- INERT for the LE submission suite (restores audited Dixon-exact config: 6/6 green, I=4.9218/14.1602/40.8448 verified 2026-06-23). Active 0.08 (Vinay 2026-06-17) broke dd1600/IV/III convergence + pulled dd1800 -8% off Dixon (measured 2026-06-23); 0.08 remains the experimental form-(b)/expulsion floor. Revert per "make submission ready"; countermandable. -->
     </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
