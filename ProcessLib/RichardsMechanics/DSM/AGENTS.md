@@ -471,3 +471,36 @@ step-1 divergence; NOT yet re-run (build is the next phase) — re-run task42
 1b_A_Kl.prj with the new binary to confirm or refute (§5 predicted, not
 verified). If 1b_A still fails after L3, the residual points to a genuinely
 distinct mechanism beyond the live-K tangent gaps.
+
+---
+
+## 2026-06-23 — MS33 gating ctests: vtkdiff regression baseline added (DONE) + '--' parse-fix
+
+DONE (commit c5615fcfd2, dsm_native_maxwell_conjugate, pushed 4 remotes):
+the 6 registered MS LE gating ctests (ANCHORS_MS33_Model{I_dd1400/1600/1800,
+III_gap2mm, IV_pellets, VII_freeswelling}) now carry an in-PRJ
+`<test_definition>` vtkdiff regression baseline (CLAUDE.md §3, anchor (f);
+Vinay-approved 2026-06-23). Mechanism (Applications/ApplicationsLib/
+TestDefinition.cpp): `<regex>` is matched against the REFERENCE dir, then
+vtkdiff compares output<->reference of IDENTICAL filename. Reference = the
+single committed final-time output VTU per model (ts at t_end), regex pins the
+end time. Two-tier tolerances (Vinay's choice), documented in a comment block
+in each PRJ:
+  TIGHT (geometry/equilibrium-pinned): displacement, saturation, porosity,
+    transport_porosity, micro_porosity, micro_water_content, dry_density_solid.
+  LOOSE (calibration/stress-path-sensitive; rel=1e-2, abs=1e3 Pa — INTENTIONAL,
+    tolerates the documented ~1% Model-I non-reproducibility): sigma,
+    swelling_stress, pressure, micro_pressure.
+abs floors derived from extracted final-state problem scale. VERIFIED 6/6 PASS
+on build maxwell_floor_20260619 (ogs @ 71366ac0d3; vtkdiff target built there);
+adversarial teeth-check passed (perturbed reference -> vtkdiff FAIL; ref-vs-ref
+PASS). CAVEAT: adaptive IterationNumberBasedTimeStepping pins ts_NNN to the
+canonical toolchain -> a different CI toolchain may need reference regeneration.
+Tests are LARGE-labelled (run via `ctest -L Large` or by name, NOT default ctest).
+
+INCIDENT folded into the same commit: the prior provenance commit 30a1d0570f
+wrote '--' (illegal double-hyphen) inside XML comments, breaking parse of 7
+committed PRJs (the 3 gating Model I + confined_expulsion x2, dd1600 formB,
+dd900). Fixed ' -- ' -> ' - '. The §6.7 gate did not catch it (it checks
+header==live, not parse); default CI did not catch it (LARGE-excluded). Lesson +
+proposed §6.7 parse-check: see memory incident_xml_double_hyphen_comment_parse.
