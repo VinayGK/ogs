@@ -1087,6 +1087,19 @@ solveReferenceMassStoragePredictorState(
     return out;
 }
 
+// Localized floating-point-contraction guard (Phase A, 2026-06-09).
+// The micro 2x2 local solve forms FD central differences (r(x+h) - r(x-h)) that
+// are cancellation-prone; under the build default -ffp-contract=fast clang is
+// free to fuse the subtractions and divisions into FMAs and reassociate them.
+// On the dd1800 conditioning cliff (near-singular assembled tangent) that
+// reassociation perturbs the last bits enough to tip the global Newton path —
+// the if/else refactor boundary alone changed which fusions clang chose and
+// broke dd1800. Pinning FP_CONTRACT OFF for this translation unit's evaluation
+// of these differences removes that fragility and restores parent-identical
+// numerics. Portable STDC pragma (file scope; gcc honours this) + clang-specific
+// statement-scope `#pragma clang fp contract(off)` inside the body (clang honours
+// that form most reliably).
+#pragma STDC FP_CONTRACT OFF
 inline MicroMacroMassStorageCoupledSolveData
 solveReferenceMassStorageCoupledState(
     double const n_l_prev, double const rho_l_prev, double const rho_lR_prev,
@@ -1095,6 +1108,9 @@ solveReferenceMassStorageCoupledState(
     PotentialExchangeLocalSolveContext const& local_context,
     PotentialExchangeParameters const& potential_exchange_params)
 {
+#if defined(__clang__)
+#pragma clang fp contract(off)
+#endif
     requirePositiveViscosity("solveReferenceMassStorageCoupledState", mu);
     constexpr double n_l_floor = 1e-16;
     constexpr double rho_floor = 1e-16;
@@ -1153,6 +1169,108 @@ solveReferenceMassStorageCoupledState(
                           exchange};
     };
 
+    // ── Analytic micro 2x2 Jacobian (replaces the 4 FD evaluate() calls) ──────
+    // J = d(mass_residual, density_residual)/d(n_l, rho_lR), assembled from the
+    // closed-form residual structure. Mirrors `evaluate` term-for-term so the
+    // converged (n_l, rho_lR) — and hence the global solution — is byte-for-byte
+    // the FD-path result (tangent-only: residuals are untouched). The micro
+    // potential's mu_lR-derivatives (which already fold the macro-floor cutoff,
+    // the film-pressure coupling and the augmentation through the shared helper
+    // chain) are reused; the ONLY piece `evaluate` does not carry is the live-nS
+    // chain in d mu_lR/d n_l (it passes dnS_dnl=0), so the analytic evaluator
+    // re-runs the vdW helper with the correct dnS_dnl and re-applies the film
+    // coupling, reproducing the TOTAL n_l-derivative the FD of `evaluate` sees.
+    //
+    // Closed forms (phi fixed in the local solve; one_minus_n_l = max(1e-12,
+    // 1-n_l) matching `evaluate`):
+    //   rho_l            = (1-phi)/(1-n_l) * n_l * rho_lR                [kg/m^3]
+    //   d rho_l/d rho_lR = (1-phi)/(1-n_l) * n_l        (= rho_l/rho_lR) [-]
+    //   d rho_l/d n_l    = (1-phi) * rho_lR / (1-n_l)^2                  [kg/m^3]
+    //   d(mass_res)/d n_l    = d rho_l/d n_l*(1 - dt*eps_dot)
+    //                          + dt*alpha_M*d mu_lR/d n_l   (rho_l_hat =
+    //                          alpha_M*(mu_LR-mu_lR), d rho_l_hat/d n_l =
+    //                          -alpha_M*d mu_lR/d n_l; sign flips with the -dt*).
+    //   d(mass_res)/d rho_lR = d rho_l/d rho_lR*(1 - dt*eps_dot)
+    //                          + dt*alpha_M*d mu_lR/d rho_lR
+    //   d(dens_res)/d n_l    = -d rho_lR_EOS/d n_l   (EOS drho_lR_dnl; carries the
+    //                          live-nS chain in CurrentPorositySplit, 0 otherwise)
+    //   d(dens_res)/d rho_lR = 1   (rho_lR_EOS depends on n_l & rho_LR only, not
+    //                          on the outer 2x2 unknown rho_lR -> exact).
+    auto evaluate_analytic_jacobian = [&](double const n_l, double const rho_lR)
+    {
+        double const active_nS = computeActiveMicroSolidVolumeFraction(
+            n_l, local_context, potential_exchange_params);
+        // Live-nS chain: nS = 1 - n_l under CurrentPorositySplit (dnS_dnl = -1);
+        // constant in Reference mode (dnS_dnl = 0, exact — no change).
+        double const dnS_dnl =
+            potential_exchange_params.micro_solid_volume_fraction_mode ==
+                    MicroSolidVolumeFractionMode::CurrentPorositySplit
+                ? -1.0
+                : 0.0;
+        auto micro_potential = computeVanDerWaalsMicroPotential(
+            n_l, rho_lR, active_nS,
+            potential_exchange_params.micro_solid_density_reference,
+            potential_exchange_params.hamaker_constant,
+            potential_exchange_params.specific_surface,
+            microPotentialSignFactorFromParameters(potential_exchange_params),
+            // MERGE FIX 2026-08-11 (jac_parallel -> maxwell_conjugate): use the
+            // SAME live K(rho_d) the residual `evaluate` uses. This lambda came
+            // from dsm_maxwell_jac_parallel, which branched off d98f5f8324 —
+            // i.e. BEFORE maxwell_conjugate converted every
+            // computeVanDerWaalsMicroPotential call site to
+            // effectiveAugmentationPrefactor. The three-way merge was textually
+            // clean, so this one call site was left on the parse-time scalar:
+            // with potential_augmentation_prefactor_live_dry_density=true the
+            // analytic 2x2 would then be the derivative of a DIFFERENT potential
+            // than the residual. That is tangent-only, but do NOT read it as
+            // harmless: if the local 2x2 fails to converge in max_iterations
+            // this routine silently returns the decoupled PREDICTOR state (see
+            // the `return out.converged ? out : predictor;` below) and no caller
+            // inspects `converged` — so a bad micro tangent CAN change the
+            // computed state without any warning or time-step rejection.
+            // No-op when live mode is off (the helper returns the parse scalar),
+            // which is the default and the state of every MS33 suite PRJ.
+            effectiveAugmentationPrefactor(potential_exchange_params,
+                                           local_context.phi),  // K [J/kg]
+            potential_exchange_params.potential_augmentation_exponent, dnS_dnl,
+            potential_exchange_params.micro_water_content_floor);
+        // Re-apply the film coupling so d mu_lR/d n_l and d mu_lR/d rho_lR pick up
+        // the integrable Maxwell partner exactly as `evaluate` did.
+        applyFilmPressureMicroPotential(micro_potential, n_l, rho_lR, active_nS,
+                                        local_context, potential_exchange_params);
+        double const dmu_lR_dnl = micro_potential.dmu_lR_dnl;       // J/kg per n_l
+        double const dmu_lR_drho_lR = micro_potential.dmu_lR_drho_lR;  // (J/kg)/(kg/m^3)
+
+        double const phi_cs = std::isfinite(local_context.phi)
+            ? std::clamp(local_context.phi, 0.0, 1.0 - 1e-12)
+            : std::clamp(local_context.phi_M_prev + local_context.phi_m_prev,
+                         0.0, 1.0 - 1e-12);
+        double const one_minus_n_l_cs = std::max(1e-12, 1.0 - n_l);
+        // d rho_l/d n_l = (1-phi)*rho_lR/(1-n_l)^2   [kg/m^3];
+        // d rho_l/d rho_lR = (1-phi)/(1-n_l)*n_l     [-].
+        double const drho_l_dnl = (1.0 - phi_cs) * rho_lR /
+                                  (one_minus_n_l_cs * one_minus_n_l_cs);  // kg/m^3
+        double const drho_l_drho_lR =
+            (1.0 - phi_cs) / one_minus_n_l_cs * n_l;  // [-]
+
+        // d rho_l_hat/d n_l = -alpha_M*d mu_lR/d n_l;  d/d rho_lR likewise.
+        // mass_residual = rho_l - rho_l_prev - dt*rho_l_hat - dt*rho_l*eps_dot.
+        double const J11 =
+            drho_l_dnl * (1.0 - dt_safe * volumetric_strain_rate) +
+            dt_safe * alpha_M_effective * dmu_lR_dnl;  // kg/m^3 per n_l
+        double const J12 =
+            drho_l_drho_lR * (1.0 - dt_safe * volumetric_strain_rate) +
+            dt_safe * alpha_M_effective * dmu_lR_drho_lR;  // [-] (kg/m^3 per kg/m^3)
+
+        // density_residual = rho_lR - rho_lR_EOS(n_l): d/d n_l = -drho_lR_dnl,
+        // d/d rho_lR = 1.
+        auto const density = computeReducedMicroLiquidDensity(
+            n_l, rho_LR, active_nS, potential_exchange_params);
+        double const J21 = -density.drho_lR_dnl;  // kg/m^3 per n_l
+        double const J22 = 1.0;                    // [-]
+        return std::array{J11, J12, J21, J22};
+    };
+
     auto const predictor = solveReferenceMassStoragePredictorState(
         n_l_prev, rho_l_prev, rho_lR_prev, dt, rho_LR, alpha_bar, mu,
         macro_potential, local_context, potential_exchange_params);
@@ -1173,6 +1291,50 @@ solveReferenceMassStorageCoupledState(
     constexpr double residual_tolerance = 1e-10;
     constexpr double increment_tolerance = 1e-10;
 
+    // Phase D (2026-06-10): the analytic micro 2x2 local Jacobian is now the
+    // DEFAULT. It was verified correct in Phase B — analytic == FD central
+    // difference to round-off on every MS33 case, INCLUDING the dense /
+    // EOS-active dd1800 (the earlier suspected J11/J12 error did not exist; the
+    // dd1800 break was a global linear-solver conditioning fragility, not a
+    // micro-tangent error — see DSM/AUDIT_maxwell_local_jacobian_2026-06-09.md).
+    // REQUIREMENT: this path needs <scaling>false</scaling> in the Eigen
+    // <linear_solver> block of the DSM PRJs. With Eigen's IterScaling (Ruiz)
+    // enabled, the row/column equilibration overflows on the intrinsically
+    // near-singular pressure block (cond ~5.8e22 from micro_liquid_density_a=
+    // 1e-16 + Bishop saturation cutoff + tiny intrinsic-k); with scaling off and
+    // SparseLU the system factorizes cleanly. The fp-contract(off) pragma and
+    // the u-side analytic blocks (still OFF) are left as-is.
+    // Deliberately decoupled from use_fd_jacobian_for_exchange (the block #3
+    // macro p-p tangent flag), which keeps its own default so block #3 stays
+    // analytic exactly as parent; setting use_fd_jacobian_for_exchange still
+    // forces the FD micro path here.
+    //
+    // 2026-08-11, merge of dsm_maxwell_jac_parallel into
+    // dsm_native_maxwell_conjugate — DEFAULT REVERTED true -> false by Vinay.
+    // Reason (MEASURED on this tree/binary, not predicted): the analytic path
+    // changes the ADAPTIVE TIME-STEP PATH on two of the six gating MS33 models,
+    // so they no longer reproduce the reference VTUs Vinay approved 2026-06-23:
+    //   Model III  405 -> 376 steps (2 rejected steps -> 0);  3/11 fields pass
+    //   Model VII  682 -> 675 steps;                          5/11 fields pass
+    //   dd1400 / dd1600 / dd1800 / Model IV: step path unchanged, 11/11 pass
+    // The differences are time-discretisation scale, NOT a physics change
+    // (Model III max: displacement 1.73e-6 m, sigma 1.86e4 Pa / 0.54% rel,
+    // swelling_stress 5.2% rel); the TIER-A tolerances (1e-9 abs on
+    // displacement) were calibrated for a bit-identical step path and cannot
+    // survive a changed one. Isolated by a 2x2 experiment: the micro-Jacobian
+    // choice alone drives the step path (III = 376 steps under BOTH <scaling>
+    // settings), so this is not the linear-solver scaling flag.
+    // With this flag false the merged tree reproduces all 6 references
+    // step-for-step identically to the pre-merge binary (VERIFIED 6/6, 66/66
+    // field comparisons). The Phase-D 2026-06-10 "land it as default" decision
+    // is therefore parked, NOT withdrawn: re-enabling is this one line, and
+    // requires re-baselining the Model III + VII reference VTUs first
+    // (CLAUDE.md §3 / §12.5 — Vinay's call).
+    // NOTE the Phase-B "analytic == FD to round-off" claim above was measured
+    // against the jac-branch residual; mc has since changed that residual
+    // (live K(rho_d), strained film), so it is NOT re-verified for this tree.
+    constexpr bool use_analytic_micro_jacobian = false;
+
     for (int iter = 0; iter < max_iterations; ++iter)
     {
         auto const [mass_residual, density_residual, micro_potential, exchange] =
@@ -1191,51 +1353,72 @@ solveReferenceMassStorageCoupledState(
             return out;
         }
 
-        double const h_n = 1e-8 * std::max(1.0, std::abs(n_l));
-        double const h_rho = 1e-8 * std::max(1.0, std::abs(rho_lR));
-        auto const [r1_n_plus, r2_n_plus] =
-            [&]() {
-                auto const [r1, r2, _, __] = evaluate(n_l + h_n, rho_lR);
-                (void)_;
-                (void)__;
-                return std::pair{r1, r2};
-            }();
-        auto const [r1_n_minus, r2_n_minus] =
-            [&]() {
-                auto const [r1, r2, _, __] =
-                    evaluate(std::max(n_l_floor, n_l - h_n), rho_lR);
-                (void)_;
-                (void)__;
-                return std::pair{r1, r2};
-            }();
-        auto const [r1_rho_plus, r2_rho_plus] =
-            [&]() {
-                auto const [r1, r2, _, __] = evaluate(n_l, rho_lR + h_rho);
-                (void)_;
-                (void)__;
-                return std::pair{r1, r2};
-            }();
-        auto const [r1_rho_minus, r2_rho_minus] =
-            [&]() {
-                auto const [r1, r2, _, __] =
-                    evaluate(n_l, std::max(rho_floor, rho_lR - h_rho));
-                (void)_;
-                (void)__;
-                return std::pair{r1, r2};
-            }();
-
-        double const denom_n = (n_l + h_n) - std::max(n_l_floor, n_l - h_n);
-        double const denom_rho =
-            (rho_lR + h_rho) - std::max(rho_floor, rho_lR - h_rho);
-        if (!(denom_n > 0.0 && denom_rho > 0.0))
+        double J11 = 0.0, J12 = 0.0, J21 = 0.0, J22 = 0.0;
+        // Default (Phase A): FD micro 2x2 — parent-identical. The analytic micro
+        // 2x2 is taken ONLY when explicitly opted in via the parked
+        // use_analytic_micro_jacobian constexpr above; the existing
+        // use_fd_jacobian_for_exchange flag still forces FD when set.
+        if (potential_exchange_params.use_fd_jacobian_for_exchange ||
+            !use_analytic_micro_jacobian)
         {
-            break;
-        }
+            // FD path (default; also opt-in via use_fd_jacobian_for_exchange):
+            // central difference of the full `evaluate` over (n_l, rho_lR).
+            double const h_n = 1e-8 * std::max(1.0, std::abs(n_l));
+            double const h_rho = 1e-8 * std::max(1.0, std::abs(rho_lR));
+            auto const [r1_n_plus, r2_n_plus] =
+                [&]() {
+                    auto const [r1, r2, _, __] = evaluate(n_l + h_n, rho_lR);
+                    (void)_;
+                    (void)__;
+                    return std::pair{r1, r2};
+                }();
+            auto const [r1_n_minus, r2_n_minus] =
+                [&]() {
+                    auto const [r1, r2, _, __] =
+                        evaluate(std::max(n_l_floor, n_l - h_n), rho_lR);
+                    (void)_;
+                    (void)__;
+                    return std::pair{r1, r2};
+                }();
+            auto const [r1_rho_plus, r2_rho_plus] =
+                [&]() {
+                    auto const [r1, r2, _, __] = evaluate(n_l, rho_lR + h_rho);
+                    (void)_;
+                    (void)__;
+                    return std::pair{r1, r2};
+                }();
+            auto const [r1_rho_minus, r2_rho_minus] =
+                [&]() {
+                    auto const [r1, r2, _, __] =
+                        evaluate(n_l, std::max(rho_floor, rho_lR - h_rho));
+                    (void)_;
+                    (void)__;
+                    return std::pair{r1, r2};
+                }();
 
-        double const J11 = (r1_n_plus - r1_n_minus) / denom_n;
-        double const J21 = (r2_n_plus - r2_n_minus) / denom_n;
-        double const J12 = (r1_rho_plus - r1_rho_minus) / denom_rho;
-        double const J22 = (r2_rho_plus - r2_rho_minus) / denom_rho;
+            double const denom_n = (n_l + h_n) - std::max(n_l_floor, n_l - h_n);
+            double const denom_rho =
+                (rho_lR + h_rho) - std::max(rho_floor, rho_lR - h_rho);
+            if (!(denom_n > 0.0 && denom_rho > 0.0))
+            {
+                break;
+            }
+
+            J11 = (r1_n_plus - r1_n_minus) / denom_n;
+            J21 = (r2_n_plus - r2_n_minus) / denom_n;
+            J12 = (r1_rho_plus - r1_rho_minus) / denom_rho;
+            J22 = (r2_rho_plus - r2_rho_minus) / denom_rho;
+        }
+        else
+        {
+            // Analytic micro 2x2 Jacobian (default): no extra evaluate() calls.
+            auto const [a11, a12, a21, a22] =
+                evaluate_analytic_jacobian(n_l, rho_lR);
+            J11 = a11;
+            J12 = a12;
+            J21 = a21;
+            J22 = a22;
+        }
 
         double const det = J11 * J22 - J12 * J21;
         if (!(std::isfinite(det) && std::abs(det) > 1e-24))
@@ -5355,16 +5538,21 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // the opt-in flag below so it can be compiled out by
                     // flipping one line without disturbing the residual or any
                     // other Jacobian block.
-                    // DEFAULT OFF (verified 2026-06-01): with the corrected
-                    // scope (below) this term DOES fire on the Pi-path models,
-                    // but on dd1400 it is residual-neutral (P_sw 4.91637 MPa
-                    // unchanged) AND convergence-neutral (824 Newton iters
-                    // unchanged) because the micro-macro coupling here is tiny
-                    // (dn_l_dpL ~ 3e-13, d(sigma_sw)/dpL ~ 4e-5, negligible vs the
-                    // O(1) Biot term in K_up). It costs an elastic-tangent
-                    // reconstruction per ip and the upstream authors disabled the
-                    // analogous classical term (line ~3315). Flip to true to
-                    // enable the consistent-tangent contribution.
+                    // ENABLED 2026-06-09 (dsm_maxwell_jac_parallel): the u-side
+                    // swelling tangent completes the consistent Maxwell Jacobian.
+                    // The film-ON block below (K[u,p] + K[u,u]) implements the
+                    // Maxwell-identity pair: d sigma_sw/d eps_v =
+                    // +(1-phi_M)*n_l*b*K_drained and d sigma_sw/d n_l =
+                    // -(1-phi_M)*(p_film + n_l*Pi') routed through dn_l/dpL — the
+                    // exact transpose of the eigenstress block (THM_DSM_Richards_
+                    // maxwell_web.wl L54, L135).
+                    //
+                    // u-side swelling Jacobian blocks (K[u,p]/K[u,u]) kept in code
+                    // but OFF by default — enabling them singularizes the assembled
+                    // tangent on stiff/dense MS33 cases (dd1800, ModelIII gap2mm:
+                    // SparseLU compute() failure) per the at-scale comparison
+                    // 2026-06-09; flip to true to opt in. Analytic micro 2x2 (a)
+                    // is unchanged — the strict win.
                     constexpr bool enable_dsm_swelling_up_jacobian = false;
                     // Scope: already inside `if (potential_exchange_enabled)`,
                     // which IS the p^disj (Pi-path) DSM path. Do NOT additionally

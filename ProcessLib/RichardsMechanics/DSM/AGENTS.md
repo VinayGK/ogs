@@ -504,3 +504,335 @@ committed PRJs (the 3 gating Model I + confined_expulsion x2, dd1600 formB,
 dd900). Fixed ' -- ' -> ' - '. The §6.7 gate did not catch it (it checks
 header==live, not parse); default CI did not catch it (LARGE-excluded). Lesson +
 proposed §6.7 parse-check: see memory incident_xml_double_hyphen_comment_parse.
+
+---
+
+## Merge note (2026-08-11): dsm_maxwell_jac_parallel folded into dsm_native_maxwell_conjugate
+
+The sections BELOW are the `dsm_maxwell_jac_parallel` worklog (local-Jacobian
+line, 2026-06-09/06-10), merged here verbatim. The sections ABOVE are the
+`dsm_native_maxwell_conjugate` deliverable-line worklog (2026-06-09..06-23).
+Both are kept in full per CLAUDE.md §6.4/§11 (AGENTS.md accretes; entries are
+never removed). The two workstreams ran in parallel off the common base
+d98f5f8324, which is why they appear as a conflict rather than a sequence.
+
+---
+
+## Full consistent tangent for the Maxwell local Jacobian (2026-06-09, branch dsm_maxwell_jac_parallel)
+
+Tangent-only gap-closing (Vinay's AceGen derivation, `THM_DSM_Richards_maxwell_web.wl`); residual UNCHANGED.
+
+- (a) Analytic micro 2×2 Jacobian in `solveReferenceMassStorageCoupledState`
+  (RichardsMechanicsFEM-impl.h): replaced the 4 FD `evaluate()` calls with a
+  closed-form `J = d(mass_res, dens_res)/d(n_l, ρ_lR)` (`evaluate_analytic_jacobian`
+  lambda). Reuses the helper-chain μ_lR derivatives; recovers the live-nS chain by
+  re-running the vdW helper with the right `dnS_dnl`. Branch on
+  `fd_jacobian_for_exchange` (default analytic, FD path kept as fallback). J22=1 exact.
+- (b) Enabled the u-side swelling Jacobian: `enable_dsm_swelling_up_jacobian`
+  false→true (~L4394). The film-ON K[u,p]/K[u,u] block already matched the Maxwell
+  identity (`d σ_sw/d ε_v = +(1-φ_M)·n_l·b·K_drained`; `d σ_sw/d n_l = -(1-φ_M)·(p_film+n_l·Π')`),
+  no formula fix needed.
+- VERIFIED 2026-06-09 (Model I dd1400, Maxwell film path; maxjac vs pre-edit floor binary):
+  (i) solution-unchanged max rel diff = 6.748e-15 (PASS); (ii) local 2×2 cascade
+  quadratic, `|R_{k+1}|/|R_k|²` ~0.24 const (4.84e-2 → 5.57e-4 → 7.23e-8 → 1.3e-15),
+  analytic = FD to round-off; (iii) global iters/step identical 1.338 (max 2) pre vs
+  post (this benchmark's global problem is near-linear per step, `a=1e-16` EOS-bypass —
+  global count cannot move; gain is in the local cascade). SPLICE B not needed.
+  Full numbers + table in `AUDIT_maxwell_local_jacobian_2026-06-09.md`.
+- OPEN: a two-way-coupled benchmark (EOS active, `a` not bypassed) to measure the
+  predicted global iters/step reduction — not yet exercised.
+
+---
+
+## Phase A — park analytic micro + u-side OFF; restore FD micro; fix dd1800 FMA fragility (2026-06-09, branch dsm_maxwell_jac_parallel)
+
+The 2026-06-09 "full consistent tangent" delivery above did NOT survive an
+at-scale 6-model MS33 check. Root cause established:
+
+1. **dd1800 broke from FMA fragility, not math.** The `if (use_fd_jacobian) {…}
+   else {analytic}` boundary changed clang's FMA fusion choices under the build
+   default `-ffp-contract=fast`; on the dd1800 near-singular tangent that tipped
+   the global Newton path.
+2. **Analytic micro 2×2 has a real J11/J12 error on the dense / EOS-active case.**
+   The §VERIFIED dd1400 result above is **solution-invariant ONLY under the
+   `a=1e-16` EOS-bypass** (`density_residual≡0` degenerates the 2×2). The audit's
+   (i)/(ii) claim is RELABELED accordingly (see CORRECTION note in
+   `AUDIT_maxwell_local_jacobian_2026-06-09.md`). Not solution-invariant on dd1800.
+3. **u-side blocks singularize** dd1800 and ModelIII gap2mm (SparseLU failure).
+
+Phase A (this delivery) — ship-safe non-regression, analytic + u-side RETAINED
+but parked OFF by default:
+
+- `solveReferenceMassStorageCoupledState` (RichardsMechanicsFEM-impl.h): added
+  `constexpr bool use_analytic_micro_jacobian = false` (parked off); gate now takes
+  the FD micro 2×2 path when `use_fd_jacobian_for_exchange || !use_analytic_micro_jacobian`
+  → **FD micro = parent**. `evaluate_analytic_jacobian` retained, opt-in (Phase B).
+  Decoupled from `use_fd_jacobian_for_exchange` (default false) so block #3 stays
+  analytic exactly as parent.
+- Localized FP-contraction guard around the function: file-scope
+  `#pragma STDC FP_CONTRACT OFF` + body `#pragma clang fp contract(off)` (clang) —
+  removes the dd1800 FD-reassociation fragility.
+- `enable_dsm_swelling_up_jacobian` back to `false` (~L4488).
+- `ParallelVectorMatrixAssembler.cpp` copy()-guard kept (math-neutral).
+
+VERIFIED 2026-06-09 (maxjac_omp NEW vs mxconj_omp parent OTHER, OGS_ASM_THREADS=4,
+fresh runs on identical inputs): all 6 MS33 (I dd1400/1600/1800, III gap2mm,
+IV pellets_kref20x, VII freeswelling) **complete on both**; identical accepted-step
+counts (308/311/308/438/636/507); final-VTU fields bit-identical to parent to
+round-off (every field ≤ ~1e-12 rel-to-scale; mostly 1e-14–1e-16). **dd1800 now
+completes** (308 steps, 0 rejects). Full table in the audit doc. Compare workspace
+`~/ogs-models/maxjac_compare_2026-06-09/{*/phaseA_new,*/phaseA_other}`.
+
+- OPEN (Phase B): correct the analytic micro 2×2 J11/J12 on the EOS-active/dense
+  case; re-derive/condition the u-side blocks so they don't singularize stiff cases;
+  then re-verify on a two-way-coupled (EOS-active) benchmark before flipping either
+  constexpr ON.
+
+---
+
+## Phase B — diagnose analytic micro 2×2 on dd1800; NO Jacobian error found, root cause is global-solver fragility (2026-06-09, branch dsm_maxwell_jac_parallel)
+
+Goal was to find and fix the "real J11/J12 error" on the dense / EOS-active dd1800
+case that Phase A point 2 (above) predicted. **That prediction is NOT supported by
+the measurements below and is relabeled accordingly (CLAUDE.md §5).**
+
+Method (temporary diagnostic, since removed; tree clean): set
+`use_analytic_micro_jacobian=true` and added an env-gated trace
+(`DSM_MICRO_JAC_TRACE`) that, at every micro Newton iterate, computed BOTH the
+analytic `evaluate_analytic_jacobian` J and an independent central-difference FD J
+of `evaluate` (the exact numerical derivative of the unchanged residual = ground
+truth), logging per-entry value + relative difference. Ran
+`Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/ms33_modelI_dd1800.prj`
+(staged in /tmp), single-thread, with analytic ON and (separately) FD ON.
+
+MEASURED (dd1800, maxjac_omp, OMP_NUM_THREADS=1, 2026-06-09):
+- **Analytic J == FD J to round-off at every iterate.** Over all 58 676 traced
+  analytic-run iterates: max rel diff J11 = 3.5e-9, J12 = 1.2e-8 (= the FD
+  central-difference truncation floor at h=1e-8), J22 = 0 (exact). J21: analytic
+  ≈6.1e-15 vs FD 0.0 — both numerically zero under `a=1e-16` (EOS inert ⇒
+  `drho_lR_dnl≈0`); the rel=1.0 is a 0/0 artifact, not a Jacobian error.
+- **No det sign flips, no singular dets** (analytic vs FD) over the whole trace.
+- **Converged micro states identical FD-vs-analytic to ≤3.2e-12 in n_l** over the
+  entire common range (1392 micro-solves, up to abort); ρ_lR diff 0.0. The
+  analytic path reproduces the FD-path solution entry-for-entry.
+- Many micro-solves (2448/2884 in the FD run; 956/1392 in the analytic run) run to
+  `max_iterations=60` pinned at `n_l_ceiling` — but this is **tolerated/normal**
+  (the FD parent run does it too and completes with **0 rejected steps**).
+- **Why analytic-ON fails dd1800:** with analytic ON the *global* run diverges at
+  time step #110 ("Newton: the linear solver failed in the compute() step"), step
+  size driven to 0.1 s. The FD parent sails through step #110 (Δt≈5720 s, 308
+  accepted / 0 rejected). The micro 2×2 J is verified-correct, so the only thing the
+  flag changes is FP accumulation order (analytic skips the 4 `evaluate()` calls);
+  at dd1800's near-singular *global* tangent that ~1e-12 perturbation tips the
+  brittle global linear solve into non-factorizability. This is the SAME dd1800
+  fragility Phase A point 1 documented for the FMA boundary — it is a global-solver
+  conditioning issue, NOT a micro-tangent error.
+- **Premise check:** every MS33 PRJ (all Models I/III/IV/V/VII) sets
+  `micro_liquid_density_a=1e-16`, so the micro EOS is bypassed everywhere; J21≈0
+  throughout the registered suite. dd1800 differs from dd1400 only in
+  `micro_solid_volume_fraction_reference` (0.6475 vs 0.5036), i.e. it is denser
+  (stiffer global problem), NOT "EOS-active." There is no EOS-active MS33 case in
+  the suite where a missing micro chain term could surface.
+
+CONCLUSION: there is **no missing chain term to add** — the analytic micro 2×2
+J11/J12 already matches the FD ground truth to round-off, including the live-nS
+chain. Per the task STOP condition ("discrepancy deeper than a missing chain term"),
+NO Jacobian change was committed. Diagnostic reverted; `use_analytic_micro_jacobian`
+left at its Phase A default (`false`, opt-in). maxjac_omp rebuilt clean; dd1800
+re-verified complete (308 accepted, 0 rejected) on the reverted FD-default binary.
+
+Relabeling (CLAUDE.md §5): Phase A point 2's "analytic micro 2×2 has a real J11/J12
+error on the dense/EOS-active case" was a *plausible-but-unverified* consequence
+claim; the Phase B trace measures analytic==FD to round-off and equal converged
+states, so the dd1800 break is reattributed to global-solver fragility (Phase A
+point 1's mechanism), not a micro-tangent error.
+
+- OPEN (Phase B, remaining): the analytic micro path is correct but NOT robust on
+  dd1800 because it perturbs FP order on a brittle global solve. Candidate
+  directions (none implemented, none verified): (a) keep analytic OFF by default
+  (current state) — the local cascade gain is real but the global solve is
+  near-singular at dd1800 regardless; (b) condition the *global* tangent / time
+  stepper at dd1800 so it is no longer 1e-12-fragile, then analytic-ON is safe;
+  (c) exercise a genuine EOS-active (`a`≠1e-16) two-way-coupled benchmark — none
+  exists in the registered MS33 suite — to measure any global iters/step gain the
+  consistent micro tangent could buy. u-side singularization (Phase A point 3) is
+  untouched by this diagnosis and remains OPEN.
+
+---
+
+## Phase C — dd1800 conditioning DIAGNOSED + fix found (2026-06-10) — DONE
+
+Resolves Phase B OPEN direction (b) ("condition the global tangent so dd1800 is no
+longer 1e-12-fragile, then analytic-ON is safe").
+
+DIAGNOSIS (measured, env-gated SVD probe, since reverted): the single-element MS33
+tangent is 12×12; the **pressure block is intrinsically near-singular on every
+step** (4 pressure diagonals ~4e-17 vs displacement ~1e6; **cond ≈ 5.77e22**;
+null-space = a pure pressure DOF). Root of the #110 break: Eigen `IterScaling`
+(`<scaling>true>`) overflows the ~0 pressure row to **NaN**; the bare un-scaled
+matrix factorizes fine. Analytic-ON only nudges a pressure off-diagonal across the
+IterScaling overflow boundary; FD parent stays just under. So: **global
+conditioning (the scaling step), not a tangent error.**
+
+FIX (verified, no literal, no recompile): set the `<linear_solver>` to
+**`<scaling>false</scaling>`** (keep SparseLU). With analytic-ON + scaling=false,
+ALL 6 MS33 complete with parent-identical step counts (308/311/308/438/636/507) and
+parent-identical fields (≤6e-12 rel-to-scale). dd1800 #110 now passes (Δt=5720,
+0 rejects). iters/step byte-identical to parent (no global iteration gain — EOS
+bypass; the analytic tangent's value is correctness + per-GP cost, not convergence).
+scaling=false is a no-op on the current FD default (verified parent-identical on the
+clean binary), so the PRJ change is safe but only meaningful once analytic-ON ships.
+
+u-side blocks (`enable_dsm_swelling_up_jacobian`) under the fix: dd1400/1600/1800
+become parent-identical, BUT Model III gap2mm still singularizes and **Model IV /
+Model VII are NOT solution-invariant** (dry_density 12% / sigma 0.25% shifts) — the
+u-side blocks remain OPEN/unsafe, separate from this conditioning fix.
+
+Status: NO change committed pending owner decision (the fix is meaningful only
+bundled with the analytic-ON enablement, a numerical-method call → present to Vinay
+per §9). Tree clean; analytic flag + diagnostic reverted; maxjac_omp rebuilt clean
+(3b64bf9e). Full numbers in DSM/AUDIT_maxwell_local_jacobian_2026-06-09.md Phase C.
+
+DONE 2026-06-10: LANDED. Vinay chose "land it" (GUARDRAIL EXEMPTION §9/§12.3,
+user-approved). `use_analytic_micro_jacobian` flipped false->true (analytic micro
+2x2 = default); all 9 registered DSM ctests carrying `<potential_exchange>` set
+`<scaling>false</scaling>` (Eigen SparseLU; per-PRJ inline block; solver-only, no
+§12.2 material change). Rebuilt maxjac_omp. VERIFIED (measured): all 9 ctests
+complete to identical final ts and parent-identical to round-off vs FD baseline
+(mxconj_omp, scaling=true) — max rel diff <= 6e-12 (table in AUDIT Phase D). MS LE
+standard (ModelI/III/IV/VII) passes. Run-only ctests (no reference VTU) => no
+reference-VTU refresh, no §3/§12.5 flag. u-side blocks STILL parked OFF (unsafe;
+mIII singularizes, mIV/mVII solution-shift — separate work). See AUDIT Phase D.
+
+---
+
+## 2026-08-11 — dsm_maxwell_jac_parallel MERGED into dsm_native_maxwell_conjugate (DONE)
+
+Consolidation ordered by Vinay: "everything in the maxwell_conjugate, tested,
+verified, pushed. Then the rest deleted." Merge commit is a true 2-parent merge
+of `deprecated/dsm_maxwell_jac_parallel` (tip 53538778cc, 5 commits) into
+`dsm_native_maxwell_conjugate` (tip 35ebe2e415), common base d98f5f8324.
+
+**Scope note — "the floor" is NOT a branch.** `~/git/build/maxwell_floor_20260619`
+is a BUILD DIRECTORY compiled from the maxwell_conjugate worktree at 71366ac0
+(`macro_porosity_floor` mandatory), already on the branch; `ogs-dsm-active` is a
+byte-identical binary (both md5 727dfa40b016e154bd51e64c89d072c1). Nothing to
+merge from either. Likewise `dsm_native_h_of_eps_wt` (detached 23a723cc3c) has
+ZERO commits not already reachable from maxwell_conjugate.
+
+### What the merge brought in
+- `RichardsMechanicsFEM-impl.h`: analytic micro 2x2 local Jacobian
+  (`evaluate_analytic_jacobian`) + file-scope `#pragma STDC FP_CONTRACT OFF`.
+  AUTO-MERGED with no textual conflict despite +198/-53 (jac) vs +1005/-24 (mc).
+- `ParallelVectorMatrixAssembler.cpp`: skip the per-thread `jacobian_assembler_
+  .copy()` at num_threads_==1 so CompareJacobiansJacobianAssembler (owns a log
+  ofstream, hard-OGS_FATALs on copy) is usable serially. mc never touched this
+  file -> merged copy is byte-identical to the jac tip.
+- `DSM/AUDIT_maxwell_local_jacobian_2026-06-09.md` (new; the ONLY file that was
+  on the jac branch and not in mc's tree).
+- `<scaling>true</scaling>` -> `false` on 9 MS33 PRJs.
+- Conflicts (2), both resolved: this AGENTS.md (union kept, see the merge note
+  above, §6.4) and `ms33_modelI_dd1800.prj` (see below).
+
+### DEFECT the auto-merge introduced — FIXED (RichardsMechanicsFEM-impl.h:1216)
+mc had converted EVERY `computeVanDerWaalsMicroPotential` call site to the live
+K(rho_d) helper `effectiveAugmentationPrefactor(params, phi)` (0 raw-scalar call
+args remain on mc). The jac branch forked BEFORE that sweep, so the three-way
+merge — textually clean — left `evaluate_analytic_jacobian` alone on the
+parse-time scalar `potential_augmentation_prefactor`. Under
+`potential_augmentation_prefactor_live_dry_density=true` the analytic 2x2 would
+then be the derivative of a DIFFERENT potential than the residual. Fixed to use
+the same helper; bit-for-bit no-op when live mode is off (the default, and the
+state of every MS33 suite PRJ, so the defect was LATENT — never active in the
+deliverable suite). Verified: no bare `potential_augmentation_prefactor` remains
+as a potential-evaluation argument anywhere in the file.
+
+### `use_analytic_micro_jacobian` DEFAULT REVERTED true -> false (Vinay 2026-08-11)
+MEASURED on this tree/binary (build mc_merge_20260811), not predicted. With the
+analytic micro Jacobian ON it changes the ADAPTIVE TIME-STEP PATH on two of the
+six gating models, which then fail the reference VTUs approved 2026-06-23:
+
+| model  | steps ON | steps OFF / pre-merge | vtkdiff vs approved ref (ON) |
+|--------|----------|-----------------------|------------------------------|
+| dd1400 | 308      | 308                   | 11/11 PASS                   |
+| dd1600 | 311      | 311                   | 11/11 PASS                   |
+| dd1800 | 308      | 308                   | 11/11 PASS                   |
+| III    | 376      | 405                   | **3/11 — FAIL**              |
+| IV     | 637      | 637                   | 11/11 PASS                   |
+| VII    | 675      | 682                   | **5/11 — FAIL**              |
+
+Differences are time-discretisation scale, NOT moved physics (Model III max:
+displacement 1.73e-6 m; sigma 1.86e4 Pa = 0.54% rel; swelling_stress 5.2% rel;
+dry_density_solid 0.1% rel). The TIER-A tolerances (1e-9 abs on displacement)
+were calibrated for a bit-identical step path and cannot survive a changed one.
+ISOLATED by a 2x2 experiment {scaling} x {micro Jacobian} on Model III: the
+Jacobian choice alone drives the step path (376 steps under BOTH scaling
+settings) — it is not the linear-solver scaling flag. (Caveat for whoever
+repeats it: the PRJ flag `fd_jacobian_for_exchange` is COARSER than the
+constexpr — it also flips the block-#3 macro p-p tangent, giving 607 steps, so
+it does not reproduce the pre-merge configuration.)
+With the flag false the merged tree reproduces all 6 references step-for-step
+identically to the pre-merge binary. Phase-D's 2026-06-10 "land it as default"
+is PARKED, not withdrawn: re-enabling is one line and requires re-baselining the
+III + VII reference VTUs first (§3 / §12.5 — Vinay's call). NOTE Phase-B's
+"analytic == FD to round-off" was measured against the JAC-branch residual; mc
+has since changed that residual (live K, strained film), so it is NOT re-verified
+for this tree.
+
+### dd1800 conflict resolution — `<scaling>` is the discriminator, not the solver
+mc had moved dd1800 to BiCGSTAB+ILUT (scaling=true); jac had SparseLU
+(scaling=false). MEASURED, merged binary, analytic ON:
+
+| dd1800 linear solver           | scaling | result                          |
+|--------------------------------|---------|---------------------------------|
+| BiCGSTAB+ILUT                  | true    | FAIL ts #110, `residual: nan`   |
+| SparseLU                       | true    | FAIL ts #110, `residual: nan`   |
+| BiCGSTAB+ILUT                  | false   | ts #308, 11/11 PASS             |
+| SparseLU                       | false   | ts #308, 11/11 PASS             |
+
+i.e. exactly the Eigen IterScaling (Ruiz) overflow on the near-singular pressure
+block that the jac Phase-D comment predicted, and independent of solver type.
+Resolved by keeping mc's BiCGSTAB+ILUT and flipping ONLY `<scaling>` to false —
+the measured discriminator. The other 5 suite PRJs keep jac's scaling=false
+(verified 6/6 green); harmless with the analytic path parked, and required if it
+is ever enabled.
+
+### Verification of the committed state (all MEASURED)
+- Build: clean, 0 errors; the only 2 warnings (`-Wunused-parameter` at :456 and
+  :1849) are PRE-EXISTING — byte-identical signatures in the mc parent.
+- Unit tests: `testrunner` 1422 tests / **1418 PASSED, 0 FAILED**, 4 skipped
+  (all pre-existing GTEST_SKIPs).
+- MS33 gating suite: **6/6 models, 66/66 field comparisons PASS** against the
+  committed references, at each PRJ's own `<test_definition>` tolerances; step
+  counts 308/311/308/405/637/682 = pre-merge baseline exactly.
+- All 31 MS33 PRJs pass `xmllint --noout`; micro+macro floor tags paired in all 6.
+- METHOD WARNING for future runs: staging a model directory by copying it
+  wholesale puts the committed reference VTU next to the run outputs, and a
+  "latest matching file" pick then compares the reference AGAINST ITSELF (a
+  trivially-passing test, §3). This happened in the first pass here and inverted
+  the III/VII verdict. Stage MESHES ONLY (exclude `*_ts_*`), and have the
+  comparison refuse ref==out.
+
+### Deletion (Vinay 2026-08-11: delete jac_parallel only)
+- `deprecated/dsm_maxwell_jac_parallel` + its 4 remote copies: SAFE once this
+  merge is pushed — the 5 commits stay reachable through the merge's 2nd parent
+  and its one unique file (the AUDIT .md) is now in mc's tree.
+- NOT deleted, protected content would be lost (§6.2/§6.3):
+  `deprecated/dsm_native_Pi_fofnlev` (commit 19c031cc1f, 117 unique .prj/.vtu/.md
+  NOT in mc; exists ONLY on local + vgk2), `deprecated/dsm_native_Pi_fofnlev_
+  review_fixes_2026-06-14` (1 unique .prj), worktree `dsm_native_h_of_eps_wt`
+  (7 UNTRACKED files — 1 .md + 6 .prj — in git nowhere), and build dirs
+  `maxwell-conjugate-20260602` / `maxwell_floor_20260619` (named in 13 tracked
+  files incl. all 6 gating PRJ provenance headers and calibrate_maxwell_K.py).
+
+### OPEN (carried forward, not introduced here)
+- A failed local 2x2 silently returns the decoupled PREDICTOR state
+  (`return out.converged ? out : predictor;`) and NO caller inspects
+  `converged` — no warning, no time-step rejection. Pre-existing on both
+  parents; raise with Vinay whether it should hard-fail.
+- The file-scope `#pragma STDC FP_CONTRACT OFF` (from jac) now governs ~1000
+  more lines of mc-only assembly code than on either parent. Directionally safe
+  (disables FMA fusion -> more determinism) and the gating suite is unaffected
+  (6/6 PASS), but it was never validated at this scope on the mc line.
+- u-side analytic blocks remain `enable_dsm_swelling_up_jacobian = false`
+  (unsafe per jac Phase D: mIII singularizes, mIV/mVII solution-shift).
