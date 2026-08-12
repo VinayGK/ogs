@@ -375,6 +375,17 @@ initial micro water content is set to the 99 MPa-equilibrium value.
     <!--
       ============================================================
       REGRESSION BASELINE (CLAUDE.md s3) - approved by Vinay 2026-06-23.
+      RE-BASELINED 2026-08-12 (ratified by Vinay): the analytic micro 2x2
+      Jacobian is re-enabled as default, which changes the adaptive step path
+      of this model only; the live reference is now ms33_modelVII_freeswelling_ts_669_t_20736000.000000.vtu
+      (run-to-run and cross-build bit-identical, exact 0.0). The former
+      reference ms33_modelVII_freeswelling_ts_676_t_20736000.000000.vtu is SUPERSEDED and moved
+      (git mv, never deleted) to superseded_references_2026-08-12/ in this
+      directory: the ctest wrapper enumerates every REFERENCE-side file matching
+      the ts_.* regex and requires a same-named output for each (measured
+      2026-08-12), so a superseded reference left beside the PRJ fails the test
+      by construction. The text below still holds: exactly one LIVE final-time
+      reference sits beside this PRJ.
       Physics anchor: (f) regression baseline previously approved by user.
       Reference = the SINGLE final-time output VTU committed beside this PRJ
       (timestep at t_end). vtkdiff (Applications/ApplicationsLib/

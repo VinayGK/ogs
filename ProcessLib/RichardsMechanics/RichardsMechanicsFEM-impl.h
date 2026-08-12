@@ -1290,6 +1290,41 @@ solveReferenceMassStorageCoupledState(
     // macro p-p tangent flag), which keeps its own default so block #3 stays
     // analytic exactly as parent; setting use_fd_jacobian_for_exchange still
     // forces the FD micro path here.
+    //
+    // 2026-08-11, merge of dsm_maxwell_jac_parallel into
+    // dsm_native_maxwell_conjugate — DEFAULT REVERTED true -> false by Vinay.
+    // Reason (MEASURED on this tree/binary, not predicted): the analytic path
+    // changes the ADAPTIVE TIME-STEP PATH on two of the six gating MS33 models,
+    // so they no longer reproduce the reference VTUs Vinay approved 2026-06-23:
+    //   Model III  405 -> 376 steps (2 rejected steps -> 0);  3/11 fields pass
+    //   Model VII  682 -> 675 steps;                          5/11 fields pass
+    //   dd1400 / dd1600 / dd1800 / Model IV: step path unchanged, 11/11 pass
+    // The differences are time-discretisation scale, NOT a physics change
+    // (Model III max: displacement 1.73e-6 m, sigma 1.86e4 Pa / 0.54% rel,
+    // swelling_stress 5.2% rel); the TIER-A tolerances (1e-9 abs on
+    // displacement) were calibrated for a bit-identical step path and cannot
+    // survive a changed one. Isolated by a 2x2 experiment: the micro-Jacobian
+    // choice alone drives the step path (III = 376 steps under BOTH <scaling>
+    // settings), so this is not the linear-solver scaling flag.
+    // With this flag false the merged tree reproduces all 6 references
+    // step-for-step identically to the pre-merge binary (VERIFIED 6/6, 66/66
+    // field comparisons). The Phase-D 2026-06-10 "land it as default" decision
+    // is therefore parked, NOT withdrawn: re-enabling is this one line, and
+    // requires re-baselining the Model III + VII reference VTUs first
+    // (CLAUDE.md §3 / §12.5 — Vinay's call).
+    // RE-ENABLED 2026-08-12 (Vinay; references re-baselined in the same commit).
+    // The parking rationale above is the dated record of 2026-08-11. Measured for
+    // this tree/toolchain before re-enabling: unit suite 1418/1418; dd1400/dd1600/
+    // dd1800/ModelIV reproduce their committed references 11/11 fields each under
+    // the analytic path (step paths unchanged: 308/311/308/637); Model III (405 ->
+    // 376 steps, 2 rejected -> 0) and Model VII (682 -> 675) change step path only,
+    // and their references are re-baselined (ratified) in this commit. The new
+    // III/VII baselines are run-to-run AND cross-build bit-identical (exact 0.0
+    // between two independent builds; the file-scope FP_CONTRACT OFF pragma is
+    // what pins this). u-side blocks remain OFF (unchanged, known-unsafe).
+    // NOTE the Phase-B "analytic == FD to round-off" claim above was measured
+    // against the jac-branch residual; mc has since changed that residual
+    // (live K(rho_d), strained film), so it is NOT re-verified for this tree.
     constexpr bool use_analytic_micro_jacobian = true;
 
     for (int iter = 0; iter < max_iterations; ++iter)
