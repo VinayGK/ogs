@@ -953,3 +953,44 @@ Notable findings folded into the headers:
 - `RichardsMechanics_double_porosity_swelling_dsm_micromacro_constbc_reference`
   is broken by the same half-port (missing `..._constbc.xml` and its reference)
   and was left untouched — out of scope for this task.
+
+---
+
+## 2026-08-12 — five desk items LANDED (Vinay-ratified), verified 22/22 (DONE)
+
+All measured on isolated worktrees/builds first (verification dossier:
+vk-claude-workbench handoff/macbook-pro/2026-08-12.md 15:40), then landed as
+five commits and re-verified via ctest at the landed tip — 22/22 PASS
+(gating 6 + beacon 9-family + double_porosity + MCC shear/biax).
+
+1. **kofdd/kref20x trio DE-REGISTERED** (Tests.cmake, decks kept). Cannot pass
+   as registered (no test_definition -> parse hard-fail under the wrapper);
+   the two ModelIV variants additionally DIVERGE on the merged code (ts #825
+   FD / #2333 analytic) — broken decks. Re-register only with ratified refs.
+2. **beacon abs gates 1e-16/1e-14 -> 1e-12** (33 rows). Measured: same-compiler
+   0.0 exactly; gcc epsilon 4.4e-16..7.8e-16. Refs unchanged; constbc rows
+   untouched.
+3. **double_porosity_swelling re-baselined** (2 refs; md5 85d171fa/64329c93).
+   Old refs encoded pre-hierarchical-split physics; stale by identical amounts
+   on clang+gcc and pre/post-merge binaries.
+4. **MCC: LM KEPT, gates re-derived** (shear/biax sigma+PCP abs 1.0 Pa /
+   rel 1e-7 = measured x1000), and the 2a2409c043 "response-neutral" claim
+   corrected in-file per §5 (measured rel <= 6.6e-11, not bit-identical;
+   attribution proven by one-line revert experiment; 372da0aafe touches only
+   absP, never in play for these tests).
+5. **Analytic micro 2x2 Jacobian RE-ENABLED** (Phase-D default restored) with
+   III/VII re-baselined in the same commit (md5 2aac0784/4ab34801; run-to-run
+   AND cross-build bit-identical). dd1400/1600/1800/IV pass existing refs
+   11/11 under the analytic path; unit suite 1418/1418. u-side blocks stay OFF.
+
+**MECHANISM LESSON (cost one amend):** the OgsTest vtkdiff wrapper enumerates
+every REFERENCE-side file matching the test_definition regex and requires a
+same-named OUTPUT for each. A superseded reference left beside the PRJ fails
+the suite by construction. Superseded III/VII refs therefore moved (git mv,
+never deleted) to superseded_references_2026-08-12/. First post-land ctest
+caught this (III/VII failed); fixed and re-verified 22/22.
+
+Still open on Vinay's desk: constbc-family restore-vs-de-register; gcc
+confirmation of the new III/VII baselines at TIER-A tolerances (ogs09
+report-back; if gcc exceeds them, same portable-gate policy as the beacon
+gates applies).
