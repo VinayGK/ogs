@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64" compressor="vtkZLibDataCompressor">
+  <UnstructuredGrid>
+    <FieldData>
+      <DataArray type="Int8" Name="OGS_VERSION" NumberOfTuples="63" format="appended" RangeMin="45"                   RangeMax="118"                  offset="0"                   />
+    </FieldData>
+    <Piece NumberOfPoints="4"                    NumberOfCells="1"                   >
+      <PointData>
+        <DataArray type="Float64" Name="displacement" NumberOfComponents="2" format="appended" RangeMin="0"                    RangeMax="0"                    offset="136"                 />
+        <DataArray type="Float64" Name="micro_pressure" format="appended" RangeMin="-2.1387917031e-19"    RangeMax="-2.132491083e-19"     offset="196"                 />
+        <DataArray type="Float64" Name="micro_saturation" format="appended" RangeMin="0.99901907319"        RangeMax="1.000002"             offset="284"                 />
+        <DataArray type="Float64" Name="pressure" format="appended" RangeMin="-963784.86731"        RangeMax="2000"                 offset="368"                 />
+        <DataArray type="Float64" Name="saturation" format="appended" RangeMin="0.72896772721"        RangeMax="1.0474970822"         offset="448"                 />
+        <DataArray type="Float64" Name="sigma" NumberOfComponents="4" format="appended" RangeMin="1.1022101262e-25"     RangeMax="4.8367121496e-23"     offset="532"                 />
+        <DataArray type="Float64" Name="swelling_stress" NumberOfComponents="4" format="appended" RangeMin="1.1022101262e-25"     RangeMax="4.8367121496e-23"     offset="652"                 />
+      </PointData>
+      <CellData>
+      </CellData>
+      <Points>
+        <DataArray type="Float64" Name="Points" NumberOfComponents="3" format="appended" RangeMin="0"                    RangeMax="0.032015621187"       offset="760"                 />
+      </Points>
+      <Cells>
+        <DataArray type="Int64" Name="connectivity" format="appended" RangeMin=""                     RangeMax=""                     offset="844"                 />
+        <DataArray type="Int64" Name="offsets" format="appended" RangeMin=""                     RangeMax=""                     offset="916"                 />
+        <DataArray type="UInt8" Name="types" format="appended" RangeMin=""                     RangeMax=""                     offset="976"                 />
+      </Cells>
+    </Piece>
+  </UnstructuredGrid>
+  <AppendedData encoding="base64">
+   _AQAAAAAAAAAAgAAAAAAAAD8AAAAAAAAARQAAAAAAAAA=eF5LLErOyCxL1U8pzo3PSywBMuMDMuPT8tPyclLL4pOKEvOSM0oyC+KNDIzMdA0sdA0NdY2MddNNDExNDZPMEgHyLRUoAQAAAAAAAAAAgAAAAAAAAEAAAAAAAAAADAAAAAAAAAA=eF5jYKAMAAAAQAABAQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAHwAAAAAAAAA=eF7rVWTIVJjAv2cClGabw3Q5qIJ/z6/ZEBoAtE8MMw==AQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAHgAAAAAAAAA=eF5zVHh749v39/YuUFrqyz0JJoYP9iJQGgA1xRDqAQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAGgAAAAAAAAA=eF6r7eTfMzFT92AdlGYAAYf5DjAaAMMiCbI=AQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAHgAAAAAAAAA=eF5jyWxT2BL83J4FSlvxvvHpOfTB3gRKAwDaig5zAQAAAAAAAAAAgAAAAAAAAIAAAAAAAAAAOAAAAAAAAAA=eF4r23ZLUe2hg3UZlC6B0gxQUA7ll6Opg8k3XFopcmzj5l1w+iKEhsknXIXwYbTDFVR5ANe1MzA=AQAAAAAAAAAAgAAAAAAAAIAAAAAAAAAALwAAAAAAAAA=eF4r3XZLUe2hg3UpGs0ABeVQPjoNk2e4tFLk2MbNuzBoKFhwBcJHp2HyAJd2Mo8=AQAAAAAAAAAAgAAAAAAAAGAAAAAAAAAAHgAAAAAAAAA=eF5jYMAOZs0EA3tc4tUi69wfVk3BkEcXBwCsMhBDAQAAAAAAAAAAgAAAAAAAACAAAAAAAAAAEwAAAAAAAAA=eF5jYIAARijNBKWZoTQAAHAABw==AQAAAAAAAAAAgAAAAAAAAAgAAAAAAAAACwAAAAAAAAA=eF5jYYAAAAAoAAU=AQAAAAAAAAAAgAAAAAAAAAEAAAAAAAAACQAAAAAAAAA=eF7jBAAACgAK
+  </AppendedData>
+</VTKFile>

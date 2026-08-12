@@ -864,3 +864,92 @@ gating PRJ provenance headers and calibrate_maxwell_K.py.
   (6/6 PASS), but it was never validated at this scope on the mc line.
 - u-side analytic blocks remain `enable_dsm_swelling_up_jacobian = false`
   (unsafe per jac Phase D: mIII singularizes, mIV/mVII solution-shift).
+
+## 2026-08-12 — BEACON ctest inputs restored, floors declared, references re-baselined (DONE)
+
+**Symptom (Vinay's question).** `ProcessLib/RichardsMechanics/Tests.cmake` has
+registered nine BEACON `AddTest` blocks since the port, but
+`Tests/Data/RichardsMechanics` carried **zero** beacon files on this branch.
+
+**Root cause — a half-port, not a deletion.** `git log --diff-filter=D` (with
+`-m` for merges) shows no commit ever removed them; the commits that added them
+(`45ea35b9c9`, `5a0792dbb0`, `72f4f3a192`, `473e4af39c`, `87dc1ae9bd`) are not
+ancestors of this branch. `cc68e104c9` "Port DSM native (p_disj augmentation +
+Tuller) onto ufz/master 6.5.8" (2026-06-02) carried the ProcessLib code and the
+Tests.cmake registration but no `Tests/Data` payload. `master` is
+self-consistent (neither registration nor data); only this branch was half-ported.
+
+**What was done.**
+1. 15 files restored from `a6dfec842c` (`deprecated/dsm_native_hierarchical`):
+   5 PRJ, 4 reference VTU, 3 domain VTU, 3 GML.
+2. As restored they do not parse: `Key <macro_porosity_floor> has not been
+   found`. The decks predate `2144a1ce40` / `71366ac0d3`, which made the
+   floor pair mandatory with no default. Both floors declared **inert (0.0)**,
+   value approved by Vinay 2026-08-12 (CLAUDE.md §1.1) — the same inert
+   declaration used for the MS33 form-(a) decks on 2026-06-19. Verified inert
+   at `PotentialExchange.h:199-205`: floor 0 takes the unfloored path.
+3. With the floors the decks run, but the 2026-06-02 references no longer
+   match: 1a01 4/7 fields fail (pressure abs 405.8 Pa, rel 4.2e-4), inflow
+   8/10, 1c 9/9, 1b 1/7 (micro_pressure abs 2.13e-16 against a 1e-16
+   threshold, i.e. roundoff). The old baselines predate the constitutive work
+   on this branch — `013990e1cd` (mu_lR on the integrable Maxwell partner),
+   `aeccc1c838` + `36dfeaddcc` (swelling stress -> (1-phi_M)*p_film, sign and
+   weighting), `dbf20d6f1a` (bare-Pi OFF path retired), `6391e357a2` (marked
+   RESIDUAL-CHANGING). The drift ordering is consistent with that: the decks
+   whose vdW term is switched off drift least, the ones with it live drift most.
+4. All four references **re-baselined** on `40551b6aad`. Determinism checked
+   first: repeat runs are md5-identical. These are regression baselines at that
+   commit, NOT physics claims. Previous baselines remain at `a6dfec842c`.
+5. §12.2 provenance headers written into all five decks — **honest and
+   incomplete**, see below.
+
+**Verification (all MEASURED, binary `40551b6aad` in
+`/Users/vinaykumar/git/build/maxwell_floor_20260619`).**
+- `ctest -R beacon -j14` -> **13/13 pass**, before and after the headers.
+- `ctest -R RichardsMechanics -j14`: failure set with the change is **identical**
+  to the clean-tree baseline (12 non-beacon failures, stable over 2 clean and 2
+  changed runs). No test that passed before fails now (§6.5 satisfied).
+- Flake noted, not attributed: `Mockup2D/mockup` and `RichardsMechanics/A2`
+  failed in one early run and in none of the four later ones, and both pass
+  serially. They are order/parallelism sensitive (they consume state written by
+  a preceding test); adding 13 beacon tests perturbs scheduling.
+
+**§12.2 status — NON-COMPLIANT, BLOCKED ON VINAY.** An 11-agent provenance
+mining run (5 tracers, 5 adversarial verifiers, 1 synthesis) found that exactly
+**one** material literal in the whole family is sourceable: `specific_surface =
+523` in the inflow deck (EPFL; Seiphoori, Ferrari & Laloui 2014, Géotechnique
+64(9):721-734, Tab. 1 p.724, MX-80) — and even that carries an open m²/g vs
+m²/kg convention question that also affects the MS33 decks. Everything else is
+`TODO(Vinay): UNSOURCED`. The headers say so explicitly rather than inventing
+attributions. Full per-literal evidence, including the attributions that were
+tried and refuted (2780 <- "EURAD-2 MS33 spec"; nu=0.2 <- the CIMNE ν=0.3
+locator; 2650 <- the Boom Clay grain density in GRS-202; 6e-20 and 5.1e-21 <-
+Israelachvili & Adams 1978):
+`~/.claude/projects/-Users-vinaykumar-git-ogs/BEACON_PRJ_PROVENANCE_LEDGER_2026-08-12.md`.
+
+Notable findings folded into the headers:
+- **No deck has a calibration anchor at all.** None carries
+  `potential_augmentation_prefactor`, so K = 0 and the augmentation branch is
+  skipped (`PotentialExchange.h:259`). §12.1's Dixon/Villar rule is *vacuous*
+  here, not violated. The `swelling_pressures` literals are inputs to the macro
+  swelling law, not calibration targets.
+- **A = 1e-30 J with Sa = 1.0 is a deliberate switch-off placeholder**: exact
+  zero is rejected by the positivity guard, so a minimal positive pair is the
+  only way to disable the vdW branch. The same quintuple is the DSM unit-test
+  harness state (`DSMMicroMacroSingleIntegrationPoint.cpp:663`). Still owed a
+  §0.2 exemption note recording the intent.
+- **The family carries three different Hamaker constants** (1e-30 / 6e-20 /
+  5.1e-21 J), none equal to the branch literature value; the 2026-05-22 sweep
+  `0d579e8aeb` that moved 27 other PRJs to 2.2e-20 missed these decks.
+  stressprobe's 6e-20 sits outside the range the source file itself documents.
+
+### OPEN (introduced by this entry)
+- §12.1 locators, or a §0.2 exemption declaring the parameter set non-physical,
+  for every literal marked `TODO(Vinay): UNSOURCED` in the five headers.
+- `specific_surface` unit convention (m²/g as entered vs m²/kg as consumed) —
+  affects the MS33 gating decks identically.
+- Whether beacon_1c's block and pellet share one grain density, E, ν and Bishop
+  law (currently they do; never recorded as a decision).
+- `RichardsMechanics_double_porosity_swelling_dsm_micromacro_constbc_reference`
+  is broken by the same half-port (missing `..._constbc.xml` and its reference)
+  and was left untouched — out of scope for this task.

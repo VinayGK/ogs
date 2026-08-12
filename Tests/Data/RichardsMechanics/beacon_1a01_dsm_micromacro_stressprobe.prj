@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<OpenGeoSysProject>
+<!--
+  DSM provenance (CLAUDE.md sec. 12)
+
+  *** INCOMPLETE BY DESIGN, AND SAYS SO. Every entry below reading
+  *** "TODO(Vinay): UNSOURCED" is a literal for which no source in the
+  *** sec. 12.1 closed list (Beacon | EPFL | Dixon 2023 | Villar | EURAD-MS |
+  *** FEBEX) exists anywhere in this tree, in git history, or in the local
+  *** thm-lit / Mendeley libraries. Nothing here was inferred, rounded, or
+  *** borrowed from a deck that has no header of its own. Per-literal evidence
+  *** with locators, and the list of attributions that were tried and refuted:
+  ***   ~/.claude/projects/-Users-vinaykumar-git-ogs/
+  ***       BEACON_PRJ_PROVENANCE_LEDGER_2026-08-12.md
+  *** Resolution is Vinay's call: supply locators, de-register from
+  *** Tests.cmake, or grant a sec. 0.2 exemption declaring this parameter set
+  *** non-physical smoke placeholders.
+
+  Benchmark family : Beacon (geometry lineage only). No BEACON specification
+                     document could be located to cite; the sec. 12.1 "Beacon"
+                     family cannot be written into this header until Vinay
+                     supplies a WP / deliverable + table locator.
+  Geometry / BC    : axisymmetric cell on beacon_1a01_domain.vtu, fully
+                     confined (rollers on all four boundaries), p_ic = -1e6 Pa,
+                     top_pressure 2e3 Pa, t_end = 1e5 s.
+  Purpose          : stress-response probe. Registered as a RUN-ONLY ctest (no
+                     DIFF_DATA), so sec. 2 fit-and-verify does not fire.
+                     Unlike the smoke decks the vdW term is LIVE here.
+
+  Calibration anchor:
+    source         : none. This deck performs no calibration.
+    dataset row    : n/a
+    target sigma   : n/a
+    fitted K       : none. No potential_augmentation_prefactor tag is present,
+                     so K defaults to 0.0 and the augmentation branch is
+                     skipped (PotentialExchange.h:259, "Setting K = 0 (default)
+                     reduces exactly to the pure vdW form"). The sec. 12.1
+                     Dixon/Villar anchor rule is therefore VACUOUS here, not
+                     violated. The swelling_pressures literals below are inputs
+                     to the macro SaturationDependentSwelling law; they are NOT
+                     calibration targets and must not be read as an anchor row.
+
+  Material parameters (source per group):
+    elastic (E, nu)            : TODO(Vinay): UNSOURCED  (E = 50e6 Pa, nu = 0.2)
+    porosity split phi0/phi_tr : TODO(Vinay): UNSOURCED  (0.4 / 0.3)
+    intrinsic permeability     : TODO(Vinay): UNSOURCED  (1e-18 m2)
+    retention macro (Sr,m,p_b) : TODO(Vinay): UNSOURCED  (0.0 / 0.5 / 1e6 Pa)
+    retention micro (Sr,m,p_b) : TODO(Vinay): UNSOURCED  (0 / 0.5 / 1e7 Pa)
+    swelling law (p_sw, expts) : TODO(Vinay): UNSOURCED  (1.3e7 Pa x3, 1 1 1)
+    solid density rho_s        : TODO(Vinay): UNSOURCED  (2780 kg/m3).
+                                 Four independent verifications refuted the
+                                 "EURAD-2 MS33 spec" attribution carried by the
+                                 sibling MS33 headers: that string has no
+                                 locator, the named Table TH-G does not contain
+                                 a solid density at all (the value appears only
+                                 in spec prose, theoretical_benchmarking.tex
+                                 line 102, "2.78 g/cm3"), and the beacon decks
+                                 carried 2780 from the 2026-04-10 import, six
+                                 weeks BEFORE that header line existed. The
+                                 real transmission path is the upstream OGS
+                                 deck DoubleStructureBenchmark/
+                                 double_porosity_swelling_RM.prj, which has no
+                                 header and is therefore a forbidden source.
+                                 Adopting the line-102 locator here would be a
+                                 sec. 12.4 cross-family borrow: Vinay's call.
+                                 Internal incoherence to note: every beacon
+                                 deck sets micro_solid_density_reference =
+                                 2650 alongside solid density 2780, i.e. two
+                                 grain densities 4.7 percent apart in one file.
+    micro reference state      : TODO(Vinay): UNSOURCED
+                                 (rho_SR_m = 2650 kg/m3, nS_ref, n_l0).
+                                 TRAP recorded so it is not repeated: 2650
+                                 kg/m3 is the grain density of BOOM CLAY in
+                                 GRS-202. Wrong material, and GRS is not a
+                                 sec. 12.1 family.
+    fluid properties           : TODO(Vinay): UNSOURCED  (viscosity 1e-3 Pa s,
+                                 density 1e3 kg/m3). These are rounded values,
+                                 NOT the IAPWS-95 figures at 293.15 K
+                                 (1.002e-3 Pa s, 998.21 kg/m3), so an IAPWS
+                                 locator does not cover them.
+    biot_coefficient           : TODO(Vinay): UNSOURCED  (1.0). Commit
+                                 5a0792dbb0 records an incompressible-mineral
+                                 ASSUMPTION, not a measurement, and is not an
+                                 ancestor of this branch. A sec. 0.2 note
+                                 recording the assumption is the honest fix.
+    mass transfer alpha_M      : TODO(Vinay): UNSOURCED  (1e-13).
+                                 Phenomenological and fabric dependent; NOT
+                                 identified by a swelling-pressure calibration
+                                 (fast-exchange limit). Do not invent a family.
+    reference temperature      : TODO(Vinay): UNSOURCED  (293.15 K; inert in
+                                 these isothermal decks).
+    BC / IC magnitudes         : TODO(Vinay): UNSOURCED. Suction ICs, hydraulic
+                                 Dirichlet values, sigma0 (all zero) and the
+                                 zero body force are uncited. MS33's spec
+                                 initial suction is 100 MPa, i.e. 100x these
+                                 values, so nothing can be inherited.
+    macro_porosity_floor and
+    micro_water_content_floor  : 0.0 / 0.0, NUMERICAL and inert. Declared
+                                 because the parser has required the pair since
+                                 commit 71366ac0d3; floor 0 is byte-identical
+                                 to the unfloored path (PotentialExchange.h:
+                                 199-205). Approved by Vinay 2026-08-12.
+    micro EOS (a, b, rho_l0)   : TODO(Vinay): UNSOURCED  (1.3 / 1.0 / 1300).
+                                 WARNING: a = 1.3 means the micro EOS is
+                                 ACTIVE, NOT the a = 1e-16 bypass used by the
+                                 MS33 form (a) decks. Results and calibrations
+                                 obtained under the bypass do not transfer in
+                                 either direction. The only in-tree "source"
+                                 for this triple is circular (beacon_1c cites
+                                 beacon_1a01, which has no header).
+    vdW base A_Hamaker         : TODO(Vinay): UNSOURCED  (6e-20 J).
+                                 WARNING: this lies OUTSIDE the range the
+                                 source file itself documents,
+                                 PotentialExchange.h:97-101 "A = 2.2e-20 J
+                                 (Israelachvili and Adams 1978)", "Range: 1 to
+                                 5e-20 J (smectite, DLVO literature)", "DO NOT
+                                 calibrate A". The vdW term is live in this
+                                 deck, so the switch-off reading that covers
+                                 the smoke decks does NOT transfer.
+    specific surface Sa        : TODO(Vinay): UNSOURCED  (100 m2/kg; three to
+                                 four orders below any measured MX-80 SSA, so
+                                 a scaled probe value, not a measurement).
+
+  Reference VTU    : refreshed 2026-08-12 on dsm_native_maxwell_conjugate
+                     @ 40551b6aad. This is a REGRESSION BASELINE at that
+                     commit, not a physics claim and not a validated result.
+                     The previous baseline (2026-06-02, retrievable at
+                     a6dfec842c) predated the constitutive changes on this
+                     branch, among them 013990e1cd (mu_lR unified on the
+                     integrable Maxwell partner), aeccc1c838 and 36dfeaddcc
+                     (swelling stress recast as (1-phi_M)*p_film with a sign
+                     and weighting correction), dbf20d6f1a (bare-Pi OFF path
+                     retired) and 6391e357a2 (marked RESIDUAL-CHANGING).
+
+  Live deviations carried by this deck (recorded, not papered over):
+    1. bishops_effective_stress uses BishopsPowerLaw(exponent=1) where the DSM
+       standard since 2026-05-29 is BishopsSaturationCutoff(cutoff=1). For 1b
+       this was a regression: the ancestor deck complied until 8712c6d7ee.
+    2. pressure abstol = 5e-8 Pa against a 1e6 Pa suction scale, with no
+       reltols. Violates the tolerance from problem scale rule.
+    3. Across the five beacon decks the Hamaker constant takes three different
+       values (1e-30 / 6e-20 / 5.1e-21 J); none equals the branch literature
+       value 2.2e-20 J, and the 2026-05-22 sweep 0d579e8aeb that moved all 27
+       other PRJs from 5.1e-21 to 2.2e-20 missed this family.
+    4. The alpha_M unit is undocumented by OGS (bare copydoc); no unit is
+       asserted here on purpose.
+-->
+    <mesh axially_symmetric="true">beacon_1a01_domain.vtu</mesh>
+    <geometry>beacon_1a01.gml</geometry>
+    <processes>
+        <process>
+            <name>RM</name>
+            <type>RICHARDS_MECHANICS</type>
+            <integration_order>2</integration_order>
+            <micro_porosity>
+                <mass_exchange_coefficient>1e-13</mass_exchange_coefficient>
+                <nonlinear_solver>
+                    <maximum_iterations>100</maximum_iterations>
+                    <residuum_tolerance>1e-8</residuum_tolerance>
+                    <increment_tolerance>1e-20</increment_tolerance>
+                </nonlinear_solver>
+            </micro_porosity>
+            <potential_exchange>
+                <enabled>true</enabled>
+                <pressure_tolerance>0.0</pressure_tolerance>
+                <hamaker_constant>6e-20</hamaker_constant>
+                <specific_surface>100</specific_surface>
+                <micro_solid_density_reference>2650</micro_solid_density_reference>
+                <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
+                <initial_micro_water_content>0.1</initial_micro_water_content>
+                <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
+                <macro_porosity_update_mode>additive_macro_porosity_rate_mode</macro_porosity_update_mode>
+                <micro_solid_volume_fraction_mode>current_porosity_split</micro_solid_volume_fraction_mode>
+                <micro_liquid_density_reference>1300</micro_liquid_density_reference>
+                <micro_liquid_density_a>1.3</micro_liquid_density_a>
+                <micro_liquid_density_b>1.0</micro_liquid_density_b>
+                <fd_jacobian_for_exchange>false</fd_jacobian_for_exchange>
+                <micro_potential_convention>negative_attractive</micro_potential_convention>
+                            <!-- Floors declared inert (0.0 = no floor), preserving the
+                     pre 2026-06-17 behaviour these decks were written under;
+                     the parser has required both keys since commit 71366ac0d3.
+                     Value approved by Vinay 2026-08-12 (CLAUDE.md sec. 1.1),
+                     same inert declaration as the MS33 form (a) decks. -->
+                <macro_porosity_floor>0.0</macro_porosity_floor>
+                <micro_water_content_floor>0.0</micro_water_content_floor>
+            </potential_exchange>
+            <constitutive_relation>
+                <type>LinearElasticIsotropic</type>
+                <youngs_modulus>E</youngs_modulus>
+                <poissons_ratio>nu</poissons_ratio>
+            </constitutive_relation>
+            <process_variables>
+                <pressure>pressure</pressure>
+                <displacement>displacement</displacement>
+            </process_variables>
+            <secondary_variables>
+                <secondary_variable name="sigma"/>
+                <secondary_variable name="swelling_stress"/>
+                <secondary_variable name="epsilon"/>
+                <secondary_variable name="velocity"/>
+                <secondary_variable name="saturation"/>
+                <secondary_variable name="porosity"/>
+                <secondary_variable name="transport_porosity"/>
+                <secondary_variable name="dry_density_solid"/>
+                <secondary_variable name="micro_saturation"/>
+                <secondary_variable name="micro_pressure"/>
+                <secondary_variable name="micro_water_content"/>
+                <secondary_variable name="micro_porosity"/>
+                <secondary_variable name="micro_exchange_source"/>
+            </secondary_variables>
+            <specific_body_force>0 0</specific_body_force>
+            <initial_stress>sigma0</initial_stress>
+            <mass_lumping>true</mass_lumping>
+        </process>
+    </processes>
+    <media>
+        <medium id="0">
+            <phases>
+                <phase>
+                    <type>AqueousLiquid</type>
+                    <properties>
+                        <property><name>viscosity</name><type>Constant</type><value>1e-3</value></property>
+                        <property><name>density</name><type>Constant</type><value>1e3</value></property>
+                    </properties>
+                </phase>
+                <phase>
+                    <type>Solid</type>
+                    <properties>
+                        <property><name>density</name><type>Constant</type><value>2780</value></property>
+                        <property>
+                            <name>swelling_stress_rate</name>
+                            <type>SaturationDependentSwelling</type>
+                            <swelling_pressures>1.3e7 1.3e7 1.3e7</swelling_pressures>
+                            <exponents>1 1 1</exponents>
+                            <lower_saturation_limit>0</lower_saturation_limit>
+                            <upper_saturation_limit>1</upper_saturation_limit>
+                        </property>
+                    </properties>
+                </phase>
+            </phases>
+            <properties>
+                <property><name>transport_porosity</name><type>TransportPorosityFromMassBalance</type><initial_porosity>phi_tr0</initial_porosity><minimal_porosity>0</minimal_porosity><maximal_porosity>1</maximal_porosity></property>
+                <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
+                <property><name>permeability</name><type>Constant</type><value>1e-18</value></property>
+                <property><name>porosity</name><type>PorosityFromMassBalance</type><initial_porosity>phi0</initial_porosity><minimal_porosity>0</minimal_porosity><maximal_porosity>1</maximal_porosity></property>
+                <property><name>reference_temperature</name><type>Constant</type><value>293.15</value></property>
+                <property><name>relative_permeability</name><type>Constant</type><value>1</value></property>
+                <property><name>saturation</name><type>SaturationVanGenuchten</type><residual_liquid_saturation>0.0</residual_liquid_saturation><residual_gas_saturation>0</residual_gas_saturation><exponent>0.5</exponent><p_b>1e6</p_b></property>
+                <property><name>saturation_micro</name><type>SaturationVanGenuchten</type><residual_liquid_saturation>0</residual_liquid_saturation><residual_gas_saturation>0</residual_gas_saturation><exponent>0.5</exponent><p_b>1e7</p_b></property>
+                <property><name>bishops_effective_stress</name><type>BishopsPowerLaw</type><exponent>1</exponent></property>
+            </properties>
+        </medium>
+    </media>
+    <time_loop>
+        <processes>
+            <process ref="RM">
+                <nonlinear_solver>nonlinear_solver</nonlinear_solver>
+                <convergence_criterion>
+                    <norm_type>NORM2</norm_type>
+                    <type>PerComponentDeltaX</type>
+                    <abstols>5e-8 1e-13 1e-13</abstols>
+                </convergence_criterion>
+                <time_discretization><type>BackwardEuler</type></time_discretization>
+                <time_stepping>
+                    <type>IterationNumberBasedTimeStepping</type>
+                    <t_initial>0.0</t_initial>
+                    <t_end>1e5</t_end>
+                    <initial_dt>10</initial_dt>
+                    <minimum_dt>0.1</minimum_dt>
+                    <maximum_dt>2e3</maximum_dt>
+                    <number_iterations>1 2 3 4 5 6 7 8 9 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25</number_iterations>
+                    <multiplier>1.225 1.2 1.175 1.15 1.125 1.1 1.075 1.05 1.025 0.975 0.95 0.925 0.9 0.875 0.85 0.825 0.8 0.775 0.75 0.725 0.7 0.675 0.65 0.625</multiplier>
+                </time_stepping>
+            </process>
+        </processes>
+        <output>
+            <type>VTK</type>
+            <prefix>beacon_1a01_dsm_micromacro_stressprobe</prefix>
+            <suffix>_t_{:time}</suffix>
+            <fixed_output_times>1e3 1e4 5e4 1e5</fixed_output_times>
+            <variables><variable>pressure</variable><variable>displacement</variable><variable>saturation</variable><variable>micro_pressure</variable><variable>micro_saturation</variable><variable>micro_water_content</variable><variable>micro_porosity</variable><variable>micro_exchange_source</variable><variable>swelling_stress</variable><variable>sigma</variable></variables>
+        </output>
+    </time_loop>
+    <parameters>
+        <parameter><name>sigma0</name><type>Function</type><expression>0</expression><expression>0</expression><expression>0</expression><expression>0</expression></parameter>
+        <parameter><name>E</name><type>Constant</type><value>50e6</value></parameter>
+        <parameter><name>nu</name><type>Constant</type><value>0.2</value></parameter>
+        <parameter><name>phi0</name><type>Constant</type><value>0.4</value></parameter>
+        <parameter><name>phi_tr0</name><type>Constant</type><value>0.3</value></parameter>
+        <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
+        <parameter><name>pressure_ic</name><type>Constant</type><values>-1e6</values></parameter>
+        <parameter><name>dirichlet0</name><type>Constant</type><value>0</value></parameter>
+        <parameter><name>top_pressure</name><type>Constant</type><value>2e3</value></parameter>
+    </parameters>
+    <process_variables>
+        <process_variable>
+            <name>displacement</name>
+            <components>2</components>
+            <order>1</order>
+            <initial_condition>displacement0</initial_condition>
+            <boundary_conditions>
+                <boundary_condition><geometrical_set>beacon_1a01_geometry</geometrical_set><geometry>left</geometry><type>Dirichlet</type><component>0</component><parameter>dirichlet0</parameter></boundary_condition>
+                <boundary_condition><geometrical_set>beacon_1a01_geometry</geometrical_set><geometry>right</geometry><type>Dirichlet</type><component>0</component><parameter>dirichlet0</parameter></boundary_condition>
+                <boundary_condition><geometrical_set>beacon_1a01_geometry</geometrical_set><geometry>bottom</geometry><type>Dirichlet</type><component>1</component><parameter>dirichlet0</parameter></boundary_condition>
+                <boundary_condition><geometrical_set>beacon_1a01_geometry</geometrical_set><geometry>top</geometry><type>Dirichlet</type><component>1</component><parameter>dirichlet0</parameter></boundary_condition>
+            </boundary_conditions>
+        </process_variable>
+        <process_variable>
+            <name>pressure</name>
+            <components>1</components>
+            <order>1</order>
+            <initial_condition>pressure_ic</initial_condition>
+            <boundary_conditions>
+                <boundary_condition><geometrical_set>beacon_1a01_geometry</geometrical_set><geometry>top</geometry><type>Dirichlet</type><component>0</component><parameter>top_pressure</parameter></boundary_condition>
+            </boundary_conditions>
+        </process_variable>
+    </process_variables>
+    <nonlinear_solvers>
+        <nonlinear_solver><name>nonlinear_solver</name><type>Newton</type><max_iter>30</max_iter><linear_solver>general_linear_solver</linear_solver></nonlinear_solver>
+    </nonlinear_solvers>
+    <linear_solvers>
+        <linear_solver><name>general_linear_solver</name><eigen><solver_type>SparseLU</solver_type><scaling>true</scaling></eigen></linear_solver>
+    </linear_solvers>
+</OpenGeoSysProject>
