@@ -332,6 +332,23 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         <nonlinear_solver><name>basic_newton</name><type>Newton</type><max_iter>60</max_iter><linear_solver>ls</linear_solver></nonlinear_solver>
     </nonlinear_solvers>
     <linear_solvers>
+        <!-- scaling=false REQUIRED by the analytic micro 2x2 Jacobian path (merge of
+             dsm_maxwell_jac_parallel, 2026-08-11). MEASURED on this tree/binary: with
+             scaling=true this case dies at time step #110 with "residual: nan / Failed
+             during Eigen linear solve" (Eigen IterScaling/Ruiz equilibration overflows
+             the near-singular pressure block) under BOTH BiCGSTAB+ILUT and SparseLU;
+             with scaling=false BOTH solvers complete to ts #308 and reproduce the
+             approved reference VTU on all 11 test_definition fields. The solver choice
+             (BiCGSTAB+ILUT) is maxwell_conjugate's own and is kept; only <scaling> is
+             flipped, which is the measured discriminator.
+             gcc CONFIRMED 2026-08-12 (ogs09, Linux/gcc 13.3.0; measured, recorded in
+             vk-claude-workbench handoff/ogs09/2026-08-12.md 14:01 + 14:27): with this
+             deck the merged-tip binary passes (308 steps, 2.28 s), and the PRE-merge
+             35ebe2e4 binary, which carries NO FP_CONTRACT guard, ALSO passes; the same
+             binary died at ts #110 on the scaling=true deck. So on gcc as on clang the
+             scaling flag alone is the discriminator: the FP_CONTRACT guard is not
+             needed for this fix (it is inert on gcc anyway, which warns and still
+             emits fused multiply-adds) and BiCGSTAB+ILUT is not the problem. -->
         <linear_solver><name>ls</name><eigen><solver_type>BiCGSTAB</solver_type><precon_type>ILUT</precon_type><max_iteration_step>10000</max_iteration_step><error_tolerance>1e-12</error_tolerance><scaling>false</scaling></eigen></linear_solver>
     </linear_solvers>
     <curves>
