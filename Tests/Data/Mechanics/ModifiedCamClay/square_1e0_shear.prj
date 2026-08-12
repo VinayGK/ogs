@@ -210,6 +210,14 @@
             </eigen>
         </linear_solver>
     </linear_solvers>
+    <!-- sigma/PreConsolidationPressure gates re-derived 2026-08-12 (Vinay-ratified,
+         CLAUDE.md s1.2 tolerance-from-problem-scale): the branch's constE NR to
+         LevenbergMarquardt switch (2a2409c043) shifts the MFront-integrated fields by a
+         measured max abs 9.7e-4 Pa / rel 6.6e-11 vs the 2020 references (identical on
+         clang and gcc; displacement stays bit-identical, so those gates are unchanged).
+         New gates = measured x1000: abs 1.0 Pa on 1e7..1e9 Pa fields, rel 1e-7.
+         vtkdiff passes on either bound. LM is KEPT (robustness on ill-conditioned
+         return maps); the references stay the upstream 2020 set. -->
     <test_definition>
         <!--primary field-->
         <vtkdiff>
@@ -228,27 +236,27 @@
         <vtkdiff>
             <file>square_1e0_shear_ts_50_t_0.500000.vtu</file>
             <field>sigma</field>
-            <absolute_tolerance>1e-12</absolute_tolerance>
-            <relative_tolerance>1e-13</relative_tolerance>
+            <absolute_tolerance>1.0</absolute_tolerance>
+            <relative_tolerance>1e-7</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
             <file>square_1e0_shear_ts_100_t_1.000000.vtu</file>
             <field>sigma</field>
-            <absolute_tolerance>1e-12</absolute_tolerance>
-            <relative_tolerance>2e-13</relative_tolerance>
+            <absolute_tolerance>1.0</absolute_tolerance>
+            <relative_tolerance>1e-7</relative_tolerance>
         </vtkdiff>
         <!--material-specific internal variable-->
         <vtkdiff>
             <file>square_1e0_shear_ts_50_t_0.500000.vtu</file>
             <field>PreConsolidationPressure</field>
-            <absolute_tolerance>1e-6</absolute_tolerance>
-            <relative_tolerance>2e-14</relative_tolerance>
+            <absolute_tolerance>1.0</absolute_tolerance>
+            <relative_tolerance>1e-7</relative_tolerance>
         </vtkdiff>
         <vtkdiff>
             <file>square_1e0_shear_ts_100_t_1.000000.vtu</file>
             <field>PreConsolidationPressure</field>
-            <absolute_tolerance>1e-6</absolute_tolerance>
-            <relative_tolerance>2e-14</relative_tolerance>
+            <absolute_tolerance>1.0</absolute_tolerance>
+            <relative_tolerance>1e-7</relative_tolerance>
         </vtkdiff>
     </test_definition>
 </OpenGeoSysProject>
