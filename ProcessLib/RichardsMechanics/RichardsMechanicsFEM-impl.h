@@ -1330,10 +1330,20 @@ solveReferenceMassStorageCoupledState(
     // is therefore parked, NOT withdrawn: re-enabling is this one line, and
     // requires re-baselining the Model III + VII reference VTUs first
     // (CLAUDE.md §3 / §12.5 — Vinay's call).
+    // RE-ENABLED 2026-08-12 (Vinay; references re-baselined in the same commit).
+    // The parking rationale above is the dated record of 2026-08-11. Measured for
+    // this tree/toolchain before re-enabling: unit suite 1418/1418; dd1400/dd1600/
+    // dd1800/ModelIV reproduce their committed references 11/11 fields each under
+    // the analytic path (step paths unchanged: 308/311/308/637); Model III (405 ->
+    // 376 steps, 2 rejected -> 0) and Model VII (682 -> 675) change step path only,
+    // and their references are re-baselined (ratified) in this commit. The new
+    // III/VII baselines are run-to-run AND cross-build bit-identical (exact 0.0
+    // between two independent builds; the file-scope FP_CONTRACT OFF pragma is
+    // what pins this). u-side blocks remain OFF (unchanged, known-unsafe).
     // NOTE the Phase-B "analytic == FD to round-off" claim above was measured
     // against the jac-branch residual; mc has since changed that residual
     // (live K(rho_d), strained film), so it is NOT re-verified for this tree.
-    constexpr bool use_analytic_micro_jacobian = false;
+    constexpr bool use_analytic_micro_jacobian = true;
 
     for (int iter = 0; iter < max_iterations; ++iter)
     {
