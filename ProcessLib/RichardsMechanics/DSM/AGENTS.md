@@ -692,3 +692,175 @@ complete to identical final ts and parent-identical to round-off vs FD baseline
 standard (ModelI/III/IV/VII) passes. Run-only ctests (no reference VTU) => no
 reference-VTU refresh, no §3/§12.5 flag. u-side blocks STILL parked OFF (unsafe;
 mIII singularizes, mIV/mVII solution-shift — separate work). See AUDIT Phase D.
+
+---
+
+## 2026-08-11 — dsm_maxwell_jac_parallel MERGED into dsm_native_maxwell_conjugate (DONE)
+
+Consolidation ordered by Vinay: "everything in the maxwell_conjugate, tested,
+verified, pushed. Then the rest deleted." Merge commit is a true 2-parent merge
+of `deprecated/dsm_maxwell_jac_parallel` (tip 53538778cc, 5 commits) into
+`dsm_native_maxwell_conjugate` (tip 35ebe2e415), common base d98f5f8324.
+
+**Scope note — "the floor" is NOT a branch.** `~/git/build/maxwell_floor_20260619`
+is a BUILD DIRECTORY compiled from the maxwell_conjugate worktree at 71366ac0
+(`macro_porosity_floor` mandatory), already on the branch; `ogs-dsm-active` is a
+byte-identical binary (both md5 727dfa40b016e154bd51e64c89d072c1). Nothing to
+merge from either. Likewise `dsm_native_h_of_eps_wt` (detached 23a723cc3c) has
+ZERO commits not already reachable from maxwell_conjugate.
+
+### What the merge brought in
+- `RichardsMechanicsFEM-impl.h`: analytic micro 2x2 local Jacobian
+  (`evaluate_analytic_jacobian`) + file-scope `#pragma STDC FP_CONTRACT OFF`.
+  AUTO-MERGED with no textual conflict despite +198/-53 (jac) vs +1005/-24 (mc).
+- `ParallelVectorMatrixAssembler.cpp`: skip the per-thread `jacobian_assembler_
+  .copy()` at num_threads_==1 so CompareJacobiansJacobianAssembler (owns a log
+  ofstream, hard-OGS_FATALs on copy) is usable serially. mc never touched this
+  file -> merged copy is byte-identical to the jac tip.
+- `DSM/AUDIT_maxwell_local_jacobian_2026-06-09.md` (new; the ONLY file that was
+  on the jac branch and not in mc's tree).
+- `<scaling>true</scaling>` -> `false` on 9 MS33 PRJs.
+- Conflicts (2), both resolved: this AGENTS.md (union kept, see the merge note
+  above, §6.4) and `ms33_modelI_dd1800.prj` (see below).
+
+### DEFECT the auto-merge introduced — FIXED (RichardsMechanicsFEM-impl.h:1216)
+mc had converted EVERY `computeVanDerWaalsMicroPotential` call site to the live
+K(rho_d) helper `effectiveAugmentationPrefactor(params, phi)` (0 raw-scalar call
+args remain on mc). The jac branch forked BEFORE that sweep, so the three-way
+merge — textually clean — left `evaluate_analytic_jacobian` alone on the
+parse-time scalar `potential_augmentation_prefactor`. Under
+`potential_augmentation_prefactor_live_dry_density=true` the analytic 2x2 would
+then be the derivative of a DIFFERENT potential than the residual. Fixed to use
+the same helper; bit-for-bit no-op when live mode is off (the default, and the
+state of every MS33 suite PRJ, so the defect was LATENT — never active in the
+deliverable suite). Verified: no bare `potential_augmentation_prefactor` remains
+as a potential-evaluation argument anywhere in the file.
+
+### `use_analytic_micro_jacobian` DEFAULT REVERTED true -> false (Vinay 2026-08-11)
+MEASURED on this tree/binary (build mc_merge_20260811), not predicted. With the
+analytic micro Jacobian ON it changes the ADAPTIVE TIME-STEP PATH on two of the
+six gating models, which then fail the reference VTUs approved 2026-06-23:
+
+| model  | steps ON | steps OFF / pre-merge | vtkdiff vs approved ref (ON) |
+|--------|----------|-----------------------|------------------------------|
+| dd1400 | 308      | 308                   | 11/11 PASS                   |
+| dd1600 | 311      | 311                   | 11/11 PASS                   |
+| dd1800 | 308      | 308                   | 11/11 PASS                   |
+| III    | 376      | 405                   | **3/11 — FAIL**              |
+| IV     | 637      | 637                   | 11/11 PASS                   |
+| VII    | 675      | 682                   | **5/11 — FAIL**              |
+
+Differences are time-discretisation scale, NOT moved physics (Model III max:
+displacement 1.73e-6 m; sigma 1.86e4 Pa = 0.54% rel; swelling_stress 5.2% rel;
+dry_density_solid 0.1% rel). The TIER-A tolerances (1e-9 abs on displacement)
+were calibrated for a bit-identical step path and cannot survive a changed one.
+ISOLATED by a 2x2 experiment {scaling} x {micro Jacobian} on Model III: the
+Jacobian choice alone drives the step path (376 steps under BOTH scaling
+settings) — it is not the linear-solver scaling flag. (Caveat for whoever
+repeats it: the PRJ flag `fd_jacobian_for_exchange` is COARSER than the
+constexpr — it also flips the block-#3 macro p-p tangent, giving 607 steps, so
+it does not reproduce the pre-merge configuration.)
+With the flag false the merged tree reproduces all 6 references step-for-step
+identically to the pre-merge binary. Phase-D's 2026-06-10 "land it as default"
+is PARKED, not withdrawn: re-enabling is one line and requires re-baselining the
+III + VII reference VTUs first (§3 / §12.5 — Vinay's call). NOTE Phase-B's
+"analytic == FD to round-off" was measured against the JAC-branch residual; mc
+has since changed that residual (live K, strained film), so it is NOT re-verified
+for this tree.
+
+### dd1800 conflict resolution — `<scaling>` is the discriminator, not the solver
+mc had moved dd1800 to BiCGSTAB+ILUT (scaling=true); jac had SparseLU
+(scaling=false). MEASURED, merged binary, analytic ON:
+
+| dd1800 linear solver           | scaling | result                          |
+|--------------------------------|---------|---------------------------------|
+| BiCGSTAB+ILUT                  | true    | FAIL ts #110, `residual: nan`   |
+| SparseLU                       | true    | FAIL ts #110, `residual: nan`   |
+| BiCGSTAB+ILUT                  | false   | ts #308, 11/11 PASS             |
+| SparseLU                       | false   | ts #308, 11/11 PASS             |
+
+i.e. exactly the Eigen IterScaling (Ruiz) overflow on the near-singular pressure
+block that the jac Phase-D comment predicted, and independent of solver type.
+Resolved by keeping mc's BiCGSTAB+ILUT and flipping ONLY `<scaling>` to false —
+the measured discriminator. The other 5 suite PRJs keep jac's scaling=false
+(verified 6/6 green); harmless with the analytic path parked, and required if it
+is ever enabled.
+
+### Verification of the committed state (all MEASURED)
+- Build: clean, 0 errors; the only 2 warnings (`-Wunused-parameter` at :456 and
+  :1849) are PRE-EXISTING — byte-identical signatures in the mc parent.
+- Unit tests: `testrunner` 1422 tests / **1418 PASSED, 0 FAILED**, 4 skipped
+  (all pre-existing GTEST_SKIPs).
+- MS33 gating suite: **6/6 models, 66/66 field comparisons PASS** against the
+  committed references, at each PRJ's own `<test_definition>` tolerances; step
+  counts 308/311/308/405/637/682 = pre-merge baseline exactly.
+- All 31 MS33 PRJs pass `xmllint --noout`; micro+macro floor tags paired in all 6.
+- METHOD WARNING for future runs: staging a model directory by copying it
+  wholesale puts the committed reference VTU next to the run outputs, and a
+  "latest matching file" pick then compares the reference AGAINST ITSELF (a
+  trivially-passing test, §3). This happened in the first pass here and inverted
+  the III/VII verdict. Stage MESHES ONLY (exclude `*_ts_*`), and have the
+  comparison refuse ref==out.
+
+### Deletion (Vinay 2026-08-11: delete jac_parallel only)
+- `deprecated/dsm_maxwell_jac_parallel` + its 4 remote copies: SAFE once this
+  merge is pushed — the 5 commits stay reachable through the merge's 2nd parent
+  and its one unique file (the AUDIT .md) is now in mc's tree.
+- (The rest were initially held back as "protected content would be lost". That
+  is SUPERSEDED — see the next section, same day.)
+
+### SUPERSEDES the above — full retirement DONE 2026-08-11
+
+Vinay extended the instruction: "commit what's possible in the rest and then
+delete them too. it's ok if they stay on git and marked deprecated." Executed.
+FOUR branch lines retired; every one is recoverable BY NAME from an annotated
+tag that states its deprecation, and all five tags are pushed to ALL FOUR
+remotes (origin, github, backup, vgk2):
+
+| retired ref (and where it was deleted from) | tip | recover from |
+|---|---|---|
+| `dsm_maxwell_jac_parallel` (local + 4 remotes) | 53538778cc | `archive/dsm_maxwell_jac_parallel_2026-08-11` (also 2nd parent of 6135bf66c6) |
+| `dsm_native_Pi_fofnlev` (4 remotes) | a8ffdeefcd | `archive/dsm_native_Pi_fofnlev_branchtip_2026-08-11` (also ancestor of mc) |
+| `deprecated/dsm_native_Pi_fofnlev` (local + vgk2) | 19c031cc1f | `archive/dsm_native_Pi_fofnlev_2026-08-11` — holds the 117 unique .prj/.vtu/.md |
+| `deprecated/dsm_native_Pi_fofnlev_review_fixes_2026-06-14` (local + vgk2) | d9a017cbe1 | `archive/dsm_native_Pi_fofnlev_review_fixes_2026-08-11` — 1 unique .prj |
+| `dsm_native_h_of_eps` (github, backup) | 23a723cc3c | `archive/dsm_native_h_of_eps_2026-08-11` (also ancestor of mc) |
+
+Restore any of them with
+`git branch <name> <tag>^{commit}` and push where wanted.
+
+WHY THE TAGS MATTER: before this, `deprecated/dsm_native_Pi_fofnlev` and its
+117 protected files existed ONLY on local + vgk2 — no redundant copy anywhere.
+They now have four. The tags were verified present on all four remotes BEFORE
+any branch was deleted.
+
+Worktrees removed: `dsm_native_h_of_eps_wt` (its 7 untracked files committed
+first, as 9b179d1ddc) and the throwaway `mc_merge_wt`. Remaining worktrees:
+the `ogs` master checkout and `dsm_native_maxwell_conjugate_wt`.
+
+SCOPE CORRECTION (an overstatement made in-session and corrected here): retiring
+these four does NOT leave maxwell_conjugate as the only DSM branch — that is
+true of LOCAL branches only. Roughly a dozen older DSM-named branches remain on
+the remotes (`deprecated/dsm_native`, `dsm_native_hierarchical`,
+`dsm_native_tuller_macro_film`, `dsm_native_tuller_review`,
+`dsm_native_pdisj_maxwell`, `dsm_native_pdisj_aug_tuller`, `dsm_mfront*`,
+`dsm-nb-*`, `DSM`, `salvage/macmini-*`). They were never in this task's scope
+and were NOT touched.
+
+STILL NOT DELETED — the build dirs, deliberately, pending Vinay's explicit call.
+They cannot "stay on git", so the stated safety condition cannot be met for
+them: `maxwell-conjugate-20260602` (2.6G, citation binary md5 c432a156) and
+`maxwell_floor_20260619` (2.6G, md5 727dfa40, the toolchain that produced the
+MS33 reference VTUs) are named by path in 13 TRACKED files, including all six
+gating PRJ provenance headers and calibrate_maxwell_K.py.
+
+### OPEN (carried forward, not introduced here)
+- A failed local 2x2 silently returns the decoupled PREDICTOR state
+  (`return out.converged ? out : predictor;`) and NO caller inspects
+  `converged` — no warning, no time-step rejection. Pre-existing on both
+  parents; raise with Vinay whether it should hard-fail.
+- The file-scope `#pragma STDC FP_CONTRACT OFF` (from jac) now governs ~1000
+  more lines of mc-only assembly code than on either parent. Directionally safe
+  (disables FMA fusion -> more determinism) and the gating suite is unaffected
+  (6/6 PASS), but it was never validated at this scope on the mc line.
+- u-side analytic blocks remain `enable_dsm_swelling_up_jacobian = false`
+  (unsafe per jac Phase D: mIII singularizes, mIV/mVII solution-shift).
