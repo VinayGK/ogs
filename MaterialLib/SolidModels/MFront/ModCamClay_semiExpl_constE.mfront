@@ -31,7 +31,7 @@
 @Epsilon 1e-14;                 // tolerance of local stress integration algorithm
 @MaximumNumberOfIterations 200; // for local local stress integration algorithm
 @ModellingHypotheses{".+"};     // supporting all stress and strain states
-@Algorithm LevenbergMarquardt;  // 2026-06-06: was NewtonRaphson; LM more robust to ill-conditioned return-map (gap-closure yield spike). Response-neutral (same root). Revert via git.
+@Algorithm LevenbergMarquardt;  // 2026-06-06: was NewtonRaphson; LM more robust to ill-conditioned return-map (gap-closure yield spike). CORRECTION 2026-08-12 (measured, CLAUDE.md s5): NOT bit-identical to NR - shifts integrated sigma/PCP by rel <= 6.6e-11 vs the NR solution (same on clang and gcc; displacement unchanged; attribution proven by one-line revert experiment). Solution-equivalent at round-off-adjacent level, kept for robustness; square_1e0_shear/biax gates re-derived accordingly. Revert via git.
 
 @Brick StandardElasticity;
 @RequireStiffnessTensor<UnAltered>;
