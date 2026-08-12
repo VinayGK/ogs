@@ -817,13 +817,52 @@ is ever enabled.
 - `deprecated/dsm_maxwell_jac_parallel` + its 4 remote copies: SAFE once this
   merge is pushed — the 5 commits stay reachable through the merge's 2nd parent
   and its one unique file (the AUDIT .md) is now in mc's tree.
-- NOT deleted, protected content would be lost (§6.2/§6.3):
-  `deprecated/dsm_native_Pi_fofnlev` (commit 19c031cc1f, 117 unique .prj/.vtu/.md
-  NOT in mc; exists ONLY on local + vgk2), `deprecated/dsm_native_Pi_fofnlev_
-  review_fixes_2026-06-14` (1 unique .prj), worktree `dsm_native_h_of_eps_wt`
-  (7 UNTRACKED files — 1 .md + 6 .prj — in git nowhere), and build dirs
-  `maxwell-conjugate-20260602` / `maxwell_floor_20260619` (named in 13 tracked
-  files incl. all 6 gating PRJ provenance headers and calibrate_maxwell_K.py).
+- (The rest were initially held back as "protected content would be lost". That
+  is SUPERSEDED — see the next section, same day.)
+
+### SUPERSEDES the above — full retirement DONE 2026-08-11
+
+Vinay extended the instruction: "commit what's possible in the rest and then
+delete them too. it's ok if they stay on git and marked deprecated." Executed.
+FOUR branch lines retired; every one is recoverable BY NAME from an annotated
+tag that states its deprecation, and all five tags are pushed to ALL FOUR
+remotes (origin, github, backup, vgk2):
+
+| retired ref (and where it was deleted from) | tip | recover from |
+|---|---|---|
+| `dsm_maxwell_jac_parallel` (local + 4 remotes) | 53538778cc | `archive/dsm_maxwell_jac_parallel_2026-08-11` (also 2nd parent of 6135bf66c6) |
+| `dsm_native_Pi_fofnlev` (4 remotes) | a8ffdeefcd | `archive/dsm_native_Pi_fofnlev_branchtip_2026-08-11` (also ancestor of mc) |
+| `deprecated/dsm_native_Pi_fofnlev` (local + vgk2) | 19c031cc1f | `archive/dsm_native_Pi_fofnlev_2026-08-11` — holds the 117 unique .prj/.vtu/.md |
+| `deprecated/dsm_native_Pi_fofnlev_review_fixes_2026-06-14` (local + vgk2) | d9a017cbe1 | `archive/dsm_native_Pi_fofnlev_review_fixes_2026-08-11` — 1 unique .prj |
+| `dsm_native_h_of_eps` (github, backup) | 23a723cc3c | `archive/dsm_native_h_of_eps_2026-08-11` (also ancestor of mc) |
+
+Restore any of them with
+`git branch <name> <tag>^{commit}` and push where wanted.
+
+WHY THE TAGS MATTER: before this, `deprecated/dsm_native_Pi_fofnlev` and its
+117 protected files existed ONLY on local + vgk2 — no redundant copy anywhere.
+They now have four. The tags were verified present on all four remotes BEFORE
+any branch was deleted.
+
+Worktrees removed: `dsm_native_h_of_eps_wt` (its 7 untracked files committed
+first, as 9b179d1ddc) and the throwaway `mc_merge_wt`. Remaining worktrees:
+the `ogs` master checkout and `dsm_native_maxwell_conjugate_wt`.
+
+SCOPE CORRECTION (an overstatement made in-session and corrected here): retiring
+these four does NOT leave maxwell_conjugate as the only DSM branch — that is
+true of LOCAL branches only. Roughly a dozen older DSM-named branches remain on
+the remotes (`deprecated/dsm_native`, `dsm_native_hierarchical`,
+`dsm_native_tuller_macro_film`, `dsm_native_tuller_review`,
+`dsm_native_pdisj_maxwell`, `dsm_native_pdisj_aug_tuller`, `dsm_mfront*`,
+`dsm-nb-*`, `DSM`, `salvage/macmini-*`). They were never in this task's scope
+and were NOT touched.
+
+STILL NOT DELETED — the build dirs, deliberately, pending Vinay's explicit call.
+They cannot "stay on git", so the stated safety condition cannot be met for
+them: `maxwell-conjugate-20260602` (2.6G, citation binary md5 c432a156) and
+`maxwell_floor_20260619` (2.6G, md5 727dfa40, the toolchain that produced the
+MS33 reference VTUs) are named by path in 13 TRACKED files, including all six
+gating PRJ provenance headers and calibrate_maxwell_K.py.
 
 ### OPEN (carried forward, not introduced here)
 - A failed local 2x2 silently returns the decoupled PREDICTOR state
