@@ -994,3 +994,45 @@ Still open on Vinay's desk: constbc-family restore-vs-de-register; gcc
 confirmation of the new III/VII baselines at TIER-A tolerances (ogs09
 report-back; if gcc exceeds them, same portable-gate policy as the beacon
 gates applies).
+
+---
+
+## 2026-08-17 — live-K adopted for MS33 III and IV; the swelling-branch shortfall (Vinay's ruling)
+
+**Ruling (Vinay 2026-08-17):** Models III and IV report **live** `K_aug(rho_d)`. Frozen-K is the
+physically wrong branch — a swelling material loses swelling potential, and carrying K at the
+emplacement density prices the material at a density it no longer has. The MIXED 2026-06-23
+frozen-K choice for III/IV is retired; matching the team band was never the criterion.
+**Model I keeps frozen-K** for a physics reason: measured dRho_d = +0.00% in the confined
+calibration cell, so live-K is exactly inert there.
+
+**Measured, tip ac1808936d, all K Dixon-propagated (sigma0=0 Option-C form-(a) chain
+900->3505.642413 | 1400->46000 | 1600->104689.9129 | 1800->265905.06), 200 d, canonical probes:**
+
+| case | frozen-K | live-K (ADOPTED) | teams | dRho_d | K collapse |
+|---|---|---|---|---|---|
+| III soft gap (delivered geom) | 9.705/9.703/9.675 | **7.663/7.661/7.592** | 2.63-7.47 | -8.5% | 104690->64716 |
+| III gap-switch (empty gap) | 7.202/7.400/7.824 | **1.176/1.336/1.658** | " | -14.8% | 104690->42893 |
+| IV block1600/pellet900 | 6.227/6.230/0.499 | **4.269/4.257/0.700** | 1.51-3.17 / 1.40-3.04 / 1.20-2.64 | block -12%, pellet +14% | block 104690->~47k |
+
+Live-K IMPROVES team agreement on the delivered geometries (III 9.71->7.66, IV 6.23->4.27) while
+being the correct branch. No arm diverges — the 2026-06-23 IV divergence was removed by the
+analytic micro Jacobian (bfd52cf6ff).
+
+**THE SHORTFALL THIS TEST DISCOVERED.** Dixon K(rho_d) is an equilibrium **compaction** curve —
+each point measured on a sample *compacted to* that density. Applying it live to a sample that
+**decompacted to** the same density assumes path-independence, which bentonite does not have: a
+specimen swelled 1600->1364 retains aggregate fabric and interlayer water a freshly compacted 1364
+specimen never had, so its swelling potential lies ABOVE the compaction branch. Imposing the
+compaction branch on a swelling path must therefore UNDER-predict — the observed sign. Frozen-K
+over-stiffens, live-K over-softens, the teams sit between: the pair brackets the answer.
+
+**Missing term:** a swelling-branch K_sw(rho_d, path) relaxing toward Dixon as fabric is destroyed.
+Candidate home: Pi_struct in the disjoining decomposition (paper eq:disjoining_decomposition), or a
+state variable carrying compaction history. FORMULATION item, not a tuning knob. Recorded in
+memory `feedback_livek_is_the_physics_truth.md`; carried in dsm_defense_2026-06 as its own frame
+("The swelling branch --- a constitutive shortfall this benchmark exposed") and as the first
+open item.
+
+Reporting rule that follows: never present the frozen-K number because it agrees better. State
+which branch is physical and what the residual gap reveals.
