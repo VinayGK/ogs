@@ -30,7 +30,7 @@
   the run, because a swelling material loses swelling potential and holding K at the
   emplacement density is physically wrong.  Knots are the Dixon-propagated Model I
   calibration chain, each cell fitted to the Dixon Fig.1 median at its own rho_d:
-      rho_d =  900 -> K =   4367.2277   (target 0.3500522009 MPa)   [see note]
+      rho_d =  900 -> K =   4367.2277   (target 0.3500522009 MPa)   RATIFIED 2026-08-17 [see note]
       rho_d = 1400 -> K =  46000.0      (target  4.9    MPa)
       rho_d = 1600 -> K = 104689.9129   (target 14.161  MPa)
       rho_d = 1800 -> K = 265905.06     (target 40.6    MPa)
