@@ -33,28 +33,38 @@ initial micro water content is set to the 99 MPa-equilibrium value.
 -->
 <OpenGeoSysProject>
   <!-- GUARDRAIL §12.5 audit (2026-08-17, Vinay-approved): intrinsic permeability
-       set to 80x the deck's Kozeny-Carman base 5.8703e-21 m^2 = 4.696240e-19 m^2
-       (83.86x the MS33 spec LITERAL k0=5.6e-21 at phi_ref=0.42; state the baseline
-       whenever quoting a multiplier). Supersedes the 20x value 1.17406e-19 whose
-       "20x equilibrates" claim, from the original 2026-06-09 block below (kept for
-       lineage), was measured on Models IV and VII but never re-verified against a
-       fine time ladder; the 2026-08-17 equilibration campaign found VII's hydration
-       transient at 20x is t_eq(1 percent, Richardson) = 300 d, NOT converged by the
-       200 d team horizon (2.0 percent short at 200 d, corroborating the independent
-       2026-06-17 record: runs/2026-06-15_1410_.../EQUILIBRATED_LE_VII_2026-06-17.md).
-       80x gives t_eq=75 d, a 125-day safety margin (DSM/AGENTS.md section 12).
+       set to 160x the deck's Kozeny-Carman base 5.8703e-21 m^2 = 9.39248e-19 m^2
+       (same multiplier and same absolute value as ms33_modelIII_gapswitch.prj;
+       167.73x the MS33 spec LITERAL k0=5.6e-21 at phi_ref=0.42; state the baseline
+       whenever quoting a multiplier). SUPERSEDES the 80x value 4.696240e-19 set
+       earlier the same day: that 80x figure was measured under FROZEN K (before
+       VII was switched to live-K, this same session); re-measured after the
+       live-K switch, three parallel runs {80x, 160x, 320x} showed 320x plateauing
+       EXACTLY flat from 100 d onward (e_top identical at 100/150/200 d = 1.13705,
+       a converged asymptote), 80x sitting 0.83 percent short of that asymptote AT
+       the 200 d horizon itself (no safety margin; fails the same standard that
+       rejected III's 100x), and 160x matching the 320x asymptote to 0.015 percent
+       with Aitken-extrapolated t_eq(1 percent) <= 100 d, i.e. a >=100-day safety
+       margin (measured, this session; see DSM/AGENTS.md for the dated entry).
        REASON, same mechanism as Model III (DSM/AGENTS.md section 7): macro
        saturation collapses to ~0, so relative_permeability sits pinned on its
        1e-2 floor throughout, making the effective conductivity k0*1e-2; the
        acceleration compensates for that, it is not a change of physics.
-       LEGITIMACY: endpoint is k0-independent, verified across an
-       {5,10,80,100,160,320,640,1280}x sweep (DSM/AGENTS.md section 11); the
-       reported void ratio moves under 0.5 percent across the sweep past ~80x.
        NO RADIAL CONFINEMENT (Vinay 2026-08-17, checked against spec and
        cross-team descriptions: CIMNE-UPC treats a confined VII as a separate
        ADDITIONAL exercise, UCLM's own VII assumes radial confinement, teams
        disagree; kept unconfined per Vinay's explicit call, DSM/AGENTS.md
        section 14). -->
+  <!-- SUPERSEDED GUARDRAIL §12.5 audit (2026-08-17 morning, Vinay-approved), kept
+       for lineage: intrinsic permeability set to 80x the deck's Kozeny-Carman base
+       5.8703e-21 m^2 = 4.696240e-19 m^2. This measurement was taken under FIXED/
+       FROZEN K (before the live-K switch documented in the provenance block
+       above): 20x gave t_eq(1 percent, Richardson) = 300 d, NOT converged by the
+       200 d team horizon (2.0 percent short at 200 d, corroborating the independent
+       2026-06-17 record: runs/2026-06-15_1410_.../EQUILIBRATED_LE_VII_2026-06-17.md);
+       80x gave t_eq=75 d, a 125-day safety margin under FROZEN K. That margin does
+       NOT carry over to live-K (re-measured above); LEGITIMACY sweep
+       {5,10,80,100,160,320,640,1280}x was likewise measured under frozen-K. -->
   <!-- ORIGINAL GUARDRAIL §12.5 audit (2026-06-09, Vinay-approved), superseded
        above, kept for lineage. The "clay/pellet" wording below is Model IV
        boilerplate that was copied into this file in error and never described
@@ -82,7 +92,28 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                        median fit sigma_swell [MPa] = 0.003 * exp(5.2883 * EMDD [Mg/m3]).
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1600 kg/m3
         target sigma : 14.161 MPa
-        fitted K     : 103879.0 J/kg (potential_augmentation_prefactor)
+        fitted K     : 103879.0 J/kg (potential_augmentation_prefactor) at sigma0=-1.5e5.
+                       SUPERSEDED 2026-08-17 for live evaluation by 104689.9129 J/kg, the
+                       sigma0=0 "Option C" form-(a) recalibration at rho_d=1600 (same value
+                       ms33_modelIII_gapswitch.prj uses); see the K TABLE block below.
+                       sigma0 itself stays -1.5e5 (unchanged, same known convention gap as
+                       III/IV; not this decision, see DSM/AGENTS.md section 17).
+
+      K(rho_d) TABLE + LIVE EVALUATION (Vinay's ruling 2026-08-17 for III/IV, extended to
+      VII 2026-08-17 same session, Vinay-approved): VII reports LIVE-K. K is re-read from
+      the table at the EVOLVING rho_d = rho_SR*(1-phi) during the run; VII is the
+      free-swelling geometry with the LARGEST density excursion of the whole suite (no
+      radial confinement; e climbs from ~0.73 to ~1.50), so the physical argument for III/IV
+      ("a swelling material loses swelling potential; pricing it at the emplacement density
+      is wrong") applies at least as strongly here. Identical Dixon-propagated knots as III:
+          rho_d =  900 -> K =   4367.2277   (target 0.3500522009 MPa)   RATIFIED 2026-08-17
+          rho_d = 1400 -> K =  46000.0      (target  4.9    MPa)
+          rho_d = 1600 -> K = 104689.9129   (target 14.161  MPa)
+          rho_d = 1800 -> K = 265905.06     (target 40.6    MPa)
+      VII's own operating range stays within the table (rho_d falls to ~1113 kg/m3 at the
+      top probe under the prior fixed-K run; no extrapolation beyond the 900-1800 knots).
+      Same CAVEAT as III (open, Vinay's call): linear PiecewiseLinearInterpolation vs Dixon's
+      exponential law overshoots across the wide 900-1400 chord.
       Material parameters (source per group): as Model I dd1600; elastic E,nu: see the
         dedicated "elastic — Young/Poisson" warning block at the end of this provenance comment
         (SINGLE material, E=52 MPa Constant, no per-material split needed; 2026-06-08 correction
@@ -147,7 +178,19 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                 <!-- K [Villar-calibrated; SUPERSEDED 2026-06-01 -> Dixon recalibrated value below] at rho_d=1600 kg/m³ via Pi-path;
                      Π uses bulk ρ_LR (Gibbs–Duhem consistent); steps 2+3, 2026-05-21 -->
                 <!-- K recalibrated 2026-06-01: dt-converged Dixon(2023) reference K (P* basis); prev value 71900 -->
-                <potential_augmentation_prefactor>103879.0</potential_augmentation_prefactor>
+                <!-- FIXED K=103879.0 SUPERSEDED 2026-08-17 (Vinay's ruling extended from III/IV to VII,
+                     same session): a swelling material loses swelling potential; VII is the free-swelling
+                     geometry with the LARGEST density excursion in the suite (rho_d falls to ~1113 kg/m3 at
+                     the top probe, e_top=1.4958), so pricing it at the frozen rho_d=1600 emplacement value
+                     is the same physically-wrong branch identified for III/IV. Replaced by the identical
+                     live-K table already adopted on ms33_modelIII_gapswitch.prj (same Dixon-propagated,
+                     sigma0=0 Option-C form-(a) chain; see that PRJ's provenance block for the full
+                     derivation and the linear-vs-exponential interpolation caveat, which applies here too). -->
+                <potential_augmentation_prefactor_vs_dry_density>
+                    <dry_densities>900 1400 1600 1800</dry_densities>
+                    <prefactors>4367.227700212952 46000.0 104689.9129 265905.06</prefactors>
+                </potential_augmentation_prefactor_vs_dry_density>
+                <potential_augmentation_prefactor_live_dry_density>true</potential_augmentation_prefactor_live_dry_density>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
@@ -213,7 +256,7 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                 <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
                 <property>
                     <name>permeability</name>
-                    <type>Constant</type><value>4.696240e-19</value>
+                    <type>Constant</type><value>9.39248e-19</value>
                 </property>
                 <property>
                     <name>porosity</name>
@@ -328,7 +371,7 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         <!-- phi_tr0 removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
              Initial phi_M is computed from phi0 and initial_micro_water_content by the hierarchical split. -->
         <!-- k0 at phi0=0.4245 from Kozeny-Carman -->
-        <parameter><name>k0</name><type>Constant</type><value>4.696240e-19</value></parameter>
+        <parameter><name>k0</name><type>Constant</type><value>9.39248e-19</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
         <!-- Initial suction = 100 MPa (benchmark specification) -->
         <parameter><name>pressure_ic</name><type>Constant</type><value>-1e8</value></parameter>
@@ -403,14 +446,25 @@ initial micro water content is set to the 99 MPa-equilibrium value.
       REGRESSION BASELINE (CLAUDE.md s3) - approved by Vinay 2026-06-23.
       RE-BASELINED 2026-08-12 (ratified by Vinay): the analytic micro 2x2
       Jacobian is re-enabled as default, which changes the adaptive step path
-      of this model only; the live reference is now ms33_modelVII_freeswelling_ts_669_t_20736000.000000.vtu
+      of this model only; the live reference became ms33_modelVII_freeswelling_ts_669_t_20736000.000000.vtu
       (run-to-run and cross-build bit-identical, exact 0.0). The former
-      reference ms33_modelVII_freeswelling_ts_676_t_20736000.000000.vtu is SUPERSEDED and moved
+      reference ms33_modelVII_freeswelling_ts_676_t_20736000.000000.vtu was SUPERSEDED and moved
       (git mv, never deleted) to superseded_references_2026-08-12/ in this
       directory: the ctest wrapper enumerates every REFERENCE-side file matching
       the ts_.* regex and requires a same-named output for each (measured
       2026-08-12), so a superseded reference left beside the PRJ fails the test
-      by construction. The text below still holds: exactly one LIVE final-time
+      by construction.
+      RE-BASELINED AGAIN 2026-08-17, commit 55e39b53b8 (constant permeability
+      everywhere, VII unconfined): reference became ts_510_t_20736000.000000.vtu
+      under FIXED/FROZEN K. This comment block was not updated at that landing;
+      corrected now while documenting the next rebaseline below.
+      RE-BASELINED AGAIN 2026-08-17, same session (VII switched to live-K, the
+      2026-08-17 ruling extended from III/IV, Vinay-approved; permeability
+      re-verified at 160x, see the GUARDRAIL section 12.5 block above): the live
+      reference is now ms33_modelVII_freeswelling_ts_829_t_20736000.000000.vtu.
+      The former reference ts_510_t_20736000.000000.vtu is SUPERSEDED and moved
+      (git mv, never deleted) to superseded_references_2026-08-17/ in this
+      directory. The text below still holds: exactly one LIVE final-time
       reference sits beside this PRJ.
       Physics anchor: (f) regression baseline previously approved by user.
       Reference = the SINGLE final-time output VTU committed beside this PRJ

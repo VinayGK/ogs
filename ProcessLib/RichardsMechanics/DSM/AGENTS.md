@@ -1854,3 +1854,109 @@ all four decks together, which is exactly the scope §15 explicitly deferred. **
 all four registered Model I decks (900/1400/1600/1800) to σ0=0, matching the ratified K(rho_d) chain
 they're all built from? This is the smallest remaining step to make the tracked Model I suite
 internally consistent with everything else ratified this session.
+
+---
+
+## 2026-08-17 — Model VII switched to live-K (extends the III/IV ruling), re-verified at 160x, and a build/ctest-routing staleness finding
+
+### 18. DONE 2026-08-17 — VII live-K switch, equilibration re-check, reference rebaseline
+
+Vinay's question that triggered this: *"wait, why did you do vii with fixed K?"* — noticed the
+team-comparison figure's VII legend still said "fixed K=103879" while III/IV had already gone
+live-K. Checked: the committed `ms33_modelVII_freeswelling.prj` did carry a single scalar
+`<potential_augmentation_prefactor>103879.0</potential_augmentation_prefactor>`, not the live table.
+Root cause: the 2026-08-17 live-K ruling (entry #16 above) was worded "Models III and IV" — I
+applied it literally and never separately raised whether it should extend to VII. Flagged per §9
+(physics/model-formulation decision) and asked; Vinay approved extending it.
+
+**Physical case for extending to VII:** VII is free swelling with no radial confinement — the
+largest density excursion in the whole suite (e climbs ~0.73 to ~1.50 under fixed K). The live-K
+argument ("a swelling material loses swelling potential; pricing it at the emplacement density is
+wrong") applies at least as strongly here as to III/IV.
+
+**Implementation.** `potential_augmentation_prefactor` (scalar) replaced by
+`potential_augmentation_prefactor_vs_dry_density` (900/1400/1600/1800 ->
+4367.227700212952/46000.0/104689.9129/265905.06) + `potential_augmentation_prefactor_live_dry_density
+= true` — the IDENTICAL table already on `ms33_modelIII_gapswitch.prj`. sigma0 left at -1.5e5
+(unchanged; same known convention gap as III/IV, not this decision — see entry #17).
+
+**Equilibration re-check (the permeability margin found under FROZEN K does not carry over to
+live-K).** The existing 80x setting was measured under frozen K (entry #15/#7); re-measured after
+switching to live-K, three parallel runs {80x, 160x, 320x}, top-probe void ratio at the matched
+200 d horizon:
+
+| k0 multiplier | e_top(100d) | e_top(150d) | e_top(200d) |
+|---|---|---|---|
+| 80x  | 1.10169 | 1.11948 | 1.12759 |
+| 160x | 1.12816 | 1.13548 | 1.13722 |
+| 320x | 1.13705 | 1.13705 | 1.13705 |
+
+320x plateaus EXACTLY flat from 100 d (true converged asymptote). 80x sits 0.83% short of that
+asymptote AT the 200 d horizon itself — no safety margin, fails the same standard that rejected
+III's 100x. 160x matches the 320x plateau to 0.015%, Aitken-extrapolated t_eq(1%) <= 100 d, giving
+a >=100-day margin — comparable to or better than III's 50-day margin at the same 160x multiplier.
+**Adopted 160x for VII**, identical multiplier and identical absolute value (9.39248e-19 m^2) to
+Model III — the suite now has ONE permeability number for both live-K models, only IV differs.
+
+**Reference rebaseline.** Ran the actual committed PRJ (not a scratch copy) on the canonical tip
+binary (`verify_tip_20260812/bin/ogs`, bfd52cf6ff, md5 7db32e941a6ef92c5219d3d90d045210): 829
+accepted steps, 0 rejected, reaches t_end=20736000 s cleanly. New reference
+`ms33_modelVII_freeswelling_ts_829_t_20736000.000000.vtu`. Former reference
+`ts_510_t_20736000.000000.vtu` (landed by commit 55e39b53b8, entry #15) git-mv'd to
+`superseded_references_2026-08-17/` (never deleted, CLAUDE.md §6.2/6.3). The REGRESSION BASELINE
+comment block in the PRJ was also missing the ts_510 landing entirely (never updated when 55e39b53b8
+shipped it) — corrected in the same edit, documenting the full chain: 2026-06-23 approval ->
+2026-08-12 rebaseline (ts_669) -> 2026-08-17 commit 55e39b53b8 (ts_510, comment not updated at the
+time) -> 2026-08-17 this landing (ts_829).
+
+**Verification method — and a significant finding about `ctest`.** `ctest -R
+ANCHORS_MS33_ModelVII` from the `verify_tip_20260812` build directory reported PASS, but
+`ctest -R ANCHORS_MS33_ModelIII` from the SAME build directory FAILED with "file does not exist" —
+tracing the error path showed `verify_tip_20260812` is configured (CMAKE_HOME_DIRECTORY) against
+`/Users/vinaykumar/git/ogs-worktrees/verify_tip_2026-08-12_wt`, a SEPARATE, detached-HEAD worktree
+pinned at commit bfd52cf6ff — NOT `dsm_native_maxwell_conjugate_wt`, the worktree every edit this
+session (including all of today's) has been made in. `git merge-base --is-ancestor bfd52cf6ff HEAD`
+confirms that frozen worktree is 8 commits behind current HEAD, missing everything from
+`cdc624eaac` onward, INCLUDING the entire "redo the suite" const-perm/VII-unconfined landing
+(55e39b53b8), the K(900)/baseline ratification (b6d39b44ee), and this VII live-K landing. **This
+means the "VII PASSED" result above did NOT validate today's edited file** — it validated whatever
+VII deck existed in that frozen snapshot, and by the same logic, any earlier `ctest -R ANCHORS_MS33`
+"6/6 pass" claim made THIS SESSION via the `verify_tip_20260812` build dir was ALSO testing the
+frozen bfd52cf6ff snapshot, not the live-edited/committed files in `dsm_native_maxwell_conjugate_wt`.
+No C++ source changed between bfd52cf6ff and current HEAD (`git diff --name-only` shows only
+`Tests/Data/**`, `*.md`, and `ProcessLib/RichardsMechanics/Tests.cmake`), so the COMPILED BINARY
+itself remains valid to reuse — only the ctest *routing* is stale. The other candidate build
+directories correctly routed at `dsm_native_maxwell_conjugate_wt` (`maxwell_floor_20260619` /
+`ogs-dsm-active`, `maxwell-conjugate-20260602`, `mc-9b179d1d-parity`) all carry an OLDER binary
+(40551b6a, 2026-08-11) that is missing real C++ changes made before bfd52cf6ff, specifically to
+`ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h` — so none of them is safe to substitute
+either, without a rebuild.
+
+**Given no build directory is both correctly-routed AND binary-current, this VII landing was
+verified directly instead of via `ctest`:** ran the actual committed PRJ, then compared its output
+against an independent second run (from the earlier 160x equilibration-sweep scratch copy) using
+the `vtkdiff` utility directly, at the EXACT tolerances declared in the PRJ's own
+`<test_definition>` block — all 11 fields (displacement, saturation, porosity,
+transport_porosity, micro_porosity, micro_water_content, dry_density_solid, sigma, swelling_stress,
+pressure, micro_pressure): every abs/rel norm reported exactly `0.000000000000000e+00`. This
+confirms the same "run-to-run bit-identical" property already documented for this deck, on the
+correct binary, against the correct worktree — a genuine, tolerance-matched pass, just obtained
+without the (currently broken) `ctest` plumbing.
+
+**OPEN, flagged for Vinay, not fixed here:** the `verify_tip_20260812` build/worktree pair needs
+either (a) `verify_tip_2026-08-12_wt` fast-forwarded to current HEAD and the build re-run (fast:
+touches only `Tests.cmake`, a CMake reconfigure should suffice, no recompile), or (b) one of the
+correctly-routed build directories rebuilt to bfd52cf6ff-or-later. Not done unilaterally: touching
+build directory state / triggering a rebuild is more than this task needed, and the choice of which
+build dir stays "canonical" is not mine to make silently.
+
+**Team-comparison result (the point of doing this).** BGR e_top(240d) moves from 1.4958 (fixed K,
++23.8% ABOVE THE BAND, above every counted team) to **1.13373 (live-K, -6.19% vs the 5-team mean,
+MID-FIELD — between BGE-CU-TUBAF-UFZ 1.1272 and TUDELFT 1.2487, 2 teams below, 3 above)**. Matches
+the pattern already seen for III/IV: live-K improves team agreement while being the physically
+correct branch (entry #16 in `feedback_livek_is_the_physics_truth.md`).
+
+Committed: PRJ edit + reference VTU swap (commit pending at time of writing this entry — see git
+log for the actual hash). `CANONICAL_RESULTS_2026-08-17.json` and the three interteam PNGs
+regenerated accordingly (scratchpad copies; not yet pushed to the live report/beamer figure dirs
+pending Vinay's go-ahead).
