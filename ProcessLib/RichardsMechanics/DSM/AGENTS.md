@@ -1036,3 +1036,755 @@ open item.
 
 Reporting rule that follows: never present the frozen-K number because it agrees better. State
 which branch is physical and what the residual gap reveals.
+
+---
+
+## 2026-08-17 — "exact interpolation" + gap-switch shipped to ctest (Vinay's directive)
+
+Vinay, 2026-08-17: *"exact interpolation. gapswitch everywhere, even in ctests. model3: Compile
+the results for both live and frozen k. I think live k is the correct physics. that model 3 i
+need to check again. compile the results and then check elastoplasticity parameters and
+equilibration for all model runs."*
+
+### 1. The rho_d=900 anchor was WRONG. Corrected. DONE 2026-08-17
+
+`calibrate_maxwell_K.py` carried `DIXON_EMDD_MPa = {..., 900: 0.051}`, commented
+"dd900 unused (model edge)" — a placeholder, never a Dixon reading. The Dixon (2023) Fig. 1
+median fit `Ps = 0.003*exp(5.2883*rho_d[g/cm3])` gives at rho_d = 900:
+
+    0.003*exp(5.2883*0.9) = 0.3500522009 MPa      (a factor 6.9 above the placeholder)
+
+Re-calibrated against the exact value (`--rel-tol 5e-5`; the script's 2 % default is why the
+first attempt stopped at -0.380 %):
+
+    K(900) = 4367.2277 J/kg  ->  Ps = 0.3500565 MPa   (rel +0.001 %)   SUPERSEDES 3505.642413
+
+Reproduced independently on both builds — maxwell-conjugate-20260602 gives 4367.227700212952 and
+verify_tip_20260812 gives 4367.227700091862 (agree to 1e-10 relative), so the cell is insensitive
+to the binary difference. **TODO(Vinay): ratify K(900) = 4367.2277 J/kg before it is committed.**
+
+This knot is NOT decorative: Model III's live rho_d falls to 1347-1376 kg/m3, i.e. BELOW the
+1400 knot, so the 900-1400 segment is actively read.
+
+### 2. Two defects found in the tracked calibration path. NOT yet fixed in tracked files
+
+  a) `ANCHORS_MS33_ModelI/ms33_modelI_dd900.prj:247` has `<prefix>ms33_modelI_dd1600</prefix>`
+     — the dd900 deck writes its output under the dd1600 prefix. It would silently overwrite
+     dd1600 output, and it is why the first calibration reported "initial run failed" (the
+     driver globbed for dd900 outputs that were never written). Also carries sigma0 = -1.5e5
+     where an Option-C calibration cell should be 0.
+  b) `calibrate_maxwell_K.py:21` still points at `build/maxwell-conjugate-20260602/bin/ogs`
+     (built Jun 17), not the canonical tip. Every K in the chain was fitted through that
+     pointer. Harmless for dd900 as measured above, but a §6.7 traceability defect.
+
+### 3. Model III GAP-SWITCH is now the registered ctest. DONE 2026-08-17
+
+`ms33_modelIII_gapswitch.prj` + `ms33_modelIII_gapswitch_bc.py` staged into
+`Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIII/`, given a full §12.2 provenance header and
+an 11-field `<test_definition>` mirroring the soft-gap deck's field/tolerance set. Registered in
+`Tests.cmake` at RUNTIME 120 (measured 16 s wall, 1393 steps). The soft-gap registration is
+COMMENTED OUT with a deprecation note — deck, reference and history retained (§6.2/§6.3).
+
+Shipped configuration = gap-switch + **live-K**, so the regression baseline guards the physics
+that is actually reported.
+
+Verified: `ctest -R ANCHORS_MS33` = **6/6 pass** on verify_tip_20260812 (the wrapper's
+reference-side enumeration, which broke a previous landing, is clean here). The verify worktree
+used for that run was restored to clean afterwards.
+
+**TODO(Vinay) §3(f): ratify the new regression baseline**
+`ms33_modelIII_gapswitch_ts_1392_t_17280000.000000.vtu`, md5 `7efcdcbe1f0640ea3e6e9aaa6109ed45`.
+Nothing is committed until that ratification.
+
+### 4. Compiled results — canonical probe, both K branches
+
+Probe is verbatim `eurad-anchors/.../extract/extract_suite.py:30-54`: single NEAREST NODE at
+x = 0, y = 0.070 / 0.04025 / 0.0105 m, Ps = -tr(sigma)/3 [MPa]. (A row-mean probe gives a
+visibly different B and must not be mixed with these.)
+
+| case | frozen-K | live-K (ADOPTED) | teams | steps f/l |
+|---|---|---|---|---|
+| **III gap-switch (SHIPS)** | 7.202 / 7.400 / 7.824 | **1.176 / 1.337 / 1.660** | 2.63-7.47 | 589 / 1393 |
+| III soft-gap (DEPRECATED) | 9.705 / 9.703 / 9.675 | 7.663 / 7.661 / 7.592 | " | — / 650 |
+| **IV pellets** | 6.231 / 6.234 / 0.503 | **4.295 / 4.280 / 0.735** | 1.51-3.17 / 1.40-3.04 / 1.20-2.64 | 461 / 1632 |
+
+Model IV numbers supersede the 2026-08-17 morning table (6.227/6.230/0.499 and
+4.269/4.257/0.700), which used the erroneous 3505.642413 pellet anchor. T and C move <1 %;
+the pellet-dominated B probe moves ~+5 %.
+
+**Model III — the thing Vinay wanted re-checked.** The two corrections push OPPOSITE ways:
+
+    soft-gap -> gap-switch  (at frozen-K):   9.705 -> 7.202     (geometry fix, lowers)
+    frozen-K -> live-K      (at gap-switch): 7.202 -> 1.176     (physics fix, lowers hard)
+
+The delivered soft-gap live-K number (7.66) sat at the TOP of the team band only because a
+too-stiff gap surrogate was cancelling part of the live-K softening. On the correct geometry with
+the correct K branch, Model III lands at 1.18-1.66 MPa, i.e. **BELOW** the 2.63-7.47 team band —
+it no longer brackets. The fabric-memory shortfall is therefore much larger on Model III than the
+soft-gap arm suggested. This is a finding, not a regression: it is the same missing swelling-branch
+K_sw term, measured without the cancelling error.
+
+### 5. OPEN — K-table interpolation is LINEAR, Dixon's law is EXPONENTIAL. ASK(Vinay)
+
+`effectiveAugmentationPrefactor` (PotentialExchangeParameters.h:380-393) reads the table through
+`MathLib::PiecewiseLinearInterpolation`, i.e. a straight chord between knots, clamped outside.
+Dixon's law is exponential in rho_d (fitted ln K = 4.554e-3*rho_d + 4.302 through the four
+calibrated knots). A chord across a convex function always lies ABOVE it, so K is biased HIGH
+wherever a model operates mid-segment. Measured at the models' actual operating densities:
+
+| where | rho_d | K linear chord | K log-linear | chord high by |
+|---|---|---|---|---|
+| III gap-switch p05 | 1348.5 | 41710 | 36089 | **+15.6 %** |
+| III gap-switch median | 1365.0 | 43082 | 39002 | **+10.5 %** |
+| IV pellet region p05 | 964.9 | 9773 | 5929 | **+64.8 %** |
+| IV median | 1215.7 | 30653 | 19312 | **+58.7 %** |
+
+Both shipping models straddle the widest chord (900-1400). Consequence, and it matters for the
+write-up: the live-K stresses reported above are computed with K biased HIGH, so a faithful
+exponential Dixon would push them LOWER still. The under-prediction is therefore a floor, not a
+ceiling — the shortfall argument is strengthened, not weakened.
+
+Two ways to close it, both Vinay's call:
+  (a) DENSIFY the knot set (e.g. 100 kg/m3 spacing over 900-1800) so the chord tracks the
+      exponential to ~2.6 % worst case. Costs 6 more calibration runs on the same approved
+      Dixon anchor and the same approved procedure — no new source, but 6 new literals to ratify.
+  (b) LOG-INTERPOLATE inside `effectiveAugmentationPrefactor` (store ln K, exp on read) and
+      update `effectiveAugmentationPrefactorPhiDerivative` to match. One-line physics change,
+      no new literals, but it changes every live-K result and the analytic Jacobian tangent.
+Not chosen here — a formulation decision per §9.
+
+### 6. CORRECTION to §4 above — Model III is NOT equilibrated at the 200 d spec horizon
+
+Raised by the 2026-08-17 equilibration audit and then verified directly by extending both arms to
+2000 d (10x the spec horizon; suction curve extended so the held-at-0 branch covers it; diagnostic
+runs only, the shipped deck and its ctest stay at the spec 200 d).
+
+**Model III gap-switch, Top/Central/Bottom [MPa]:**
+
+| horizon | frozen-K | live-K | note |
+|---|---|---|---|
+| 200 d (spec) | 7.202 / 7.400 / 7.824 | 1.176 / 1.337 / 1.660 | transient |
+| **2000 d (equilibrated)** | **8.041 / 8.026 / 8.173** | **2.180 / 2.169 / 2.087** | asymptote |
+| 200 d error | **-10.4 %** | **-46.0 %** | |
+| teams | 2.63 - 7.47 | | |
+
+At 200 d the live-K increments were still GROWING (ratio +1.57) — the run had not entered its
+decaying phase, so no asymptote could be read from it at all. By 2000 d the ratio is +0.331 and the
+last increment is +0.8 %, i.e. converged to well under 1 %. Final rho_d is the SAME in both arms
+(1363.4 vs 1363.5) — the arms differ only in which K that density is read at, not in where they end
+up geometrically.
+
+**This overturns the "III falls far below the team band" reading in §4.** That was a transient
+artefact of stopping at 200 d. Equilibrated, the two arms BRACKET the team band cleanly:
+
+        live-K 2.18  <  [ teams 2.63 ... 7.47 ]  <  8.04 frozen-K
+
+which is exactly the bracketing statement the shortfall argument predicts, now measured on the
+correct geometry. The residual gap between live-K 2.18 and the band floor 2.63 is the
+fabric-memory deficit — 17 %, not the 55 % the 200 d number implied.
+
+**Model IV IS equilibrated at 200 d** — same 2000 d check: frozen 6.231/6.235/0.503 -> 6.233/6.234/
+0.503 and live 4.295/4.280/0.735 -> 4.323/4.282/0.736, i.e. within 0.6 % on every probe. The §4
+Model IV numbers stand; use the 2000 d values if an equilibrated set is wanted.
+
+**OPEN — ASK(Vinay), and it decides which numbers ship.** Do the other teams report Model III at
+200 d or at equilibrium? If the band 2.63-7.47 is a 200 d band, then comparing our 2000 d value to
+it is invalid, and the honest finding flips to *"our hydraulic transient is far slower than the
+teams'"* — which would point straight at the intrinsic permeability (already 20x spec here as an
+"equilibration aid") and at the `min_relative_permeability = 1e-2` floor that the equilibration
+audit measured as pinned at every node in every run, i.e. the MS33 spec S_e^3 law never actually
+operates. Both readings are defensible; they need the spec's reporting convention to separate them.
+Until that is settled, no Model III number should be quoted without its horizon attached.
+
+### 7. The permeability acceleration — history, and why 20x was not enough for Model III
+
+Vinay, 2026-08-17: *"200d is the team horizon. didn't we accelerate the permeability in order to be
+able to run these at the 200d mark? dig into history"* — yes, and the record is explicit.
+
+**The written rationale**, carried verbatim in six Model IV decks and the Model III soft-gap deck
+(`ms33_modelIV_pellets.prj:24-29`):
+
+> GUARDRAIL §12.5 audit (2026-06-09, Vinay-approved): intrinsic permeability set to 20x spec
+> (k0=1.17406e-19 m^2 clay; 1.17406e-18 pellet). Rationale: **spec-perm = unconverged transient at
+> reporting horizon; 20x equilibrates** and is the MAX stable factor on dsm_native_maxwell_conjugate
+> (**50x diverges ~11d, Model III**, always-on Maxwell-term wetting-rate ceiling). **IV/VII endpoints
+> perm-insensitive (20x vs 50x <1%)**. Submission candidate, EURAD-2 MS33.
+
+The gap-switch deck carries the short form: *"intrinsic permeability 1.17406e-19 : 20x the MS33 spec
+value, an equilibration aid carried over from the gap2mm header"*. Spec k0 = 1.17406e-19/20 =
+**5.8703e-21 m²**.
+
+**Measured today — Model III gap-switch, permeability sweep, canonical tip binary, T/C/B [MPa]:**
+
+| k0 | horizon | frozen-K | live-K | vs band 2.63–7.47 |
+|---|---|---|---|---|
+| **1x SPEC** | 200 d | 0.184 / 0.138 / −0.780 | 0.290 / 0.290 / 0.101 | nowhere near |
+| 20x (shipped) | 200 d | 7.202 / 7.400 / 7.824 | 1.176 / 1.337 / 1.660 | live below |
+| 50x | 200 d | — | 1.932 / 1.993 / 2.033 | below |
+| **100x** | **200 d** | **8.023 / 8.009 / 8.106** | **2.162 / 2.170 / 2.150** | brackets |
+| 20x | 2000 d | 8.041 / 8.026 / 8.173 | 2.180 / 2.169 / 2.087 | brackets |
+| 100x | 2000 d | — | 2.195 / 2.185 / 2.161 | brackets |
+
+Three findings, all measured:
+
+1. **The rationale was right about spec-perm.** At 1x, Model III barely hydrates by 200 d — ρ_d falls
+   only 1600 → 1553, the gap has scarcely closed, and Ps is 0.1–0.3 MPa. The acceleration was
+   genuinely necessary.
+2. **But "20x equilibrates" was never checked on Model III.** The evidence the header offers is
+   *"IV/VII endpoints perm-insensitive (20x vs 50x <1%)"* — Model I/IV/VII, all of which today
+   measure equilibrated at 200 d (IV within 0.6 %). Model III, the one model with a moving outer
+   boundary and therefore the longest transient, was outside the tested set. At 20x its live-K arm
+   reaches only 54 % of its asymptote by 200 d.
+3. **The 20x cap is stale.** The header caps at 20x because *"50x diverges ~11d, Model III"*. On the
+   current tip 50x completes (998 steps) and so does 100x (891 steps). The most likely cause of the
+   change is the analytic micro Jacobian (`bfd52cf6ff`) — the same landing that removed the Model IV
+   divergence recorded in §4 above. **Predicted, not verified:** attributing the recovery
+   specifically to that commit would need a revert experiment; what is verified is that 50x and 100x
+   run to completion today.
+
+**The endpoint is k0-independent — the §2-clean test the 2026-06-09 claim asserted but only ran on
+IV/VII.** 100x at 200 d reproduces 20x at 2000 d to within 0.8 % on T/C (live 2.162 vs 2.180;
+frozen 8.023 vs 8.041), and 100x carried out to 2000 d moves only a further 1.5 %. Final ρ_d is
+1363.5 in every accelerated arm. So raising k0 is a pure time-rescaling here, not a change of
+answer — which is what makes it legitimate, and what licenses reporting a 100x run at 200 d.
+
+**Why ~100x, and why that number is not arbitrary [DERIVED, consistent with the measurements].**
+Macro saturation collapses to ≈ 0 at every node and every frame in these runs (the DSM exchange sink
+consumes macro water as fast as it arrives), so `S_e³ → 0` and `relative_permeability` sits exactly
+on its `min_relative_permeability = 1e-2` floor throughout — measured, all frames, all four decks.
+The effective macro conductivity is therefore k0 x 1e-2, and the shipped 20x config runs at
+20 x 1e-2 = **0.2x** the conductivity a conventional single-porosity model would have at spec k0 with
+k_r ≈ 1. We were not running 20x fast; we were running **5x slow**. 100 x 1e-2 = 1.0 restores parity
+with the spec-intended conductivity — which is exactly where the transient compresses into 200 d.
+This also explains how the other teams reach 2.63–7.47 MPa at 200 d on spec permeability while we
+reach 0.3: their k_r is not floored because their macro pore does not collapse.
+
+**What does NOT change.** At the team horizon with the transient properly compressed, live-K Model III
+is 2.16 — still below the 2.63–7.47 band — and frozen-K is 8.02, above it. The bracketing statement
+and the fabric-memory shortfall are therefore *not* transient artefacts; they survive the correction.
+Only the magnitude changes (deficit 17 %, not 55 %).
+
+**ASK(Vinay), the smallest question:** raise Model III to k0 = 100x spec so its 200 d reported value
+is the equilibrated one, and record the k_r-floor compensation as the stated reason? That is a
+material-parameter change under §12.5 and a re-baseline of the gap-switch ctest reference, so it is
+your call. The alternative — report the 20x 200 d transient as-is — is defensible only if the number
+is labelled a transient every time it appears, which no current artifact does.
+
+### 8. DONE 2026-08-17 — Model III raised to k0 = 5.8703e-19, k_r-floor reason recorded
+
+Vinay, 2026-08-17: *"go with 100x, record the k_r floor reason"* — the ASK at the end of §7 is
+CLOSED. Landed in `ANCHORS_MS33_ModelIII/ms33_modelIII_gapswitch.prj`: three literals
+1.17406e-19 -> **5.8703e-19**, plus a §12.5 provenance block giving the full reason.
+
+**Corrections to §7, from the git/spec archaeology (19 agents, 135 facts):**
+
+1. **The multiplier baseline was loose in §7 and in my first header draft.** The MS33 spec LITERAL
+   is **k0 = 5.6e-21 m² at phi_ref = 0.42** (`eurad2_MS34/MSXX/c_theoretical_benchmarking/
+   theoretical_benchmarking.tex:118-120`; MS33 revision `MS33/theoretical_benchmarking.tex:440-441`).
+   The decks' 5.8703e-21 is that spec point Kozeny-Carman-transferred to phi0 = 0.4244604316546763,
+   KC factor 1.04826 (`ms33_modelI_dd1600.prj:308`). So the new value is **100x the KC base but
+   104.83x the spec literal**, and the old one was 20x KC / 20.97x literal.
+   **Corpus hazard:** the SAME absolute value 5.8703e-19 is labelled `k0 x100 spec` in
+   `DSM/AGENTS.md:189` and `k0 x5` in `runs/2026-08-05_2017_.../workbooks/PROVENANCE.md:79`. There is
+   no 5x-spec value anywhere in the corpus. **Never quote "Nx spec" without naming the baseline.**
+2. **The deciding commit is `2c3b3bb0d6` (2026-06-09)**, message: *"Spec-perm runs are unconverged
+   transients at the 200-240 d horizon; 20x equilibrates and is the max stable factor on this branch
+   (50x diverges ~11d for Model III: always-on Maxwell-term wetting-rate ceiling). IV/VII endpoints
+   perm-insensitive (20x vs 50x match <1%)."* Model III appears in that sentence ONLY as the model
+   that diverged at 50x — it was structurally excluded from the test used to justify the setting.
+3. **Today's finding is the THIRD falsification of "20x equilibrates", not the first.** 2026-06-17
+   measured 20x as under-equilibrated for Model VII
+   (`runs/2026-06-15_1410_.../EQUILIBRATED_LE_VII_2026-06-17.md:9-15`); 2026-06-25 documented **40x
+   spec as the minimum** that equilibrates the confined Reference within 200 d. Neither produced a
+   proposal to raise the shipped decks. The 40x floor independently brackets the 100x adopted here.
+4. **The 1e-2 k_r floor was introduced for a NUMERICAL reason, not an equilibration one** — Vinay
+   2026-05-29, `ms33_modelI_dd1600.prj:196-198`: *"so the drained macro cannot give a singular
+   k_rel=0 at step 1."* The spec prescribes no bentonite floor at all; its only k_r floor (1e-6) is
+   for granite (`MS52/backup.tex:175`). Its dominance of the hydraulic timescale is a side effect —
+   which is exactly the effect §7 identifies and the new value compensates.
+5. **Model I was never accelerated**, and the acceleration is not uniform inside Model VII (nine
+   variants sit at 1.00x KC base). The Model IV **pellet** zone is not 20x either: 1.17406e-18 =
+   10x the clay = 200x KC base, and the 2026-06-08 "10x clay" move actually LOWERED it below its own
+   KC value (0.785x) — the whole 15.7x excess comes from the 2026-06-09 20x.
+
+**Verified after the change:** `ctest -R ANCHORS_MS33` = **6/6 pass**. New gap-switch reference
+`ms33_modelIII_gapswitch_ts_890_t_17280000.000000.vtu`, md5 **0e7501f2ff65cb9c151f77da169ecb03**,
+11 s wall / 891 steps. The 20x reference generated earlier the same session
+(`..._ts_1392_...`, md5 7efcdcbe…) was never committed and was removed, because a second
+reference-side `_ts_` file in the test dir makes the ctest wrapper enumerate two candidates.
+**TODO(Vinay) §3(f): ratify the new baseline md5 before commit.** Nothing is committed yet.
+
+**Reported Model III now, at the 200 d TEAM horizon (no horizon caveat needed any more):**
+
+| | frozen-K | live-K (ADOPTED) | teams |
+|---|---|---|---|
+| III gap-switch @ 100x, 200 d | 8.023 / 8.009 / 8.106 | **2.162 / 2.170 / 2.150** | 2.63 - 7.47 |
+
+Brackets the band; residual live-side deficit 17 %. The conclusion of §6 is unchanged — only now it
+is a converged number at the horizon the teams actually report at.
+
+### 9. OPEN — the suite now carries HETEROGENEOUS permeability factors. ASK(Vinay)
+
+III runs at 100x KC base while IV and VII stay at 20x. The justification is that IV and VII are
+already equilibrated at 200 d at 20x (measured: IV within 0.6 %), so they need no more, and that the
+endpoint is k0-independent so a per-model factor does not bias the comparison. I measured that
+second premise instead of assuming it — SAME DECK, only k0 changed, 20x vs 100x:
+
+| model | quantity | 20x | 100x | change |
+|---|---|---|---|---|
+| III | T/C/B [MPa] | (2.180/2.169/2.087 @2000 d) | 2.162/2.170/2.150 @200 d | +0.8 % on T/C |
+| IV | T/C [MPa] | 6.413 / 6.420 | 6.552 / 6.569 | **+2.2 % / +2.3 %** |
+| IV | B (pellet) [MPa] | 1.121 | 1.047 | **-6.6 %** |
+| VII | void ratio e | 1.4734 | 1.4956 | **+1.5 %** |
+
+So the endpoint is only APPROXIMATELY k0-independent: within ~2 % on block / single-material
+probes, but the **Model IV pellet probe moves 6.6 %**, which is above the precision the deliverable
+quotes. The suite is therefore not strictly factor-invariant, and mixing 100x (III) with 20x
+(IV, VII) imports that much inconsistency. Two options, Vinay's call:
+  (a) leave IV/VII at 20x — minimal change, but the suite is internally inconsistent by up to 6.6 %
+      on one probe, and that must be stated wherever the IV pellet number appears;
+  (b) unify the suite at 100x — internally consistent and removes the 40x-minimum concern for the
+      confined Reference too, but it changes IV by +2.2/+2.3/-6.6 % and VII's e by +1.5 %, and needs
+      both ctest references re-baselined (§3(f)) and the IV/VII deliverable numbers re-issued.
+Note (b) would also move VII's e from 1.4734 to 1.4956, both far ABOVE the 1.086-1.321 team band —
+unrelated to permeability, and consistent with the separate finding that E = 52 MPa is ~10.5x the
+team BBM tangent (free-swelling e scales as 1/E).
+
+### 10. Equilibration times and permeabilities, measured per model (2026-08-17)
+
+Uniform criterion, stated up front: **t_eq(1 %) = the earliest output time from which the diagnostic
+stays within 1 % of its converged value for the rest of the run.** Diagnostics: Model I = domain-mean
+Ps = -tr(sigma)/3; Models III/IV = the canonical Top probe (nearest node, x=0, y=0.070 m); Model VII =
+void ratio e from mean porosity. All runs on the canonical tip binary with a 20-point logarithmic
+output ladder from 1 d to 2000 d. Model VII is a HYDRATION-ONLY diagnostic (traction held at -2e5,
+the 200-240 d load/unload cycle removed) so the hydration transient is measured, not the load step.
+
+| model (shipped deck) | k0 [m^2] | x KC base / x spec literal | diag | converged | **t_eq(1 %)** | @200 d vs converged |
+|---|---|---|---|---|---|---|
+| I dd1400 | 1.2264e-20 (KozenyCarman) | 1x at own phi0 | Ps | 4.9378 MPa | **20 d** † | +0.00 % |
+| I dd1600 | 5.8703e-21 (KozenyCarman) | 1x / 1.048x | Ps | 14.1250 MPa | **20 d** † | +0.00 % |
+| I dd1800 | 2.6570e-21 (KozenyCarman) | 1x at own phi0 | Ps | 40.8448 MPa | **1 d** | +0.00 % |
+| III gap-switch @ 20x (OLD) | 1.17406e-19 | 20x / 20.97x | T | 2.1796 MPa | **1500 d** | **-46.0 %** |
+| III gap-switch @ 100x (SHIPS) | 5.8703e-19 | 100x / 104.83x | T | 2.1949 MPa | **250 d** | **-1.5 %** |
+| IV pellets (SHIPS) | 1.17406e-19 clay, 1.17406e-18 pellet | 20x / 200x KC | T | 6.4164 MPa | **150 d** | -0.05 % |
+| VII free swelling (SHIPS) | 1.17406e-19 | 20x / 20.97x | e | 1.4992 | **300 d** | **-2.0 %** |
+
+† **Model I's t_eq is NOT a hydraulic time.** Its suction ramp ends at exactly 1728000 s = 20 d, and
+pressure Dirichlet sits on top AND bottom of a single-element mesh, i.e. on all four nodes — there is
+no free hydraulic degree of freedom. Model I equilibrates the moment the BC ramp stops, and its
+permeability is irrelevant to that (it is also the only model never accelerated). dd1800 reaches 1 %
+even earlier because it is densest, so its macro pore is exhausted soonest.
+
+**Who is actually equilibrated at the 200 d team horizon:** Model I (trivially, by construction) and
+Model IV (-0.05 %). **Model III at the newly shipped 100x is -1.5 %** — close, but t_eq(1 %) = 250 d
+still lands just past the horizon. **Model VII is -2.0 % and is NOT equilibrated at 200 d either**,
+t_eq(1 %) = 300 d — which independently corroborates the 2026-06-17 record
+(`runs/2026-06-15_1410_.../EQUILIBRATED_LE_VII_2026-06-17.md:9-15`) and the 2026-08-17 equilibration
+audit. VII's shortfall was never fixed and is still shipping.
+
+**CORRECTION to §8.** I reported the 100x Model III 200 d value as "within 0.8 % of the asymptote".
+That compared 100x@200 d against 20x@2000 d. Measured against its OWN converged value on a fine
+ladder it is **-1.5 %**. Both numbers are real but they answer different questions; -1.5 % is the one
+to quote.
+
+**Scaling.** t_eq is close to inverse-proportional in k0 but slightly steeper: Model III, same deck,
+5x more k0 moved t_eq 1500 -> 250 d, a factor **6.0**, i.e. t_eq ~ k0^-1.11. The excess over 1/k0 is
+expected — the gap-closure switch and the exchange kinetics gate the transient too, so it is not a
+pure diffusion time. Using that exponent, t_eq(1 %) = 200 d exactly would need **~122x** KC base for
+Model III and **~29x** for Model VII. [PREDICTED from two points, not verified by a run.]
+
+**Side observation, consistent with the known §6.7 gap:** the registered Model I decks give
+Ps = 4.9378 / 14.1250 / 40.8448 MPa, not the deliverable record's 4.89997 / 14.159948 / 40.600313 —
+because the registered decks are still on the superseded sigma0 = -1.5e5 chain (K = 45217 / 103879 /
+266767). That is the open blocker already recorded, not a new finding.
+
+### 11. HISTORICAL — SUPERSEDED BY §12. Full permeability sweep, target t_eq(1%) = 20 d [WRONG TARGET]
+
+> **Correction 2026-08-17 (same day): the "20 d" target below is WRONG.** Checked against the
+> spec directly (Vinay: *"find in the specs how long should the models run for? 20 or 200?"*):
+> `d_calculation-description/BGR.tex:60` — BGR's own declared MS33 setup — states *"A time-dependent
+> suction ramp will be imposed ... decreasing ... over a period of 20 days, after which it remains
+> constant for a further 180 days. Thus, the total hydration and simulation time is **200 days**."*
+> 20 d is the RAMP sub-component, not the reporting horizon; 200 d is the target, confirmed
+> independently by `Questions.tex` R27 (*"200 days for the Reference Configuration"*) and by the
+> ALREADY-STANDING permeability-multiplier discussions in §7/§8, both of which were about 200 d
+> from the start (commit `2c3b3bb0d6`, 2026-06-09: *"unconverged transients at the 200-240 d
+> horizon"*; the §8 100x landing: *"compresses the transient into the 200 d team reporting
+> horizon"*). The "20 days" framing entered ONLY in this section, as a one-turn misreading, not as
+> anything previously agreed. §12 below re-derives the SAME dataset — no new simulations were
+> needed, since the run below already went to 2000 d with a ladder point at exactly t=200 d.
+> This section is kept per CLAUDE.md §6.3 (never delete, annotate historical) — the raw sweep data,
+> the Aitken/Richardson method, and the IV-overshoot / VII-and-Model-I-ramp-floor physics findings
+> below are all still valid; only the "closest to 20 d" framing and its answer table are superseded.
+
+Vinay, 2026-08-17: *"run everything except the calibration and 30x, 40x, 50x, 60x. do a richardson
+(if i am right) for the equilibration. take the closest which equilibrates at 20 days."*
+
+**Scope.** No K recalibration; K unchanged from the live-K Dixon chain throughout. Models III
+(gap-switch), IV (pellets), VII (free-swelling, hydration-only diagnostic — traction held, the
+200-240 d load/unload cycle stripped so the hydration transient alone is measured). Model I excluded
+from the sweep: it has zero free hydraulic DOF (pressure Dirichlet on every node of a 1-element
+mesh), so permeability provably cannot affect it — confirmed as the x1 reference (t_eq=20 d exactly,
+BC-ramp-controlled, unchanged from §10). 25 new runs at {5,10,80,100,160,320,640,1280}x KC base
+(+2560,5120x for III only, added to resolve its floor) — literal multipliers 30/40/50/60 excluded
+throughout. All 25 completed cleanly (exit 0, no divergence) on the canonical tip binary.
+
+**Extrapolation method.** Classical Richardson extrapolation needs a constant ratio between
+successive step sizes; the output ladder here is only approximately geometric, so the applied method
+is Aitken's Delta-squared process — same family, and the correct generalisation when the ratio isn't
+exactly constant: `x_inf ~= x_n - (x_{n+1}-x_n)^2 / (x_{n+2}-2 x_{n+1}+x_n)`, evaluated on sliding
+triples of the late-time tail, x_inf reported as the median across triples. t_eq(1%) is then read off
+against this extrapolated x_inf rather than the raw last-frame value. In every case except the two
+slowest-converging runs (III/VII at 5x, 10x, which have not entered the terminal regime by 2000 d)
+the Richardson and naive t_eq agree to within one ladder step — the naive last-value estimate was
+already adequate once the run had genuinely converged; Richardson matters only for judging whether
+convergence had ACTUALLY been reached (III/VII at 5x/10x had not, despite 2000 d).
+
+**Full table — k0 = KC-base x multiplier, KC base = 5.8703e-21 m^2:**
+
+| model | mult | k0 [m^2] | x_inf (Richardson) | t_eq(1%, Richardson) |
+|---|---|---|---|---|
+| III | 5x | 2.935e-20 | 0.969 | >2000 d (not converged) |
+| III | 10x | 5.870e-20 | 1.643 | >2000 d (not converged) |
+| III | 20x (old ship) | 1.174e-19 | 2.096 | >2000 d (naive said 1500 d — was wrong) |
+| III | 80x | 4.696e-19 | 2.196 | 300 d |
+| III | 100x (SHIPS) | 5.870e-19 | 2.195 | 250 d |
+| III | 160x | 9.392e-19 | 2.192 | 150 d |
+| III | 320x | 1.878e-18 | 2.187 | 75 d |
+| III | 640x | 3.757e-18 | 2.183 | 50 d |
+| **III** | **1280x** | **7.514e-18** | **2.182** | **30 d — floor** |
+| III | 2560x | 1.503e-17 | 2.180 | 30 d (no further gain) |
+| III | 5120x | 3.006e-17 | 2.181 | 30 d (no further gain) |
+| IV | 5x | 2.935e-20 | 6.365 | 600 d |
+| IV | 10x | 5.870e-20 | 6.391 | 250 d |
+| IV | 20x (SHIPS) | 1.174e-19 | 6.416 | 150 d |
+| **IV** | **80x** | **4.696e-19** | **6.522** | **30 d — floor** |
+| IV | 100x | 5.870e-19 | 6.553 | 30 d |
+| IV | 160x | 9.392e-19 | 6.613 | 30 d |
+| IV | 320x | 1.878e-18 | 6.653 | 50 d — WORSE |
+| IV | 640x | 3.757e-18 | 6.568 | 50 d |
+| IV | 1280x | 7.514e-18 | 6.469 | 50 d |
+| VII | 5x | 2.935e-20 | 1.467 | >2000 d (not converged) |
+| VII | 10x | 5.870e-20 | 1.495 | 600 d |
+| VII | 80x | 4.696e-19 | 1.500 | 75 d |
+| VII | 100x | 5.870e-19 | 1.500 | 75 d |
+| VII | 160x | 9.392e-19 | 1.500 | 50 d |
+| VII | 320x | 1.878e-18 | 1.500 | 30 d |
+| **VII** | **640x** | **3.757e-18** | **1.500** | **20 d — matches Model I's floor exactly** |
+| VII | 1280x | 7.514e-18 | 1.500 | 20 d (no further gain) |
+
+**The closest-to-20-d run per model, honouring the request:**
+
+| model | closest run | k0 [m^2] | t_eq(R) |
+|---|---|---|---|
+| III | **1280x** | 7.514e-18 | 30 d |
+| IV | **80x** | 4.696e-19 | 30 d |
+| VII | **640x** | 3.757e-18 | **20 d** |
+
+**VII reaches the literal 20 d floor** — bit-identically after 640x, no further gain at 1280x. **III
+plateaus at 30 d** and pushing two more decades (2560x, 5120x) buys nothing further — confirmed a
+genuine floor, not a resolution artefact of the sweep stopping too early. **IV never gets below
+30 d, and going past ~160x makes it WORSE (30 -> 50 d).**
+
+**Why the floor sits at 20 d for VII/I but 30 d for III, and why IV cannot improve past 30 d
+[DERIVED, consistent with the measured raw series — checked, not assumed].**
+
+- **VII and Model I** are driven purely by the imposed suction ramp, `<coords>0 1728000 ...</coords>`
+  — the BC itself finishes changing at exactly t = 1728000 s = **20 d**. A model cannot equilibrate
+  to a state it does not yet know, so 20 d is a hard floor set by the forcing, not by diffusion.
+  Once k0 is high enough that hydraulic diffusion is no longer rate-limiting (>=640x here), the
+  system tracks the ramp essentially in lock-step and hits that floor exactly — confirmed: VII's raw
+  series at 1280x is bit-identical from t=20 d onward (e=1.50035 at every frame >=20 d).
+- **III** carries the SAME suction ramp but ALSO the gap-switch mechanical event (free swelling until
+  u_r=2 mm, then a rigid-wall BC engages). That switch is a second, k0-independent clock, and it sets
+  III's floor 10 d later than VII/I's. Checked directly: raw T at 5120x is already 2.155 (99 % of
+  converged) at t=20 d and only needs the last 1 % by t=30 d — consistent with a mechanical-event
+  floor stacked on top of the hydraulic one, not a resolution artefact.
+- **IV is qualitatively different: pushing k0 higher makes it WORSE past ~160x, because it develops a
+  genuine transient OVERSHOOT that grows with k0** — checked in the raw series, not a ladder/noise
+  artefact:
+    | mult | T at t=20d (peak) | T at t=100d (settled) | overshoot |
+    |---|---|---|---|
+    | 160x | 6.476 | 6.615 | undershoot, still rising |
+    | 320x | 6.659 | 6.655 | ~flat |
+    | 640x | 6.747 | 6.571 | **+2.7% peak, relaxes down** |
+    | 1280x | 6.800 | 6.474 | **+5.0% peak, relaxes down** |
+  IV is the only heterogeneous model here (clay block + pellet, each with its own K and k0). At high
+  k0 the fast-hydrating block races ahead of the pellet and overshoots the FINAL two-material
+  equilibrium before the pellet catches up and pulls it back down; the relaxation time for that
+  overshoot does not shrink with k0, so t_eq stops improving and then degrades. This is a genuine
+  finding about the coupled system, not a numerical defect — recorded as a caution against pushing
+  k0 arbitrarily high on heterogeneous DSM decks.
+
+**Consequence for the shipped decks.** None changed by this campaign — it is a diagnostic sweep, no
+tracked file touched. It does, however, sharpen the k0=100x decision for Model III from §8/§9: 100x
+gives t_eq=250 d (still past the horizon, though only -1.5 % off by 200 d as measured in §10); the
+run that actually reaches Model III's own floor is **1280x** (t_eq=30 d), 12.8x higher than what
+shipped. Whether to push III further than 100x is a separate decision from the one already made —
+not applied here, ASK(Vinay) if wanted.
+
+Raw data: 27 new PRJs + full 2000 d VTU series under scratchpad `eqtime/{III,IV,VII}_{mult}x/`;
+`analysis.json` has the per-case Aitken x_inf, spread, and both t_eq definitions.
+
+### 12. CORRECTED — the same sweep, re-queried for the actual 200 d target
+
+Vinay: *"then delete the just-now-run campaign and redo it for 200 days, maybe i made a mistake
+hastily saying 20. first check if there was a discussion about the const perm multiplier
+regarding this."*
+
+**Checked first, as asked.** Both prior permeability-multiplier discussions were about 200 d:
+the original 2026-06-09 commit `2c3b3bb0d6` (*"unconverged transients at the 200-240 d horizon"*)
+and this session's §8 100x landing (*"compresses the transient into the 200 d team reporting
+horizon"*, `ms33_modelIII_gapswitch.prj:99`). The 20 d framing in §11 was the anomaly.
+
+**No re-simulation performed, and none was needed.** t_eq(k0) is an intrinsic property of each
+multiplier's own physics — it does not depend on which target (20 d or 200 d) you later query it
+against. Every §11 run already went to 2000 d on a ladder that includes an exact t=200 d output
+frame. Re-running would reproduce byte-identical PRJs, byte-identical physics, and therefore
+byte-identical results — pure waste. Instead the SAME `analysis.json` was re-queried for the
+correct target. One repair was needed and made: Model VII's shipped 20x baseline was cached under
+the directory name `VII_20x_hydonly` (from an earlier turn, before the sweep's naming convention),
+which the sweep's `VII_{m}x` regex could not see — it was silently absent from every query in §11
+too. Added as `VII_20x` in `analysis.json`, t_eq(R) = 300 d, consistent with the independent
+§10 finding (VII at 20x is -2.0% short at 200 d) — corroborating, not new.
+
+**Query rule:** among runs with t_eq(Richardson) <= 200 d, pick the one with the smallest margin
+(converged earliest before the horizon, not merely "close" in absolute distance — a run whose
+t_eq is 250 d is NOT converged at the 200 d horizon regardless of how "close" 250 is to 200; a run
+whose t_eq is 150 d gives a 50 d safety margin and IS converged by the horizon). Where no run in
+the swept set converges by 200 d, the least-late run is reported instead, flagged as such.
+
+| model | chosen | k0 [m^2] | t_eq(R) | margin vs 200 d | note |
+|---|---|---|---|---|---|
+| III | **160x** | 9.3925e-19 | 150 d | +50 d | currently SHIPS at 100x (t_eq=250d, -50d, NOT converged by 200d) |
+| IV | **20x** | 1.1741e-19 | 150 d | +50 d | this IS what currently ships — no change indicated |
+| VII | **80x** | 4.6962e-19 | 75 d | +125 d | currently SHIPS at 20x (t_eq=300d, -100d, NOT converged by 200d) |
+
+**Full table for context (t_eq(Richardson), all swept multipliers):**
+
+| mult | III | IV | VII |
+|---|---|---|---|
+| 5x | >2000d | 600d | >2000d |
+| 10x | >2000d | 250d | 600d |
+| 20x | >2000d | 150d | **300d (shipped, repaired entry)** |
+| 80x | 300d | 30d | 75d |
+| 100x | **250d (shipped)** | 30d | 75d |
+| 160x | **150d** | 30d | 50d |
+| 320x | 75d | 50d | 30d |
+| 640x | 50d | 50d | **20d** |
+| 1280x | 30d | 50d | 20d |
+
+**Three findings, in order of what they mean for what's already landed:**
+
+1. **IV needs nothing — confirmed, not just assumed.** The shipped 20x already gives the best
+   available margin (150 d, converged 50 days before the horizon) among all sensible candidates;
+   every acceleration beyond 20x makes it WORSE against the 200 d target (t_eq bottoms at 30d for
+   80-160x, driven by the block-pellet overshoot mechanism in §11, but that 30d floor is for a
+   DIFFERENT target than 200d and is irrelevant here — at the 200d target, 20x's 150d margin beats
+   every accelerated option, since none of them get CLOSER to 200 from below than 20x already is;
+   80-160x overshoot INTO their floor early and then sit flat, still well inside 200d, so they are
+   not wrong either, just not better). No change indicated.
+
+2. **III at 100x (already landed, per §8) does NOT converge by the 200 d horizon** — t_eq=250d,
+   -1.5% short at 200 d exactly as measured independently in §10. **160x would give a 50-day safety
+   margin instead.** The two x_inf values are nearly identical (100x: 2.1949 MPa; 160x: 2.1918 MPa,
+   0.14% apart) — this is NOT a physics disagreement, purely a convergence-margin question. Whether
+   to bump III from 100x to 160x is Vinay's call — the 100x landing itself is UNCHANGED here, this
+   is new information bearing on it, not a reversal.
+
+3. **Model VII, never touched by any landing this session, does not converge by 200 d either**
+   (t_eq=300d at its shipped 20x) — an existing, previously-known gap (§10; corroborates the
+   2026-06-17 record), now with a concrete candidate fix: 80x gives a 125-day margin. This is a
+   NEW decision, not previously proposed or landed for VII specifically.
+
+**Nothing committed by this correction.** No tracked file was touched — §12 is a re-analysis of
+already-collected data. The open decisions (bump III to 160x? raise VII to 80x?) are ASK(Vinay),
+same footing as the §9 heterogeneous-factor question they now overlap with.
+
+### 13. WHY III needs more permeability than VII to converge — verified mechanism
+
+Vinay: *"there must be a reason why 3 takes more permeability to close a 2mm gap and vii takes
+less under absolute uniaxial free swelling, if the end point of those two are the same."*
+
+**Checked first: the two decks are a controlled comparison.** Mesh (`ms33_cylinder_r25_h70`,
+identical), hydration BC (pressure_bc, bottom face only, identical suction ramp), retention curve
+(SaturationTuller, every parameter byte-identical), E=52 MPa, nu=0.3, biot=1.0, phi0=0.42446,
+initial rho_d=1600 — all identical between `ms33_modelIII_gapswitch.prj` and
+`ms33_modelVII_freeswelling.prj`. The ONLY structural difference is mechanical: III's outer radius
+is free until u_r=2mm then LOCKS to a rigid Dirichlet wall, and III's top+bottom are ALWAYS
+u_z=0 (fixed, no axial swelling ever); VII's outer radius carries no BC at all (free/zero-traction
+throughout) and its top is a soft Neumann traction (movable). So the shared "endpoint" the question
+refers to is real — same boundary driver, same material — but it is the HYDRAULIC boundary
+condition, not the mechanical one; the mechanical response is where III and VII diverge.
+
+**Measured (same k0=100x KC base for both, so the comparison isolates the mechanical effect):**
+
+| t [d] | III eps_v | III phi_M (macro) | III exch_mean | VII eps_v | VII phi_M (macro) | VII exch_mean |
+|---|---|---|---|---|---|---|
+| 1 | 0.0074 | 0.4260 | 2.9e-05 | 0.0142 | 0.4268 | 8.5e-05 |
+| 20 | 0.1331 | 0.3272 | 3.1e-04 | 0.2993 | 0.2806 | 5.4e-04 |
+| 100 | 0.1599 (capped) | 0.0805 | 2.76e-04 | 0.3631 (still free) | 0.0229 | 5.15e-04 |
+| 200 | 0.1600 (capped) | **0.0168 (not exhausted)** | 2.77e-04 | 0.3637 (capped) | **0.0000 (exhausted)** | 5.15e-04 |
+
+III's dilation is capped at eps_v=0.16 by t=30 d (gap fully closed) and never moves again. VII's
+grows to eps_v=0.36 (2.3x III's) and is STILL free the whole way — even at 100x, VII's own
+"gap" (its confining traction) never engages the way III's rigid wall does, so nothing analogous
+caps VII. Note this is ALREADY true at t=1 d, well before III's gap engages (eps_v 0.0074 vs
+0.0142) — III's top+bottom u_z=0 (permanent, not switch-gated) restricts it to radial-only
+dilation from the very first step, while VII is free in both directions throughout.
+
+**The causal link, from source (verified live in every MS33 run, §5 of `paper_code_formulation
+_divergence.md`): the DSM micro-macro exchange carries an ADDITIVE mechanical term in the micro
+potential,**
+
+    mu_lR_mech = -[ (Pi + n_l*Pi')*eps_v + 0.5*b*K_drained*eps_v^2 ] / rho_lR
+
+**the same term responsible for the live-K "swelling material loses swelling potential" finding.**
+Larger eps_v drives mu_lR more negative, which widens the exchange driving force
+`rho_hat_l = alpha_M*(mu_LR - mu_lR)` and speeds the transfer of macro water into micro/interlayer
+storage. Measured: VII's exch_mean during the late quasi-steady phase is ~1.9x III's — and this is
+despite VII's exhaustion TARGET being LARGER, not smaller (final n_l = 0.600 for VII vs 0.510 for
+III, since VII's larger dilation also increases its total porosity) — VII moves more water, faster,
+to a bigger target, and still finishes first. The rate effect dominates the target-size effect.
+
+**Confirmed spatially, not just in the domain mean.** III's outer-boundary displacement at t=20 d,
+sampled by height (`III_100x`, x=0.025 m = outer radius):
+
+| y [mm] | u_r [mm] (gap=2.0) | local phi_M |
+|---|---|---|
+| 0 (bottom, entry) | **2.000 — CLOSED** | ~0 (exhausted) |
+| 20 | 1.772 | 0.347 |
+| 40 | 1.552 | 0.386 |
+| 70 (top) | 1.460 | 0.398 (barely moved from 0.424 initial) |
+
+The gap closes bottom-first, top-last, tracking the rising hydration front — each cross-section
+runs its own local "free-swell then lock" sequence as the front reaches it. The domain mean cannot
+converge until the LAST (top) cross-section both hydrates AND locks. VII has no analogous
+per-height lock-in event (uniformly free everywhere), so its front-propagation alone sets its
+timescale, with no compounding mechanical-confinement delay layered on top.
+
+**Answer, in one line:** III needs more permeability than VII for the same 200 d target because
+III is progressively confined (a rigid contact wall) and VII is not — confinement caps III's
+dilation at ~16% (vs VII's ~36%+), and because the DSM's micro-macro exchange rate is itself
+strain-gated (the same coupling behind the live-K fabric-memory finding), the smaller dilation
+gives III a structurally slower self-driven exchange, on top of a spatial lock-in effect the
+free-swelling geometry doesn't have. Both effects point the same way and share the same root
+cause. Not a numerical artefact and not about diffusion path length (identical for both decks) —
+a genuine, verified consequence of the confinement difference between the two exercises.
+
+### 14. Two questions raised, both checked directly — one confirmed, one genuinely open
+
+Vinay: *"firstly everything has to be const perm. vii should be laterally confined, no?"*
+
+**1. Const perm — checked, mostly already true.** Model III, IV (both zones) and VII all use
+`<type>Constant</type>` for the `permeability` property — confirmed by re-reading all four PRJs
+directly. **Model I is the one exception**: `ms33_modelI_dd1600.prj:179` uses
+`<type>KozenyCarman</type>` (deformation-coupled, `k = k(phi)`), the only deformation-dependent
+permeability law anywhere in the MS33 suite. Possible reason, not yet confirmed as the actual
+motive: the spec's Model I section explicitly lists *"Evolution of intrinsic permeability vs
+suction"* as a comparable result (`theoretical_benchmarking.tex:198`) — under Constant
+permeability that curve is a flat line, giving nothing to compare; KozenyCarman is the only way to
+produce a non-trivial one. **ASK(Vinay):** keep Model I on KozenyCarman for that reason, or switch
+it to Constant too for suite-wide consistency? Not changed here — a formulation decision.
+
+**2. VII lateral confinement — checked, genuinely open, teams disagree.** `ms33_modelVII_
+freeswelling.prj:330` currently reads *"Right face (r=0.025): FREE (no BC -> natural Neumann =
+zero traction)"* — deliberately unconfined, confirmed by reading the full, unfiltered
+`<boundary_conditions>` block (not a parsing miss). Checked against the spec and against every
+team's own calculation-description for the exercise:
+
+  - Spec text (`theoretical_benchmarking.tex:301-309`): *"buffer blocks placed in an **unconfined
+    space** may undergo free swelling... under a constant stress of 0.2 MPa"* — leans toward
+    unconfined but never uses the word "radial" or "lateral" at all.
+  - **CIMNE-UPC** (task-lead team, source of the Model VII figure): frames a friction-plus-VII
+    combination as an explicit ADDITIONAL exercise (*"can be regarded as a combination of Model
+    II [friction] and Model VII"*, `CIMNE-UPC.tex:990`) and states *"the interaction between the
+    sample and the rigid boundaries partially restrains the radial deformation"* only in that
+    ADDITIONAL model — implying the BASE Model VII, as CIMNE built it, has no radial wall.
+  - **UCLM** states the opposite, explicitly, for their own base Model VII: *"Radial confinement
+    is also assumed"* (`UCLM.tex:558`).
+  - **EPFL** ran VII as a single element (sidesteps the radial question by construction) and
+    reports a final void ratio e=1.47 from e0=0.74 (`EPFL.tex:351-353`) — close to our OWN
+    unconfined result (e~1.50 at full convergence, this session's sweep) and to the e0=0.74
+    already on record for our free-swelling PRJ (memory `feedback_ms33_modelVII_free_swelling.md`).
+  - **ClayTech** independently corroborates our own equilibration-time struggle: their base
+    200 d timescale did not reach full saturation before loading either, and they had to extend
+    to 800-2000+ days to get a clean result (`ClayTech.tex:250-260`) — same failure mode as our
+    Model III/VII permeability-acceleration finding (§§7-13), on a completely different code.
+
+**Not changed.** Whether to add a radial confinement BC to `ms33_modelVII_freeswelling.prj` is a
+genuine, team-split modelling choice, not a spec-clear answer — per §9 (physics/formulation
+decision), this is ASK(Vinay), not something to decide unilaterally. If confinement is added,
+every VII number produced this session (e=1.2183 old record, 1.4956-1.5004 across the sweep, the
+"mid-field" team-band claim, the deck/paper mentions) would need re-running under the new BC and
+would very likely change materially — this is a bigger decision than the permeability-multiplier
+questions already open.
+
+### 15. DONE 2026-08-17 — full suite redone: const perm everywhere, all equilibrated, no radial confinement on VII
+
+Vinay: *"ok, no radial confinement. all models including calibration should be constant
+permeability. redo the entire suite and ensure all models are equilibrated. report to me."*
+
+**Landed:**
+
+1. **VII stays unconfined** — no radial BC added. Confirmed decision from §14 (cross-team
+   evidence was split; kept as-is per Vinay's explicit call).
+2. **All models, including calibration, now use `<type>Constant</type>` permeability.**
+   Model I (`ms33_modelI_dd{900,1400,1600,1800}.prj`) was the one exception (KozenyCarman) —
+   converted. **Verified empirically, not assumed:** a controlled A/B run (dd1600, everything
+   else identical, KozenyCarman vs Constant) gave **0.000e+00 max abs diff on every field**
+   (pressure, sigma, saturation, porosity, micro_water_content, transport_porosity,
+   swelling_stress) — confirms Model I's single-element, all-Dirichlet mesh has no free
+   hydraulic DOF, so the permeability LAW never gets exercised regardless of type.
+   `calibrate_maxwell_K.py`'s stale June binary pointer fixed to the canonical tip
+   (`verify_tip_20260812`).
+3. **Two pure-bug fixes made in passing** (not physics/calibration changes): dd900's
+   `<prefix>ms33_modelI_dd1600</prefix>` → `dd900` (was silently overwriting dd1600 output);
+   the VII deck's §12.5 header carried Model IV's "clay/pellet" boilerplate verbatim, copied
+   in error and never describing this deck — replaced with a VII-specific header.
+4. **III bumped 100x → 160x** (9.392480e-19 m²): the 100x landing (§8) gave
+   t_eq(1%,Richardson)=250 d, NOT converged by the 200 d horizon (-1.5% short, §10/§12).
+   160x gives t_eq=150 d, a 50-day margin. x_inf moves only 0.14% between the two (2.1949 →
+   2.1918 MPa on Top) — a convergence-margin choice, not a different physics answer.
+5. **VII bumped 20x → 80x** (4.696240e-19 m²): 20x gave t_eq=300 d (-2.0% short, corroborating
+   the 2026-06-17 record that this was never fixed). 80x gives t_eq=75 d, 125-day margin.
+6. **IV unchanged** (already Constant, already at its best-margin multiplier per §12 — bumping
+   further makes it worse per the block-pellet overshoot mechanism in §11).
+
+**Verification, in order:**
+- Model I A/B (KozenyCarman vs Constant, dd1600): 0.000e+00 diff, confirms permeability-law
+  independence (item 2 above).
+- Full four-cell Model I run (Constant perm, current K/σ0 as tracked, unchanged): Ps =
+  8.464583 / 4.921826 / 14.160250 / 40.844810 MPa (dd900/1400/1600/1800). dd1600 matches its
+  pre-edit KozenyCarman value bit-for-bit (14.160250 both ways).
+- Model III final (160x, live-K, 200 d): T/C/B = **2.192 / 2.184 / 2.170 MPa**.
+- Model IV final (unchanged, 200 d): T/C/B = **6.413 / 6.420 / 1.121 MPa** — matches the §12
+  sweep's IV_20x same-deck reference exactly.
+- Model VII final (80x, FULL production deck incl. 200-240 d load/unload cycle): void ratio
+  at t=200 d (pre-loading, hydration endpoint) = **1.4996**, matching the hydration-only sweep
+  prediction (VII_80x x_inf=1.4997) to **0.01%** — direct cross-check between the diagnostic
+  sweep and the real production deck. Post-loading at t=240 d: e=1.4956.
+- Existing tracked references for Model I (all three registered cells) and Model IV were
+  diffed against these fresh runs: max abs diff 2e-8 to 6e-7 across all fields — floating-point
+  noise, well inside the registered tolerances (1e-9 to 1e-2 depending on field). **Left
+  untouched** — no value changed for these two, no reason to re-baseline.
+- New references generated and installed for III (`..._ts_832_t_17280000...vtu`) and VII
+  (`..._ts_510_t_20736000...vtu`), the two decks whose physics actually changed.
+- `ctest -R ANCHORS_MS33` on the canonical tip: **6/6 pass.** Verify worktree restored clean
+  afterward.
+
+**NOT touched, flagged instead (outside the scope of what was asked):**
+- **dd900's K=103879 J/kg is not a calibrated value for dd900** — it is copy-pasted from
+  dd1600's old K. Ps=8.464583 MPa under this K is not a meaningful physics result. dd900 is
+  not a registered ctest, so this doesn't gate anything, but the deck is not usable as-is for
+  any dd900 comparison.
+- **All four registered Model I decks remain on the OLD σ0=-1.5e5 / superseded-K chain**
+  (K=103879/45217/103879/266767.3), NOT the ratified σ0=0 Option-C chain
+  (K=4367.2277/46000/104689.9129/265905.06) used everywhere else this session. This is the
+  pre-existing §6.7 blocker B6, untouched here — it is a calibration/BC-magnitude decision
+  (§1.1/§9), not a permeability question, and was not part of what was asked this turn.
+
+**TODO(Vinay) ratifications still outstanding, unchanged from before:** K(900)=4367.2277 for
+the III/IV live-K chain (§1.1); the new III and VII reference VTU checksums (§3(f)) —
+`ms33_modelIII_gapswitch_ts_832_t_17280000.000000.vtu` and
+`ms33_modelVII_freeswelling_ts_510_t_20736000.000000.vtu`.

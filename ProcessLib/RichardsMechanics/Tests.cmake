@@ -31,7 +31,15 @@ if (NOT OGS_USE_MPI)
     OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelI/ms33_modelI_dd1400.prj RUNTIME 120)
     OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelI/ms33_modelI_dd1600.prj RUNTIME 120)
     OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelI/ms33_modelI_dd1800.prj RUNTIME 120)
-    OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIII/ms33_modelIII_gap2mm.prj RUNTIME 240)
+    # Model III ships the GAP-SWITCH deck (Vinay 2026-08-17). The outer radial
+    # boundary swells free until u_r reaches the 2 mm technological gap, then
+    # switches to a rigid Dirichlet wall — true container contact.
+    OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIII/ms33_modelIII_gapswitch.prj RUNTIME 120)
+    # DEPRECATED 2026-08-17 — soft 2-medium gap annulus surrogate: no contact
+    # mechanics, over-closes to ~67% with a residual aperture. Superseded by the
+    # gap-switch deck above. Deck and reference retained (CLAUDE.md §6.2/§6.3);
+    # registration commented out, not deleted.
+    # OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIII/ms33_modelIII_gap2mm.prj RUNTIME 240)
     OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIV/ms33_modelIV_pellets.prj RUNTIME 240)
     # K(rho_d) equivalence pair (each material's k0 x20 spec, for speed): the
     # table-K variant resolves K = K(dry_density) at parse time and must
