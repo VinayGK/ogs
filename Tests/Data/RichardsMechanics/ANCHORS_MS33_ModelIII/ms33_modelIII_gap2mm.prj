@@ -21,6 +21,22 @@ Boundary conditions (official spec):
   Right  (r=0.027): u_r = 0  (container wall, rigid)
   Initial stress: isotropic 0.15 MPa
 -->
+<!--
+  *** CONFIGURATION DEPRECATED 2026-08-17 (Vinay): SOFT GAP MEDIUM ***
+  Model III ships the GAP-SWITCH configuration (single medium + python BC,
+  free -> Dirichlet at 2 mm closure). This deck implements the gap as a SECOND,
+  compliant MEDIUM filling the 2 mm annulus, which suppresses the free-expansion
+  phase: the bentonite works against the filler from t=0 and retains density
+  (measured dRho_d = -8.5% here vs -14.8% with the gap-switch). Under live-K that
+  difference is decisive - 7.66 MPa here vs 1.18 MPa on the gap-switch deck.
+  The soft-gap treatment is therefore NOT the Model III benchmark configuration.
+  Kept per the never-delete rule as the dated record of the delivered task-4.1
+  config; NOT to be used for new Model III results.
+  Successor deck: ms33_modelIII_gapswitch.prj (+ ms33_modelIII_gapswitch_bc.py),
+  currently held in eurad-anchors/submissions/MS33_MIXED_2026-06-23/ModelIII/.
+  OPEN: this PRJ is still the REGISTERED ctest; swapping the registration needs a
+  Vinay-ratified reference VTU for the gap-switch deck (CLAUDE.md s3(f) / s12.5).
+-->
 <OpenGeoSysProject>
   <!-- GUARDRAIL §12.5 audit (2026-06-09, Vinay-approved): intrinsic permeability
        set to 20x spec (k0=1.17406e-19 m^2 clay; 1.17406e-18 pellet). Rationale:
