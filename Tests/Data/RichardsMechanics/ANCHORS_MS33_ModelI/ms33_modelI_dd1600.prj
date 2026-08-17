@@ -176,9 +176,7 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                 <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
                 <property>
                     <name>permeability</name>
-                    <type>KozenyCarman</type>
-                    <initial_permeability>k0</initial_permeability>
-                    <initial_porosity>phi0</initial_porosity>
+                    <type>Constant</type><value>5.8703e-21</value>
                 </property>
                 <property>
                     <name>porosity</name>

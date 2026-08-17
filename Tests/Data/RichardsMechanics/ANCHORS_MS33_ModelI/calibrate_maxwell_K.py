@@ -18,7 +18,7 @@ import vtk
 from vtk.util.numpy_support import vtk_to_numpy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OGS = "/Users/vinaykumar/git/build/maxwell-conjugate-20260602/bin/ogs"
+OGS = "/Users/vinaykumar/git/build/verify_tip_20260812/bin/ogs"  # canonical tip (commit bfd52cf6ff), pointer fixed 2026-08-17
 RHO_SOLID = 2780.0  # kg/m^3, EURAD-2 MS33 spec (summarizer RHO_SOLID)
 
 # Dixon (2023) Fig.1 swelling pressure, EMDD=rho_d targets (MPa) -- the MS33 anchor

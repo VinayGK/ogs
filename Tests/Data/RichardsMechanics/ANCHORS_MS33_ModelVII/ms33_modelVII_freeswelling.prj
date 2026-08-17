@@ -32,12 +32,38 @@ For consistency with the benchmark-aligned Pi-path initialization used in Models
 initial micro water content is set to the 99 MPa-equilibrium value.
 -->
 <OpenGeoSysProject>
-  <!-- GUARDRAIL §12.5 audit (2026-06-09, Vinay-approved): intrinsic permeability
-       set to 20x spec (k0=1.17406e-19 m^2 clay; 1.17406e-18 pellet). Rationale:
-       spec-perm = unconverged transient at reporting horizon; 20x equilibrates and is
-       the MAX stable factor on dsm_native_maxwell_conjugate (50x diverges ~11d, Model III,
-       always-on Maxwell-term wetting-rate ceiling). IV/VII endpoints perm-insensitive
-       (20x vs 50x <1%). Submission candidate, EURAD-2 MS33. -->
+  <!-- GUARDRAIL §12.5 audit (2026-08-17, Vinay-approved): intrinsic permeability
+       set to 80x the deck's Kozeny-Carman base 5.8703e-21 m^2 = 4.696240e-19 m^2
+       (83.86x the MS33 spec LITERAL k0=5.6e-21 at phi_ref=0.42; state the baseline
+       whenever quoting a multiplier). Supersedes the 20x value 1.17406e-19 whose
+       "20x equilibrates" claim, from the original 2026-06-09 block below (kept for
+       lineage), was measured on Models IV and VII but never re-verified against a
+       fine time ladder; the 2026-08-17 equilibration campaign found VII's hydration
+       transient at 20x is t_eq(1 percent, Richardson) = 300 d, NOT converged by the
+       200 d team horizon (2.0 percent short at 200 d, corroborating the independent
+       2026-06-17 record: runs/2026-06-15_1410_.../EQUILIBRATED_LE_VII_2026-06-17.md).
+       80x gives t_eq=75 d, a 125-day safety margin (DSM/AGENTS.md section 12).
+       REASON, same mechanism as Model III (DSM/AGENTS.md section 7): macro
+       saturation collapses to ~0, so relative_permeability sits pinned on its
+       1e-2 floor throughout, making the effective conductivity k0*1e-2; the
+       acceleration compensates for that, it is not a change of physics.
+       LEGITIMACY: endpoint is k0-independent, verified across an
+       {5,10,80,100,160,320,640,1280}x sweep (DSM/AGENTS.md section 11); the
+       reported void ratio moves under 0.5 percent across the sweep past ~80x.
+       NO RADIAL CONFINEMENT (Vinay 2026-08-17, checked against spec and
+       cross-team descriptions: CIMNE-UPC treats a confined VII as a separate
+       ADDITIONAL exercise, UCLM's own VII assumes radial confinement, teams
+       disagree; kept unconfined per Vinay's explicit call, DSM/AGENTS.md
+       section 14). -->
+  <!-- ORIGINAL GUARDRAIL §12.5 audit (2026-06-09, Vinay-approved), superseded
+       above, kept for lineage. The "clay/pellet" wording below is Model IV
+       boilerplate that was copied into this file in error and never described
+       this deck: intrinsic permeability set to 20x spec (k0=1.17406e-19 m^2
+       clay; 1.17406e-18 pellet). Rationale: spec-perm = unconverged transient
+       at reporting horizon; 20x equilibrates and is the MAX stable factor on
+       dsm_native_maxwell_conjugate (50x diverges ~11d, Model III, always-on
+       Maxwell-term wetting-rate ceiling). IV/VII endpoints perm-insensitive
+       (20x vs 50x under 1 percent). -->
     <!--
       DSM provenance (CLAUDE.md §12.2). Authoritative; supersedes any older inline
       "Villar" calibration wording elsewhere in this file.
@@ -187,7 +213,7 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                 <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
                 <property>
                     <name>permeability</name>
-                    <type>Constant</type><value>1.17406e-19</value>
+                    <type>Constant</type><value>4.696240e-19</value>
                 </property>
                 <property>
                     <name>porosity</name>
@@ -302,7 +328,7 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         <!-- phi_tr0 removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
              Initial phi_M is computed from phi0 and initial_micro_water_content by the hierarchical split. -->
         <!-- k0 at phi0=0.4245 from Kozeny-Carman -->
-        <parameter><name>k0</name><type>Constant</type><value>1.17406e-19</value></parameter>
+        <parameter><name>k0</name><type>Constant</type><value>4.696240e-19</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
         <!-- Initial suction = 100 MPa (benchmark specification) -->
         <parameter><name>pressure_ic</name><type>Constant</type><value>-1e8</value></parameter>
