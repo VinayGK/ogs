@@ -1828,3 +1828,29 @@ secant iteration) and equilibration time-series panels for the two ratified base
 specifically for this purpose — the exploratory sweep's raw time series had already been deleted
 per the earlier cleanup instruction, so these are new, dedicated verification runs, not reused
 scratch data.
+
+### 17. Found while building the ratification plots: dd900's tracked σ0 doesn't match its own ratified K
+
+While regenerating the K(900) calibration plot for §16, a fresh calibration run on the CURRENT
+tracked `ms33_modelI_dd900.prj` converged to **K=4904.66**, not the ratified 4367.2277 — a 12.3%
+discrepancy. Root cause, checked directly, not guessed: the tracked dd900.prj carries
+**σ0 = -1.5e5**, not σ0 = 0 (Option C). K(900) = 4367.2277 was calibrated (and re-verified for §16)
+under σ0 = 0, matching the convention already used for the ratified dd1400/1600/1800 K values
+(46000/104689.9129/265905.06). Confirmed with a controlled A/B (KozenyCarman vs Constant at fixed
+K=4367.2277, dd900, everything else identical): **0.000e+00 diff, Ps=0.456805 MPa both ways** — not
+the target 0.3501 MPa. Confirmed with σ0 corrected to 0 in a scratch copy: the calibration
+reproduces K=4367.227700091862, matching the ratified value to 9 significant figures.
+
+**This is not a new problem — it is the existing §6.7 blocker B6 (all four registered Model I decks
+remain on the superseded σ0=-1.5e5 chain, flagged and deliberately untouched in §15) — but building
+this plot is the first place this session where it was shown to have a DIRECT, immediate
+consequence: running the tracked dd900.prj as-is with the just-ratified K=4367.2277 does NOT
+reproduce the ratified target.** K(900)=4367.2277 itself is correctly ratified (it is the value
+consistent with the other three K(rho_d) table knots); what's inconsistent is the deck's own σ0.
+
+**Not fixed here** — σ0 is a boundary-condition magnitude (§1.1/§9: ASK USER), and fixing it for
+dd900 alone would be inconsistent with the SAME gap in dd1400/1600/1800; a real fix means updating
+all four decks together, which is exactly the scope §15 explicitly deferred. **ASK(Vinay):** update
+all four registered Model I decks (900/1400/1600/1800) to σ0=0, matching the ratified K(rho_d) chain
+they're all built from? This is the smallest remaining step to make the tracked Model I suite
+internally consistent with everything else ratified this session.
