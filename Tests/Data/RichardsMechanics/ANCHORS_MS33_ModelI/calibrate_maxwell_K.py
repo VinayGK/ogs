@@ -23,8 +23,13 @@ RHO_SOLID = 2780.0  # kg/m^3, EURAD-2 MS33 spec (summarizer RHO_SOLID)
 
 # Dixon (2023) Fig.1 swelling pressure, EMDD=rho_d targets (MPa) -- the MS33 anchor
 # (WG agreement 2026-05-27; supersedes Villar Eq.7). dd1600=14.161 from the Model III/IV
-# PRJ headers; dd1400/1800 from Dixon Fig.1 (EMDD=rho_d); dd900 unused (model edge).
-DIXON_EMDD_MPa = {1400: 4.9, 1600: 14.161, 1800: 40.6, 900: 0.051}
+# PRJ headers; dd1400/1800 from Dixon Fig.1 (EMDD=rho_d). dd900: FIXED 2026-08-17 -- the
+# "0.051" below was a placeholder ("dd900 unused (model edge)"), never a Dixon reading; it
+# was wrong by a factor of 6.9. Corrected to the EXACT Dixon median-fit extrapolation
+# Ps = 0.003*exp(5.2883*rho_d[g/cm3]) -> 0.003*exp(5.2883*0.9) = 0.3500522009 MPa
+# (Vinay 2026-08-17, "exact interpolation"). Fitted K = 4367.2277 J/kg, RATIFIED
+# 2026-08-17 (achieved Ps deviates +0.001%; see DSM/AGENTS.md sect 16).
+DIXON_EMDD_MPa = {1400: 4.9, 1600: 14.161, 1800: 40.6, 900: 0.3500522009}
 def dixon_emdd_target_MPa(rho_d_kg):
     return float(DIXON_EMDD_MPa[int(round(rho_d_kg))])
 
