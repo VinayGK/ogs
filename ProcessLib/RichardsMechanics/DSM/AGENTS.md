@@ -1061,7 +1061,7 @@ first attempt stopped at -0.380 %):
 
 Reproduced independently on both builds — maxwell-conjugate-20260602 gives 4367.227700212952 and
 verify_tip_20260812 gives 4367.227700091862 (agree to 1e-10 relative), so the cell is insensitive
-to the binary difference. **TODO(Vinay): ratify K(900) = 4367.2277 J/kg before it is committed.**
+to the binary difference. **RATIFIED (Vinay, 2026-08-17): K(900) = 4367.2277 J/kg.** See §16.
 
 This knot is NOT decorative: Model III's live rho_d falls to 1347-1376 kg/m3, i.e. BELOW the
 1400 knot, so the 900-1400 segment is actively read.
@@ -1092,9 +1092,12 @@ Verified: `ctest -R ANCHORS_MS33` = **6/6 pass** on verify_tip_20260812 (the wra
 reference-side enumeration, which broke a previous landing, is clean here). The verify worktree
 used for that run was restored to clean afterwards.
 
-**TODO(Vinay) §3(f): ratify the new regression baseline**
-`ms33_modelIII_gapswitch_ts_1392_t_17280000.000000.vtu`, md5 `7efcdcbe1f0640ea3e6e9aaa6109ed45`.
-Nothing is committed until that ratification.
+**MOOT — this specific baseline was never committed.** `ms33_modelIII_gapswitch_ts_1392_
+t_17280000.000000.vtu` (md5 `7efcdcbe1f0640ea3e6e9aaa6109ed45`) was the 20x-era reference; it was
+superseded by the 100x landing (§8, `ts_890`) before any ratification, which was itself superseded
+by the 160x landing (§15, `ts_832`, md5 `e60493e974dee9f9afb2e89ec48ea651`) before THAT was
+ratified either. `ts_832` is the only III reference that was ever actually committed, and it is
+now RATIFIED (Vinay, 2026-08-17) — see §16.
 
 ### 4. Compiled results — canonical probe, both K branches
 
@@ -1312,7 +1315,10 @@ CLOSED. Landed in `ANCHORS_MS33_ModelIII/ms33_modelIII_gapswitch.prj`: three lit
 11 s wall / 891 steps. The 20x reference generated earlier the same session
 (`..._ts_1392_...`, md5 7efcdcbe…) was never committed and was removed, because a second
 reference-side `_ts_` file in the test dir makes the ctest wrapper enumerate two candidates.
-**TODO(Vinay) §3(f): ratify the new baseline md5 before commit.** Nothing is committed yet.
+**MOOT — this specific baseline (100x, `ts_890`) was also never committed.** It was superseded by
+the 160x landing (§15, `ts_832`, md5 `e60493e974dee9f9afb2e89ec48ea651`) the same day, before this
+100x reference was ever ratified or committed. `ts_832` is now RATIFIED (Vinay, 2026-08-17) —
+see §16.
 
 **Reported Model III now, at the 200 d TEAM horizon (no horizon caveat needed any more):**
 
@@ -1784,7 +1790,41 @@ permeability. redo the entire suite and ensure all models are equilibrated. repo
   pre-existing §6.7 blocker B6, untouched here — it is a calibration/BC-magnitude decision
   (§1.1/§9), not a permeability question, and was not part of what was asked this turn.
 
-**TODO(Vinay) ratifications still outstanding, unchanged from before:** K(900)=4367.2277 for
-the III/IV live-K chain (§1.1); the new III and VII reference VTU checksums (§3(f)) —
-`ms33_modelIII_gapswitch_ts_832_t_17280000.000000.vtu` and
-`ms33_modelVII_freeswelling_ts_510_t_20736000.000000.vtu`.
+**RATIFIED (Vinay, 2026-08-17)** — see §16: K(900)=4367.2277 for the III/IV live-K chain (§1.1);
+the III and VII reference VTU checksums (§3(f)) —
+`ms33_modelIII_gapswitch_ts_832_t_17280000.000000.vtu` (md5 `e60493e974dee9f9afb2e89ec48ea651`) and
+`ms33_modelVII_freeswelling_ts_510_t_20736000.000000.vtu` (md5 `3af2f07d0569631cce5a2507cc3c87a4`).
+
+### 16. RATIFIED 2026-08-17 (Vinay): K(900) and the two committed ctest baselines
+
+Vinay: *"ratify K(900) and the two ctest baselines, show me the comparison plots in the artefact."*
+
+**K(900) = 4367.2277 J/kg — RATIFIED.** §1.1 calibration-anchor literal. Fitted to the exact Dixon
+(2023) median-fit extrapolation `Ps = 0.003*exp(5.2883*0.9)` = 0.3500522009 MPa (achieved
+0.3500565 MPa, +0.001%), reproduced to 1e-10 relative on two independent binaries. Live in
+`ANCHORS_MS33_ModelIII/ms33_modelIII_gapswitch.prj`'s K(rho_d) table (the 900-1400 segment is
+actively read: III's live rho_d falls to 1347-1376 kg/m3). NOT currently used by Model IV's
+pellet zone, which still runs the separate uncited K=20600 (open question U-1, unresolved,
+untouched by this ratification).
+
+**Two ctest reference baselines — RATIFIED, §3(f)/§12.5:**
+
+| model | file | md5 | steps | verified |
+|---|---|---|---|---|
+| III | `ms33_modelIII_gapswitch_ts_832_t_17280000.000000.vtu` | `e60493e974dee9f9afb2e89ec48ea651` | 832 | `ctest -R ANCHORS_MS33` 6/6 pass |
+| VII | `ms33_modelVII_freeswelling_ts_510_t_20736000.000000.vtu` | `3af2f07d0569631cce5a2507cc3c87a4` | 510 | `ctest -R ANCHORS_MS33` 6/6 pass |
+
+Both already committed (`55e39b53b8`) at the time of ratification — no new commit required for
+the reference files themselves. Two EARLIER, unratified candidate references for III existed at
+different points this session (20x era `ts_1392`, md5 `7efcdcbe1f0640ea3e6e9aaa6109ed45`; 100x era
+`ts_890`, md5 `0e7501f2ff65cb9c151f77da169ecb03`) and are now MOOT — both were superseded by further
+permeability corrections before ever being committed or ratified, so there is nothing to walk back;
+`ts_832` is the only III reference that ever reached git, and it is the one now ratified.
+
+**Comparison plots added to the team-comparison artefact** (`ms33_team_comparison.html`,
+republished 2026-08-17): a K(900) calibration-convergence panel (target vs. achieved Ps across the
+secant iteration) and equilibration time-series panels for the two ratified baselines (III at
+160x to t=200d, VII hydration at 80x to t=200d), regenerated fresh with a full output ladder
+specifically for this purpose — the exploratory sweep's raw time series had already been deleted
+per the earlier cleanup instruction, so these are new, dedicated verification runs, not reused
+scratch data.
