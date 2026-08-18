@@ -1960,3 +1960,153 @@ Committed: PRJ edit + reference VTU swap (commit pending at time of writing this
 log for the actual hash). `CANONICAL_RESULTS_2026-08-17.json` and the three interteam PNGs
 regenerated accordingly (scratchpad copies; not yet pushed to the live report/beamer figure dirs
 pending Vinay's go-ahead).
+
+---
+
+## 2026-08-18 — Full MS33 fault reaudit (Vinay: "reaudit and fix the faults in ultra")
+
+Triggered by Vinay's pointed feedback after the VII live-K fix: *"it is a shame
+that you got MS33 so messed up despite repeated instructions."* Ran a 6-dimension
+parallel audit (provenance headers, live-K coverage, ctest registration
+integrity, permeability-multiplier consistency, build-directory currency,
+deliverable staleness) across the whole suite. 27 raw findings; triaged below.
+
+### 19. DONE 2026-08-18 — the real headline fault: Model IV was never switched to live-K
+
+Vinay's 2026-08-17 ruling literally said *"Models III and IV report live
+K_aug(rho_d)."* III got it. IV did not — `ms33_modelIV_pellets.prj` still ran a
+fixed scalar (103879 bentonite, 20600 pellet) right up to this reaudit. Bigger
+miss than the VII scope-ambiguity issue, since IV was explicitly named.
+
+**Implementation hazard, caught by reading the C++ before running (not by
+trial and error):** `CreateRichardsMechanicsProcess.cpp` inherits
+`potential_augmentation_prefactor_vs_dry_density` into every per-`<medium id>`
+override unconditionally via `defaults`. Declaring the live-K table at the
+TOP level of `<potential_exchange>` (as III/VII do, since they have only one
+medium) would make the pellet zone's existing `<medium id="1">` override
+ALSO inherit the table — and since it keeps its own
+`<potential_augmentation_prefactor>20600</potential_augmentation_prefactor>`
+scalar, that combination is a parse-time `OGS_FATAL` ("both a scalar and a
+table were given; mutually exclusive", lines 562-570). Fix: declared the
+table in an explicit new `<medium id="0">` override instead (mirroring how
+`<medium id="1">` already overrides). Verified via
+`LocalAssemblerInterface.h:selectPotentialExchangeParameters`: each element's
+MaterialID is looked up in the per-material map FIRST, falling back to the
+top-level block only if absent — with both medium 0 and medium 1 explicitly
+declared, the top-level K is never evaluated by any element in this 2-medium
+mesh, so leaving it undeclared there is correct. Pellet zone (K=20600) is
+UNCHANGED — a distinct, separately-calibrated per-material override (RESOLVED
+2026-06-08), not part of this ruling's scope (open question U-1: whether it
+should also go live is still Vinay's call).
+
+Runs cleanly (verified 20x/160x/320x/640x, all 0 rejected steps).
+
+### 20. OPEN, ASK(Vinay) — Model IV's permeability margin does not converge like III/VII did
+
+The 20x margin (pre-existing, from the original spec-permeability era) was
+never re-verified under live-K. Ran the same equilibration-margin sweep used
+for III/VII, extracting mean stress at the bentonite-block top probe (r=0,
+z=0.070) and the pellet-zone bottom probe (r=0,z=0) at t=200d:
+
+| k0 mult. | sig_top (MPa) | sig_bot (MPa) | top %chg | bot %chg | wall time |
+|---|---|---|---|---|---|
+| 20x  | 4.64930 | 1.04978 | -- | -- | 10129 s |
+| 160x | 4.48455 | 0.84291 | -3.54% | -19.71% | 12504 s |
+| 320x | 4.39358 | 0.75756 | -2.03% | -10.13% | 779 s |
+| 640x | 4.34089 | 0.71515 | -1.20% | -5.60% | 919 s |
+
+**Unlike III and VII, this does NOT show clean k0-independence even at 640x**
+(32x past the pre-existing 20x baseline). Aitken Delta-squared extrapolation
+on the last three points: top asymptote ~4.268 MPa (640x is still +1.70%
+away); bottom asymptote ~0.673 MPa (640x is still +6.22% away) — both well
+outside the <0.2-0.5% band that closed III's and VII's sweeps. The BOTTOM
+(pellet zone) probe is the persistent outlier: its successive-multiplier
+% change is roughly 2x the top probe's at every step, decaying only slowly
+(ratio ~0.53 per doubling vs top's ~0.58 — both slow, but bottom starts from
+a much larger residual). This reads as a genuinely different, slower
+equilibration timescale for the pellet-zone response under live-K, not
+simply "needs one more doubling" the way III's 100x->160x step was.
+Plausible mechanism (NOT verified, flagged as a hypothesis only): the pellet
+zone's own K stays fixed at 20600 while the bentonite block above it is now
+live-K and progressively softens as it decompacts, changing the water/stress
+redistribution INTO the pellet zone over a longer horizon than a single-medium
+model exhibits — this is a new coupling effect specific to IV's two-medium
+geometry that III/VII's single-medium decks never had to equilibrate through.
+
+**NOT resolved here.** Per CLAUDE.md §9 this is exactly the kind of finding
+that belongs to Vinay, not a permeability dial to keep turning unilaterally:
+pushing further (1280x, 2560x...) costs more wall-clock with no guarantee of
+the clean convergence III/VII showed, and picking an under-converged
+multiplier to ship anyway would be a worse fault than the one being fixed.
+`ms33_modelIV_pellets.prj`'s live-K structural fix (medium id=0 override) is
+committed; its permeability is UNCHANGED at the pre-existing 20x pending
+Vinay's call on how to proceed (push the sweep further / accept a documented
+residual / reconsider the reporting horizon for IV specifically / treat the
+pellet-zone lag as a physics finding in its own right). The ctest reference
+is therefore also NOT yet rebaselined for IV.
+
+### 21. DONE 2026-08-18 — mechanical/documentary fixes (commit 10c77908ff)
+
+- `ms33_modelI_dd900.prj`: header was a verbatim dd1600 copy-paste (wrong
+  density/target/K citation) despite the file's own live phi0/k0/prefix
+  already being correctly dd900-specific. Rewrote to honestly state K=103879
+  is dd1600's value, not a dd900 fit (two candidate refits exist -- K=4904.66
+  under this file's own sigma0=-1.5e5, or K=4367.2277 under the sigma0=0
+  table convention -- neither approved for this tracked file, ASK(Vinay)).
+  **Also found and fixed a second, more serious bug the audit's own
+  provenance-dimension pass MISSED:** `micro_solid_volume_fraction_reference`
+  (a LIVE parameter feeding the vdW potential calculation, not just a
+  comment) was ALSO dd1600's value (0.575540) instead of dd900's own
+  0.323741 -- corrected by re-deriving from the file's own already-correct
+  phi0, not a new value. Added the missing mandatory E=52 MPa uncited-value
+  warning (live value was already correct). File is not Tests.cmake-
+  registered; none of this gated CI.
+- `ms33_modelIII_gapswitch.prj`: added the explicit sigma0-vs-Option-C
+  convention-gap sentence (VII already had it; III didn't).
+- `ms33_modelIII_gap2mm.prj`: deprecation note still said the ctest swap to
+  gapswitch.prj was "OPEN" -- it's done and ratified (entry 16); corrected.
+- 8 unregistered sibling PRJs (dd1600_formB_piexact, IV's 5
+  equilibrium/kinematic variants, VII's formB_piexact + investigate) shared
+  `<prefix>` with their registered/active siblings -- a latent vtkdiff-regex
+  collision hazard if ever run in place. Renamed each to a disjoint prefix.
+
+**Explicitly checked and found NOT to need a fix (audit over-claimed):**
+dd1400/dd1600/dd1800.prj's own K values (45217.0/103879.0/266767.3) are
+self-consistent native fits UNDER THEIR OWN sigma0=-1.5e5 -- NOT the same
+cross-convention gap III/IV/VII have (which import a K fit under a DIFFERENT
+sigma0=0 convention while keeping sigma0=-1.5e5). Verified by reading the
+actual sigma0 parameter in all four dd*.prj files before touching anything;
+adding the III/VII-style caveat sentence to dd1400/1600/1800 would have been
+factually wrong. Only dd900 is actually broken, and for an unrelated reason
+(plain copy-paste, not a convention mismatch).
+
+### 22. FLAGGED, not acted on -- lower-priority reaudit findings
+
+- Beacon-family MCC/ABSP_SUITE decks (III/IV/VII copies under
+  `ANCHORS_MS33_MCC_ABSP_SUITE/`) still carry frozen scalar K, unregistered,
+  untouched since 2026-06-19 -- scope question (still active track or
+  abandoned?), ASK(Vinay).
+- `ANCHORS_MS33_ModelV_LE`/`_MCC` (saline benchmark family) exists fully
+  committed with output series but has ZERO Tests.cmake mention and was
+  outside this session's own mental model of "the suite" -- worth a one-line
+  confirmation from Vinay (intentional or overlooked?).
+- Build-directory currency: `mc_merge_20260811`'s source worktree no longer
+  exists (permanently orphaned binary); `maxwell_floor_20260619` (symlinked
+  `ogs-dsm-active`, "the conventionally active default build") and
+  `mc-9b179d1d-parity` both carry the 40551b6a binary, now 16+ commits and
+  several physics-relevant C++ changes behind; `maxwell-conjugate-20260602`
+  is ~30 commits behind. None of these were used for verification this
+  session (verify_tip_20260812 was fixed and used instead, see the prior
+  entry) but any of them would silently give stale results if reached for by
+  name. Not rebuilt here -- Vinay offered the choice previously and it
+  wasn't taken up; flagging again now that ogs-dsm-active's staleness has
+  grown from "before bfd52cf6ff" to "missing the VII live-K + IV live-K
+  landings too."
+- Deliverable staleness: the LIVE `~/ogs-models/CANONICAL_RESULTS_2026-08-12.json`
+  and the eurad-anchors task41 report/beamer, `~/tex/subtask41/main.tex`, and
+  `dsm_defense_2026-06.tex` all still show VII's pre-fix numbers (the
+  form-b/5x reading, e=1.2183, even older than yesterday's fixed-K/80x
+  round). Regenerated scratch copies already exist (`DSM/AGENTS.md` entry 18)
+  but were never promoted -- explicitly pending Vinay's go-ahead, not
+  attempted here (recompiling reviewed/finished report and defense documents
+  is a bigger, more consequential action than an MS33 PRJ fix).
