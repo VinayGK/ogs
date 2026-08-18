@@ -2110,3 +2110,65 @@ factually wrong. Only dd900 is actually broken, and for an unrelated reason
   but were never promoted -- explicitly pending Vinay's go-ahead, not
   attempted here (recompiling reviewed/finished report and defense documents
   is a bigger, more consequential action than an MS33 PRJ fix).
+
+### 23. DONE 2026-08-18 — closes entry 20 (open IV equilibration question): Vinay ruled both zones share the Dixon table, redo confirmed clean convergence
+
+Vinay, after entry 20's open equilibration finding: *"for model iv, both zones
+should have respective augmentation K values and both those K should be live."*
+Clarifying question asked (share the bentonite/Dixon table for the pellet too,
+vs. keep the pellet's own anchor and get a second calibration point from
+Vinay) since the pellet zone had only ONE calibrated point (K=20600 at
+rho_d=900) and a live table needs >=2. Vinay: *"share the Dixon table for the
+pellet too and redo it."*
+
+**Correction made mid-discussion, not committed:** initially told Vinay the
+pellet zone "decompacts below 900," which was wrong and fed a wrong
+conclusion (that sharing the table would leave the pellet "clamped" at the
+900 knot). Vinay caught it ("why does the pellet decompact? it should
+compact, the block should press the pellets"). Recomputed dry density
+directly from porosity: the pellet zone actually COMPACTS from 900 up to
+~1045-1160 kg/m3 by 200d (matches physical intuition — the swelling
+bentonite block presses down on it), moving meaningfully into the table's
+900-1400 interpolation interval. Corrected before implementing.
+
+**Implementation:** removed the pellet zone's `<potential_augmentation_
+prefactor>20600</potential_augmentation_prefactor>` scalar entirely; moved
+the shared Dixon table to the top level of `<potential_exchange>` (both
+media now inherit it via `defaults`, no more per-medium duplication needed
+— `<medium id="0">`'s override block, added in entry 19, is no longer
+needed and was removed). Closes open question U-1.
+
+**Redo of the equilibration sweep** (the entry-20 sweep, run under the OLD
+fixed-pellet-K config, is now moot): {20x, 160x, 320x, 640x}, 4 parallel
+runs. Result is dramatically different from entry 20:
+
+| k0 mult. | sig_top (200d) | sig_bot (200d) |
+|---|---|---|
+| 20x  | 4.29482 | 0.56665 |
+| 160x | 4.38664 | 0.65784 |
+| 320x | 4.37066 | 0.66512 |
+| 640x | 4.34767 | 0.66184 |
+
+160x/320x/640x agree to within ~1% of each other (clean k0-independence) and
+each individually plateaus EXACTLY flat from 100d to 200d — nothing like
+entry 20's non-convergent bottom probe. Diagnosis: the earlier non-convergence
+was the FIXED pellet K=20600 fighting the softening live-K bentonite driver
+across a much longer coupled timescale; with the pellet zone's own driver
+also weakening at its low starting density, both zones now settle together
+much faster. Landed at 160x — same absolute permeability as Model III and
+Model VII, unifying the whole suite on one number (only Model I, which is
+permeability-law-invariant per its single-element all-Dirichlet mesh,
+differs).
+
+New ctest reference `ms33_modelIV_pellets_ts_2993_t_17280000.000000.vtu`;
+former `ts_636` moved to `superseded_references_2026-08-18/`, never deleted.
+Verified against an independent second run via vtkdiff at all 11
+`test_definition` fields, exactly 0.0. `ctest -R ANCHORS_MS33`: 6/6 pass
+(genuinely, against the correctly re-synced `verify_tip_20260812` build —
+see entries 18-19 for that build's own fix). Committed `7a13ca874b`.
+
+**Model IV team-comparison consequence** (not yet propagated to the
+canonical JSON/figures — pending): the old committed reading used frozen K
+(103879 bentonite / 20600 pellet); today's live-K, both-zones-shared-table
+result at 160x is a materially different number and needs the same
+figure/JSON refresh already done for III and VII.
