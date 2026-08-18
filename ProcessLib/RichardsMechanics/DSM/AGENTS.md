@@ -1855,6 +1855,21 @@ all four registered Model I decks (900/1400/1600/1800) to σ0=0, matching the ra
 they're all built from? This is the smallest remaining step to make the tracked Model I suite
 internally consistent with everything else ratified this session.
 
+**DONE 2026-08-18** (Vinay-approved) for the three CTEST-REGISTERED decks: `ms33_modelI_dd1400.prj`,
+`ms33_modelI_dd1600.prj`, `ms33_modelI_dd1800.prj` (Tests.cmake:31-33) migrated to σ0=0 + the
+ratified Option-C K table (46000.0/104689.9129/265905.06). §12.2 headers rewritten to cite the
+migration; old sigma0=-1.5e5-era K/target/achieved-Ps kept as history text in the same block. New
+ctest reference VTUs generated on the canonical binary (maxwell-conjugate-20260602, md5 c432a156)
+and verified bit-exact (vtkdiff, all 11 declared fields, every abs/rel norm = 0.0) against the
+already doubly-cross-validated `sigma0zero_recal_forma_2026-08-06` campaign record — a third
+independent reproduction. Old references moved to
+`ANCHORS_MS33_ModelI/superseded_references_2026-08-18/` (not deleted, §6).
+**dd900 is UNCHANGED and remains open** — it is not ctest-registered (absent from Tests.cmake) and
+carries the separate, more severe copy-paste bug documented above (dd1600's K and n_s pasted onto
+dd900 in error); fixing it needs the correct dd900 K value from Vinay, not just the σ0 swap applied
+here. The "all four decks" framing of the ASK above is accordingly narrowed: three registered decks
+resolved, dd900 tracked as its own item.
+
 ---
 
 ## 2026-08-17 — Model VII switched to live-K (extends the III/IV ruling), re-verified at 160x, and a build/ctest-routing staleness finding
