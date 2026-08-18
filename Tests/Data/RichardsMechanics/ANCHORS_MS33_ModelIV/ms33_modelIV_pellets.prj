@@ -8,11 +8,15 @@ Geometry: 50mm diam × 70mm height axisymmetric cylinder
   Bentonite block (medium id=0): r=0–0.025m, z=0.035–0.070m  (MaterialID=0)
   Pellet zone     (medium id=1): r=0–0.025m, z=0–0.035m      (MaterialID=1)
 
-Bentonite: rho_d=1600 kg/m³, phi0=0.424460, K=103879 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes Villar 29999.25)
-Pellets:   rho_d=900  kg/m³, phi0=0.676259, K=20600 J/kg
-  (Dixon-range EXTRAPOLATION to user-set target sigma_sat(rho_d=900)=0.400 MPa, Vinay 2026-06-08;
-   rho_d=900 below Dixon measured range 1400-1800 -> §12.1 extrapolation edge, §12.5. Supersedes the
-   stale Villar K≈150/0.051 MPa wording.)
+Bentonite: rho_d=1600 kg/m³, phi0=0.424460, LIVE K(rho_d) table (2026-08-18; was fixed
+  K=103879 J/kg, Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes Villar 29999.25)
+Pellets:   rho_d=900  kg/m³, phi0=0.676259, LIVE K(rho_d) table; SAME table as the
+  bentonite zone (2026-08-18, Vinay: "share the Dixon table for the pellet too"; the
+  pellet zone's own dry density trajectory measures 900 -> ~1045-1160 kg/m3 by 200d
+  across the permeability sweep, i.e. it COMPACTS under the swelling block above it,
+  moving meaningfully into the table's 900-1400 interpolation interval). RETIRES the
+  former dedicated fixed K=20600 J/kg (Dixon-range EXTRAPOLATION to user-set target
+  sigma_sat(rho_d=900)=0.400 MPa, Vinay 2026-06-08; kept for lineage below).
   Pellet k0 from Kozeny-Carman with k_ref=5.6e-21 m² at phi_ref=0.42
 
 Official benchmark spec (MSXX §Model IV):
@@ -21,12 +25,30 @@ Official benchmark spec (MSXX §Model IV):
   Both zones use same 200-day simulation
 -->
 <OpenGeoSysProject>
-  <!-- GUARDRAIL §12.5 audit (2026-06-09, Vinay-approved): intrinsic permeability
-       set to 20x spec (k0=1.17406e-19 m^2 clay; 1.17406e-18 pellet). Rationale:
-       spec-perm = unconverged transient at reporting horizon; 20x equilibrates and is
-       the MAX stable factor on dsm_native_maxwell_conjugate (50x diverges ~11d, Model III,
-       always-on Maxwell-term wetting-rate ceiling). IV/VII endpoints perm-insensitive
-       (20x vs 50x <1%). Submission candidate, EURAD-2 MS33. -->
+  <!-- GUARDRAIL §12.5 audit (2026-08-18, Vinay-approved): intrinsic permeability set
+       to 160x the deck's Kozeny-Carman base 5.8703e-21 m^2 = 9.39248e-19 m^2 clay
+       (pellet = 10x clay = 9.39248e-18 m^2, Vinay 2026-06-08 rule unchanged), the
+       SAME absolute permeability as ms33_modelIII_gapswitch.prj /
+       ms33_modelVII_freeswelling.prj. SUPERSEDES the 20x value 1.17406e-19 m^2 clay
+       set 2026-06-09 under fixed-K: after Vinay's ruling that BOTH zones report live
+       K(rho_d) from the shared Dixon table (2026-08-18, "share the Dixon table for
+       the pellet too and redo it"), the equilibration margin needed re-measurement;
+       re-verified via a {20x,160x,320x,640x} parallel sweep at the bentonite-block
+       top probe (r=0,z=0.070) and pellet-zone bottom probe (r=0,z=0), t=200d:
+           20x:  sig_top=4.29482 MPa, sig_bot=0.56665 MPa (short of the plateau)
+           160x: sig_top=4.38664 MPa, sig_bot=0.65784 MPa
+           320x: sig_top=4.37066 MPa, sig_bot=0.66512 MPa
+           640x: sig_top=4.34767 MPa, sig_bot=0.66184 MPa
+       160x/320x/640x agree to within ~1% of each other (k0-independent) and each
+       individually plateaus EXACTLY flat from 100d to 200d (t_eq well under 100d,
+       >=100-day margin); a dramatic improvement over the PRE-pellet-live-K sweep
+       (same day, DSM/AGENTS.md entry 20), where the bottom probe was still moving
+       5-10% between 320x and 640x with no clean k0-independent plateau even at 640x.
+       The earlier non-convergence was diagnosed as the fixed pellet K=20600 fighting
+       the softening live-K bentonite driver on a much longer coupled timescale; making
+       the pellet zone ALSO live (weaker driver at its low initial density) resolved
+       it. Chose 160x to match the suite-wide III/VII convention (one permeability
+       number, not a per-model special case). -->
     <!--
       DSM provenance (CLAUDE.md §12.2). Authoritative; supersedes any older inline
       "Villar" calibration wording elsewhere in this file.
@@ -41,16 +63,34 @@ Official benchmark spec (MSXX §Model IV):
                        properties of MX-80 bentonite", Applied Clay Science 241:106998;
                        median fit sigma_swell [MPa] = 0.003 * exp(5.2883 * EMDD [Mg/m3]).
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27)
-        bentonite    : rho_d=1600 kg/m3, target 14.161 MPa, fitted K=103879 J/kg (clay; Dixon dd1600 EMDD=rho_d, maxwell_conjugate 2026-06-09 -> Ps 14.16 (merged-line clean code, 2026-06-15; the 14.01 was a dirty-tree re-fit value); pellet override 20600, dd900 NaN) (potential_augmentation_prefactor)
-        pellet       : rho_d=900 kg/m3, target sigma_sat=0.400 MPa (Vinay 2026-06-08), fitted
-                       K_pellet=20600 J/kg via the per-medium <medium id="1"> override (calibrated in
-                       a standalone constant-volume cell; gentle-VG calibration WRC, sigma_sat
-                       WRC-independent, validated K=22710->0.4308 vs SaturationTuller). The 0.400 MPa
-                       target is set by Vinay; cf. Dixon (2023) EMDD==rho_d extrapolated to EMDD=0.9 ->
-                       0.35 MPa (rho_d=900 below Dixon's measured range: §12.1 extrapolation edge).
-                       Permeability: k0_pellet=10*k0_clay (Vinay 2026-06-08).
-                       [RESOLVED 2026-06-08: pellet carries a distinct calibrated K override;
-                        §12.1 extrapolation edge confirmed by Vinay.]
+        both zones   : SUPERSEDED 2026-08-18 (reaudit fix + Vinay's follow-up ruling): both the
+                       bentonite block AND the pellet zone now report LIVE K(rho_d) from ONE
+                       SHARED Dixon-propagated table (sigma0=0 Option-C form-(a) chain,
+                       identical to ms33_modelIII_gapswitch.prj / ms33_modelVII_freeswelling.prj):
+                         900/1400/1600/1800 -> 4367.227700212952/46000.0/104689.9129/265905.06 J/kg
+                       Declared ONCE at the top level of <potential_exchange> (not per-medium);
+                       both media inherit it via `defaults` (CreateRichardsMechanicsProcess.cpp).
+                       sigma0 stays -1.5e5 (unchanged, same known convention gap as III/VII; not
+                       this decision, DSM/AGENTS.md s17). Vinay: "share the Dixon table for the
+                       pellet too and redo it" (2026-08-18); confirmed first that the pellet
+                       zone's own dry density trajectory COMPACTS (900 -> ~1045-1160 kg/m3 by
+                       200d across the permeability sweep, driven by the swelling bentonite block
+                       above it), moving meaningfully into the table's 900-1400 interpolation
+                       interval rather than sitting near-inert at the 900 knot.
+        bentonite (history): rho_d=1600 kg/m3, target 14.161 MPa. Was FIXED K=103879 J/kg until
+                       2026-08-18 (a genuine miss: Vinay's 2026-08-17 ruling explicitly named
+                       "Models III and IV report live K_aug(rho_d)" but this file was never
+                       switched at the time; caught by the reaudit).
+        pellet (history): rho_d=900 kg/m3. RETIRED 2026-08-18 (Vinay's ruling above): was its own
+                       dedicated fixed K_pellet=20600 J/kg via a per-medium <medium id="1">
+                       override, target sigma_sat=0.400 MPa (Vinay 2026-06-08), calibrated in a
+                       standalone constant-volume cell (gentle-VG calibration WRC, sigma_sat
+                       WRC-independent, validated K=22710->0.4308 vs SaturationTuller); cf. Dixon
+                       (2023) EMDD==rho_d extrapolated to EMDD=0.9 -> 0.35 MPa (rho_d=900 below
+                       Dixon's measured range: §12.1 extrapolation edge). RESOLVED 2026-06-08 as
+                       a distinct per-material override; superseded by the shared live table
+                       2026-08-18 (closes open question U-1). Permeability: k0_pellet=10*k0_clay
+                       (Vinay 2026-06-08) is UNCHANGED by this K decision.
       Material parameters (source per group): as Model I; elastic — PER-MATERIAL Young's modulus
         (Group parameter keyed by MaterialID; Vinay 2026-06-08): MaterialID 0 (clay block) E=52 MPa,
         MaterialID 1 (pellet zone) E=2 MPa (Vinay-approved 2026-06-08 soft-pellet convergence value,
@@ -117,28 +157,51 @@ Official benchmark spec (MSXX §Model IV):
                      micro_water_content_swelling_slope omitted: default 0.0 (Pi-only swelling;
                      set >0 to add phenomenological n_l coupling). -->
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
-                <!-- K for bentonite zone (Villar at 1600 kg/m³); Π uses bulk ρ_LR (step 3).
-                     Pellet zone carries its OWN calibrated K override K_pellet=20600 (see medium id=1 below), NOT this K; n_s_pellet=0.324 → smaller Pi contribution
-                     (n_s enters delta_sigma_sw computation). Calibrated 2026-05-21. -->
-                <!-- K recalibrated 2026-06-01: dt-converged Dixon(2023) reference K (P* basis); prev value 71900 -->
-                <potential_augmentation_prefactor>103879</potential_augmentation_prefactor>
+                <!-- K SUPERSEDED 2026-08-18 (reaudit fix + Vinay's follow-up ruling): BOTH the
+                     bentonite zone AND the pellet zone now report LIVE K(rho_d) from the SAME
+                     Dixon-propagated table already adopted on ms33_modelIII_gapswitch.prj /
+                     ms33_modelVII_freeswelling.prj (sigma0=0 Option-C form-(a) chain). This
+                     RETIRES the pellet zone's own dedicated fixed K=20600 (see the historical
+                     note on medium id=1 below for that calibration's provenance) in favor of a
+                     single shared live table for the whole PRJ; Vinay's explicit call
+                     ("share the Dixon table for the pellet too"), after confirming the pellet
+                     zone's own dry density trajectory (measured: 900 -> ~1045-1160 kg/m^3 by
+                     200d across the permeability sweep, i.e. it COMPACTS as the bentonite block
+                     above it swells and presses down, moving meaningfully INTO the table's
+                     900-1400 interpolation interval; not a near-inert clamp at the 900 knot).
+                     Declared ONCE here at the top level (not per-medium): with the pellet zone's
+                     own scalar removed (see medium id=1 below), there is no more conflict, and
+                     both media inherit this table via `defaults` in
+                     CreateRichardsMechanicsProcess.cpp; medium id=0 needs no override block at
+                     all any more (removed); medium id=1 keeps only its genuinely distinct n_s /
+                     initial-water-content overrides. -->
+                <potential_augmentation_prefactor_vs_dry_density>
+                    <dry_densities>900 1400 1600 1800</dry_densities>
+                    <prefactors>4367.227700212952 46000.0 104689.9129 265905.06</prefactors>
+                </potential_augmentation_prefactor_vs_dry_density>
+                <potential_augmentation_prefactor_live_dry_density>true</potential_augmentation_prefactor_live_dry_density>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
                 <potential_augmentation_exponent>7.5e-7</potential_augmentation_exponent>
-                <!-- PER-MATERIAL K override (Vinay 2026-06-08): pellet zone, material id 1,
-                     rho_d=900. n_s=900/2780=0.323741; n_l0=6.59e-4 (pellet 99 MPa IC).
-                     K_pellet=20600 J/kg CALIBRATED to sigma_sat(rho_d=900)=0.400 MPa in a
-                     standalone constant-volume cell on the consolidation (film-ON) binary
-                     (gentle-VG calibration WRC; sigma_sat is WRC-independent, validated
-                     K=22710 -> 0.4308 under both VG and SaturationTuller). Target 0.40 MPa
-                     set by Vinay; cf. Dixon (2023) EMDD==rho_d formula extrapolated to
-                     EMDD=0.9 -> 0.35 MPa (rho_d=900 is below Dixon's measured range:
-                     §12.1 extrapolation edge, confirmed by Vinay). -->
+                <!-- Pellet zone, material id 1, rho_d=900. n_s=900/2780=0.323741;
+                     n_l0=6.59e-4 (pellet 99 MPa IC); both still distinct from the bentonite
+                     zone's own values and kept as an override. K is NO LONGER overridden here
+                     (2026-08-18): the pellet zone now inherits the shared live Dixon table above.
+                     HISTORICAL, for provenance lineage only; the fixed K=20600 this zone
+                     carried 2026-06-08 through 2026-08-17 was CALIBRATED to
+                     sigma_sat(rho_d=900)=0.400 MPa in a standalone constant-volume cell on the
+                     consolidation (film-ON) binary (gentle-VG calibration WRC; sigma_sat is
+                     WRC-independent, validated K=22710 -> 0.4308 under both VG and
+                     SaturationTuller); target 0.40 MPa set by Vinay; cf. Dixon (2023) EMDD==rho_d
+                     formula extrapolated to EMDD=0.9 -> 0.35 MPa (rho_d=900 is below Dixon's
+                     measured range: §12.1 extrapolation edge, confirmed by Vinay). RESOLVED
+                     2026-06-08 as a distinct per-material override, then RETIRED 2026-08-18 in
+                     favor of the shared live table per Vinay's explicit ruling (closes open
+                     question U-1). -->
                 <medium id="1">
                     <micro_solid_volume_fraction_reference>0.3237410071942446</micro_solid_volume_fraction_reference>
                     <initial_micro_water_content>6.59e-4</initial_micro_water_content>
-                    <potential_augmentation_prefactor>20600</potential_augmentation_prefactor>
                 </medium>
                   <micro_water_content_floor>7.06e-5</micro_water_content_floor> <!-- 1W crystalline-hydration interlayer-water floor; Boek & Sprik 2003 (MD) / Marry et al. 2008 (1W Na-montmorillonite hydration); derivation in task13 TASK13_MCC_BLOCKAGE.md; adopted Vinay 2026-06-17 (commit 9e5459d00b). Caps Pi at the 1W minimum. -->
                   <macro_porosity_floor>0.0</macro_porosity_floor> <!-- INERT for the LE submission suite (restores audited Dixon-exact config: 6/6 green, I=4.9218/14.1602/40.8448 verified 2026-06-23). Active 0.08 (Vinay 2026-06-17) broke dd1600/IV/III convergence + pulled dd1800 -8% off Dixon (measured 2026-06-23); 0.08 remains the experimental form-(b)/expulsion floor. Revert per "make submission ready"; countermandable. -->
@@ -202,7 +265,7 @@ Official benchmark spec (MSXX §Model IV):
                 <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
                 <property>
                     <name>permeability</name>
-                    <type>Constant</type><value>1.17406e-19</value>
+                    <type>Constant</type><value>9.39248e-19</value>
                 </property>
                 <property>
                     <name>porosity</name>
@@ -272,7 +335,7 @@ Official benchmark spec (MSXX §Model IV):
                 <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
                 <property>
                     <name>permeability</name>
-                    <type>Constant</type><value>1.17406e-18</value>
+                    <type>Constant</type><value>9.39248e-18</value>
                 </property>
                 <property>
                     <name>porosity</name>
@@ -388,7 +451,7 @@ Official benchmark spec (MSXX §Model IV):
         <!-- phi_tr0_clay removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
              Initial phi_M is computed from phi0_clay and initial_micro_water_content by the hierarchical split. -->
         <!-- k0_clay from Kozeny-Carman at phi0=0.4245 -->
-        <parameter><name>k0_clay</name><type>Constant</type><value>1.17406e-19</value></parameter>
+        <parameter><name>k0_clay</name><type>Constant</type><value>9.39248e-19</value></parameter>
         <!-- Pellet parameters: rho_d=900, phi0 = 1-900/2780 = 0.676259 -->
         <parameter><name>phi0_pellet</name><type>Constant</type><value>0.6762589928057554</value></parameter>
         <!-- phi_tr0_pellet removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
@@ -396,7 +459,7 @@ Official benchmark spec (MSXX §Model IV):
         <!-- k0_pellet from Kozeny-Carman: k_ref=5.6e-21 at phi_ref=0.42 → k0=7.478e-20 -->
         <!-- k0_pellet = 10 x k0_clay = 1.17406e-18 (Vinay 2026-06-08; pellet zone more permeable
              than the compacted block). Supersedes the Kozeny-Carman 7.478e-20 noted above. -->
-        <parameter><name>k0_pellet</name><type>Constant</type><value>1.17406e-18</value></parameter>
+        <parameter><name>k0_pellet</name><type>Constant</type><value>9.39248e-18</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
         <parameter><name>pressure_ic</name><type>Constant</type><value>-1e8</value></parameter>
         <parameter><name>zero</name><type>Constant</type><value>0.0</value></parameter>
@@ -447,6 +510,12 @@ Official benchmark spec (MSXX §Model IV):
     <!--
       ============================================================
       REGRESSION BASELINE (CLAUDE.md s3) - approved by Vinay 2026-06-23.
+      RE-BASELINED 2026-08-18 (both zones switched to live K(rho_d), permeability
+      re-landed at 160x): reference became ts_2993_t_17280000.000000.vtu. The former
+      reference ts_636_t_17280000.000000.vtu is SUPERSEDED and moved (git mv, never
+      deleted) to superseded_references_2026-08-18/ in this directory. Verified via
+      vtkdiff against an independent second run at all 11 test_definition fields,
+      abs/rel norms exactly 0.0.
       Physics anchor: (f) regression baseline previously approved by user.
       Reference = the SINGLE final-time output VTU committed beside this PRJ
       (timestep at t_end). vtkdiff (Applications/ApplicationsLib/
