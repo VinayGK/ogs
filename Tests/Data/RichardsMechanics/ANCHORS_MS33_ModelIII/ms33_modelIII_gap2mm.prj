@@ -34,8 +34,10 @@ Boundary conditions (official spec):
   config; NOT to be used for new Model III results.
   Successor deck: ms33_modelIII_gapswitch.prj (+ ms33_modelIII_gapswitch_bc.py),
   currently held in eurad-anchors/submissions/MS33_MIXED_2026-06-23/ModelIII/.
-  OPEN: this PRJ is still the REGISTERED ctest; swapping the registration needs a
-  Vinay-ratified reference VTU for the gap-switch deck (CLAUDE.md s3(f) / s12.5).
+  DONE 2026-08-17: the swap happened. ms33_modelIII_gapswitch.prj is now the
+  registered ctest (ProcessLib/RichardsMechanics/Tests.cmake), with a
+  Vinay-ratified reference VTU (ts_832_t_17280000.000000.vtu, DSM/AGENTS.md
+  entry 16). This PRJ's own registration is commented out below, not deleted.
 -->
 <OpenGeoSysProject>
   <!-- GUARDRAIL §12.5 audit (2026-06-09, Vinay-approved): intrinsic permeability

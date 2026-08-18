@@ -221,7 +221,7 @@ to the Model I dd1600 VTU state at suction = 2 MPa (micro-macro exchange in equi
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>ms33_modelVII_freeswelling</prefix>
+            <prefix>ms33_modelVII_freeswelling_investigate</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
             <!-- Output at: 20d (ramp end), 100d, 200d (end saturation), each loading step, each unloading step -->
             <fixed_output_times>1728000 8640000 17280000 17712000 18144000 18576000 19008000 19440000 19872000 20304000 20736000</fixed_output_times>

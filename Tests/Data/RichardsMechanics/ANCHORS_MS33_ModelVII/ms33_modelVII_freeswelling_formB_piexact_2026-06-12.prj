@@ -280,7 +280,7 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>ms33_modelVII_freeswelling</prefix>
+            <prefix>ms33_modelVII_freeswelling_formB_piexact</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
             <!-- Output at: 20d (ramp end), 100d, 200d (end saturation), each loading step, each unloading step -->
             <fixed_output_times>86400 432000 864000 1296000 1728000 4320000 8640000 12960000 17280000 17712000 18144000 18576000 19008000 19440000 19872000 20304000 20736000</fixed_output_times>

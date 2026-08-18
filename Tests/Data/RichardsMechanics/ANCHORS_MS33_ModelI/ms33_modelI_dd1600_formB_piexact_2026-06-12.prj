@@ -290,7 +290,7 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>ms33_modelI_dd1600</prefix>
+            <prefix>ms33_modelI_dd1600_formB_piexact</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
             <!-- Ramp-phase times for p-s / k-s path: suction 50->5 MPa, 1-day
                  spaced (t=864000..1641600) + suction-0 endpoint (t=20d=1728000)

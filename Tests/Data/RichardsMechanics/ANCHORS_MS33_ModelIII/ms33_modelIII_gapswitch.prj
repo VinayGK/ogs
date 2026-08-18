@@ -23,7 +23,9 @@
     fitted K       : 104689.9129 J/kg  (sigma0 = 0 "Option C" form-(a) recalibration,
                      Vinay 2026-08-06; recorded in CANONICAL_RESULTS_2026-08-12.json,
                      model_I_sigma0zero_form_a.cells).  SUPERSEDES the 103879 J/kg that
-                     the deprecated soft-gap deck still carries.
+                     the deprecated soft-gap deck still carries.  This deck's OWN
+                     sigma0 stays -1.5e5 (unchanged, same known convention gap as
+                     IV/VII; not this decision, see DSM/AGENTS.md section 17).
 
   K(rho_d) TABLE + LIVE EVALUATION (Vinay's ruling 2026-08-17): Model III reports
   LIVE-K.  K is re-read from the table at the EVOLVING rho_d = rho_SR*(1-phi) during
