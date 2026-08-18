@@ -345,7 +345,7 @@ Official benchmark spec (MSXX §Model IV):
         </processes>
         <output>
             <type>VTK</type>
-            <prefix>ms33_modelIV_pellets</prefix>
+            <prefix>ms33_modelIV_pellets_kinematic</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
             <fixed_output_times>86400 432000 864000 1296000 1728000 4320000 8640000 12960000 17280000</fixed_output_times>
             <variables>
