@@ -4,15 +4,29 @@
      compress from the LE-ACHIEVED swollen state, but with MCC (not LE) so the loading
      branch has the plastic virgin-compression line. Staged restart, single-structure MCC,
      no DSM exchange (homogenised at loading timescale; same pattern as path2 homogeneous).
-     Restart state (results/rerun_p1_LE, t=200 d, S=1): e=1.069, phi=0.5167, sigma_ax~0.021 MPa.
+     Also: the combined-DSM single-file attempt (path1_P1-3_dsm_mcc.prj) diverges during
+     the wetting phase itself (~10.6d, MFront status -1) via the documented p->0/q!=0 MCC
+     apex singularity (DSM/AGENTS.md, "Known Limitation - Hydraulic Side of OGS RM-DSM";
+     tried+rejected: tension cutoff, completed Jacobian; verdict: structural, not solved in
+     OGS RM). Staging MCC to start only after the wetting front has fully passed (this file)
+     is not just a homogenisation simplification, it is the standing workaround for that
+     limitation. Vinay's call 2026-08-19: keep this staged approach (not the combined file).
+     RESYNCED 2026-08-19: the upstream LE run had a silent-K=0 tag-name bug
+     (vdw_augmentation_prefactor -> potential_augmentation_prefactor, fixed same day); the
+     restart state below is updated from the corrected LE run's actual output.
+     Restart state (rerun 2026-08-19 of beacon_t33_path1_P1-3_LE.prj post-fix, t=200 d, S=1):
+        phi=0.49975023652, e=0.9990014449, sigma_ax~0.021 MPa. [Superseded pre-fix record,
+        kept as history: e=1.069, phi=0.5167, from the K=0 LE run, no longer reproducible.]
      Autonomy folder; NOT a ctest. -->
 <OpenGeoSysProject>
     <!--
       Provenance (CLAUDE.md §12.2) — single-structure MCC restart (no potential_exchange)
       Benchmark family : Beacon (Task 3.3, granular MX-80) — P1 compression leg B->C->D
-      Restart state : from LE free-swell beacon_t33_path1_P1-3_LE (t=200d, S=1):
-        phi0=0.5167 (e0=1.069), Vr0=2.069 (=1+e0), initial stress isotropic -0.021 MPa
-        (the 21 kPa free-swell dead load it swelled under).
+      Restart state : from LE free-swell beacon_t33_path1_P1-3_LE (t=200d, S=1), RESYNCED
+        2026-08-19 post K-bug fix: phi0=0.49975023652 (e0=0.9990014449),
+        Vr0=1.999001444885201 (=1+e0), initial stress isotropic -0.021 MPa (the 21 kPa
+        free-swell dead load it swelled under). [Superseded: phi0=0.5167/e0=1.069 from the
+        pre-fix K=0 LE run.]
       MCC params : E=5.2e7,nu=0.3,M=1.2,kappa=0.0066,lambda=0.077 (EURAD-MS MS33 suite);
         pc_char=0.5e6 (granular reload yield, Acta Geotech 2022 §4.1, Vinay 2026-05-31).
       perm : PermeabilityOrthotropicPowerLaw k0=5.8703e-21 (phi_M/phi_M0)^9 (lambda=9 Vinay).
@@ -97,7 +111,7 @@
     <parameters>
         <parameter><name>sigma0</name><type>Function</type>
             <expression>-2.1e4</expression><expression>-2.1e4</expression><expression>-2.1e4</expression><expression>0</expression></parameter>
-        <parameter><name>phi0</name><type>Constant</type><value>0.5167</value></parameter>
+        <parameter><name>phi0</name><type>Constant</type><value>0.49975023652</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
         <parameter><name>pressure_ic</name><type>Constant</type><value>0</value></parameter>
         <parameter><name>zero</name><type>Constant</type><value>0.0</value></parameter>
@@ -109,7 +123,7 @@
         <parameter><name>kappa_mcc</name><type>Constant</type><value>0.0066</value></parameter>
         <parameter><name>lambda_mcc</name><type>Constant</type><value>0.077</value></parameter>
         <parameter><name>pc_char_mcc</name><type>Constant</type><value>0.5e6</value></parameter>
-        <parameter><name>Vr0_mcc</name><type>Constant</type><value>2.069</value></parameter>
+        <parameter><name>Vr0_mcc</name><type>Constant</type><value>1.999001444885201</value></parameter>
     </parameters>
     <process_variables>
         <process_variable><name>displacement</name><components>2</components><order>1</order>

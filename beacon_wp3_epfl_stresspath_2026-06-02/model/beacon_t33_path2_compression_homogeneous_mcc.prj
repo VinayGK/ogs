@@ -4,31 +4,46 @@
      the dual structure has homogenised (aggregates have swelled to fill macro), so the
      B'-C' oedometric compression is modelled as a SINGLE-STRUCTURE continuum — pure
      RichardsMechanics + MFront ModCamClay, NO DSM potential-exchange. The saturated
-     swelling pressure (= model Path-2 result, 6.357 MPa isotropic at e=0.85) is carried
-     as the locked initial stress; total void ratio governs (P_swell ~ total e, per Vinay).
-     Restart state taken from results/p2 t=1.728e6 (S=1): e=0.85, pc hardened 0.5->7.52 MPa.
-     Autonomy folder; NOT a registered ctest. -->
+     swelling pressure (= model Path-2 result) is carried as the locked initial stress;
+     total void ratio governs (P_swell ~ total e, per Vinay).
+     RESYNCED 2026-08-19 (Vinay, coordinated with a concurrent session doing the P1 leg):
+     restart state re-derived from the CORRECTED path2_P2-1_dsm_mcc.prj run (K was
+     silently 0 under the deprecated vdw_augmentation_prefactor tag until 2026-08-19,
+     see commit df44f36f25; the OLD -6.357 MPa / e=0.85 / pc0=7.52 MPa / Vr0=1.85
+     restart state below predates that fix and does not reflect the real K=44200
+     swelling state).
+     Restart state taken from beacon_path2_dsmmcc/ scratch run t=1.728e6s (S=1),
+     same corrected-K run whose plateau swelling pressure (3.344 MPa) is inside
+     Ferrari's measured 3.2-3.6 MPa band. Autonomy folder; NOT a registered ctest. -->
 <OpenGeoSysProject>
     <!--
       Provenance (CLAUDE.md §12.2) — single-structure MCC restart (no DSM exchange here)
       Benchmark family : Beacon (Task 3.3 verification, granular MX-80) — compression leg
       Geometry / BC    : axisym single-element OEDOMETER (u_r=0 both walls, u_z=0 base,
-                         top axial traction ramp 6.357 -> 20 MPa). 1 cm unit cell.
-      Restart state (from DSM Path-2 saturated VTU results/p2 t=1.728e6, S=1):
-        initial total stress -6.357 MPa isotropic  : MODEL Path-2 swelling pressure at e=0.85
-                                                     (= the homogeneous saturated state).
-        e0 = 0.85 (phi0=0.45946)                    : MEASURED P2-1 (Acta Table 1) = model e.
-        pc0 = 7.52 MPa                              : MCC hardening reached during DSM swelling
-                                                     (PreConsolidationPressure field, saturated VTU).
-        Vr0 = 1.85 (=1+e0)                          : specific volume at e0=0.85.
+                         top axial traction ramp; top BC updated to match the new
+                         sigma0 magnitude below). 1 cm unit cell.
+      Restart state (from CORRECTED DSM Path-2 saturated VTU, K=44200 active,
+        beacon_path2_dsmmcc/beacon_t33_path2_P2-1_ts_98_t_1728000.000000.vtu, S=1):
+        initial total stress -3.344303 MPa isotropic : actual sigma field, corrected run
+                                                        (was -6.357 MPa, stale/K=0 run).
+        e0 = 0.85 (phi0=0.45946)                     : MEASURED P2-1 (Acta Table 1) = model e;
+                                                        isochoric BC, unaffected by the K fix.
+        pc0 = 4.115060 MPa                           : actual PreConsolidationPressure field,
+                                                        corrected run (was 7.52 MPa, stale).
+        Vr0 = 1.633188                               : actual tracked VolumeRatio field,
+                                                        corrected run (Vinay 2026-08-19:
+                                                        "use the actual tracked VolumeRatio";
+                                                        NOT geometric 1+e0=1.85; the two differ
+                                                        by 11.7%, gap not yet explained, Vinay:
+                                                        "chase separately", not resolved here).
       Material parameters:
         elastic E,nu (5.2e7 Pa, 0.3)               : EURAD-MS (MS33 MCC suite, prior commit)
         MCC M,lambda,kappa (1.2,0.077,0.0066)      : EURAD-MS (MS33 MCC suite, prior commit)
         solid density rho_s=2780                   : prior-commit clay density
-      *** GUARDRAIL §5 NOTE (2026-05-31): the swelling-pressure START (6.357 MPa) is the
-          MODEL's value, which overshoots the measured granular 3.2-3.6 MPa (block-K, SE bias).
-          The compression-curve SHAPE (lambda-governed VCL) is the verification target, not the
-          start point. predicted, not yet validated against Acta Fig 11 until extracted. ***
+      *** GUARDRAIL §5 NOTE (2026-05-31, still applies post-resync): the swelling-pressure
+          START (3.344 MPa, was 6.357 MPa) is the MODEL's value; the compression-curve SHAPE
+          (lambda-governed VCL) is the verification target, not the start point. predicted,
+          not yet validated against Acta Fig 11 until extracted. ***
       NOTE: no potential_exchange / micro_porosity blocks here by design — the homogenised
             loading is single-structure (Vinay 2026-05-31). The DUAL-structure kinetics
             (macro-fills-first) is a COLUMN problem (see folder AGENTS.md), not one element.
@@ -169,7 +184,7 @@
             <type>VTK</type>
             <prefix>beacon_t33_path2_compression_homog</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
-            <!-- snapshots at each load level: 6.357(start),8,10,12,16,20 MPa -->
+            <!-- snapshots at each load level: 3.344(start, resynced 2026-08-19),8,10,12,16,20 MPa -->
             <fixed_output_times>0 432000 864000 1296000 1728000 2160000 2592000 3024000 3456000</fixed_output_times>
             <variables>
                 <variable>pressure</variable>
@@ -188,10 +203,12 @@
         </output>
     </time_loop>
     <parameters>
-        <!-- Initial stress = saturated swelling pressure 6.357 MPa isotropic (model Path-2 result). -->
+        <!-- Initial stress = saturated swelling pressure, isotropic (model Path-2 result).
+             RESYNCED 2026-08-19: -3.344303 MPa, actual sigma field from the corrected
+             K=44200 path2_P2-1_dsm_mcc.prj run (was -6.357e6, stale K=0 run). -->
         <parameter><name>sigma0</name><type>Function</type>
-            <expression>-6.357e6</expression><expression>-6.357e6</expression>
-            <expression>-6.357e6</expression><expression>0</expression>
+            <expression>-3.344303e6</expression><expression>-3.344303e6</expression>
+            <expression>-3.344303e6</expression><expression>0</expression>
         </parameter>
         <parameter><name>phi0</name><type>Constant</type><value>0.45946</value></parameter>
         <parameter><name>k0</name><type>Constant</type><value>5.8703e-21</value></parameter>
@@ -207,9 +224,13 @@
         <parameter><name>M_csl</name><type>Constant</type><value>1.2</value></parameter>
         <parameter><name>kappa_mcc</name><type>Constant</type><value>0.0066</value></parameter>
         <parameter><name>lambda_mcc</name><type>Constant</type><value>0.077</value></parameter>
-        <!-- pc0 = 7.52 MPa: PreConsolidationPressure reached during DSM swelling (saturated VTU). -->
-        <parameter><name>pc_char_mcc</name><type>Constant</type><value>7.52e6</value></parameter>
-        <parameter><name>Vr0_mcc</name><type>Constant</type><value>1.85</value></parameter>
+        <!-- pc0 RESYNCED 2026-08-19: 4.115060 MPa, actual PreConsolidationPressure field
+             from the corrected K=44200 run (was 7.52e6, stale K=0 run). -->
+        <parameter><name>pc_char_mcc</name><type>Constant</type><value>4.115060e6</value></parameter>
+        <!-- Vr0 RESYNCED 2026-08-19: 1.633188, actual tracked VolumeRatio field from the
+             corrected run (Vinay: "use the actual tracked VolumeRatio", not geometric
+             1+e0=1.85; the two differ by 11.7%, gap flagged open, "chase separately"). -->
+        <parameter><name>Vr0_mcc</name><type>Constant</type><value>1.633188</value></parameter>
     </parameters>
     <process_variables>
         <process_variable>
@@ -245,10 +266,12 @@
         <curve>
             <name>traction_ramp</name>
             <!-- Axial total stress (negative=compression): start at the saturated swelling
-                 pressure 6.357 MPa (equilibrium with initial_stress), ramp to 20 MPa.
-                 Levels: 6.357, 8, 10, 12, 16, 20 MPa across the 40 d window. -->
-            <coords>0        432000  864000  1296000 1728000 2160000 2592000 3024000 3456000</coords>
-            <values>-6.357e6 -7e6    -8e6    -1e7    -1.2e7  -1.4e7  -1.6e7  -1.8e7  -2.0e7</values>
+                 pressure, ramp to 20 MPa. Start point RESYNCED 2026-08-19 to match sigma0
+                 (-3.344303 MPa, corrected K=44200 run, was -6.357 MPa under the stale K=0
+                 restart) for continuity at t=0; intermediate ramp levels (8/10/12/16/20 MPa)
+                 unchanged; restart-sync scope, not a re-design of the loading schedule. -->
+            <coords>0           432000  864000  1296000 1728000 2160000 2592000 3024000 3456000</coords>
+            <values>-3.344303e6 -7e6    -8e6    -1e7    -1.2e7  -1.4e7  -1.6e7  -1.8e7  -2.0e7</values>
         </curve>
     </curves>
 </OpenGeoSysProject>
