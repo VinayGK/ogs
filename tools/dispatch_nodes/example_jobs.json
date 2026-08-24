@@ -1,0 +1,14 @@
+[
+  {
+    "id": "smoke-hostname",
+    "cmd": "hostname && uname -m && date",
+    "keep": [],
+    "mirror_discard": []
+  },
+  {
+    "id": "smoke-cores",
+    "cmd": "sysctl -n hw.physicalcpu",
+    "keep": [],
+    "mirror_discard": []
+  }
+]

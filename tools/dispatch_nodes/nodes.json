@@ -1,0 +1,23 @@
+{
+  "_comment": "Node roster for tools/dispatch_nodes/dispatch.py. See README.md. Cores measured via sysctl -n hw.physicalcpu / ssh sysctl on 2026-08-24.",
+  "local": {
+    "type": "local",
+    "cores": 18,
+    "ogs_repo": "/Users/vinaykumar/git/ogs"
+  },
+  "macmini": {
+    "type": "remote",
+    "ssh_alias": "macmini",
+    "cores": 10,
+    "ogs_repo": "~/git/ogs",
+    "respect_active_use": false
+  },
+  "shilpas-mbp": {
+    "type": "remote",
+    "ssh_alias": "shilpas-mbp",
+    "cores": 10,
+    "ogs_repo": "~/git/ogs",
+    "respect_active_use": true,
+    "idle_threshold_s": 300
+  }
+}
