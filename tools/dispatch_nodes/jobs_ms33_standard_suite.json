@@ -1,0 +1,38 @@
+[
+  {
+    "id": "modelI_dd1400",
+    "cwd": "Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI",
+    "cmd": "~/git/build/ogs-dsm-active/bin/ogs ms33_modelI_dd1400.prj -o out_modelI_dd1400",
+    "mirror_discard": ["out_modelI_dd1400"]
+  },
+  {
+    "id": "modelI_dd1600",
+    "cwd": "Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI",
+    "cmd": "~/git/build/ogs-dsm-active/bin/ogs ms33_modelI_dd1600.prj -o out_modelI_dd1600",
+    "mirror_discard": ["out_modelI_dd1600"]
+  },
+  {
+    "id": "modelI_dd1800",
+    "cwd": "Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI",
+    "cmd": "~/git/build/ogs-dsm-active/bin/ogs ms33_modelI_dd1800.prj -o out_modelI_dd1800",
+    "mirror_discard": ["out_modelI_dd1800"]
+  },
+  {
+    "id": "modelIII_gapswitch",
+    "cwd": "Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIII",
+    "cmd": "~/git/build/ogs-dsm-active/bin/ogs ms33_modelIII_gapswitch.prj -o out_modelIII_gapswitch",
+    "mirror_discard": ["out_modelIII_gapswitch"]
+  },
+  {
+    "id": "modelIV_pellets",
+    "cwd": "Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIV",
+    "cmd": "~/git/build/ogs-dsm-active/bin/ogs ms33_modelIV_pellets.prj -o out_modelIV_pellets",
+    "mirror_discard": ["out_modelIV_pellets"]
+  },
+  {
+    "id": "modelVII_freeswelling",
+    "cwd": "Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII",
+    "cmd": "~/git/build/ogs-dsm-active/bin/ogs ms33_modelVII_freeswelling.prj -o out_modelVII_freeswelling",
+    "mirror_discard": ["out_modelVII_freeswelling"]
+  }
+]

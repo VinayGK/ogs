@@ -78,6 +78,15 @@ REVIEW FIXES (2026-08-24, applied same day as the first cut)
   the node's own $HOME, must be at least a few path segments deep) so a
   nodes.json typo can't turn the whole discard-scope root into something
   dangerously broad.
+- Found on the first real batch (2026-08-24, MS33 I/III/IV/VII): local
+  jobs were collected via a sequential blocking loop (collect_local(h)
+  per handle, in order), so a fast job ordered right after a slow job on
+  the same node had its "end" timestamp captured only once the earlier
+  job's .wait() returned -- the job itself finished on time, but its
+  reported wall-clock time was wrong (inflated to match the slower job
+  ahead of it in the list). Fixed: every handle (local and remote alike)
+  is now collected via one thread each, same pattern already used for
+  remote polling.
 
 USAGE
 -----
@@ -443,13 +452,22 @@ def run_round(round_assignment, nodes, log_dir, poll_interval):
                     print(f"  warning: launch failed for {node_name}/{job['id']} "
                           f"(rc={h['launch_rc']}); see {h['outer_log']}", file=sys.stderr)
 
+    # Collect ALL handles (local and remote) concurrently via threads, one
+    # per job. A prior version collected local jobs in a sequential
+    # blocking loop (collect_local(h) per h in order) -- correctness was
+    # fine (each Popen already ran concurrently since launch), but a fast
+    # job ordered after a slow job on the same node had its "end" timestamp
+    # captured only once the earlier job's .wait() returned, misreporting
+    # its wall-clock time as inflated by however long that earlier job
+    # took. Found 2026-08-24 on a real batch: modelVII_freeswelling (truly
+    # 211.8s per its own log) was reported as 1264.4s, matching
+    # modelIV_pellets exactly, because it was collected right after it.
     threads = [threading.Thread(target=wait_for_remote, args=(h, poll_interval), daemon=True)
                for h in handles if h["mode"] == "poll"]
+    threads += [threading.Thread(target=collect_local, args=(h,), daemon=True)
+                for h in handles if h["mode"] == "popen"]
     for t in threads:
         t.start()
-    for h in handles:
-        if h["mode"] == "popen":
-            collect_local(h)
     for t in threads:
         t.join()
 

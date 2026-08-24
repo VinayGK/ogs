@@ -142,9 +142,29 @@ cleaned up afterward (locally, on the mac mini, and in `~/ogs-models/`)
 — that's why those directories are empty on disk, not evidence nothing
 was run.
 
-Not yet exercised: a real OGS simulation batch, `--discard` against real
-(large) bulk VTU output, or an actual network-drop during a live
-multi-hour job (the detach mechanism is verified to survive the
-*launching* session closing cleanly; it hasn't been tested against a
-mid-run drop specifically). Do those deliberately, watching the log
-output, before trusting this fully unattended on a real campaign.
+**First real batch, same day:** the standard MS33 I/III/IV/VII suite (6
+jobs, unchanged approved PRJs) across local + a freshly-built `macmini` —
+`eurad-anchors`-style, see
+`~/ogs-models/_dispatch_snapshots/ms33_standard_suite_2026-08-24/`. All 6
+completed (0 rejected steps everywhere), all mirrored and
+checksum-confirmed, nothing discarded (no `--discard` on a first real
+run). This surfaced one more real bug, found and fixed the same day:
+**local jobs were collected in a sequential blocking loop, so a fast job
+ordered right after a slow job on the same node had its wall-clock time
+misreported as the slow job's** (`modelVII_freeswelling`, truly 211.8s,
+was reported as 1264.4s — exactly `modelIV_pellets`' time). The
+computation was never affected, only the reported timing metadata. Fixed
+by collecting every job (local and remote alike) via one thread each,
+same pattern already used for remote polling. See the run's own README
+for the full correction and the module docstring's "REVIEW FIXES" list.
+Also noted, not a bug: a remote job's reported wall time includes up to
+one `--poll-interval` of completion-detection lag (`modelIII_gapswitch`
+showed 30.9s against its own log's 15.5s, with `--poll-interval 15`) —
+use a smaller interval if tight timing on short remote jobs matters.
+
+Not yet exercised: `--discard` against real (large) bulk VTU output, or
+an actual network-drop during a live multi-hour job (the detach
+mechanism is verified to survive the *launching* session closing
+cleanly; it hasn't been tested against a mid-run drop specifically). Do
+those deliberately, watching the log output, before trusting this fully
+unattended on a real campaign.

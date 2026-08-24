@@ -1,0 +1,15 @@
+{
+  "_comment": "Variant of nodes.json for DSM/MS33 work: the DSM branch lives in a worktree locally (master stays undisturbed), but is the main checkout on macmini. Cores/aliases match nodes.json; only ogs_repo differs for 'local'.",
+  "local": {
+    "type": "local",
+    "cores": 18,
+    "ogs_repo": "/Users/vinaykumar/git/ogs-worktrees/dsm_native_maxwell_conjugate_wt"
+  },
+  "macmini": {
+    "type": "remote",
+    "ssh_alias": "macmini",
+    "cores": 10,
+    "ogs_repo": "~/git/ogs",
+    "respect_active_use": false
+  }
+}
