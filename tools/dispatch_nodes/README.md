@@ -162,9 +162,18 @@ one `--poll-interval` of completion-detection lag (`modelIII_gapswitch`
 showed 30.9s against its own log's 15.5s, with `--poll-interval 15`) —
 use a smaller interval if tight timing on short remote jobs matters.
 
-Not yet exercised: `--discard` against real (large) bulk VTU output, or
-an actual network-drop during a live multi-hour job (the detach
-mechanism is verified to survive the *launching* session closing
-cleanly; it hasn't been tested against a mid-run drop specifically). Do
-those deliberately, watching the log output, before trusting this fully
-unattended on a real campaign.
+**`--discard` verified against real output, same day:** re-ran the two
+`macmini`-side MS33 jobs (`modelI_dd1600`, `modelIII_gapswitch`) with
+`--discard` (`nodes_macmini_only.json` forces both onto one node for a
+clean test). Full VTU/PVD time series for both (32 + 10 files) rsync'd
+and byte-confirmed into `~/ogs-models/_dispatch_mirror/`, remote copies
+genuinely gone afterward (`ls` confirms), source PRJs (never in
+`mirror_discard`) untouched throughout. Worked exactly as designed on
+the first try — no fix needed here, unlike the two items above.
+
+Not yet exercised: an actual network-drop during a live multi-hour job
+(the detach mechanism is verified to survive the *launching* session
+closing cleanly; it hasn't been tested against a mid-run drop
+specifically). Do that deliberately, watching the log output, before
+fully trusting the detach guarantee unattended on a real multi-hour
+campaign.
