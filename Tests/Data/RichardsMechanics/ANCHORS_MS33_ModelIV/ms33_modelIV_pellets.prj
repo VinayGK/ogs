@@ -457,8 +457,12 @@ Official benchmark spec (MSXX §Model IV):
         <!-- phi_tr0_pellet removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
              Initial phi_M for pellet zone is computed from phi0_pellet and initial_micro_water_content. -->
         <!-- k0_pellet from Kozeny-Carman: k_ref=5.6e-21 at phi_ref=0.42 → k0=7.478e-20 -->
-        <!-- k0_pellet = 10 x k0_clay = 1.17406e-18 (Vinay 2026-06-08; pellet zone more permeable
-             than the compacted block). Supersedes the Kozeny-Carman 7.478e-20 noted above. -->
+        <!-- k0_pellet = 10 x k0_clay (Vinay 2026-06-08; pellet zone more permeable than the
+             compacted block). Supersedes the Kozeny-Carman 7.478e-20 noted above. Value here
+             tracks k0_clay live: 10 x 9.39248e-19 (160x KC-base, MS33 live-K campaign 2026-08-17/18)
+             = 9.39248e-18. [Comment corrected 2026-08-25 CLOSE: prior text read "1.17406e-18",
+             the 10x-of-a-since-superseded 20x-era k0_clay=1.17406e-19; the live literal below was
+             never wrong, only its explanatory comment was stale. No value changed.] -->
         <parameter><name>k0_pellet</name><type>Constant</type><value>9.39248e-18</value></parameter>
         <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
         <parameter><name>pressure_ic</name><type>Constant</type><value>-1e8</value></parameter>
