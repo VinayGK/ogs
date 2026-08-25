@@ -18,7 +18,13 @@ import vtk
 from vtk.util.numpy_support import vtk_to_numpy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OGS = "/Users/vinaykumar/git/build/verify_tip_20260812/bin/ogs"  # canonical tip (commit bfd52cf6ff), pointer fixed 2026-08-17
+OGS = "/Users/vinaykumar/git/build/verify_tip_20260812/bin/ogs"  # binary built at bfd52cf6ff; NOT
+    # a stale citation despite the worktree it lives in having since moved to 7a13ca874b (2026-08-18)
+    # and current HEAD b6495c01 (2026-08-20) sitting 4 commits further -- `git diff --name-only
+    # bfd52cf6ff b6495c01` touches ONLY Tests/Data/**, *.md, Tests.cmake, zero C++/CMakeLists, so this
+    # compiled binary is behaviourally identical to current HEAD (re-verified 2026-08-25, md5
+    # 7db32e941a6ef92c5219d3d90d045210). See DSM/AGENTS.md entry 18 for the underlying ctest-routing
+    # hazard this comment previously left unstated (routing was stale; the binary was not).
 RHO_SOLID = 2780.0  # kg/m^3, EURAD-2 MS33 spec (summarizer RHO_SOLID)
 
 # Dixon (2023) Fig.1 swelling pressure, EMDD=rho_d targets (MPa) -- the MS33 anchor
