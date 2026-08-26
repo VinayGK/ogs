@@ -507,6 +507,17 @@ proposed §6.7 parse-check: see memory incident_xml_double_hyphen_comment_parse.
 
 ---
 
+## Merge note (2026-08-11): dsm_maxwell_jac_parallel folded into dsm_native_maxwell_conjugate
+
+The sections BELOW are the `dsm_maxwell_jac_parallel` worklog (local-Jacobian
+line, 2026-06-09/06-10), merged here verbatim. The sections ABOVE are the
+`dsm_native_maxwell_conjugate` deliverable-line worklog (2026-06-09..06-23).
+Both are kept in full per CLAUDE.md §6.4/§11 (AGENTS.md accretes; entries are
+never removed). The two workstreams ran in parallel off the common base
+d98f5f8324, which is why they appear as a conflict rather than a sequence.
+
+---
+
 ## Full consistent tangent for the Maxwell local Jacobian (2026-06-09, branch dsm_maxwell_jac_parallel)
 
 Tangent-only gap-closing (Vinay's AceGen derivation, `THM_DSM_Richards_maxwell_web.wl`); residual UNCHANGED.
