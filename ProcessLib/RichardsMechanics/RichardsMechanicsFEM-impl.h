@@ -1213,7 +1213,25 @@ solveReferenceMassStorageCoupledState(
             potential_exchange_params.hamaker_constant,
             potential_exchange_params.specific_surface,
             microPotentialSignFactorFromParameters(potential_exchange_params),
-            potential_exchange_params.potential_augmentation_prefactor,
+            // MERGE FIX 2026-08-11 (jac_parallel -> maxwell_conjugate): use the
+            // SAME live K(rho_d) the residual `evaluate` uses. This lambda came
+            // from dsm_maxwell_jac_parallel, which branched off d98f5f8324 —
+            // i.e. BEFORE maxwell_conjugate converted every
+            // computeVanDerWaalsMicroPotential call site to
+            // effectiveAugmentationPrefactor. The three-way merge was textually
+            // clean, so this one call site was left on the parse-time scalar:
+            // with potential_augmentation_prefactor_live_dry_density=true the
+            // analytic 2x2 would then be the derivative of a DIFFERENT potential
+            // than the residual. That is tangent-only, but do NOT read it as
+            // harmless: if the local 2x2 fails to converge in max_iterations
+            // this routine silently returns the decoupled PREDICTOR state (see
+            // the `return out.converged ? out : predictor;` below) and no caller
+            // inspects `converged` — so a bad micro tangent CAN change the
+            // computed state without any warning or time-step rejection.
+            // No-op when live mode is off (the helper returns the parse scalar),
+            // which is the default and the state of every MS33 suite PRJ.
+            effectiveAugmentationPrefactor(potential_exchange_params,
+                                           local_context.phi),  // K [J/kg]
             potential_exchange_params.potential_augmentation_exponent, dnS_dnl,
             potential_exchange_params.micro_water_content_floor);
         // Re-apply the film coupling so d mu_lR/d n_l and d mu_lR/d rho_lR pick up
