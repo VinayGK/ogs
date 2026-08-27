@@ -520,6 +520,16 @@ Official benchmark spec (MSXX §Model IV):
       deleted) to superseded_references_2026-08-18/ in this directory. Verified via
       vtkdiff against an independent second run at all 11 test_definition fields,
       abs/rel norms exactly 0.0.
+      RE-BASELINED 2026-08-26, commit bed3e395da (live K(rho_d) interpolation
+      switched linear -> log-linear, Vinay's decision 2026-08-26; BOTH zones live):
+      reference became ms33_modelIV_pellets_ts_577_t_17280000.000000.vtu
+      (md5 7b404973b1c0ddb99a4cc2a1f42ebe7d), from the reconciled double-run
+      campaign round1_modelIV_livek_loglin_fullrigor_2026-08-26_successful —
+      two independent full runs byte-identical (same md5), binary
+      maxwell-conjugate-20260602 @ bed3e395da. The former reference
+      ts_2993_t_17280000.000000.vtu (md5 ae01589ae8aa9442bcb81eb5c75a4592,
+      linear-K) is SUPERSEDED and moved (git mv, never deleted) to
+      superseded_references_2026-08-26/ in this directory.
       Physics anchor: (f) regression baseline previously approved by user.
       Reference = the SINGLE final-time output VTU committed beside this PRJ
       (timestep at t_end). vtkdiff (Applications/ApplicationsLib/

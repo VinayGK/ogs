@@ -466,6 +466,19 @@ initial micro water content is set to the 99 MPa-equilibrium value.
       (git mv, never deleted) to superseded_references_2026-08-17/ in this
       directory. The text below still holds: exactly one LIVE final-time
       reference sits beside this PRJ.
+      RE-BASELINED AGAIN 2026-08-26, commit bed3e395da (live K(rho_d)
+      interpolation switched linear -> log-linear, Vinay's decision 2026-08-26):
+      the live reference is now
+      ms33_modelVII_freeswelling_ts_883_t_20736000.000000.vtu
+      (md5 e1cafac2a3cd079d78074b10b2ae3ce2), from the reconciled double-run
+      campaign _round2_modelVII_fullrigor_2026-08-26_successful — two
+      independent full runs byte-identical (same md5), 883/883 steps accepted,
+      binary maxwell-conjugate-20260602 @ bed3e395da. Headline shift vs the
+      linear-K baseline: e_top(240 d) 1.133733 -> 1.109573 (-2.131%), measured.
+      The former reference ts_829_t_20736000.000000.vtu
+      (md5 9258af81b110ecfb9e1d378bb47c0d3e, linear-K) is SUPERSEDED and moved
+      (git mv, never deleted) to superseded_references_2026-08-26/ in this
+      directory.
       Physics anchor: (f) regression baseline previously approved by user.
       Reference = the SINGLE final-time output VTU committed beside this PRJ
       (timestep at t_end). vtkdiff (Applications/ApplicationsLib/

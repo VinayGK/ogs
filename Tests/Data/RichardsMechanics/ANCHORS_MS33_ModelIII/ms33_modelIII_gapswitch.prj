@@ -45,6 +45,10 @@
           (MathLib PiecewiseLinearInterpolation, clamped at the ends) while Dixon's law
           is exponential in rho_d.  Across the wide 900-1400 chord the linear segment
           overshoots the log-linear value by ~10-16 % at this model's operating density.
+          RESOLVED 2026-08-26 (Vinay's decision, commit bed3e395da): the LIVE
+          K(rho_d) path now interpolates LOG-LINEARLY between knots (node-preserving,
+          fitted K values untouched); the paragraph above describes the superseded
+          linear scheme and is kept as history.
 
   Material parameters (source per parameter group) - carried over VERBATIM from
   ms33_modelIII_gap2mm.prj's provenance block; single clay medium here (the separate
@@ -370,6 +374,30 @@
             <values>-1e8 0 0</values>
         </curve>
     </curves>
+    <!--
+      ============================================================
+      REGRESSION BASELINE (CLAUDE.md s3), Vinay-ratified reference chain
+      (DSM/AGENTS.md entry 16: ts_832 ratified 2026-08-17).
+      RE-BASELINED 2026-08-26, commit bed3e395da (live K(rho_d) interpolation
+      switched linear -> log-linear, Vinay's decision 2026-08-26): reference
+      became ms33_modelIII_gapswitch_ts_880_t_17280000.000000.vtu
+      (md5 4e3228d44dd5398f0d244823ccabe29b), from the reconciled double-run
+      campaign round1_modelIII_gapswitch_2026-08-26 — two independent full runs
+      byte-identical (same md5), 880 steps accepted / 1 rejected (startup
+      transient at t=5.67 s, recovered), binary maxwell-conjugate-20260602 @
+      bed3e395da. The former reference ts_832_t_17280000.000000.vtu
+      (md5 e60493e974dee9f9afb2e89ec48ea651, linear-K) is SUPERSEDED and moved
+      (git mv, never deleted) to superseded_references_2026-08-26/ in this
+      directory: the ctest wrapper enumerates every REFERENCE-side file matching
+      the ts_.* regex and requires a same-named output for each, so a superseded
+      reference left beside the PRJ fails the test by construction.
+      Physics anchor: (f) regression baseline previously approved by user.
+      Two-tier tolerances as in ModelIV/ModelVII (Vinay's choice 2026-06-23):
+      TIGHT on displacement/saturation/porosity/transport_porosity/
+      micro_porosity/micro_water_content/dry_density_solid; LOOSE (rel 1e-2,
+      abs 1e3 Pa) on sigma/swelling_stress/pressure/micro_pressure.
+      ============================================================
+    -->
     <test_definition>
         <vtkdiff><regex>ms33_modelIII_gapswitch_ts_.*_t_17280000\.0+\.vtu</regex><field>displacement</field><absolute_tolerance>1e-9</absolute_tolerance><relative_tolerance>1e-7</relative_tolerance></vtkdiff>
         <vtkdiff><regex>ms33_modelIII_gapswitch_ts_.*_t_17280000\.0+\.vtu</regex><field>saturation</field><absolute_tolerance>1e-8</absolute_tolerance><relative_tolerance>1e-8</relative_tolerance></vtkdiff>

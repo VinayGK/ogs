@@ -2250,6 +2250,158 @@ Verify-phase reruns land (§5).
 
 ---
 
+## 2026-08-26 — MS33 III/IV/VII ctest references RE-BASELINED to log-linear live-K (follow-up to the entry above)
+
+The Verify-phase reruns for the log-linear landing (bed3e395da) reconciled: for
+each of III/IV/VII, two independent full-rigor rounds produced byte-identical
+final VTUs (per-model md5 equality; identical accepted-step counts), binary
+maxwell-conjugate-20260602 @ bed3e395da. The gating ctest references were
+swapped accordingly (uncommitted, pending Vinay's review):
+
+| Model | New reference (beside PRJ) | New md5 | Old reference (superseded) | Old md5 |
+| :-- | :-- | :-- | :-- | :-- |
+| III | `ms33_modelIII_gapswitch_ts_880_t_17280000.000000.vtu` | `4e3228d44dd5398f0d244823ccabe29b` | `ts_832` -> `superseded_references_2026-08-26/` | `e60493e974dee9f9afb2e89ec48ea651` |
+| IV | `ms33_modelIV_pellets_ts_577_t_17280000.000000.vtu` | `7b404973b1c0ddb99a4cc2a1f42ebe7d` | `ts_2993` -> `superseded_references_2026-08-26/` | `ae01589ae8aa9442bcb81eb5c75a4592` |
+| VII | `ms33_modelVII_freeswelling_ts_883_t_20736000.000000.vtu` | `e1cafac2a3cd079d78074b10b2ae3ce2` | `ts_829` -> `superseded_references_2026-08-26/` | `9258af81b110ecfb9e1d378bb47c0d3e` |
+
+Old references moved by `git mv` (never deleted) per the standing convention;
+the ctest wrapper enumerates reference-side `ts_.*` matches, so leaving the old
+file beside the PRJ would fail the test by construction. This SUPERSEDES the
+reference filenames/md5s quoted in the 2026-08-17 (entries 15/16, ts_832; VII
+ts_829) and 2026-08-18 (IV ts_2993) sections above — those entries stay as
+history. Reconciled 200 d/240 d headline values (measured): III p(Top/Central/
+Bottom) = 1.844988/1.835393/1.803411 MPa; IV p(Top/Central/Bottom) =
+4.108850/4.100879/0.527711 MPa (Bottom pellet-zone plateau arrives late,
+~180 d; within ~0.2% of the 400 d asymptote); VII e_top(240 d) =
+1.1095731701342197 (-2.131% vs the linear-K baseline 1.133733045619561 —
+adopting that swap as the CI reference is exactly what this rebaseline does,
+per the task Vinay dispatched 2026-08-26).
+
+ctest verification of the swap: see the run record in the session report
+(2026-08-26); result appended below once the suite completes.
+
+## 2026-08-26 — CLOSING ENTRY: log-linear K(rho_d) landing verified end-to-end; the 2026-08-17/18 linear-K headline set is SUPERSEDED
+
+### 25. DONE 2026-08-26 — closing summary of the log-linear landing (commit bed3e395da); linear-K numbers superseded, kept as history
+
+**Decision (Vinay, explicit, 2026-08-25/26):** log-linear interpolation
+SUPERSEDES linear interpolation on the LIVE K(rho_d) path. Landed as the
+production state of `dsm_native_maxwell_conjugate` at commit
+`bed3e395dab0f1dfcd560a05ef59ddeffa77d72e` (LOCAL ONLY at the time of this
+entry — exactly one commit ahead of origin; push is Vinay's). This closes the
+interpolation-bias open item first flagged in entry §5 (2026-08-17) and
+carried on the run-status board since.
+
+**Physics justification (Vinay's, recorded in the commit message):** Dixon
+(2023)'s swelling-pressure-vs-EMDD law is itself exponential
+(Ps = 0.003*exp(5.2883*EMDD), Fig. 1 as reproduced in the MS33 organizer
+spec, pixel-digitized 2026-08-26); K(rho_d) was calibrated to Dixon-anchored
+targets at the 4 knot densities, i.e. fit to an underlying exponential
+relationship. A straight linear chord between knots of a convex function
+overestimates the true value at every interior point (convexity/Jensen — a
+mathematical fact, not a modeling choice). Log-linear is the scheme
+consistent with the functional form the calibration itself is anchored to,
+and it is NODE-PRESERVING — the existing calibrated K knots
+(900/1400/1600/1800 -> 4367.2277/46000.0/104689.9129/265905.06 J/kg) are
+untouched; no re-calibration was needed or performed.
+
+**Audit performed at landing** (details in entry 24): knot node-preservation
+at machine precision (900/1800 bitwise via clamp, 1600 rounds exact, 1400
+low by 1 ULP, rel 1.6e-16); one-sided LEFT-segment derivative at interior
+knots finite/no-NaN, convention identical to the linear getSegmentSlope;
+frozen-K parse path (`CreateRichardsMechanicsProcess.cpp:584`) confirmed
+still linear — non-live PRJs completely unaffected; tangent-consistent
+companion derivative dK/dx = K(x)*ln(K_r/K_l)/(x_r-x_l); unit tests
+restructured per Vinay's "keep linear tests, add log-linear tests"
+(15/15 StrainedFilm+LiveKOfRhoD, 14/14 DSMMicroMacro pass).
+
+**Double-verified headline numbers (Verify phase, two independent full-rigor
+rounds per model, reconciled 2026-08-26; binary maxwell-conjugate-20260602 @
+bed3e395da).** III and VII agreed BIT-EXACT (byte-identical final VTUs, md5
+verified); IV bit-exact (both rounds' 200 d VTUs md5
+7b404973b1c0ddb99a4cc2a1f42ebe7d); III agreed to all reported digits
+(<=1e-9 rel) plus an independent third extraction. Mean stress
+p = -tr(sigma)/3 at 200 d, canonical probes (x=0; y=0.070/0.04025/0.0105 m);
+VII e = phi/(1-phi) per CANONICAL_RESULTS conventions, 240 d top node
+(r=0, z=70 mm):
+
+| model | probe | linear-K (superseded) | log-linear (this landing) | change |
+| :-- | :-- | :-- | :-- | :-- |
+| III gap-switch | p Top | 2.192 MPa | 1.844987556 MPa | -15.83% |
+| III gap-switch | p Central | 2.184 MPa | 1.835392919 MPa | -15.96% |
+| III gap-switch | p Bottom | 2.170 MPa | 1.803410896 MPa | -16.89% |
+| IV pellets (both zones live) | p Top | 4.387 MPa | 4.108849837 MPa | -6.34% |
+| IV pellets | p Central | 4.361 MPa | 4.100878876 MPa | -5.96% |
+| IV pellets | p Bottom (pellet zone) | 0.694 MPa | 0.527710946 MPa | -23.96% |
+| VII freeswelling | e_top(240 d) | 1.133733045619561 | 1.1095731701342197 | -2.13% |
+| VII freeswelling | e_mean(240 d) | (1.1090576627995685 new; no reconciled linear mean quoted) | 1.1090576627995685 | — |
+
+(The magnitude ordering of the drops — IV pellet-zone bottom largest, VII
+smallest — matches the 2026-08-25 bias-size prediction by operating dry
+density; % changes are computed against the linear-K values as quoted in the
+2026-08-24 closeout, 3-4 s.f.)
+
+Convergence caveats that must travel with these numbers (measured, both
+rounds): III is near-plateau at 200 d but the Top probe still creeps mildly
+(+0.55% over the last 50 d) — a real slow transient; report the 200 d value
+as the benchmark-horizon number, not a strict asymptote. IV Top/Central are
+dead flat; the Bottom (pellet-zone) probe equilibrates JUST AT the 200 d
+reporting date under log-linear K (plateau ~180-200 d, within 0.17% of the
+400 d asymptote ~0.5268 MPa; under linear K it was flat since 100 d — a
+physics finding, not an error; tightened-numerics rerun moved all probes
+<0.04%). VII's 240 d value is by construction the end-of-unload-ladder
+state (0.4 MPa rung), not an equilibrium plateau — same convention as
+before, unchanged.
+
+**SUPERSEDED (kept as history, per §6.3/§11 — never deleted):** the
+2026-08-17/18 linear-K headline set — III 2.192/2.184/2.170 MPa (entry 15
+and the 2026-08-24 closeout), IV 4.387/4.361/0.694 MPa (the closeout's
+first-ever full IV T/C/B extraction; entry 23's sweep values likewise), VII
+e_top = 1.13373 — is SUPERSEDED by the table above. Those entries stay in
+this file as the historical record of the linear-K era; do not cite them as
+current.
+
+**ctest:** the three gating references re-baselined per the section above
+(III ts_880 md5 4e3228d44dd5398f0d244823ccabe29b, IV ts_577 md5
+7b404973b1c0ddb99a4cc2a1f42ebe7d, VII ts_883 md5
+e1cafac2a3cd079d78074b10b2ae3ce2 — each verified identical to its
+double-verified authoritative VTU from the Verify phase; old references
+git-mv'd to `superseded_references_2026-08-26/`, IV's old ts_2993 md5
+ae01589ae8aa9442bcb81eb5c75a4592 confirmed intact against git HEAD).
+[Correction 2026-08-26: an earlier draft of this entry claimed IV's new
+reference was "md5-identical to the previously committed reference" — wrong;
+old and new necessarily differ (linear vs log-linear physics), as the md5s
+above show.] Doc edits + reference swap UNCOMMITTED pending Vinay's review.
+Full ctest sweep (-R RichardsMechanics, maxwell_floor_20260619 build at
+-49-gbed3e395, completed 2026-08-26 16:15, 510 s wall): **108/111 PASS,
+including all 6 ANCHORS_MS33 tests** (III/IV/VII against the rebaselined
+log-linear references; Model I dd1400/1600/1800 unchanged — frozen-K path
+regression-confirmed untouched). The 3 failures are one pre-existing broken
+registration, unrelated to this landing: the constbc chain
+(double_porosity_swelling_RM + dsm_micromacro_constbc reference-time +
+vtkdiff) all die at parse time on the unloadable patch file
+double_porosity_swelling_dsm_micromacro_constbc.xml — the exact breakage
+recorded 2026-08-12 ("constbc still broken AND registered",
+[[project_beacon_ctests_restored_2026-08-12]]); physics never starts, and
+double_porosity_swelling_RM.prj carries no augmentation-potential tag at
+all, so the interpolation change cannot reach it. Pre-existing, noted, not
+claimed as ours (CLAUDE.md §6.5).
+
+**Binary provenance:** shared-library build — `bin/ogs` bytes unchanged
+(md5 cea9d7d81972f732385b41a71e50f20e); the physics change lives in
+`lib/libRichardsMechanics.dylib` (md5 000f22d459f224197e058b9b9c6585d0);
+`ogs --version` stamps `-49-gbed3e395` (non-dirty).
+
+**Still open, NOT touched by this landing:** dd900's uncalibrated cell
+(`ms33_modelI_dd900.prj`, entry 21) — separate item, unaffected: this
+session's investigation confirmed dd900.prj is not wired into any live PRJ's
+K-table (the live tables carry the RATIFIED 4367.2277 dd900 knot from entry
+16, which is independent of that file). VII's authoritative VTU parent
+folder carries a `_diagnostic` suffix — §6.8 status rename is Vinay's call
+before any promotion.
+
+---
+
 ## ufz/master rebase (2026-08-27) — DONE, and `constbc` ctest de-registered
 
 Rebased `dsm_native_maxwell_conjugate` (101 commits ahead of a 2026-06-01
