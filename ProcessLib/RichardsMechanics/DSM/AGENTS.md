@@ -2502,3 +2502,111 @@ available this session — its config and `~/thm-lit/` script are both gone,
 see [[reference_lit_mcp_ogs_source]]) and chose de-registration: the
 run+vtkdiff test pair removed outright rather than reconstructed. ctest
 `ANCHORS_MS33|dsm_micromacro` now 19/19 (was 19/21).
+
+---
+
+## Reconciliation with origin's log-linear/dd900 work + full-suite sweep (2026-08-27)
+
+`origin/dsm_native_maxwell_conjugate` had moved 5 commits past the pre-rebase
+tip while this session's `ufz/master` rebase was in progress (df06b01e1c,
+82f5d878ef, bed3e395da "log-linear K(rho_d) interpolation", e7c369ea29
+"rebaseline III/IV/VII to log-linear", e8616cebba "dd900 fix"), pushed to all
+four remotes (origin/github/ogs-2/vgk2, verified identical). Rather than
+force-pushing over that work, replayed those 5 commits on top of the
+ufz/master-rebased tip in a fresh worktree; 3 AGENTS.md worklog-append
+conflicts, purely additive, both branches' entries kept in full. VERIFIED:
+every non-AGENTS.md file origin touched is byte-identical to origin's own
+final state (zero-line diff); every file neither side touched matches the
+ufz/master-rebased tip exactly (diff --stat scoped to precisely origin's
+15-file footprint, nothing else moved). Reference VTU md5s for the
+log-linear-rebaselined III/IV/VII cross-checked against the values origin's
+own AGENTS.md entry documents — exact match.
+
+Running the full `RichardsMechanics` ctest suite (90 tests, not just the
+narrower `ANCHORS_MS33|dsm_micromacro` subset used earlier) surfaced 7
+failures, none DSM-related:
+- 5x `ThermoRichardsMechanics/MFront/BentoniteBehaviourGeneralMod/*`: a build
+  gap, not a code issue — the `OgsMFrontBehaviourBentoniteGeneralModForCTestsOnly`
+  MFront library target was never built (only `ogs`+`vtkdiff` had been). Built
+  it; 4/5 resolved immediately.
+- `RichardsMechanics/double_porosity_swelling-omp`: resolved on retest — an
+  intermittent `-j`-related write race, the pre-existing class documented in
+  [[project_beacon_ctests_restored_2026-08-12]] ("ctest race worth knowing").
+- 2 genuine failures remained: `DoubleStructureBenchmark/double_porosity_swelling_RM`
+  (`PreConsolidationPressure`, tol abs=2e-6/rel=0, measured L1 norm 2.86e-6)
+  and `BentoniteBehaviourGeneralMod/1d_column_resaturation` (`material_state_variable_em_ip`,
+  tol abs=1.2e-14/rel=0.0, measured max norm 1.22e-14). Initial read (tiny,
+  near-machine-epsilon tolerances) suggested benign toolchain ULP drift, the
+  same class as the precedented `45ea35b9c9` fix — WRONG for the first one.
+
+**Full characterization before touching anything (per CLAUDE.md — no silent
+reference refresh over an unexplained divergence):** field-by-field vtkdiff
+across all 13 timesteps for `double_porosity_swelling_RM` showed the real
+picture — `PreConsolidationPressure` differs by a near-constant ~1.5e-6 at
+EVERY timestep including t=0 (consistent with an IC-level offset in `pc0`,
+propagating unchanged through a run where `EquivalentPlasticStrain`=0
+throughout, i.e. never enters the plastic regime), but `pressure`, `sigma`,
+`swelling_stress`, `micro_pressure`, `saturation`, `micro_saturation` diverge
+SUBSTANTIALLY at late timesteps (pressure abs max norm 9.37e7 Pa,
+saturation abs max norm 0.0495 — ~5% — at t=100000s). Not ULP noise.
+
+**Root-cause isolation:** built the original pre-rebase tip (tag
+`archive/dsm_native_maxwell_conjugate_pre_ufz_rebase_2026-08-27`, commit
+`b6495c01ec`) in a separate worktree+build and ran this one test in
+isolation. CONFIRMED byte-for-byte identical divergence
+(pressure abs max norm `9.365735157209921e+07`, saturation
+`4.954515491739131e-02` — exact digit match) on the ORIGINAL branch, before
+any of today's `ufz/master` rebase or origin-reconciliation work. This
+divergence is provably pre-existing and unrelated to anything in this
+session; the reference VTUs were set once at test creation (`33b51bd0ce`,
+never regenerated) and have apparently been stale for a long time,
+undetected because no session had run the full `RichardsMechanics` suite
+(only the narrower DSM subset) until today.
+
+**Decision (Vinay, 2026-08-27):** since MS33's own physics is independently
+verified (bitwise-identical to the pre-rebase tip for the unaffected models,
+and matching origin's documented log-linear re-baseline exactly for
+III/IV/VII), and this divergence is confirmed pre-existing and unrelated to
+DSM, refresh both references against the current build's own output and
+push. Refreshed 13 `double_porosity_swelling_t_*.vtu` files (all timesteps
+the test's `<test_definition>` regex matches) and the 9 committed
+`bentonite_column_ts_*.vtu` files (matched 1:1 by exact filename against the
+fresh 120-timestep run — NOT all 120 added as new references, only the
+already-tracked 9 refreshed, so test coverage is unchanged). Both pass after
+refresh; full 90-test `RichardsMechanics` suite re-run clean.
+
+**OPEN, not resolved here — flagged for Vinay:** refreshing makes these two
+stock (non-DSM) regression tests internally consistent with current code
+again; it does NOT establish that the current Modified-Cam-Clay
+double-porosity-swelling behavior, or the MFront Bentonite behaviour's
+`material_state_variable_em_ip` evolution, is itself correct. A 9.4e7 Pa /
+~5% divergence from a reference nobody has touched since the test was
+created is a real, previously-undetected discrepancy of unknown origin
+(somewhere in this branch's full multi-month history, well before today) —
+worth a dedicated look, not something this refresh should be read as having
+resolved.
+
+**KNOWN FLAKY, not fully resolved — `bentonite_column-LARGE-omp`
+(1d_column_resaturation):** the reference refresh above (field
+`material_state_variable_em_ip`, tol abs=1.2e-14) is solid in isolation, but
+re-running the full 90-test `RichardsMechanics` suite (`ctest -j4`) surfaced
+a DIFFERENT field (`eM`, tol abs=1.4e-14, measured 1.73e-14) failing this
+time. Isolated a genuine cause, not reference staleness: two concurrent runs
+of just this test (8 threads total, `OMP_NUM_THREADS=4` each) are
+bitwise-identical to each other, and two reference-generation runs at
+`OMP_NUM_THREADS=4` vs the ctest default (unset, falls back to 10) are ALSO
+bitwise-identical — so it isn't simple OMP nondeterminism or a thread-count
+mismatch. The one condition that reproduces it is ctest's own `-j4` full-suite
+run, where up to 4 concurrent test processes each want the default 10 OMP
+threads (~40 requested on 10 physical cores) — genuine floating-point
+reordering from OpenMP's dynamic scheduling under real oversubscription,
+which no single committed reference can pin down (a different two runs under
+that same contention could disagree on a different field). This test carries
+several fields at near-machine-epsilon tolerances (1.2-1.4e-14) that are
+fragile under contention — the same class this codebase has relaxed tolerances
+for before (`a9e79588e0`, `3aa7868e2b`). Vinay's call (2026-08-27): push with
+this noted as a known, pre-existing, load-dependent flake — unrelated to DSM,
+unrelated to today's rebase/reconciliation, not blocking. A durable fix would
+mean relaxing the tolerance to the contended noise floor, which needs an
+explicit tolerance-literal approval (CLAUDE.md §3) and is left for a
+dedicated follow-up, not this session.
