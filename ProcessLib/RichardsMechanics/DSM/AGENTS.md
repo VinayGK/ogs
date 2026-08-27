@@ -2198,3 +2198,37 @@ canonical JSON/figures — pending): the old committed reading used frozen K
 (103879 bentonite / 20600 pellet); today's live-K, both-zones-shared-table
 result at 160x is a materially different number and needs the same
 figure/JSON refresh already done for III and VII.
+
+---
+
+## ufz/master rebase (2026-08-27) — DONE, and `constbc` ctest de-registered
+
+Rebased `dsm_native_maxwell_conjugate` (101 commits ahead of a 2026-06-01
+merge-base) onto `ufz/master` tip `3dc22ab825` (2026-08-26; 443 upstream
+commits). 5 mechanical conflicts resolved (test registration, 2 worklog-doc
+merges, 1 solver-config line, 1 comment); one real regression found and
+fixed with Vinay's approval — a plain `git rebase` replays only non-merge
+commits, so the 2026-08-11 merge commit's own unique fix (analytic-Jacobian
+lambda using the live-K `effectiveAugmentationPrefactor` call instead of the
+stale parse-time scalar, at `RichardsMechanicsFEM-impl.h` inside
+`evaluate_analytic_jacobian`) was not replayed; restored verbatim, commit
+`ae15b57eb9`. VERIFIED: all 6 MS LE gating benchmarks (dd1400/1600/1800,
+ModelIII gapswitch, ModelIV pellets, ModelVII freeswelling) bitwise-identical
+between the pre-rebase tip and the rebased+fixed tip, every output timestep,
+every field (`scripts/dsm/compare_vtu_bitwise.py`). `dsm_native_maxwell_conjugate`
+fast-forwarded to `ae15b57eb9` (old tip preserved at tag
+`archive/dsm_native_maxwell_conjugate_pre_ufz_rebase_2026-08-27`); canonical
+binary rebuilt and re-verified identical after promotion.
+
+DONE 2026-08-27 (Vinay's call): `RichardsMechanics_double_porosity_swelling_dsm_micromacro_constbc_reference`
+de-registered from `Tests.cmake` (had been failing since before this rebase —
+see [[project_beacon_ctests_restored_2026-08-12]], "half-port" of `cc68e104c9`,
+never had a `Tests/Data` payload on this branch). The old payload recovered
+from history (`c061b6d21c`) uses an obsolete `<mode>full_potential</mode>`
+tag the 2026-05-12 scaffolding cleanup (`45ea35b9c9`) removed from the
+`<potential_exchange>` schema entirely — restoring it verbatim would not
+parse. Vinay declined a literature-sourced schema redesign (no `lit` MCP
+available this session — its config and `~/thm-lit/` script are both gone,
+see [[reference_lit_mcp_ogs_source]]) and chose de-registration: the
+run+vtkdiff test pair removed outright rather than reconstructed. ctest
+`ANCHORS_MS33|dsm_micromacro` now 19/19 (was 19/21).
