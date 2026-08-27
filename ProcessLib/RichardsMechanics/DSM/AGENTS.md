@@ -2402,6 +2402,75 @@ before any promotion.
 
 ---
 
+## 2026-08-27 — dd900 file defects CLOSED; closure verification EXPOSED a 900-knot fit contamination — OPEN(Vinay)
+
+### 26. DONE 2026-08-27 — dd900.prj file-level defects fixed (Vinay: "fix dd900 and close it"); entry 21 / CLOSE-F1 closed
+
+Fixes applied to `Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/ms33_modelI_dd900.prj`:
+- K: stale 103879.0 (dd1600's fit, copy-pasted in error — entry 17) replaced by
+  **4367.227700212952 J/kg**, byte-identical to the live table's ratified 900-knot
+  (entry 16), per §6.7.2 cross-artifact consistency. Approved by Vinay's instruction
+  2026-08-27; of the two candidate fits the file header named, the Option-C pair is
+  the only one consistent with the shipping suite (K=4904.66 under sigma0=-1.5e5
+  rejected on §6.7.2 grounds).
+- sigma0: -1.5e5 Pa -> **0** (the Option-C convention the ratified K was fit under,
+  matching registered siblings dd1400/dd1600/dd1800 — verified all three carry
+  sigma0=0).
+- n_s was already correct (0.3237410071942446, fixed 2026-08-18, entry 17).
+- Header: top-of-file *** warning converted to a RESOLVED record (history kept);
+  §12.2 block completed (fitted K + approval + verification result). xmllint clean.
+
+### 27. OPEN(Vinay) 2026-08-27 — the ratified 900-knot was fit under the WRONG n_s; re-fit decision cascades to III/IV/VII
+
+**Measured, this closure's verification runs (binary maxwell-conjugate-20260602,
+-49-gbed3e395; scratch copies of the fixed file; 311/311 steps where converged):**
+1. Fixed cell (correct n_s=0.3237, K=4367.2277, sigma0=0):
+   **Ps(200 d) = 0.0832263235 MPa** — NOT the ratified Dixon target 0.3500522009 MPa
+   (factor ~4.2 low).
+2. Same cell with dd1600's WRONG n_s=0.575540 reinstated (diagnostic only):
+   Ps(200 d) = 0.3500567318 MPa — reproduces the 2026-08-17 calibration record's
+   Ps_sim (0.35005651410120814) to **6.2e-7 relative**. The 2026-08-17 K fit is
+   thereby CONFIRMED to have run under dd1600's n_s (the n_s copy-paste bug found
+   2026-08-18, entry 17, predates the fix but postdates the fit).
+3. Re-fit bracketing under the correct n_s, tracked-file numerics (min_dt=0.1):
+   K=18500 -> Ps=0.3506348402 (+0.17% vs target, converged); K=18700 -> 0.3544102899;
+   K=18900 -> 0.3581837326. The exact-target K (~18470 by local secant) sits in a
+   narrow numerically fragile band: K=18342.356341 converged ONCE (Ps=0.3476578182)
+   then failed twice on repeat (non-deterministic), K=18468.9 diverged, and a
+   min_dt=1e-4 relaxation diverged at t=1.894e6 s (just past ramp-end) even at
+   K=18342. NOT chased further — adjusting numerics to force a fit through a
+   fragile band is solver-level patching of what may be a physics-regime issue.
+
+**Consequences (labeled):**
+- MEASURED: the dd900 cell cannot simultaneously carry the correct n_s and the
+  ratified K and hit the Dixon target.
+- FILE FACT: Model IV's pellet zone (medium 1) carries the CORRECT n_s=0.3237 and
+  uses the contaminated 900-knot -> its low-density anchor under-delivers the Dixon
+  0.35 MPa target by ~4x at rho_d=900 (cell-level; the coupled-model magnitude is
+  NOT quantified here — predicted direction only). III/VII carry n_s=0.5755
+  (correct for their rho_d=1600 zones) but operate INSIDE the 900-1400 segment
+  (III ~1337-1363, VII ~1295-1310), so their interpolated K also samples the
+  contaminated knot — predicted sensitivity, not quantified.
+- CLEAN: dd1400/1600/1800 fits each carry their own correct n_s (verified) — the
+  1400/1600/1800 knots are uncontaminated.
+- CORRECTION to entries 25/close-out phrasing: "dd900 is not wired into any live
+  PRJ" remains true as a FILE-wiring statement, but the VALUE contamination does
+  propagate to the live tables — the earlier "zero live consequence" framing was
+  under-scoped.
+
+**Decision needed (Vinay) — none taken:** (a) re-fit the 900-knot under correct
+n_s (candidate ~18470-18500; needs the fragile-band question resolved first) and
+re-run III/IV/VII (headline numbers move again); (b) re-ratify the current knot
+under a revised rationale (e.g. as an effective parameter absorbing the n_s
+convention, documented as such); or (c) another route. Until ruled: the live
+tables and dd900.prj consistently carry 4367.227700212952 with the contamination
+documented in both this entry and the dd900.prj header.
+
+Re-fit bracketing record: scratchpad `dd900_close_run/refit/` (session-local,
+diagnostic; the numbers above are the durable record).
+
+---
+
 ## ufz/master rebase (2026-08-27) — DONE, and `constbc` ctest de-registered
 
 Rebased `dsm_native_maxwell_conjugate` (101 commits ahead of a 2026-06-01
