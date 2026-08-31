@@ -63,10 +63,18 @@ Dry density: 900 kg/m³  (9 kN/m³)  |  phi0 = 0.676259  |  n_s = 0.323741
     /private/tmp/claude-501/.../scratchpad/dd900_refit/ (session-local,
     diagnostic, not committed — durable record is this header + DSM/AGENTS.md).
     K = 18469.144929 J/kg ADOPTED below. Full record: DSM/AGENTS.md
-    2026-08-28 entry. CASCADE, predicted not yet verified: III/IV/VII share
+    2026-08-28 entry. CASCADE, predicted not yet verified (recorded
+    2026-08-28, kept verbatim as history): III/IV/VII share
     this 900-knot in their live K(rho_d) tables (see their own <prefactors>)
     — their headline numbers WILL move once re-run; not yet re-run as of
     this edit.
+    CASCADE DONE 2026-08-31, commits 2c066ce187 (Models III and VII) and
+    7ec39ecf4c (Model IV): all three shipping decks now carry this 900-knot in
+    their live K(rho_d) tables, each was re-run and cross-validated bit-for-bit
+    against an independently recovered 2026-08-28 run, and each ctest reference
+    VTU was rebaselined (III ts_880 to ts_888, VII ts_883 to ts_920, IV ts_577
+    to ts_21500). The post-cascade values are MEASURED and recorded in
+    DSM/AGENTS.md entries 29 (III, VII) and 30 (IV).
 This is NOT the REFERENCE CONFIGURATION dry density (that is dd1600).
 
 Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_parameters):
@@ -101,10 +109,16 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                        correct n_s=0.3237410071942446, sigma0=0, tracked numerics (min_dt=0.1),
                        against the SAME Dixon (2023) target 0.3500522009 MPa this file already cites
                        — log-linear secant bracketing, MEASURED Ps(200 d)=0.3500522010 MPa
-                       (+0.00000%), verified byte-identical across 3 independent runs. CASCADE:
+                       (+0.00000%), verified byte-identical across 3 independent runs. CASCADE
+                       (recorded 2026-08-28, kept verbatim as history):
                        III/IV/VII's live K(rho_d) tables share this 900-knot — predicted, not yet
                        verified, to move their headline numbers once re-run (not done as of this
-                       edit). Superseded value, kept for lineage (was itself RATIFIED 2026-08-17,
+                       edit). CASCADE DONE 2026-08-31, commits 2c066ce187 (III, VII) and
+                       7ec39ecf4c (IV): all three adopted this 900-knot, were re-run and
+                       cross-validated bit-for-bit against an independently recovered 2026-08-28
+                       run, and had their ctest reference VTUs rebaselined; see DSM/AGENTS.md
+                       entries 29 and 30.
+                       Superseded value, kept for lineage (was itself RATIFIED 2026-08-17,
                        approved Vinay 2026-08-27 "fix dd900 and close it", then found contaminated
                        same day): 4367.227700212952 J/kg. Calibration record for the superseded
                        value: _calib_result_dd900.json in the runs/2026-08-17_0325 snapshot (its own
@@ -196,10 +210,17 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
                      (min_dt=0.1), against the same Dixon (2023) target
                      0.003*exp(5.2883*0.9)=0.3500522009 MPa. MEASURED Ps(200 d)=0.3500522010 MPa,
                      verified byte-identical across 3 independent runs. J/kg.
-                     CASCADE (predicted, not yet verified): III/IV/VII's live K(rho_d) tables
+                     CASCADE, recorded 2026-08-28 and kept verbatim as history
+                     (predicted, not yet verified at that date): III/IV/VII's live K(rho_d) tables
                      (<prefactors> in ms33_modelIII_gapswitch.prj etc.) share this 900-knot and
                      have NOT yet been updated/re-run to match — do that before citing their
-                     current headline numbers as consistent with this file. -->
+                     current headline numbers as consistent with this file.
+                     CASCADE DONE 2026-08-31, commits 2c066ce187 (Models III and VII) and
+                     7ec39ecf4c (Model IV): all three now carry this 900-knot in their live
+                     K(rho_d) tables, each was re-run and cross-validated bit-for-bit (max abs
+                     and rel diff = 0.0) against an independently recovered 2026-08-28 run, and
+                     each ctest reference VTU was rebaselined. Full record: DSM/AGENTS.md
+                     entries 29 (III, VII) and 30 (IV). -->
                 <potential_augmentation_prefactor>18469.144929</potential_augmentation_prefactor>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
                      (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
@@ -389,7 +410,20 @@ Official benchmark specs (MSXX theoretical_benchmarking.tex, Table TH-G_model_pa
              NOT the convention the ratified dd900 K was fit under and does not match the
              registered siblings dd1400/dd1600/dd1800 (all sigma0=0). K and sigma0 form a
              convention pair: K=4367.227700212952 was fit under sigma0=0 (calibration record
-             _calib_result_dd900.json, runs/2026-08-17_0325 snapshot), so sigma0=0 travels with it. -->
+             _calib_result_dd900.json, runs/2026-08-17_0325 snapshot), so sigma0=0 travels with it.
+             STILL VALID AFTER THE 2026-08-28 RE-FIT; annotation added 2026-08-31. The sentence
+             above names the SUPERSEDED K only because it was written on 2026-08-27, one day
+             before the re-fit; it is kept per the never-erase rule. The K now live in this file
+             (18469.144929 J/kg, at potential_augmentation_prefactor above) was ALSO fit under
+             sigma0=0, so the convention pair is unbroken and sigma0 stays 0. Source, quoted from
+             this file's own header as landed in commit 2c066ce187: the top-of-file RE-FIT
+             RESOLVED 2026-08-28 block, "Re-derived K under correct n_s=0.3237, sigma0=0, this
+             file's own tracked numerics (min_dt=0.1)"; and the CLAUDE.md 12.2 provenance block,
+             "Re-derived under this file's own correct n_s=0.3237410071942446, sigma0=0, tracked
+             numerics (min_dt=0.1)". Corroborated by DSM/AGENTS.md entry 28, which records the
+             sweep as run on "tracked-file numerics (min_dt=0.1)" and the final measurement as
+             taken on "the final tracked dd900.prj file after editing" (that file already carried
+             sigma0=0, set the previous day in commit 642a8f867a). -->
         <parameter><name>sigma0</name><type>Function</type>
             <expression>0</expression><expression>0</expression>
             <expression>0</expression><expression>0</expression>

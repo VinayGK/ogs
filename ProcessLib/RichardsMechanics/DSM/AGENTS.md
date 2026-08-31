@@ -2830,3 +2830,520 @@ earlier, not merely within-tolerance agreement — the strongest reproducibility
 given ctest is not registered in this build. The III/IV/VII corrected-K cascade opened in entry
 29 is now complete. Deliverable-side propagation and the push to any remote remain separate,
 not-yet-taken steps (this commit, like entry 29's, is local-only per instruction).
+
+---
+
+## 2026-08-31 — Doc correction: K_OF_RHO_D_LIVE.md aligned with the log-linear live-K scheme
+
+### 31. DONE 2026-08-31 — K_OF_RHO_D_LIVE.md brought in line with commit 1bb414ac05 (doc-only)
+
+Code-review finding #8: entry 24's landing (commit 1bb414ac05, 2026-08-26) updated this
+worklog and the code but left `DSM/K_OF_RHO_D_LIVE.md` specifying the live value as the
+K-linear `getValue` and the live Jacobian tangent as the per-segment-CONSTANT
+`getSegmentSlope`, contrary to CLAUDE.md §8. Confirmed at HEAD 7ec39ecf4c: the doc's last
+commit is b7d7e44c32 (2026-06-12), and 1bb414ac05 touched only AGENTS.md,
+PotentialExchangeParameters.h and StrainedFilmPotential.cpp.
+
+Fix, DOCUMENTATION ONLY — no source, test, PRJ or VTU file touched. A full sweep of the
+document found five stale passages, not just the one the review cited: the Implementation
+helper name plus its clamp attribution; the "LINEAR ... Vinay's call pending" provisional
+bullet; both dated verification blocks (test names 1bb414ac05 renamed); and the
+`dK/drho_d = getSegmentSlope` chain bullet. All five are annotated `[HISTORICAL ...]` in
+place per §6.3 — nothing deleted — each pointing at a new closing section "Interpolation
+scheme: LOG-LINEAR (Vinay's decision 2026-08-26, commit 1bb414ac05)", and a READ-FIRST
+pointer to it was added at the top. That section states the shipped live value
+`K(x) = K_l*exp(t*ln(K_r/K_l))` [J/kg], the shipped live tangent
+`dK/drho_d = K(rho_d)*ln(K_r/K_l)/(x_r-x_l)` [(J/kg)/(kg/m^3)] and
+`dK/dphi = -rho_SR*dK/drho_d` [J/kg per unit phi] — each re-read from
+`PotentialExchangeParameters.h` and from both live-K Jacobian blocks in
+`RichardsMechanicsFEM-impl.h` (`dK_dphi_pu`, `dK_dphi_sw`), not taken from the review —
+and records what did NOT change (the K-linear pair still serving the parse-time frozen-K
+path; `mu_aug` still linear in K). No numeric literal was introduced (§1.1 did not fire);
+nothing was built or run for this entry, so no runtime or test-status claim is made (§5),
+and the two blocks' historical pass counts are explicitly not re-asserted.
+
+Also fixed while sweeping: "Analytic tangent completion" (2026-06-12) names only the p-u
+Jacobian block; the new section records that the 2026-06-14 swelling-eigenstress block
+carries the same live-K chain.
+
+Left for whoever owns the source files: at HEAD the inline comments at
+`PotentialExchangeParameters.h:425` and `RichardsMechanicsFEM-impl.h:5040` still write
+dK/dphi as `-rho_SR*(table segment slope)`. Source edits were out of scope for this
+doc-only entry.
+
+**ANNOTATIONS 2026-08-31 (code-review round 2).** The entry text above is left exactly as
+written (§6.3/§6.4); the three items below — two corrections and one closure — are appended
+beside it, not edits to it.
+
+- **Scope reconciled — "DOCUMENTATION ONLY" is true of this entry, false of the commit it
+  will land in.** "Fix, DOCUMENTATION ONLY — no source, test, PRJ or VTU file touched"
+  describes entry 31's own edits accurately. It does NOT describe the uncommitted tree those
+  edits sit in. That tree (HEAD `7ec39ecf4c`, 12 modified files) also carries: the
+  `PotentialExchangeParameters.h` refactor and its interior-knot node-preservation branch; a
+  new parse-time `<prefactors>` positivity guard in `CreateRichardsMechanicsProcess.cpp`; the
+  SCHEME comment in `RichardsMechanicsFEM-impl.h`; 13 new assertions plus one new test in
+  `Tests/ProcessLib/RichardsMechanics/StrainedFilmPotential.cpp`; the Model IV `RUNTIME`
+  change in `ProcessLib/RichardsMechanics/Tests.cmake`; and comment-only provenance
+  annotations in five MS33 PRJs. None of that was in this worklog, which is the authoritative
+  tracker for all of it (`Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIV/AGENTS.md` is a
+  stub pointing here). It is entered below as entries 32-37; entry 38 records what was
+  deliberately NOT touched.
+
+- **DONE 2026-08-31 — "Left for whoever owns the source files" is CLOSED.** Both stale inline
+  comments are corrected in this working tree. Checked 2026-08-31 by reading HEAD and the
+  working tree side by side: at `7ec39ecf4c` the wording `-rho_SR*(table segment slope)`
+  stands at `PotentialExchangeParameters.h:425` and `RichardsMechanicsFEM-impl.h:5040`,
+  exactly as this entry recorded; in the working tree that phrase occurs in no source file at
+  all (`grep` over `ProcessLib/` and `Tests/` returns only this worklog — the 2026-06-12 line
+  ~313, which is the correct record of that date and stays, and this entry's own sentence).
+  The corrected text is the dK/dphi paragraph at `PotentialExchangeParameters.h:540-552` and
+  the SCHEME note at `RichardsMechanicsFEM-impl.h:5053-5069`, with a pointer to it from the
+  swelling-eigenstress block at 5241-5243; both now write
+  dK/dphi = -rho_SR*K(rho_d)*ln(K_r/K_l)/(x_r-x_l), proportional to the local K rather than a
+  per-segment constant. Recorded in entry 32.
+
+- **"All five are annotated `[HISTORICAL ...]` in place — nothing deleted": four of the five
+  were.** The fifth — the Implementation section's first-cut helper bullet plus its clamp
+  attribution in `K_OF_RHO_D_LIVE.md` — was REWRITTEN in place instead: the sentence
+  "`MathLib::PiecewiseLinearInterpolation::getValue` HOLDS the endpoint values outside
+  `[rho_d_min, rho_d_max]` (verified in ...)" occurred nowhere in the file afterwards, and its
+  "verified in" record had been softened to "read in". Confirmed 2026-08-31 against
+  `git show HEAD:ProcessLib/RichardsMechanics/DSM/K_OF_RHO_D_LIVE.md`. Resolution taken: the
+  §6.3-preferred one — RESTORE rather than weaken the claim. The first-cut bullet and clamp
+  paragraph are back in the file byte-for-byte beside the new text, inside a
+  `[HISTORICAL ...]` block, and "verified in" is restored as written, because the original did
+  record a verification and that verification still holds: `getValue`'s two clamp branches
+  were re-read in `MathLib/InterpolationAlgorithms/PiecewiseLinearInterpolation.cpp` on
+  2026-08-31 and are unchanged. With that restoration the sentence above is true of the file
+  as it now stands; it was not true when written. Recorded in entry 37.
+
+---
+
+## 2026-08-31 — code-review rounds 1 and 2: the rest of the uncommitted batch entered in the worklog (§8 gap closed)
+
+Entries 32-38 close the §8 gap named in the annotations to entry 31. Everything below is
+UNCOMMITTED working-tree state on top of HEAD `7ec39ecf4c` (which is itself already pushed to
+three remotes): nothing here was committed, staged or pushed. **No MS33 simulation and no MS33
+ctest was run in either round** — where a consequence for the III/IV/VII reference VTUs is
+stated below it is PREDICTED from a bitwise-equivalence sweep of the table accessors, never
+verified by a run (§5).
+
+### 32. DONE 2026-08-31 — AugmentationPrefactorTable put on one segment lookup; interior-knot node preservation made bit-exact
+
+`ProcessLib/RichardsMechanics/PotentialExchangeParameters.h`. The clamp + `lower_bound`
+interval selection that stood copied out in three accessors is now one private helper,
+`locateSegment()` (returning `std::nullopt` exactly where `getValue()` would return a clamped
+endpoint), with a `Segment` struct carrying `x_l, x_r, K_l, K_r`, and a private static
+`logLinearValueOnSegment(Segment, t, r)`. `getSegmentSlope()`, `getValueLogLinear()` and
+`getSegmentSlopeLogLinear()` all route through them; `getSegmentSlopeLogLinear()` now
+evaluates its segment ONCE (one lookup, one `std::log`, one `std::exp`) instead of re-entering
+`getValueLogLinear()`. `getValue()` itself is untouched — it lives in the MathLib base class,
+is non-virtual, and is neither overridden nor shadowed.
+
+**One deliberate behaviour change: node preservation at an INTERIOR knot.**
+`logLinearValueOnSegment()` returns the STORED knot value at `t == 1` (and `t == 0`) rather
+than evaluating `K_l*exp(t*ln(K_r/K_l))` there. `lower_bound` places an exact interior knot in
+the LEFT segment at `t == 1`, where that round-trip can land ~1 ULP off `K_r`; a boundary knot
+is unaffected either way, since it returns through the endpoint-hold clamp, which contains no
+logarithm.
+
+**Equivalence evidence (MEASURED this session, quoted as measured).** An old-vs-new sweep of
+the accessors over five tables — the shipped 4-knot table, the superseded 4-knot table, the
+shipped 2-knot table and both unit-test tables — at ~95k-102k samples each: ZERO bitwise
+differences in `getSegmentSlope`, `getValueLogLinear` and `getSegmentSlopeLogLinear`. The only
+change anywhere in the sweep is on the SUPERSEDED `4367.2277` table:
+`getValueLogLinear(1400)` `45999.999999999993` -> `46000`, and `getSegmentSlopeLogLinear(1400)`
+`216.61519437040712` -> `...715` (quoted verbatim from the sweep report). An independent audit
+rebuilt the comparison in a standalone harness and confirmed `getSegmentSlope` bit-identical
+old-vs-new at every probe on every table, including 2-knot and degenerate 1-knot cases.
+
+**The defect the branch removes was LATENT, not live.** The table shipped at `7ec39ecf4c`
+round-trips bit-exactly at all four of its knots (measured 2026-08-31), so no shipped run was
+ever affected. Entry 24's landing-audit sentence "1400 low by 1 ULP, rel 1.6e-16" describes
+the PRE-cascade table — the superseded 900-knot pair — and stands as that record.
+
+**Comment corrections in the same file** (no code affected): the class rationale now names
+both value/slope pairs and says which one the LIVE path uses, keeping its original
+`getDerivative`-blending origin story as an explicitly labelled HISTORICAL paragraph; the
+`dK/dphi` block is corrected as recorded in the entry-31 annotation above, and now also names
+BOTH Jacobian call sites rather than one (`RichardsMechanicsFEM-impl.h` lines 5052, the p-u
+augmentation exchange tangent, and 5223, the displacement-side swelling-eigenstress tangent,
+line numbers at `7ec39ecf4c`); the log-linear pair carries the strictly-positive precondition
+(entry 33); and the call-site census is recorded — `getValue()` on this table has exactly ONE
+production caller, the parse-time frozen-K resolution in `CreateRichardsMechanicsProcess.cpp`,
+while `getSegmentSlope()` has NONE and is exercised only by
+`Tests/ProcessLib/RichardsMechanics/StrainedFilmPotential.cpp`. That census was re-grepped
+over `ProcessLib/` and `Tests/ProcessLib/` on 2026-08-31 for this entry and matches.
+`RichardsMechanicsFEM-impl.h` gained the SCHEME note at the live-K p-u block and a
+form/units pointer at the swelling-eigenstress block.
+
+**Consequence for the III/IV/VII ctest references: PREDICTED IDENTICAL, NOT VERIFIED.** The
+bitwise sweep is evidence that the shipped tables evaluate identically old-vs-new, which
+predicts the rebaselined reference VTUs of entries 29/30 are unaffected. No MS33 run was
+performed to confirm it, in either round (§5).
+
+### 33. DONE 2026-08-31 — parse-time strictly-positive `<prefactors>` guard; this WIDENS parser rejection. ASK(Vinay) on its scope
+
+`ProcessLib/RichardsMechanics/CreateRichardsMechanicsProcess.cpp`, in
+`parsePotentialExchangeParameters`: after the existing size check and before the table is
+constructed — while the lists are still addressable by their PRJ index — every `<prefactors>`
+entry is required to be `> 0`, and the first entry that is not raises `OGS_FATAL` naming that
+entry's index and its value and stating that the log-linear interpolant evaluates
+`ln(K_r/K_l)`.
+
+Reason, written out case by case in the source comment: the non-positive cases do NOT share
+one failure mode. `K_l == 0` gives `+inf` out of the logarithm and a NaN only one step later
+at `0*inf`; `K_l < 0` is the only case the logarithm itself catches; `K_r == 0` returns a
+clean, plausible `0` for the VALUE while poisoning ONLY the companion slope — the silent case,
+and the dangerous one; and two knots of the same negative sign produce no NaN anywhere and
+would carry a negative K straight through. Those chains were PROBED on a standalone
+transcription of `logLinearValueOnSegment` (IEEE-754 double, 2026-08-31), not on the shipped
+object, and the source comment says so.
+
+**This widens what the parser rejects**, and deliberately so: the check is not restricted to
+live mode, so a frozen-K deck carrying a zero knot used to parse and now aborts. Re-checked
+for this entry on 2026-08-31: all seven `<prefactors>` tables under
+`Tests/Data/RichardsMechanics/` are strictly positive (MS33 III/IV/VII gapswitch / pellets /
+freeswelling, plus the four `*_kofdd` / `*_livek` decks), so no deck in the tree changes
+behaviour. Not verified by execution: no deck with a non-positive knot was constructed or run,
+so "such a deck now aborts at parse time" is predicted from the code, not measured.
+
+No `<dry_densities>` monotonicity check was added and none is needed: the MathLib base
+constructor sorts the support points (carrying their values with them) and `OGS_FATAL`s on
+duplicate support points (`MathLib/InterpolationAlgorithms/PiecewiseLinearInterpolation.cpp`,
+re-read 2026-08-31).
+
+**ASK(Vinay), non-blocking (guardrail §9 row "Physics / model formulation decision" — a new
+rejection rule is a modelling-policy call, not a coding one).** Should the guard stay
+table-wide, or be restricted to live mode? Table-wide is what is implemented, on the argument
+that no tree deck uses a non-positive prefactor and the K-linear path has no legitimate use
+for one either; but only the LOG-linear path actually requires positivity, so a future
+frozen-K deck wanting a zero knot would be blocked by this. Default action if unanswered:
+leave as implemented.
+
+### 34. DONE 2026-08-31 — unit tests: 13 assertions added, one new test; what the recorded testrunner run does and does not cover
+
+`Tests/ProcessLib/RichardsMechanics/StrainedFilmPotential.cpp`.
+
+Added inside the existing `RichardsMechanicsLiveKOfRhoD.AnalyticPhiTangentClampedEdgesAndKnots`
+(9 assertions): four `EXPECT_DOUBLE_EQ` pinning `getSegmentSlopeLogLinear` = 0 at both
+boundary knots and at two strictly-outside points (a regression narrowing the `<=`/`>=` clamp
+to `<`/`>` fails here); three `EXPECT_EQ` on `getValueLogLinear` at the three structural knots;
+and the LEFT-segment one-sided convention as an `EXPECT_NEAR` against the in-file left-segment
+value, PLUS an `EXPECT_GT` asserting the right-segment candidate lies far outside the same
+tolerance — that pair is what makes the one-sided assertion discriminating against a
+`lower_bound` -> `upper_bound` regression, which changes the answer only AT a knot.
+
+New test (4 assertions): `RichardsMechanicsLiveKOfRhoD.InteriorKnotBitExactWhereRoundTripMisses`.
+Why it exists: the round-1 comment claimed the three node-preservation `EXPECT_EQ`s made node
+preservation bit-exact, but on that test's own knots {1000,1500,2000}/{10,16,30} the round-trip
+`10.0*exp(1.0*log(16.0/10.0))` equals `16.0` EXACTLY, so those assertions hold WITH OR WITHOUT
+the `t == 1` branch and pin nothing. The comment is corrected in place to say so, the three
+`EXPECT_EQ` lines are byte-identical to before (§3: supplement, never replace), and the new
+test carries the discriminating case on a knot pair whose round-trip does miss.
+
+Physics anchor (§3a): analytical limit / interpolation identity — node preservation
+K(x_i) = K_i. Literals cited per §1.1 item 3 (prior commits traceable to user-approved work):
+K(900) = 4367.227700212952 J/kg is the SUPERSEDED dd900 calibration value, on record in the
+provenance block of `ANCHORS_MS33_ModelI/ms33_modelI_dd900.prj` and in commit `642a8f867a`;
+K(1400) = 46000.0 and K(1600) = 104689.9129 J/kg are shipped table entries at `7ec39ecf4c`.
+FLAG for the record: the knots are STRUCTURAL and no physics is asserted on them — the
+superseded value is used precisely because its segment round-trip misses, whereas the shipped
+table's knots all round-trip exactly and would make the test non-discriminating.
+
+**Build and test status (MEASURED this session):** build PASS in
+`/Users/vinaykumar/git/build/maxwell_floor_20260619`; `./bin/testrunner
+--gtest_filter='RichardsMechanics*'` gave 45 tests, 43 PASSED, 2 pre-existing `GTEST_SKIP`s
+(`ExactFilmEnergyPair`, TODO(Vinay) Q3/Q4 and T-8), 0 failures; no new compiler warnings.
+
+**What that run covers, checked 2026-08-31 rather than assumed.** The `testrunner` binary
+(mtime 17:17) contains the assertion strings added inside
+`AnalyticPhiTangentClampedEdgesAndKnots` — `table.getSegmentSlopeLogLinear(500.0)`,
+`table.getSegmentSlopeLogLinear(2600.0)`, `K_interior_knot`, `expected_left_loglinear_slope` —
+so those 9 assertions were compiled in and are covered by the 43 passes. It contains NO
+`InteriorKnotBitExact` symbol, while it does contain the neighbouring test names, and the
+source (mtime 17:47) now declares 46 `TEST(RichardsMechanics*)` cases against the run's 45.
+The recorded run therefore covers the batch MINUS the new test. **The new test's pass is
+PREDICTED, NOT VERIFIED (§5)** — it has not been through the built suite. What was measured
+for it, as reported by the round-2 test pass, is different evidence: its two bit-exactness
+assertions were run against `getValueLogLinear`/`locateSegment`/`logLinearValueOnSegment` extracted verbatim into a
+standalone program and compiled twice, with and without the `t == 1` branch (fail without,
+pass with), plus a `-fsyntax-only` compile against the real header.
+
+> **UPDATE 2026-08-31, later the same session (paragraph above kept verbatim per §6.3/§6.4).**
+> Both load-bearing observations in it have been overtaken, and the caveat they supported is
+> now retired by measurement:
+>
+> - The mtime-17:17 binary it inspected no longer exists in that state. Entry 35's
+>   reconfigure-and-list step relinked `bin/testrunner` at **2026-08-31 18:06:37**, and
+>   `strings` on the current binary DOES find
+>   `RichardsMechanicsLiveKOfRhoD_InteriorKnotBitExactWhereRoundTripMisses_Test`. Verified by
+>   `ls -la` and `strings` this session. So "It contains NO `InteriorKnotBitExact` symbol" was
+>   true of the 17:17 binary and is false of the tree now.
+> - **The new test's pass is now VERIFIED, not predicted.** `./bin/testrunner
+>   --gtest_filter='RichardsMechanics*'` was re-run against the 18:06 binary (Release, Apple
+>   clang 21.0.0): **46 tests, 44 PASSED, 2 pre-existing `GTEST_SKIP`s, 0 failures**, with
+>   `[       OK ] RichardsMechanicsLiveKOfRhoD.InteriorKnotBitExactWhereRoundTripMisses`
+>   in the output. The 43-pass figure recorded above is the round-1 count, before this test
+>   existed.
+>
+> What remains harness-only, and is worded that way in the test file, is the FAILING half: the
+> pre-fix accessor going red. Reproducing that in-binary would mean removing the branch from
+> the shipped header, so it is measured in the standalone harness — where it fails both
+> interior-knot assertions at rel −1.58e-16 under Apple clang 21.0.0 and Homebrew clang
+> 22.1.8, at −O0 and −O2 each — and never claimed as a testrunner observation.
+
+### 35. DONE 2026-08-31 — Tests.cmake: Model IV RUNTIME 240 -> 10736, taken from the slowest of three measured runs
+
+`ProcessLib/RichardsMechanics/Tests.cmake`. Three runs of the identical deck
+(`ms33_modelIV_pellets.prj`), 21500 accepted / 0 rejected steps each, OGS's own timer:
+
+| wall time | date, threads | binary | log |
+| :-- | :-- | :-- | :-- |
+| 10720 s | 2026-08-28 09:02:27+0200, `OMP_NUM_THREADS=4` | ogs 6.5.8-565-gbea47887 | `cascade_refit/IV_rep1/run.log` |
+| 10735.4 s | 2026-08-28 09:02:27+0200, `OMP_NUM_THREADS=4` | ogs 6.5.8-565-gbea47887 | `cascade_refit/IV_rep2/run.log` |
+| 8666.15 s | 2026-08-31 09:23:34+0200, `OMP_NUM_THREADS=6` | `archive/dsm_native_Pi_fofnlev_branchtip_2026-08-11-49-gbed3e395` | `dd900_adopt_run_2026-08-31/IV/out/run.log` (the run quoted in entry 30) |
+
+Log roots: the two 2026-08-28 replicas sit in a session-local scratchpad
+(`.../2934957f-455c-4c8c-822d-0822f7e86487/scratchpad/cascade_refit/IV_rep{1,2}/run.log`, not
+durable), the 2026-08-31 run under `/Users/vinaykumar/ogs-models/dd900_adopt_run_2026-08-31/`.
+
+The spread tracks the thread count, not the deck: the 6-thread run is the FASTEST configuration
+on record, not the representative one, so `RUNTIME` is taken from the slowest,
+10736 = ceil(10735.4). Rule re-read for this entry in `scripts/cmake/test/OgsTest.cmake`: an
+explicit `TIMEOUT` is emitted only when `RUNTIME > 750`, and then `TIMEOUT = 2*RUNTIME` — so
+10736 gives 21472 s (2x the worst case on record), where 8667 would have given 17334 s, only
+1.61x it. No test is renamed: `ogs.ctest.large_runtime = 60` (`web/data/versions.json`), so 240
+and 10736 are both above it and the case was already `-LARGE`; and any `OGS_CTEST_MAX_RUNTIME`
+below 240 dropped the deck before the change and still does. (Completed 2026-08-31: that last
+clause is true but not the whole gate. A cap in **[240, 10735]** kept the deck before the change
+and now drops it. No in-tree consumer sits in that band — `scripts/ci/jobs/build-linux.yml:44`
+sets 60 and `CMakePresets.json` sets 101, both below 240 — so nothing in the repo changes
+behaviour, but a caller passing a cap in that band would see the deck disappear.)
+
+CONDITIONAL, never observed — stated as such in the file: at the old `RUNTIME 240` no `TIMEOUT`
+is emitted at all, so ctest's default 1500 s WOULD apply and WOULD kill a healthy run of this
+deck. No ctest run of this deck exists to have observed it: `ANCHORS_MS33` is not registered in
+the build used for the cascade runs (entries 29 and 30).
+
+> **CORRECTION 2026-08-31 (kept above verbatim per §6.3).** "No ctest run of this deck exists"
+> is too strong and is falsifiable: one is on record at
+> `/Users/vinaykumar/git/build/maxwell_floor_20260619/logs/ogs-RichardsMechanics_ANCHORS_MS33_ModelIV_ms33_modelIV_pellets-LARGE-omp.txt`
+> — `OGS started on 2026-08-26 16:11:13+0200`, completed 16:12:33 (~80 s), vtkdiffing against
+> the then-current `ms33_modelIV_pellets_ts_577_t_17280000.000000.vtu`. Verified by reading the
+> log this session. The reason clause is still correct (`ogs-dsm-active` carries
+> `OGS_BUILD_TESTING:BOOL=OFF`), and the substantive point survives unchanged: that run never
+> approached 1500 s because it was the PRE-CASCADE 577-step deck. The accurate claim is that no
+> ctest run of this deck **in its present 21500-step form** exists.
+
+MEASURED this session, and it is a listing, not a run: `ctest -N --show-only=json-v1` on the
+reconfigured tree showed the Model IV test picking up an explicit `TIMEOUT` from the raised
+`RUNTIME`, with the `-LARGE` suffix retained.
+
+Models I, III and VII keep their RUNTIMEs (120/120/120, 120, 300). III and VII were re-timed on
+the 2026-08-31 adopt runs — III 10.1542 s / 889 steps at `OMP_NUM_THREADS=4`, VII 207.022 s /
+920 steps with `OMP_NUM_THREADS` unset (18-thread fallback), so VII's margin to RUNTIME 300 was
+measured at 18 threads, not at one. Model I was NOT re-timed: its 0.111132 / 0.118636 /
+0.149283 s are 2026-05-22 runs of the stale binary `vdw-baseline-2026-05-08-41-g9a1b956c`,
+verbatim from the tracked `rerun_ms33_modelI_dd*.log`, kept as the only timings on record
+rather than as current measurements. All of this is written into the file's comments; CI
+headroom is labelled there as expected, not verified.
+
+### 36. DONE 2026-08-31 — PRJ provenance annotations in five MS33 decks (review findings #7 and #10), comment-only
+
+Finding numbers are as reported to this session; the audit documents themselves are not in the
+tree.
+
+Five decks annotated, no run performed: `ANCHORS_MS33_ModelI/ms33_modelI_dd900.prj`,
+`ANCHORS_MS33_ModelIII/ms33_modelIII_gap2mm.prj` (registration commented out in Tests.cmake,
+deck retained), `ANCHORS_MS33_ModelIII/ms33_modelIII_gapswitch.prj`,
+`ANCHORS_MS33_ModelIV/ms33_modelIV_pellets.prj`,
+`ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling.prj`.
+
+Content: dd900's three "CASCADE, predicted not yet verified" notes are kept verbatim as the
+2026-08-28 record and each is followed by a CASCADE DONE 2026-08-31 note pointing at commits
+`2c066ce187` (III, VII) and `7ec39ecf4c` (IV) and at entries 29/30; its sigma0 comment — which
+names the SUPERSEDED K because it was written the day before the re-fit — is annotated STILL
+VALID with the sources for "the K now live was also fit under sigma0=0" quoted from this file's
+own header and the §12.2 block. The III/IV/VII reference blocks record the supersessions
+ts_880 -> ts_888, ts_577 -> ts_21500 and ts_883 -> ts_920 with md5s, and mark the previous
+reference as itself superseded and moved to `superseded_references_2026-08-31/`.
+
+Verified for this entry on 2026-08-31, not taken on trust:
+- the three live reference md5s recomputed from the committed files — gapswitch ts_888
+  `645c5308d3ac7c2d89c4309c7c947e61`, pellets ts_21500 `53392b6a0308fc12d7f978f614066719`,
+  freeswelling ts_920 `f6c5ab0816df428c3a28fa5146f0bda6` — match the PRJ text and entries
+  29/30;
+- all five edits are COMMENT-ONLY: with XML comments stripped, each file is byte-identical to
+  its HEAD version (equal md5 per file), so no value, tag, mesh name or `<test_definition>`
+  changed;
+- all five parse (`xmllint --noout` clean on each), which also clears the `--`-inside-an-XML-
+  comment hazard that a hand-written annotation block can introduce.
+
+### 37. DONE 2026-08-31 — K_OF_RHO_D_LIVE.md, round-2 corrections
+
+Four corrections in `DSM/K_OF_RHO_D_LIVE.md`, all annotate-in-place or restore, none delete:
+(i) the first-cut Implementation bullet and clamp paragraph RESTORED byte-for-byte inside a
+`[HISTORICAL ...]` block beside the current text, with the original "verified in" wording
+restored and re-checked (entry-31 annotation above); (ii) the closing section's
+"node-preserving BY CONSTRUCTION" sentence kept as the 2026-08-26 wording and followed by a
+`[CORRECTED 2026-08-31]` block attributing node preservation to the explicit `t == 1` / `t == 0`
+branch instead, with the superseded-table ULP miss and the latent-not-live finding recorded;
+(iii) a `**Parse-time precondition on <prefactors>**` paragraph in that same normative section,
+plus a `<prefactors>` PRJ-AUTHORING RULE bullet under "PRJ interface" (strictly positive,
+widens parser rejection, all seven shipped tables comply, no `<dry_densities>` monotonicity
+rule needed); (iv) the "Unchanged by this decision" sentence "still calls them" annotated with
+the re-grepped call-site census, since `getSegmentSlope()` has no production caller. A second
+READ-FIRST paragraph at the top points at (ii) and (iii) and states that neither has been
+exercised by an MS33 run or by ctest.
+
+### 38. OPEN(Vinay) 2026-08-31 — held back from both rounds, pending a scientific ruling
+
+Ring-fenced for the user's scientific decision and deliberately untouched by rounds 1 and 2,
+including by any workaround:
+
+- the `DoubleStructureBenchmark` reference values;
+- the adopted dd900 900-knot K and every `micro_solid_volume_fraction_reference` (n_s) value;
+- the LIVE-mode fallback-K assignment in `CreateRichardsMechanicsProcess.cpp` — the
+  `dry_density ? table->getValue(*dry_density) : (defaults ? ... : 0.0)` block, working-tree
+  lines 621-626 after entry 33's guard was inserted above it. Its own comment is unedited; it
+  is only referred to from the header's call-site census (entry 32).
+
+Also open: the ASK(Vinay) in entry 33 (whether the positivity guard stays table-wide or is
+restricted to live mode), and the batch itself — entries 31-37 are uncommitted working-tree
+state; committing, and any push, are Vinay's calls.
+
+### 39. DONE 2026-08-31 — round-3 corrections: four writing defects the final guardrail audit found in rounds 1-2
+
+Applied directly, no agent fan-out (four localised edits). Each was verified against the tree
+before editing, not taken on the auditor's word.
+
+| # | Where | Defect | Correction |
+| :-- | :-- | :-- | :-- |
+| 1 | `DSM/AGENTS.md` entry 34 | Its binary evidence had been invalidated *within the same round*, and its `§5` caveat was stale | `UPDATE` block appended (original kept verbatim, §6.3/§6.4) |
+| 2 | `DSM/AGENTS.md` entry 35 | "No ctest run of this deck exists" — falsifiable and false | `CORRECTION` block appended |
+| 3 | `Tests.cmake` + entry 35 | `OGS_CTEST_MAX_RUNTIME` clause true but incomplete | band `[240, 10735]` spelled out |
+| 4 | `StrainedFilmPotential.cpp` (2 comments) | Named only a toolchain that does *not* build the test | both toolchains named; stale caveat retired |
+
+**(1) Entry 34's evidence, re-measured.** It reasoned from a `testrunner` of mtime 17:17 that
+contained no `InteriorKnotBitExact` symbol. Entry 35's own reconfigure relinked the binary at
+**2026-08-31 18:06:37**, and `strings` on it now finds
+`RichardsMechanicsLiveKOfRhoD_InteriorKnotBitExactWhereRoundTripMisses_Test` (3 hits). More
+importantly the caveat it supported is **retired by measurement**: `./bin/testrunner
+--gtest_filter='RichardsMechanics*'` against that binary gives **46 tests, 44 PASSED, 2
+pre-existing `GTEST_SKIP`s, 0 failures**, with the new test reported `OK`. The 43-pass figure
+in entry 34 is the round-1 count, before the test existed. What stays harness-only, and is
+worded that way in both the entry and the test file, is the FAILING half — the pre-fix
+accessor going red — since reproducing it in-binary would mean removing the branch from the
+shipped header.
+
+**(2) The false ctest claim.** Entry 35 stated "No ctest run of this deck exists to have
+observed it". One does, and it was found by reading, not inference:
+`build/maxwell_floor_20260619/logs/ogs-RichardsMechanics_ANCHORS_MS33_ModelIV_ms33_modelIV_pellets-LARGE-omp.txt`
+— `OGS started on 2026-08-26 16:11:13+0200`, completed 16:12:33 (~80 s), vtkdiffing against the
+then-current `ts_577` reference. The reason clause survives (`ogs-dsm-active` carries
+`OGS_BUILD_TESTING:BOOL=OFF`) and so does the substantive point — that run never approached
+1500 s because it was the pre-cascade 577-step deck. The accurate claim is that no ctest run of
+this deck **in its present 21500-step form** exists.
+
+**(3) The gate band.** "Any `OGS_CTEST_MAX_RUNTIME` below 240 dropped the deck before and still
+does" is true but not the whole gate: a cap in **[240, 10735]** kept the deck before the change
+and now drops it. No in-tree consumer sits in that band (`build-linux.yml:44` sets 60,
+`CMakePresets.json` sets 101, both below 240), so nothing in the repo changes behaviour.
+
+**(4) Toolchain naming.** Two comments credited the standalone measurements to "Homebrew clang
+22.1.8" alone. That compiler is real and the verdict reproduces under it, but both build dirs
+use `CMAKE_CXX_COMPILER=/usr/bin/c++`, **Apple clang 21.0.0**. Both are now named, and the
+discriminating verdict is on record under each at `-O0` and `-O2`.
+
+**Re-verified after these edits, MEASURED:** `ninja testrunner` PASS; 46 tests, 44 passed, 0
+failures; `RichardsMechanicsFEM-impl.h` still comment-only (comment-stripped code byte-identical
+to `7ec39ecf4c`); all five MS33 PRJs still byte-identical to HEAD outside XML comments and
+`xmllint --noout` clean. Batch total: 12 files, +1170/-72.
+
+### 40. OPEN — register of everything held back, pending Vinay's discussion
+
+Written as OPEN at Vinay's instruction (2026-08-31, "write open items as open, pending my
+discussion"). Nothing below has been acted on. Entry 38's ring-fence list is the subset O1
+covers; this entry is the full register. **A future agent must not close any item here without
+Vinay's explicit ruling** — several are exactly the kind of decision CLAUDE.md §9 routes to him.
+
+**O1 — the three code-review findings ring-fenced from all three rounds (physics/expected
+values).** Raised by the `/code-review` pass on `HEAD~6..HEAD`, never adjudicated:
+
+- **`transport_porosity = 0` baselined at t=0.** `double_porosity_swelling_RM.prj:112-117`
+  declares `TransportPorosityFromMassBalance` with `initial_porosity = phi_tr0 = 0.3`, but the
+  reference refreshed in `bea47887ac` carries 0 at t=0 and at every later step. t=0 is the
+  initial condition, so no run-to-run drift can move it. The same refresh moved pressure
+  -263.3 -> -169.6 MPa and swelling_stress 4.72 -> 2.37 MPa at t=100000. `transport_porosity`
+  is not in the `<field>` list, so the ctest passes while certifying that state. Either the
+  macro-porosity initialisation path is broken on this branch or the baseline is right and the
+  PRJ is stale — **an expected-value question (§3), Vinay's to settle.**
+- **The 900-knot K and n_s.** The re-fit `K = 18469.144929` was calibrated under
+  `n_s = 0.3237`, but `gapswitch.prj:175` and `freeswelling.prj:165` declare
+  `micro_solid_volume_fraction_reference = 0.5755395683453237`, and `pellets.prj` declares
+  0.5755 for the block (:144) and 0.3237 for the pellets (:214) while sharing ONE table.
+  dd900's own header records (MEASURED) that n_s = 0.575540 reproduces Ps = 0.35005 where
+  n_s = 0.3237 gives Ps = 0.0832 for the same K — a 4x sensitivity. If the reading holds, the
+  adopted knot is matched to the other n_s for III, VII and IV's block zone, and the superseded
+  4367.2277 was the one fitted under 0.5755. **The III/IV/VII headline numbers rest on this.**
+  Options a ruling must choose between: a per-n_s table split, a re-fit, or a deliberate shared
+  knot. Related: entry 27's original OPEN(Vinay).
+- **The LIVE-mode parse-time fallback K.** The review claims that at
+  `CreateRichardsMechanicsProcess.cpp` (working-tree :621-626) the fallback still resolves via
+  the K-linear `getValue()` while the run-time path uses `getValueLogLinear()` (~10% apart at
+  rho_d = 1150 on the shipped table), and that because no MS33 live deck declares
+  `<dry_density>` or a scalar prefactor, `dry_density` is `nullopt` and the fallback collapses
+  to `0.0` — silently disabling augmentation at every phi-less site, with the `>= 0.0` guard
+  accepting it. **NOT INDEPENDENTLY VERIFIED, and it is in tension with the decks producing
+  non-trivial Ps.** Verify before acting; do not "fix" it on the review's word.
+
+**O2 — the stray heredoc terminator in `7ec39ecf4c`'s commit message.** Its body ends
+`...per instruction.\nEOF\n)\n` — leaked from the shell that wrote it. The message also says
+"Not pushed — local commit only", which was already untrue: the commit is on `origin`, `backup`
+and `vgk2`. Removing it needs `git commit --amend` plus a force-push to three remotes. **Not
+done: rewriting published history is Vinay's call, not an agent's.**
+
+**O3 — `RUNTIME 10736` for `ms33_modelIV_pellets` (entry 35) is an agent's judgement.** The
+three measured runs are 10720 / 10735.4 / 8666.15 s and the spread tracks `OMP_NUM_THREADS`
+(4/4/6). RUNTIME was taken from the slowest so the repo's `TIMEOUT = 2*RUNTIME` convention
+holds against the worst case on record; the alternative — track the 6-thread configuration at
+8667 — gives 1.61x. It is a CI timing hint, not a §1.1 literal, so no guardrail fired, but the
+test suite is Vinay's. **Overrule freely.**
+
+**O4 — scope of the parse-time positivity guard (entry 33's ASK).** It currently rejects any
+non-positive `<prefactors>` entry table-wide, which WIDENS parser rejection: a frozen-K deck
+carrying a zero knot used to parse and now hard-fails. All 7 shipped tables are strictly
+positive, so no deck in the tree is affected. Open: keep it table-wide, or restrict it to live
+mode where `ln(K_r/K_l)` is actually evaluated. Related: the guard's negative branch is
+exercised by **no test** — the three unit-test tables construct `AugmentationPrefactorTable`
+directly and bypass the parser. A death test would need a config tree; not attempted.
+
+**O5 — two dated review snapshots still assert the K-linear live chain.**
+`DSM/ULTRACODE_REVIEW_2026-06-14.md:97,125,126` ("`dK/dφ = ρ_SR·getSegmentSlope` is FD-verified
+to 1e-9") and `DSM/ULTRA_REVIEW_2026-06-19.md:49`. Left untouched: both filenames are
+date-stamped audit snapshots, so they arguably read as historical by construction, and §6.3
+annotation of a snapshot is a different act from annotating a living spec. **Ruling wanted:**
+tag them `[SUPERSEDED 2026-08-26 by 1bb414ac05]`, or leave snapshots as snapshots.
+
+**O6 — nothing was re-run. `PREDICTED, NOT VERIFIED` (§5).** No MS33 ctest and no MS33
+simulation was executed in any of the three rounds. The numerical identity of the III / IV / VII
+reference VTUs under entry 32's refactor is *predicted* from the bitwise equivalence sweep
+(five tables, ~95k-102k samples each, zero differences outside the intended interior-knot fix
+on the SUPERSEDED table) and from the shipped table already being bit-exact at all four knots —
+**it is not confirmed by a run.** The cheap confirmation, if wanted, is one `ms33_modelIII_gapswitch`
+run (10.15 s measured) plus `ms33_modelVII_freeswelling` (207.02 s); Model IV costs ~3 h.
+
+**O7 — build-directory routing, so no future agent cites the wrong binary.** MEASURED
+2026-08-31: `build/ogs-dsm-active` is a **symlink to `build/maxwell_rebased_2026-08-26`**; its
+`CMAKE_HOME_DIRECTORY` correctly points at this worktree, but it carries
+`OGS_BUILD_TESTING:BOOL=OFF`, so it has **no `testrunner` target and registers zero MS33
+ctests** (`ctest -N` lists only `ogs_no_args`). Unit tests must be built and run in
+`build/maxwell_floor_20260619` (same worktree, `OGS_BUILD_TESTING=ON`). Worse for provenance:
+a freshly rebuilt `ogs-dsm-active/bin/ogs` still self-reports `6.5.8-565-gbea47887`, stamped at
+configure time from `bea47887ac` — **one commit behind HEAD. Never cite that version string as
+evidence of which commit a run used.** Compare `reference_lit_mcp_ogs_source` /
+`feedback_deprecated_branches_no_sims`.
+
+**Resolved from entry 38:** its closing sentence ("committing, and any push, are Vinay's calls")
+is CLOSED 2026-08-31 — Vinay instructed both. Everything else in entry 38 remains open under O1.

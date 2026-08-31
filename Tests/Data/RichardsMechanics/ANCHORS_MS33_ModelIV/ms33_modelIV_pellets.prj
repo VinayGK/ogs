@@ -534,13 +534,30 @@ Official benchmark spec (MSXX §Model IV):
       RE-BASELINED 2026-08-26, commit bed3e395da (live K(rho_d) interpolation
       switched linear -> log-linear, Vinay's decision 2026-08-26; BOTH zones live):
       reference became ms33_modelIV_pellets_ts_577_t_17280000.000000.vtu
-      (md5 7b404973b1c0ddb99a4cc2a1f42ebe7d), from the reconciled double-run
+      (md5 7b404973b1c0ddb99a4cc2a1f42ebe7d; that file is ITSELF SUPERSEDED
+      as of 2026-08-31 and now lives in superseded_references_2026-08-31/ in
+      this directory, see the RE-BASELINED AGAIN paragraph below), from the
+      reconciled double-run
       campaign round1_modelIV_livek_loglin_fullrigor_2026-08-26_successful —
       two independent full runs byte-identical (same md5), binary
       maxwell-conjugate-20260602 @ bed3e395da. The former reference
       ts_2993_t_17280000.000000.vtu (md5 ae01589ae8aa9442bcb81eb5c75a4592,
       linear-K) is SUPERSEDED and moved (git mv, never deleted) to
       superseded_references_2026-08-26/ in this directory.
+      RE-BASELINED AGAIN 2026-08-31, commit 7ec39ecf4c (corrected dd900 K knot,
+      18469.144929 J/kg, adopted into this file's live K(rho_d) table, shared by
+      BOTH zones; see the K-TABLE UPDATE RATIFIED 2026-08-31 comment at the
+      <prefactors> block above): the LIVE reference is now
+      ms33_modelIV_pellets_ts_21500_t_17280000.000000.vtu
+      (md5 53392b6a0308fc12d7f978f614066719, recomputed 2026-08-31 from the
+      committed file; the same md5 is recorded in DSM/AGENTS.md entry 30).
+      Fresh run: 21500 accepted steps, 0 rejected, to t=17280000 s (200 d),
+      cross-validated against BOTH recovered 2026-08-28 replicas with max abs
+      and rel diff = 0.0 over all 14 point_data fields at all 1066 nodes. The
+      former reference ts_577_t_17280000.000000.vtu
+      (md5 7b404973b1c0ddb99a4cc2a1f42ebe7d) is SUPERSEDED and was moved
+      (git mv, never deleted) to superseded_references_2026-08-31/ in this
+      directory. Full record: DSM/AGENTS.md entry 30.
       Physics anchor: (f) regression baseline previously approved by user.
       Reference = the SINGLE final-time output VTU committed beside this PRJ
       (timestep at t_end). vtkdiff (Applications/ApplicationsLib/

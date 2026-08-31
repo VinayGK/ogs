@@ -390,7 +390,10 @@
       RE-BASELINED 2026-08-26, commit bed3e395da (live K(rho_d) interpolation
       switched linear -> log-linear, Vinay's decision 2026-08-26): reference
       became ms33_modelIII_gapswitch_ts_880_t_17280000.000000.vtu
-      (md5 4e3228d44dd5398f0d244823ccabe29b), from the reconciled double-run
+      (md5 4e3228d44dd5398f0d244823ccabe29b; that file is ITSELF SUPERSEDED
+      as of 2026-08-31 and now lives in superseded_references_2026-08-31/ in
+      this directory, see the RE-BASELINED AGAIN paragraph below), from the
+      reconciled double-run
       campaign round1_modelIII_gapswitch_2026-08-26 — two independent full runs
       byte-identical (same md5), 880 steps accepted / 1 rejected (startup
       transient at t=5.67 s, recovered), binary maxwell-conjugate-20260602 @
@@ -400,6 +403,21 @@
       directory: the ctest wrapper enumerates every REFERENCE-side file matching
       the ts_.* regex and requires a same-named output for each, so a superseded
       reference left beside the PRJ fails the test by construction.
+      RE-BASELINED AGAIN 2026-08-31, commit 2c066ce187 (corrected dd900 K knot,
+      18469.144929 J/kg, adopted into this file's live K(rho_d) table; see the
+      K-TABLE UPDATE RATIFIED 2026-08-31 comment at the <prefactors> block
+      above): the LIVE reference is now
+      ms33_modelIII_gapswitch_ts_888_t_17280000.000000.vtu
+      (md5 645c5308d3ac7c2d89c4309c7c947e61, recomputed 2026-08-31 from the
+      committed file; the same md5 is recorded in DSM/AGENTS.md entry 29).
+      Fresh run: 888 accepted steps, 1 rejected (the same startup transient),
+      cross-validated against an independently recovered 2026-08-28 run of the
+      same PRJ/K/binary with max abs and rel diff = 0.0 over every point_data
+      field at all 90 nodes. The former reference
+      ts_880_t_17280000.000000.vtu (md5 4e3228d44dd5398f0d244823ccabe29b) is
+      SUPERSEDED and was moved (git mv, never deleted) to
+      superseded_references_2026-08-31/ in this directory, for the enumeration
+      reason stated just above. Full record: DSM/AGENTS.md entry 29.
       Physics anchor: (f) regression baseline previously approved by user.
       Two-tier tolerances as in ModelIV/ModelVII (Vinay's choice 2026-06-23):
       TIGHT on displacement/saturation/porosity/transport_porosity/

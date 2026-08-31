@@ -479,7 +479,10 @@ initial micro water content is set to the 99 MPa-equilibrium value.
       interpolation switched linear -> log-linear, Vinay's decision 2026-08-26):
       the live reference is now
       ms33_modelVII_freeswelling_ts_883_t_20736000.000000.vtu
-      (md5 e1cafac2a3cd079d78074b10b2ae3ce2), from the reconciled double-run
+      (md5 e1cafac2a3cd079d78074b10b2ae3ce2; that file is ITSELF SUPERSEDED
+      as of 2026-08-31 and now lives in superseded_references_2026-08-31/ in
+      this directory, see the RE-BASELINED AGAIN paragraph below), from the
+      reconciled double-run
       campaign _round2_modelVII_fullrigor_2026-08-26_successful — two
       independent full runs byte-identical (same md5), 883/883 steps accepted,
       binary maxwell-conjugate-20260602 @ bed3e395da. Headline shift vs the
@@ -488,6 +491,21 @@ initial micro water content is set to the 99 MPa-equilibrium value.
       (md5 9258af81b110ecfb9e1d378bb47c0d3e, linear-K) is SUPERSEDED and moved
       (git mv, never deleted) to superseded_references_2026-08-26/ in this
       directory.
+      RE-BASELINED AGAIN 2026-08-31, commit 2c066ce187 (corrected dd900 K knot,
+      18469.144929 J/kg, adopted into this file's live K(rho_d) table; see the
+      K-TABLE UPDATE RATIFIED 2026-08-31 comment at the <prefactors> block
+      above): the LIVE reference is now
+      ms33_modelVII_freeswelling_ts_920_t_20736000.000000.vtu
+      (md5 f6c5ab0816df428c3a28fa5146f0bda6, recomputed 2026-08-31 from the
+      committed file; the same md5 is recorded in DSM/AGENTS.md entry 29).
+      Fresh run completed ts_920 at t=20736000 s (240 d) and was cross-validated
+      against the independently recovered 2026-08-28 replica: 21 extracted
+      quantities matched exactly to full double precision (abs and rel diff 0),
+      with identical node count (1066) and identical timestep index. The former
+      reference ts_883_t_20736000.000000.vtu
+      (md5 e1cafac2a3cd079d78074b10b2ae3ce2) is SUPERSEDED and was moved
+      (git mv, never deleted) to superseded_references_2026-08-31/ in this
+      directory. Full record: DSM/AGENTS.md entry 29.
       Physics anchor: (f) regression baseline previously approved by user.
       Reference = the SINGLE final-time output VTU committed beside this PRJ
       (timestep at t_end). vtkdiff (Applications/ApplicationsLib/

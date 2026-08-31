@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <memory>
 #include <vector>
 
@@ -516,6 +517,44 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
                 "<dry_densities> and <prefactors> of equal length >= 2, got "
                 "{} and {}.",
                 context, dry_densities.size(), prefactors.size());
+        }
+        // Strictly positive K is a PRECONDITION of the log-linear live-K
+        // interpolant: AugmentationPrefactorTable::getValueLogLinear
+        // evaluates K_l*exp(t*ln(K_r/K_l)), and a non-positive knot breaks
+        // that chain in three different places -- probed 2026-08-31 on a
+        // standalone transcription of that kernel (IEEE-754 double):
+        //   K_l == 0: K_r/K_l = +inf and std::log(+inf) = +inf, which is
+        //             not yet a NaN; the NaN appears one step later, in
+        //             K_l*exp(t*r) = 0*inf.
+        //   K_l <  0: the ratio is negative, so std::log of it IS NaN and
+        //             that NaN propagates to value and slope alike.
+        //   K_r == 0: std::log(0) = -inf, so the VALUE comes out a clean,
+        //             plausible K_l*exp(-inf) = 0 while the companion
+        //             slope 0*(-inf)/(x_r-x_l) is NaN -- the silent case,
+        //             and the dangerous one, since only the Jacobian is
+        //             poisoned and the value looks like a small K.
+        // Two knots of the same negative sign produce no NaN at all and
+        // would carry a negative K through untouched. Whichever of these
+        // fires, it reaches mu_lR and the Jacobian with no diagnostic,
+        // since no evaluation site guards the returned K. The older K-linear
+        // getValue() carries no such precondition, but no table in the tree
+        // uses a non-positive prefactor, so the requirement is enforced for
+        // every table rather than only in live mode. Checked here, while the
+        // lists are still addressable by their PRJ index and before they are
+        // moved into the table.
+        for (std::size_t i = 0; i < prefactors.size(); ++i)
+        {
+            if (!(prefactors[i] > 0.0))
+            {
+                OGS_FATAL(
+                    "RichardsMechanics: {} "
+                    "potential_augmentation_prefactor_vs_dry_density "
+                    "<prefactors> entry {} is {:g} J/kg, which is not > 0. "
+                    "The log-linear K(rho_d) interpolant evaluates "
+                    "ln(K_r/K_l) and therefore requires strictly positive "
+                    "prefactors.",
+                    context, i, prefactors[i]);
+            }
         }
         potential_augmentation_prefactor_vs_dry_density =
             std::make_shared<AugmentationPrefactorTable const>(

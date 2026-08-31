@@ -15,13 +15,27 @@
 
 namespace ProcessLib::RichardsMechanics
 {
-// Piecewise-linear K(rho_d) table with an EXACT per-segment slope accessor.
-// MathLib::PiecewiseLinearInterpolation::getDerivative blends the two
+// K(rho_d) table carrying TWO value/slope pairs, each slope the EXACT
+// derivative of the value it belongs to:
+//   getValue()          / getSegmentSlope()          -- K     linear in rho_d
+//   getValueLogLinear() / getSegmentSlopeLogLinear() -- ln(K) linear in rho_d
+// The LIVE K(rho_d) path (K_OF_RHO_D_LIVE.md) uses the LOG-LINEAR pair, per
+// Vinay's interpolation-scheme decision of 2026-08-26 (commit 1bb414ac05):
+// effectiveAugmentationPrefactor() calls getValueLogLinear(), and its Jacobian
+// companion effectiveAugmentationPrefactorPhiDerivative() calls
+// getSegmentSlopeLogLinear(), so residual and tangent share one interpolant.
+// The K-linear pair is retained, not superseded: getValue() still resolves the
+// parse-time frozen-K scalar (CreateRichardsMechanicsProcess.cpp), and
+// getSegmentSlope() is kept as that pair's exact companion -- unit-test
+// covered, with no production caller since the live Jacobian moved to the
+// log-linear slope in 1bb414ac05.
+// HISTORICAL: the class was introduced as the K-linear slope accessor alone,
+// because MathLib::PiecewiseLinearInterpolation::getDerivative blends the two
 // adjacent segment slopes (quadratic smoothing, see its .cpp), which is NOT
-// the derivative of getValue's clamped piecewise-linear evaluation. The
-// live-K(rho_d) Jacobian (K_OF_RHO_D_LIVE.md) needs the slope of the VALUE
-// actually fed into the residual, so this thin subclass exposes the exact
-// segment slope via the protected knot vectors.
+// the derivative of getValue's clamped piecewise-linear evaluation; the live
+// Jacobian needs the slope of the VALUE actually fed into the residual, so
+// this thin subclass exposes exact segment slopes via the protected knot
+// vectors. That reason is unchanged -- it now covers both pairs.
 class AugmentationPrefactorTable final
     : public MathLib::PiecewiseLinearInterpolation
 {
@@ -35,54 +49,95 @@ public:
     //    slope AT the edge knots as well).
     //  - interior knots: the LEFT segment slope (one-sided), consistent with
     //    getValue's lower_bound interval selection (idx = lower_bound - 1).
+    // Both branches come from locateSegment() below, which is the single
+    // copy of that clamp + interval selection shared by every accessor in
+    // this class (getValue() itself lives in the MathLib base and is
+    // deliberately neither touched nor shadowed; locateSegment reproduces
+    // its branches).
     double getSegmentSlope(double const x) const
     {
-        if (x <= supp_pnts_.front() || supp_pnts_.back() <= x)
+        auto const s = locateSegment(x);
+        if (!s)
         {
             return 0.0;
         }
-        auto const it =
-            std::lower_bound(supp_pnts_.begin(), supp_pnts_.end(), x);
-        std::size_t const i = std::distance(supp_pnts_.begin(), it) - 1;
-        return (values_at_supp_pnts_[i + 1] - values_at_supp_pnts_[i]) /
-               (supp_pnts_[i + 1] - supp_pnts_[i]);
+        // Unchanged chord slope (K_{i+1} - K_i) / (x_{i+1} - x_i).
+        return (s->K_r - s->K_l) / (s->x_r - s->x_l);  // (J/kg)/(kg/m^3)
     }
 
     // ── Log-linear interpolant (production for the LIVE K(rho_d) path per
     // Vinay's interpolation-scheme decision, 2026-08-26) ──────────────────
     // ln(K) linear in rho_d between knots instead of the K-linear chord
     // used by getValue() above (Dixon 2023's own exponential
-    // swelling-pressure-vs-density law is the physical motivation;
-    // getValue()/getSegmentSlope() remain in use by the parse-time
-    // frozen-K path). Node-preserving at the knots by construction (t=0 ->
-    // K_l, t=1 -> K_r); flat-clamped outside [x_min, x_max] exactly like
+    // swelling-pressure-vs-density law is the physical motivation). The
+    // K-linear pair is not retired, but its two halves are not equally
+    // live: getValue() has exactly ONE production caller -- the parse-time
+    // frozen-K resolution in CreateRichardsMechanicsProcess.cpp -- while
+    // getSegmentSlope() has NONE. That is structural, not an oversight:
+    // the frozen-K path resolves K to a scalar at parse time, so it
+    // introduces no Jacobian term and can never want a slope.
+    // getSegmentSlope() is exercised only by
+    // Tests/ProcessLib/RichardsMechanics/StrainedFilmPotential.cpp (call
+    // sites re-grepped over ProcessLib/ and Tests/ProcessLib/ on
+    // 2026-08-31). Flat-clamped outside [x_min, x_max] exactly like
     // getValue() -- never slope- or exp-extends past the table edges (the
     // extrapolation scheme is a separate question, out of scope here).
     // Mirrors getValue's <=/>= clamp branches and lower_bound interval
-    // selection exactly, so this and getValue agree on which segment owns
-    // an exact interior-knot argument.
+    // selection exactly -- both go through locateSegment() below -- so this
+    // and getValue agree on which segment owns an exact interior-knot
+    // argument.
+    //
+    // NODE PRESERVATION, and why it needs a branch: a BOUNDARY knot returns
+    // the stored endpoint through the clamp, but an INTERIOR knot lands in
+    // the LEFT segment at t == 1, where K_l*exp(1*ln(K_r/K_l)) round-trips
+    // through log/exp and can land ~1 ULP off K_r instead of on it
+    // (measured 2026-08-31 on the SUPERSEDED 900-knot table
+    // K(900)=4367.2277: the 1400 knot came out low by 1 ULP, rel -1.6e-16,
+    // the miss recorded in DSM/AGENTS.md; the table shipped at 7ec39ecf4c
+    // happens to hit all four of its knots bit-exactly, so this is a latent
+    // defect, not a live one). logLinearValueOnSegment() below returns the
+    // STORED knot value at t == 1 (and at t == 0), which is what makes the
+    // node-preservation claim true of the code rather than nearly true.
+    //
+    // PRECONDITION: strictly positive table values; <prefactors> is
+    // validated > 0 at parse time in CreateRichardsMechanicsProcess.cpp.
+    // The non-positive cases do NOT share one failure mode: probed
+    // 2026-08-31 on a standalone transcription of logLinearValueOnSegment
+    // (IEEE-754 double), they are three distinct chains, and only one of
+    // them starts at the logarithm:
+    //   K_l == 0: K_r/K_l = +inf and std::log(+inf) = +inf -- still no
+    //             NaN. The NaN is born one step later, in
+    //             K_l*exp(t*r) = 0*inf. At an interior knot (t == 1) the
+    //             stored-knot return even yields a clean K_r, while the
+    //             companion slope goes to +inf.
+    //   K_l <  0: the ratio is negative and std::log of it IS NaN, which
+    //             then propagates through value and slope alike. This is
+    //             the only case the logarithm itself catches.
+    //   K_r == 0: the ratio is 0, std::log(0) = -inf, and the VALUE comes
+    //             out a clean, plausible K_l*exp(-inf) = 0 that nothing
+    //             downstream can distinguish from a legitimately small K,
+    //             while the slope 0*(-inf)/(x_r-x_l) is NaN. The silent
+    //             case is the dangerous one: the poison enters through
+    //             the Jacobian, not the value.
+    // Two knots of the SAME negative sign produce no NaN anywhere (the
+    // ratio is positive, the logarithm finite) and would carry a negative
+    // K through the whole chain untouched. The K-linear getValue() has
+    // none of these failure modes, which is why the precondition belongs
+    // to the log-linear pair.
     double getValueLogLinear(double const x) const
     {
-        if (x <= supp_pnts_.front())
+        auto const s = locateSegment(x);
+        if (!s)
         {
-            return values_at_supp_pnts_.front();
+            // Endpoint hold: the same two branches, in the same order, as
+            // getValue().
+            return x <= supp_pnts_.front() ? values_at_supp_pnts_.front()
+                                           : values_at_supp_pnts_.back();
         }
-        if (supp_pnts_.back() <= x)
-        {
-            return values_at_supp_pnts_.back();
-        }
-        auto const it =
-            std::lower_bound(supp_pnts_.begin(), supp_pnts_.end(), x);
-        std::size_t const i = std::distance(supp_pnts_.begin(), it) - 1;
-        double const x_l = supp_pnts_[i];
-        double const x_r = supp_pnts_[i + 1];
-        double const K_l = values_at_supp_pnts_[i];
-        double const K_r = values_at_supp_pnts_[i + 1];
-        double const t = (x - x_l) / (x_r - x_l);
-        // K(x) = K_l * exp(t * ln(K_r/K_l)) = K_l * (K_r/K_l)^t; exact at
-        // t=0 -> K_l and t=1 -> K_r (node-preserving), matching getValue()
-        // at every knot. [J/kg]
-        return K_l * std::exp(t * std::log(K_r / K_l));
+        double const t = (x - s->x_l) / (s->x_r - s->x_l);
+        // K(x) = K_l * exp(t * ln(K_r/K_l)) = K_l * (K_r/K_l)^t. [J/kg]
+        return logLinearValueOnSegment(*s, t,
+                                       std::log(s->K_r / s->K_l));  // J/kg
     }
 
     // d(getValueLogLinear)/dx, the EXACT companion tangent (chain rule of
@@ -92,23 +147,83 @@ public:
     // as getSegmentSlope() is (that mismatch would give an inconsistent
     // residual/Jacobian tangent under this scheme). Same clamp/one-sided
     // convention as getSegmentSlope: 0 at/outside the boundary knots,
-    // LEFT-segment value at an interior knot (idx = lower_bound - 1),
-    // matching getValueLogLinear's and getValue's interval selection.
+    // LEFT-segment value at an interior knot (idx = lower_bound - 1) --
+    // both go through locateSegment(), so that interval selection is one
+    // object, not a copy kept in step by hand.
+    // The segment is evaluated ONCE here (one interval lookup, one
+    // std::log, one std::exp) instead of re-entering getValueLogLinear,
+    // which would repeat the clamp, the binary search and the logarithm:
+    // it sits on the per-integration-point path of assembleWithJacobian,
+    // reached from BOTH live-K tangent sites. Those are two DIFFERENT
+    // blocks of that integration-point loop, not one (line numbers at
+    // 7ec39ecf4c, RichardsMechanicsFEM-impl.h): the p-u augmentation
+    // exchange tangent at 5052, and the displacement-side
+    // swelling-eigenstress tangent at 5223.
     double getSegmentSlopeLogLinear(double const x) const
+    {
+        auto const s = locateSegment(x);
+        if (!s)
+        {
+            return 0.0;
+        }
+        double const t = (x - s->x_l) / (s->x_r - s->x_l);
+        double const r = std::log(s->K_r / s->K_l);  // ln(K_r/K_l) [-]
+        return logLinearValueOnSegment(*s, t, r) * r /
+               (s->x_r - s->x_l);  // (J/kg)/(kg/m^3)
+    }
+
+private:
+    // One located table segment [x_l, x_r] with its two knot values.
+    struct Segment
+    {
+        double x_l;  // kg/m^3
+        double x_r;  // kg/m^3
+        double K_l;  // J/kg
+        double K_r;  // J/kg
+    };
+
+    // THE single copy of the clamp + interval-selection logic that the three
+    // accessors above share (getValue() itself lives in the MathLib base
+    // class and is non-virtual, so it is deliberately neither touched nor
+    // shadowed; this reproduces its branches). Returns nullopt exactly when
+    // getValue() would return a clamped endpoint -- x <= x_min or
+    // x_max <= x, the same <=/<= tests in the same order. Otherwise the
+    // interval is the one getValue() uses, idx = lower_bound(x) - 1, so an
+    // exact interior knot belongs to the LEFT segment and sits at t == 1
+    // there.
+    std::optional<Segment> locateSegment(double const x) const
     {
         if (x <= supp_pnts_.front() || supp_pnts_.back() <= x)
         {
-            return 0.0;
+            return std::nullopt;
         }
         auto const it =
             std::lower_bound(supp_pnts_.begin(), supp_pnts_.end(), x);
         std::size_t const i = std::distance(supp_pnts_.begin(), it) - 1;
-        double const x_l = supp_pnts_[i];
-        double const x_r = supp_pnts_[i + 1];
-        double const K_l = values_at_supp_pnts_[i];
-        double const K_r = values_at_supp_pnts_[i + 1];
-        double const K_x = getValueLogLinear(x);  // J/kg
-        return K_x * std::log(K_r / K_l) / (x_r - x_l);  // (J/kg)/(kg/m^3)
+        return Segment{supp_pnts_[i], supp_pnts_[i + 1],
+                       values_at_supp_pnts_[i], values_at_supp_pnts_[i + 1]};
+    }
+
+    // Log-linear value on an ALREADY-LOCATED segment, at the segment
+    // coordinate t = (x - x_l)/(x_r - x_l), with r = ln(K_r/K_l) for that
+    // segment passed in so getSegmentSlopeLogLinear can reuse the one
+    // logarithm it needs anyway. t == 1 and t == 0 return the STORED knot
+    // values -- that is what makes node preservation bit-exact instead of
+    // 1-ULP-approximate. (t == 0 is unreachable through locateSegment,
+    // whose lower_bound places an exact knot at t == 1; it is kept so the
+    // helper is total.)
+    static double logLinearValueOnSegment(Segment const& s, double const t,
+                                          double const r)
+    {
+        if (t == 0.0)
+        {
+            return s.K_l;  // J/kg
+        }
+        if (t == 1.0)
+        {
+            return s.K_r;  // J/kg
+        }
+        return s.K_l * std::exp(t * r);  // K_l*(K_r/K_l)^t  [J/kg]
     }
 };
 
@@ -422,11 +537,19 @@ struct PotentialExchangeParameters
     // rho_SR*(1-phi) at every evaluation site that has the current total
     // porosity phi in scope (see effectiveAugmentationPrefactor below).
     // Sites without phi fall back to the scalar `potential_augmentation_
-    // prefactor`. The analytic dK/dphi = -rho_SR*(table segment slope)
-    // tangent is wired into the live p-u augmentation Jacobian block since
-    // 2026-06-12 (Vinay's approved completion; see
-    // effectiveAugmentationPrefactorPhiDerivative below and
-    // K_OF_RHO_D_LIVE.md) — the first cut's omission note is historical.
+    // prefactor`. The analytic dK/dphi tangent is wired in since 2026-06-12
+    // (Vinay's approved completion), and into TWO Jacobian blocks, not one:
+    // the p-u augmentation exchange tangent and the displacement-side
+    // swelling-eigenstress tangent (RichardsMechanicsFEM-impl.h lines 5052
+    // and 5223 at 7ec39ecf4c). Under the log-linear scheme in force since
+    // 2026-08-26 (commit 1bb414ac05) that tangent is
+    //   dK/dphi = -rho_SR * K(rho_d) * ln(K_r/K_l)/(x_r - x_l),
+    // i.e. PROPORTIONAL TO THE LOCAL K value -- NOT the
+    // -rho_SR*(K-linear segment slope) of the pre-2026-08-26 wording, which
+    // is a per-segment constant and is superseded here (see
+    // effectiveAugmentationPrefactorPhiDerivative below,
+    // getSegmentSlopeLogLinear above and K_OF_RHO_D_LIVE.md) — the first
+    // cut's omission note is historical.
     // false (default) -> parse-time freeze, bit-for-bit the existing
     // behavior.
     bool potential_augmentation_prefactor_live_dry_density = false;

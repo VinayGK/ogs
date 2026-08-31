@@ -546,8 +546,12 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentMatchesFDLogLinear)
 TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 {
     // Three structural knots so an INTERIOR knot exists:
-    // K(1000)=10, K(1500)=16, K(2000)=30 (J/kg vs kg/m^3); slopes 0.012
-    // and 0.028 (derived in-file).
+    // K(1000)=10, K(1500)=16, K(2000)=30 (J/kg vs kg/m^3). The K-LINEAR
+    // chord slopes 0.012 and 0.028 (derived in-file) belong to
+    // getValue()/getSegmentSlope(), i.e. to the parse-time frozen-K path.
+    // The LIVE path (effectiveAugmentationPrefactor and its Phi
+    // derivative) has used the LOG-LINEAR pair since 2026-08-26; its
+    // tangents are derived in-file below from the same knots.
     PotentialExchangeParameters params;
     params.micro_solid_density_reference = 2650.0;  // mirrors sample state
     params.potential_augmentation_prefactor_live_dry_density = true;
@@ -569,10 +573,21 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
     }
     // AT the edge knots (exact arguments): slope 0, the documented
     // one-sided/zero convention of AugmentationPrefactorTable, mirroring
-    // getValue's <=/>= clamp branches.
+    // getValue's <=/>= clamp branches. Asserted for BOTH tangent methods:
+    // getSegmentSlope() pins the K-linear frozen-K parse path (kept, it is
+    // that path's coverage), getSegmentSlopeLogLinear() the method the
+    // LIVE path actually calls since the 2026-08-26 scheme switch. Both
+    // boundary knots and both strictly-outside points are asserted for the
+    // log-linear tangent, so a regression that narrowed the <=/>= clamp to
+    // </> (which would index below the first segment at rho_d = 1000)
+    // fails here.
     auto const& table = *params.potential_augmentation_prefactor_vs_dry_density;
     EXPECT_DOUBLE_EQ(0.0, table.getSegmentSlope(1000.0));
     EXPECT_DOUBLE_EQ(0.0, table.getSegmentSlope(2000.0));
+    EXPECT_DOUBLE_EQ(0.0, table.getSegmentSlopeLogLinear(1000.0));
+    EXPECT_DOUBLE_EQ(0.0, table.getSegmentSlopeLogLinear(2000.0));
+    EXPECT_DOUBLE_EQ(0.0, table.getSegmentSlopeLogLinear(500.0));
+    EXPECT_DOUBLE_EQ(0.0, table.getSegmentSlopeLogLinear(2600.0));
     double const d_phi = 1e-6;
     double const phi_out = phi_of(500.0);  // fully outside, FD stays outside
     EXPECT_DOUBLE_EQ(
@@ -587,7 +602,60 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
     EXPECT_NEAR(expected_left_slope, table.getSegmentSlope(1500.0),
                 1e-12 * expected_left_slope);
 
-    // Interior of each segment: FD-vs-analytic (exact, linear value).
+    // Same interior knot, LOG-LINEAR pair — the methods the LIVE path
+    // actually calls since 2026-08-26. Physics anchor (CLAUDE.md §3a):
+    // analytical limit / derived identity; every expected number below is
+    // computed in-file from the same structural knots constructed above.
+    //
+    // (1) Node preservation: getValueLogLinear returns the stored knot
+    //     values. On THIS knot set that is the whole of what the three
+    //     assertions below establish — the boundary knots 1000 and 2000
+    //     come back through the endpoint-hold clamp, and at the interior
+    //     knot 1500 the round-trip 10*exp(1*ln(16/10)) happens to land
+    //     exactly on 16 (measured 2026-08-31 by evaluating the same
+    //     expression standalone under both toolchains on this machine,
+    //     Apple clang 21.0.0 — which builds this test — and Homebrew
+    //     clang 22.1.8, arm64, -O0 and -O2 each), so they hold with OR
+    //     without the t == 1 branch of
+    //     logLinearValueOnSegment(). They therefore do not pin that
+    //     branch; the knot pair whose round-trip does miss, and which
+    //     does pin it, is asserted in the test
+    //     InteriorKnotBitExactWhereRoundTripMisses below.
+    double const K_interior_knot = 16.0;  // the interior knot value above
+    EXPECT_EQ(K_interior_knot, table.getValueLogLinear(1500.0));
+    EXPECT_EQ(10.0, table.getValueLogLinear(1000.0));
+    EXPECT_EQ(30.0, table.getValueLogLinear(2000.0));
+
+    // (2) One-sided LEFT-segment convention of the log-linear tangent
+    //     (idx = lower_bound - 1), derived in-file from the same knots:
+    //       left  [1000,1500]: dK/drho_d = K(1500)*ln(16/10)/(1500-1000)
+    //       right [1500,2000]: dK/drho_d = K(1500)*ln(30/16)/(2000-1500)
+    //     The convention must select the LEFT value. A lower_bound ->
+    //     upper_bound regression would change the answer ONLY at an exact
+    //     knot — the FD checks below (1250/1750) live strictly inside one
+    //     segment and are blind to it — so the right-segment candidate is
+    //     computed as well and asserted to lie far outside the tolerance
+    //     used, which is what makes the assertion discriminating.
+    //     Tolerance: the same 1e-12 relative used by the linear
+    //     interior-knot assertion above (the table is called directly here,
+    //     so there is no phi round-trip; 1e-12 is conservative).
+    double const expected_left_loglinear_slope =
+        K_interior_knot * std::log(16.0 / 10.0) / (1500.0 - 1000.0);
+    double const right_loglinear_slope =
+        K_interior_knot * std::log(30.0 / 16.0) / (2000.0 - 1500.0);
+    double const loglinear_slope_tol = 1e-12 * expected_left_loglinear_slope;
+    EXPECT_NEAR(expected_left_loglinear_slope,
+                table.getSegmentSlopeLogLinear(1500.0), loglinear_slope_tol);
+    EXPECT_GT(std::abs(right_loglinear_slope - expected_left_loglinear_slope),
+              loglinear_slope_tol);
+
+    // Interior of each segment: FD-vs-analytic under the LOG-LINEAR live
+    // value. The value is exponential (no longer linear) in phi inside a
+    // segment, so the central FD is no longer exact; its relative
+    // truncation error is ~(ln(K_r/K_l)/(x_r-x_l) * rho_SR*d_phi)^2/6
+    // ~ 1e-12 here (derived in-file, the same estimate as in
+    // AnalyticPhiTangentMatchesFDLogLinear), far inside the unchanged
+    // 1e-9 relative tolerance below.
     for (double const rho_d : {1250.0, 1750.0})
     {
         double const phi_c = phi_of(rho_d);
@@ -599,6 +667,111 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
             (2.0 * d_phi);
         EXPECT_NEAR(fd, analytic, 1e-9 * std::abs(analytic));
     }
+}
+
+// ── Interior-knot bit-exactness, on a knot pair whose log/exp round-trip
+// actually misses ─────────────────────────────────────────────────────────
+// Physics anchor (CLAUDE.md §3a): analytical limit / interpolation identity
+// — node preservation, K(x_i) = K_i exactly at every knot of the table,
+// which is what the t == 1 (and t == 0) branch of
+// AugmentationPrefactorTable::logLinearValueOnSegment() exists to make true
+// bit-for-bit rather than to ~1 ULP.
+//
+// The knots are STRUCTURAL: this pair is used because it exercises the
+// log/exp round-trip at t == 1, NOT because anything about the physics of
+// dd900 is being asserted. Nothing below depends on K(900) being a
+// calibrated value — only on the pair being one whose round-trip misses.
+// Sources of the three numbers (CLAUDE.md §1.1 item 3, prior commits
+// traceable to user-approved work):
+//   K(900)  = 4367.227700212952 J/kg — the SUPERSEDED dd900 calibration
+//             record, kept on record in the provenance block of
+//             Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/
+//             ms33_modelI_dd900.prj (lines 107/123/412) and in commit
+//             642a8f867a. The value that superseded it is deliberately not
+//             used here: with the current 900-knot the segment round-trips
+//             exactly and the test would stop discriminating (see below).
+//   K(1400) = 46000.0, K(1600) = 104689.9129 J/kg — the shipped live table
+//             <prefactors> at 7ec39ecf4c (e.g.
+//             ms33_modelIII_gapswitch.prj:192-193).
+//
+// Why this knot set and not the 10/16/30 one used by
+// AnalyticPhiTangentClampedEdgesAndKnots above: there
+// 10*exp(1*ln(16/10)) == 16 and 16*exp(1*ln(30/16)) == 30 EXACTLY, and all
+// four knots of the table shipped at 7ec39ecf4c round-trip exactly too
+// (both measured 2026-08-31 by evaluating the same expressions standalone,
+// Homebrew clang 22.1.8 arm64, -O0 and -O2). Bit-exactness assertions on
+// those knots pass with or without the t == 1 branch, so they cannot pin
+// it — the defect the branch removes is latent on the shipped table. On
+// the 900 -> 1400 pair below the round-trip K_l*exp(1*ln(K_r/K_l)) returns
+// 45999.999999999993 instead of 46000.0 (rel -1.58e-16; the same miss the
+// landing audit recorded in ProcessLib/RichardsMechanics/DSM/AGENTS.md as
+// "1400 low by 1 ULP, rel 1.6e-16"). Measured 2026-08-31, before this test
+// was added to the suite, by running getValueLogLinear/locateSegment/
+// logLinearValueOnSegment extracted verbatim into a standalone program and
+// compiled twice, with and without the t == 1 branch: both assertions below
+// fail without it and pass with it, while the 10/16/30 assertions and the
+// shipped table's four knots pass either way. That standalone verdict was
+// re-confirmed 2026-08-31 under BOTH toolchains present on this machine, at
+// -O0 and -O2 each: Apple clang 21.0.0 (arm64-apple-darwin25.6.0,
+// /usr/bin/c++ — the compiler that actually builds this test) and Homebrew
+// clang 22.1.8. MEASURED through the built test binary 2026-08-31 18:06,
+// Release, Apple clang 21.0.0: this test PASSES in testrunner
+// (--gtest_filter='RichardsMechanics*', 46 tests, 44 passed, 2 pre-existing
+// skips, 0 failures). The FAILING half — the pre-fix accessor going red —
+// is measurable only in the standalone harness, since reproducing it
+// in-binary would mean removing the branch from the shipped header; it is
+// harness-measured, not a testrunner observation.
+//
+// The second assertion pins the BRANCH rather than a number: the same knot
+// value reached through the endpoint-hold clamp of a two-knot table — a
+// path that returns the stored value verbatim, with no logarithm in it —
+// must be bit-identical to what the interior-knot path returns, and its
+// expected side is produced by the table itself, so no expected literal is
+// written down at all. The other candidate form — computing
+// K_l*exp(1*ln(K_r/K_l)) inline and asserting that it DIFFERS from the
+// accessor — discriminates equally well on this toolchain (in the same
+// measurement the inline round-trip reproduced the pre-fix accessor value
+// bit for bit, at -O0 and -O2), but is not used: once the branch is in
+// place that comparison no longer probes the accessor at all, only whether
+// the platform's libm round-trips exactly, so a differently-rounding libm
+// would turn it red on correct code. The two assertions below instead
+// degrade to tautologies on such a platform rather than failing.
+//
+// The table is called directly rather than through
+// effectiveAugmentationPrefactor() because the phi round-trip
+// rho_SR*(1 - phi) is not ulp-exact (same reason as in the AT-knot
+// assertions of AnalyticPhiTangentClampedEdgesAndKnots above), which would
+// defeat a bit-exact comparison.
+TEST(RichardsMechanicsLiveKOfRhoD, InteriorKnotBitExactWhereRoundTripMisses)
+{
+    double const K_900 = 4367.227700212952;  // J/kg, superseded dd900 knot
+    double const K_1400 = 46000.0;           // J/kg
+    double const K_1600 = 104689.9129;       // J/kg
+    // The 1600 knot is present only so that 1400 is an INTERIOR knot: in a
+    // two-knot table 1400 is the top support point and is reached through
+    // the endpoint-hold clamp, which never enters the log/exp path.
+    AugmentationPrefactorTable const table(
+        std::vector<double>{900.0, 1400.0, 1600.0},
+        std::vector<double>{K_900, K_1400, K_1600});
+
+    // Interior knot: lower_bound places rho_d = 1400 in the LEFT segment
+    // [900, 1400] at t == 1, where this pair's round-trip lands 1 ULP below
+    // K_r. Node preservation is bit-exact only if the stored knot value is
+    // returned.
+    EXPECT_EQ(K_1400, table.getValueLogLinear(1400.0));
+
+    // Same knot, reached instead through the endpoint-hold clamp of a
+    // two-knot table ending at it: that branch returns the stored value
+    // verbatim. The interior-knot path must agree with it bit for bit.
+    AugmentationPrefactorTable const table_clamped(
+        std::vector<double>{900.0, 1400.0}, std::vector<double>{K_900, K_1400});
+    EXPECT_EQ(table_clamped.getValueLogLinear(1400.0),
+              table.getValueLogLinear(1400.0));
+
+    // Boundary knots of the three-knot table, for completeness: unchanged
+    // clamp convention, stored values held exactly.
+    EXPECT_EQ(K_900, table.getValueLogLinear(900.0));
+    EXPECT_EQ(K_1600, table.getValueLogLinear(1600.0));
 }
 
 // ── §8 NEW TEST (review 2026-06-14): assembled displacement-channel

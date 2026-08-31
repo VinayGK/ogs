@@ -5037,8 +5037,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // on eps_v through phi, so the exchange p-u tangent gains
                     // the product-rule chain
                     //   d mu_lR/d eps_v |_K = dmu_lR/dK * dK/dphi * dphi/deps_v
-                    // with dK/dphi = -rho_SR*(table segment slope) (exact,
-                    // clamped-edge slope 0; PotentialExchangeParameters.h) and
+                    // with dK/dphi = -rho_SR * dK/drho_d (exact;
+                    // clamped-edge slope 0; PotentialExchangeParameters.h),
+                    // rho_d = rho_SR*(1-phi) [kg/m^3] -- see the SCHEME
+                    // note below for the log-linear dK/drho_d -- and
                     // dmu_lR/dK covering the two LINEAR K-channels the residual
                     // mu_lR carries: the direct mu_aug term and, via Pi/Pi' in
                     // the integrable mechanical partner mu_lR_mech,
@@ -5048,6 +5050,23 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // -rho*mu_lR makes the rho factors cancel). Off-mode /
                     // frozen table / clamped edge -> dK/dphi == 0 -> block
                     // skipped, bit-for-bit identical Jacobian.
+                    // SCHEME (commit 1bb414ac05, Vinay's interpolation
+                    // decision 2026-08-26): the LIVE table is LOG-linear,
+                    // ln K linear in rho_d between knots, so dK/drho_d is
+                    // NOT the per-segment constant chord slope of the
+                    // K-linear getSegmentSlope(), which this path no
+                    // longer calls (the K-linear getValue() still serves
+                    // the parse-time frozen-K path). With (x_l,K_l),
+                    // (x_r,K_r) the bracketing knots,
+                    //   dK/drho_d = K(rho_d)*ln(K_r/K_l)/(x_r - x_l)
+                    //               [(J/kg)/(kg/m^3)]
+                    // (getSegmentSlopeLogLinear, same header), hence
+                    //   dK/dphi = -rho_SR*K(rho_d)*ln(K_r/K_l)/(x_r-x_l)
+                    //             [J/kg per unit phi],
+                    // i.e. PROPORTIONAL TO THE LOCAL K, not constant
+                    // across a segment. Residual and Jacobian stay
+                    // tangent-consistent: the residual's K comes from the
+                    // matching getValueLogLinear in the same header.
                     double const dK_dphi_pu =
                         effectiveAugmentationPrefactorPhiDerivative(
                             *potential_exchange_params_ptr,
@@ -5219,6 +5238,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     if (potential_exchange_params_ptr
                             ->potential_augmentation_prefactor_live_dry_density)
                     {
+                        // dK/dphi carries the log-linear table tangent (form
+                        // and units: SCHEME note at the live-K p-u block
+                        // above; PotentialExchangeParameters.h).
                         double const dK_dphi_sw =
                             effectiveAugmentationPrefactorPhiDerivative(
                                 *potential_exchange_params_ptr,
