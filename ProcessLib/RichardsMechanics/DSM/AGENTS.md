@@ -2776,3 +2776,57 @@ before it can join III/VII — do not cite Model IV headline numbers under the c
 that happens. `ms33_modelI_dd900.prj` (entry 28's own re-fit, separately approved 2026-08-28) is
 committed alongside as previously-approved content unrelated to whether the III/IV/VII cascade
 is complete.
+
+---
+
+## 2026-08-31 — Model IV (pellets) completed: cascade entry 29 now closed for all three models
+
+### 30. Model IV cross-validated + rebaselined; III/IV/VII corrected-K cascade fully adopted
+
+Entry 29's prior attempt at Model IV filed a placeholder result instead of actually waiting for
+the run to finish (nothing physically failed — the agent just never properly executed the wait).
+This entry is the retry, done properly: the run was let run to completion and its completion was
+confirmed directly from `run.log`, not inferred from elapsed time.
+
+**Run.** Isolated binary `dd900_adopt_run_2026-08-31/{bin,lib}/ogs` (md5
+`cea9d7d81972f732385b41a71e50f20e`, re-verified unchanged) against the staged
+`ms33_modelIV_pellets.prj` (K-table `18469.144929 46000.0 104689.9129 265905.06`, byte-identical
+to this worktree's own copy). Started 2026-08-31 09:23:34 CEST, completed 11:48:00 CEST
+(2 h 24 m 26 s = 8666.15 s per OGS's own timer). `run.log` tail confirms completion directly:
+"The whole computation of the time stepping took 21500 steps, in which the accepted steps are
+21500, and the rejected steps are 0." / "Simulation completed. It took 8666.15 s." / "OGS
+completed on 2026-08-31 11:48:00+0200." Process (PID 40112) confirmed exited after that line.
+Final output: `ms33_modelIV_pellets_ts_21500_t_17280000.000000.vtu` (t=17280000 s = 200 d).
+
+**Cross-validation (independently re-run this pass, not merely taken on trust).** Recovered
+2026-08-28 double-replica first sanity-checked against itself: `IV_rep1` vs `IV_rep2` —
+bit-identical mesh points (1066 nodes) and every point_data field bit-for-bit exact
+(max_abs_diff = 0.0), confirming the recovered pair is internally consistent before using it as a
+reference. Fresh run vs `IV_rep1` and vs `IV_rep2` independently: mesh points bit-identical to
+both; all 14 point_data fields (displacement, dry_density_solid, intrinsic_permeability,
+micro_exchange_source, micro_porosity, micro_pressure, micro_water_content, porosity, pressure,
+relative_permeability, saturation, sigma, swelling_stress, transport_porosity) across all 1066
+nodes bit-for-bit exact against both replicas — max_abs_diff = max_rel_diff = 0.0 everywhere, no
+tolerance needed. This exceeds the PRJ's own declared tolerances (sigma/pressure family rel 1e-2
+abs 1e3; porosity family rel/abs ~1e-7-1e-8) — matches the bar set by III and VII in entry 29.
+Probe values (mean_stress_MPa = -(sxx+syy+szz)/3/1e6, identical fresh/rep1/rep2 to all printed
+digits): Top (r=0, z=0.070) 4.3935488764 MPa, Central (r=0, z=0.040) 4.3618173505 MPa, Bottom
+(r=0, z=0.010) 0.8924417770 MPa.
+
+**Reference REBASELINED.** Old `ms33_modelIV_pellets_ts_577_t_17280000.000000.vtu` moved via
+`git mv` to `Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIV/superseded_references_2026-08-31/`
+(history preserved, same convention as III/VII in entry 29); new
+`ms33_modelIV_pellets_ts_21500_t_17280000.000000.vtu` added as the live reference (md5
+`53392b6a0308fc12d7f978f614066719`, confirmed identical to the run's own `out/` copy) — exactly
+one `ms33_modelIV_pellets_ts_*_t_17280000...` file now sits in the model directory. Inline
+provenance comment added at the PRJ's `<prefactors>` block (same wording pattern as III/VII),
+now pointing at this entry rather than entry 29's III/VII-only text.
+
+**Net effect of this entry.** All three shipping ANCHORS_MS33 models (III, IV, VII) are now
+adopted onto the corrected dd900 K-knot (18469.144929 J/kg) with verified, rebaselined
+regression-test references. Every one of the three used the same evidence bar: exact bit-for-bit
+field agreement against an independently recovered run from a separate session three days
+earlier, not merely within-tolerance agreement — the strongest reproducibility check available
+given ctest is not registered in this build. The III/IV/VII corrected-K cascade opened in entry
+29 is now complete. Deliverable-side propagation and the push to any remote remain separate,
+not-yet-taken steps (this commit, like entry 29's, is local-only per instruction).

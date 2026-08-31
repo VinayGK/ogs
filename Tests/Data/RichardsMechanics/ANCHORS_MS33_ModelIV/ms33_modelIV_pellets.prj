@@ -67,7 +67,9 @@ Official benchmark spec (MSXX §Model IV):
                        bentonite block AND the pellet zone now report LIVE K(rho_d) from ONE
                        SHARED Dixon-propagated table (sigma0=0 Option-C form-(a) chain,
                        identical to ms33_modelIII_gapswitch.prj / ms33_modelVII_freeswelling.prj):
-                         900/1400/1600/1800 -> 4367.227700212952/46000.0/104689.9129/265905.06 J/kg
+                         900/1400/1600/1800 -> 18469.144929/46000.0/104689.9129/265905.06 J/kg
+                       (900-knot RE-FIT 2026-08-28, supersedes 4367.227700212952, contaminated
+                       fit, see dd900.prj/DSM/AGENTS.md entry 27-28)
                        Declared ONCE at the top level of <potential_exchange> (not per-medium);
                        both media inherit it via `defaults` (CreateRichardsMechanicsProcess.cpp).
                        sigma0 stays -1.5e5 (unchanged, same known convention gap as III/VII; not
@@ -175,9 +177,18 @@ Official benchmark spec (MSXX §Model IV):
                      CreateRichardsMechanicsProcess.cpp; medium id=0 needs no override block at
                      all any more (removed); medium id=1 keeps only its genuinely distinct n_s /
                      initial-water-content overrides. -->
+                <!-- K-TABLE UPDATE RATIFIED 2026-08-31 (Vinay, live conversation): adopted
+                     per Vinay's go-ahead to bring this file's 900-knot into line with the
+                     corrected dd900 re-fit (18469.144929 J/kg, supersedes the n_s-contaminated
+                     4367.227700212952 J/kg; DSM/AGENTS.md 2026-08-28 entry 28). Fresh
+                     end-to-end run cross-validated bit-for-bit against the independently
+                     recovered 2026-08-28 run (max abs/rel diff = 0.0, every point_data field,
+                     all 1066 nodes, both rep1 and rep2). Reference rebaselined ts_577 -> ts_21500
+                     (t=17280000 s). Full record: DSM/AGENTS.md 2026-08-31 entry 30 (cascade
+                     entry 29 covers III/VII; this file completes it). -->
                 <potential_augmentation_prefactor_vs_dry_density>
                     <dry_densities>900 1400 1600 1800</dry_densities>
-                    <prefactors>4367.227700212952 46000.0 104689.9129 265905.06</prefactors>
+                    <prefactors>18469.144929 46000.0 104689.9129 265905.06</prefactors>
                 </potential_augmentation_prefactor_vs_dry_density>
                 <potential_augmentation_prefactor_live_dry_density>true</potential_augmentation_prefactor_live_dry_density>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
