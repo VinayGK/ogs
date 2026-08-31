@@ -2610,3 +2610,169 @@ unrelated to today's rebase/reconciliation, not blocking. A durable fix would
 mean relaxing the tolerance to the contended noise floor, which needs an
 explicit tolerance-literal approval (CLAUDE.md §3) and is left for a
 dedicated follow-up, not this session.
+
+---
+
+## 2026-08-28 — dd900 900-knot RE-FIT under correct n_s (Vinay: "refit" / "do it"); entry 27's OPEN decision resolved for dd900.prj, III/IV/VII NOT yet updated
+
+### 28. DONE 2026-08-28 — dd900.prj re-fit K, MEASURED exact match; cascade to III/IV/VII flagged, not executed
+
+Entry 27 left two options: re-fit under the correct n_s=0.3237, or re-ratify
+the contaminated value under a new rationale. Vinay chose re-fit ("refit"),
+then confirmed ("do it").
+
+**Method:** log-linear secant, reusing `calibrate_maxwell_K.py`'s own
+`read_swelling_stress_MPa` extraction (mean(-sxx-syy-szz)/3 at the saturated
+timestep) for full methodological consistency with the 2026-08-17/08-27
+bracketing. Binary: freshly rebuilt at `bea47887ac` (this session's
+ufz/master rebase + origin reconciliation tip) — NOT the
+`maxwell-conjugate-20260602`@`bed3e395da` binary entry 27's bracketing used.
+Sanity check first: re-ran the already-documented K=18500 point on the new
+binary, got Ps=0.3506348402 MPa — bit-for-bit identical to entry 27's
+recorded value, confirming the new build reproduces the old one's physics
+before trusting any new numbers from it.
+
+**Sweep, tracked-file numerics (min_dt=0.1), all first-attempt exit 0:**
+K=18450→0.3496906715 (−0.1033%), 18460→0.3498795109 (−0.0493%),
+18470→0.3500683478 (+0.0046%), 18480→0.3502571818 (+0.0586%),
+18490→0.3504460127 (+0.1125%), 18500→0.3506348402 (+0.1664%). Monotone in K
+as expected, no divergence, no non-determinism observed across this range —
+entry 27's "narrow numerically fragile band" (K=18342.356341
+non-deterministic, K=18468.9 diverged) did **NOT reproduce** on this build.
+NOT independently established why (build/toolchain difference vs. the band
+being narrower than entry 27's scan resolution vs. something else) —
+reporting the measurement, not a mechanism claim.
+
+**Result:** secant between the K=18460/18470 bracket gives K=18469.144929.
+MEASURED (both the scratch bracket and, separately, the final tracked
+`dd900.prj` file after editing): **Ps(200 d) = 0.3500522010 MPa** vs. target
+**0.3500522009 MPa** — agreement to 10 significant figures. Verified
+byte-identical (md5 of the final-timestep VTU) across 3 independent full
+runs at this K, run concurrently (not sequential retries of one process) —
+genuinely deterministic, not a lucky single pass.
+
+**Landed:** `ms33_modelI_dd900.prj` — K = 4367.227700212952 → **18469.144929
+J/kg**; §12.2 header, inline comment, and top-of-file history block all
+updated per the file's established pattern (append, don't delete — the
+superseded value and its own provenance stay in the text). xmllint clean.
+
+**CASCADE — predicted, NOT executed this entry:** `ms33_modelIII_gapswitch.prj`,
+`ms33_modelIV_pellets.prj`, `ms33_modelVII_freeswelling.prj` each carry their
+OWN copy of the live K(rho_d) `<prefactors>` list, first entry = the same
+900-knot, still at the OLD contaminated value `4367.227700212952` as of this
+entry. `dd900.prj` (diagnostic, not Tests.cmake-registered) and the live
+suite are therefore now KNOWINGLY INCONSISTENT on the 900-knot — flagged in
+both dd900.prj's own header and here, not hidden. Nothing is broken (III/IV/VII
+still match their own committed ctest references, which were never touched):
+this is a deliberate checkpoint, not a partial/broken edit. Updating the three
+`<prefactors>` and re-running (Model IV alone takes ~20 min; matches the
+double-verification rigor already used for the 2026-08-26 log-linear landing)
+is a separate, larger follow-on, explicitly NOT started without Vinay's
+go-ahead on scope/timing.
+
+---
+
+## 2026-08-31 — corrected dd900 K-knot cascaded to III/IV/VII (Vinay's live-conversation go-ahead); III and VII adopted + rebaselined, IV NOT completed
+
+### 29. Cascade from entry 28: III and VII cross-validated + rebaselined; IV incomplete — do NOT treat as done
+
+Entry 28 (2026-08-28) landed the corrected dd900 900-knot (K=18469.144929 J/kg, replacing the
+n_s-contaminated 4367.227700212952 J/kg) in `ms33_modelI_dd900.prj` only, and explicitly flagged
+the cascade to III/IV/VII's own `<prefactors>` tables as "predicted, NOT executed."
+
+**Approval (Vinay, 2026-08-31, live conversation — a fresh approval, distinct from the
+2026-08-28 dd900-only approval).** Adopt the corrected K into the shipping III/IV/VII models,
+propagate it, and re-run end-to-end, with the intent that the verified output become the new
+canonical regression-test reference (commit locally only; a separate later step handles the
+deliverable-side propagation and push). Going into this entry all three shipping PRJs
+(`ms33_modelIII_gapswitch.prj`, `ms33_modelIV_pellets.prj`, `ms33_modelVII_freeswelling.prj`)
+already carried the corrected K live in their `<prefactors>` tables
+(`18469.144929 46000.0 104689.9129 265905.06`) — a prior step in this same session's cascade had
+already swapped the numeric value in but had not yet run/verified/rebaselined/committed any of
+the three.
+
+**Binary provenance.** Canonical `/Users/vinaykumar/git/build/maxwell-conjugate-20260602/bin/ogs`
+re-verified md5 `cea9d7d81972f732385b41a71e50f20e` (`-49-gbed3e395`, commit `bed3e395da`) —
+unchanged from entry 28 / the 2026-08-28 cross-session run, no drift detected at check time
+(this shared path is known to drift from concurrent activity in other sessions during this
+session, so it was re-verified repeatedly, not just once). Runs executed from a fresh isolated
+copy (`dd900_adopt_run_2026-08-31/{bin,lib}/`, full dylib closure, smoke-tested standalone)
+immune to the shared build dir's drift.
+
+**ctest: NOT USABLE, for either model attempted.** `maxwell-conjugate-20260602` was configured
+with `OGS_BUILD_TESTING=OFF`; its `ProcessLib/RichardsMechanics/CTestTestfile.cmake` contains
+ZERO `add_test()` calls, `ctest -N` at the build root lists only `ogs_no_args`, and
+`ctest -R 'ANCHORS_MS33_ModelVII|modelVII_freeswelling|freeswelling'` returns "No tests were
+found!!!" This is a configure-time gate that predates and is unrelated to today's K-table
+change — no ANCHORS_MS33 ctest case is registered in this build at all, regardless of PRJ
+content, and getting one would need a full reconfigure (not attempted: out of scope, and risks
+the shared drift-prone build dir further). `ctestPassed = not_run` for III and VII for this
+concrete reason, not merely as a fallback choice.
+
+**Model III (gap-switch) — SUCCEEDED, adopted.** Fresh run (isolated copy) completed 888
+accepted steps (1 routine rejected step at t=5.666 s startup transient, expected/documented
+behavior) to t=17280000 s (200 d). Cross-validated against the independently recovered
+2026-08-28 run (rep1/rep2, byte-identical to each other, same PRJ/K/binary/commit, three days
+earlier, raw output still on disk from that prior session): EVERY point_data field (sigma,
+pressure, porosity, transport_porosity, micro_porosity, micro_water_content, saturation,
+dry_density_solid, displacement) over all 90 mesh nodes, plus raw point coordinates —
+max_abs_diff = 0.0, max_rel_diff = 0.0 everywhere. This exceeds the PRJ's own declared
+tolerances (sigma/pressure family rel 1e-2 abs 1e3; porosity family rel/abs ~1e-7-1e-8) — there
+is no diff to even compare against tolerance; a stronger check than the task's own probe-only
+bar. Probe values (mean_stress_MPa = -(sxx+syy+szz)/3/1e6): Top 2.013879209625015, Central
+2.006541516052546, Bottom 1.9936228708076316 MPa, identical to all printed digits in
+fresh/rep1/rep2. (Raw VTU container bytes/md5 differ, fresh `645c5308d3ac7c2d89c4309c7c947e61`
+19494 B vs rep1/rep2 `fc1c1e452e2043aac157f3f24e3318b9`; confirmed non-physics header/
+compression-metadata artifact, not a data discrepancy, by the full-field comparison above.)
+Reference REBASELINED: old `ms33_modelIII_gapswitch_ts_880_t_17280000.000000.vtu` (md5
+`4e3228d44dd5398f0d244823ccabe29b`, re-verified in this file's own archived copy) moved via
+`git mv` to `Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIII/superseded_references_2026-08-31/`
+(history preserved, per the established rebaselining convention, e.g.
+`superseded_references_2026-08-26/`); new
+`ms33_modelIII_gapswitch_ts_888_t_17280000.000000.vtu` added as the live reference — exactly one
+`ms33_modelIII_gapswitch_ts_*_t_17280000...` file now sits in the model directory (the
+harness's "exactly one matching reference" requirement, confirmed).
+
+**Model VII (free-swelling) — SUCCEEDED, adopted.** Fresh run completed ts_920, t=20736000 s
+(240 d). Cross-validated against the recovered 2026-08-28 rep1 (rep1==rep2 confirmed first, md5
+`d9e4ad0897f89e619281d966e8bd2756` both): 21 extracted quantities (e_top_probe, e_domain_mean,
+phi_top, phi_mean, axial/mean stress and porosity/void-ratio at Top/Central/Bottom, suction,
+min transport/micro porosity, mean saturation, mean micro water content) all matched EXACTLY
+(abs_diff=0, rel_diff=0) to full double precision — e.g. e_top_probe = 1.1264739847014347 both
+runs; mean_stress_Top/Central/Bottom_MPa = 0.1498690501 / 0.1269712678 / 0.1346723332 both runs;
+axial_stress_top_probe_MPa = 0.4113224313, suction_top_probe_MPa = 18.01460414, both runs. Node
+count (1066) and timestep count (ts_920) matched too, confirming identical adaptive-time-stepping
+trajectory, not just an identical endpoint. (VTU container md5 differs, fresh
+`f6c5ab0816df428c3a28fa5146f0bda6` 204180 B vs recovered `d9e4ad0897f89e619281d966e8bd2756`
+204124 B; non-physics metadata, confirmed irrelevant by the full-quantity match.) Reference
+REBASELINED: old `ms33_modelVII_freeswelling_ts_883_t_20736000.000000.vtu` moved via `git mv` to
+`Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/superseded_references_2026-08-31/`; new
+`ms33_modelVII_freeswelling_ts_920_t_20736000.000000.vtu` added as the live reference (exactly
+one matching file confirmed, non-recursive check).
+
+**Model IV (pellets) — DID NOT COMPLETE. NOT rebaselined. NOT cross-validated. NOT adopted.**
+The reporting pass for Model IV returned no completed run and no cross-validation — its status
+object reads `crossValidated=false`, `ctestPassed=not_run`, `referenceInstalled=false`, with a
+notes field containing only a stray placeholder string ("PLACEHOLDER - DO NOT USE... a
+multi-hour background run proceeds... I will NOT actually end here") rather than a finished
+result. Model IV is the long pole of this cascade (~3 h / ~21 500 timesteps observed in the
+2026-08-28 recovered run), and no confirmed-complete, confirmed-cross-validated fresh run exists
+for it as of this commit. Per instruction, Model IV's reference file and PRJ provenance comment
+are left UNTOUCHED here: `ms33_modelIV_pellets.prj` keeps its pre-existing uncommitted
+modification (K already live in its `<prefactors>` table, same as III/VII, from before this
+task's run/verify phase) but receives NO provenance comment and is NOT part of this commit — it
+remains a pending, unverified, uncommitted change in the worktree.
+`Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelIV/` keeps its OLD reference
+(`ms33_modelIV_pellets_ts_577_t_17280000.000000.vtu`) untouched. Do not treat Model IV as
+adopted, cross-validated, or rebaselined — that still needs a fresh run that actually completes,
+followed by the same cross-validation and rebaseline steps applied to III/VII above.
+
+**Net effect of this entry.** III and VII are now on a verified, cross-session-reproducible
+corrected-K reference — the strongest evidence bar obtainable here given ctest is not registered
+in this build (exact bit-for-bit field agreement across two independent sessions three days
+apart, not merely within-tolerance agreement). IV remains at entry 28's checkpoint state (K live
+in the PRJ, nothing else moved, nothing committed) and needs its own completed, verified run
+before it can join III/VII — do not cite Model IV headline numbers under the corrected K until
+that happens. `ms33_modelI_dd900.prj` (entry 28's own re-fit, separately approved 2026-08-28) is
+committed alongside as previously-approved content unrelated to whether the III/IV/VII cascade
+is complete.

@@ -106,7 +106,8 @@ initial micro water content is set to the 99 MPa-equilibrium value.
       radial confinement; e climbs from ~0.73 to ~1.50), so the physical argument for III/IV
       ("a swelling material loses swelling potential; pricing it at the emplacement density
       is wrong") applies at least as strongly here. Identical Dixon-propagated knots as III:
-          rho_d =  900 -> K =   4367.2277   (target 0.3500522009 MPa)   RATIFIED 2026-08-17
+          rho_d =  900 -> K =  18469.144929 (target 0.3500522009 MPa)   RE-FIT 2026-08-28, supersedes
+          4367.2277 (contaminated fit, see dd900.prj/DSM/AGENTS.md entry 27-28)
           rho_d = 1400 -> K =  46000.0      (target  4.9    MPa)
           rho_d = 1600 -> K = 104689.9129   (target 14.161  MPa)
           rho_d = 1800 -> K = 265905.06     (target 40.6    MPa)
@@ -186,9 +187,17 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                      live-K table already adopted on ms33_modelIII_gapswitch.prj (same Dixon-propagated,
                      sigma0=0 Option-C form-(a) chain; see that PRJ's provenance block for the full
                      derivation and the linear-vs-exponential interpolation caveat, which applies here too). -->
+                <!-- K-TABLE UPDATE RATIFIED 2026-08-31 (Vinay, live conversation): adopted
+                     per Vinay's go-ahead to bring this file's 900-knot into line with the
+                     corrected dd900 re-fit (18469.144929 J/kg, supersedes the n_s-contaminated
+                     4367.227700212952 J/kg; DSM/AGENTS.md 2026-08-28 entry 28). Fresh
+                     end-to-end run cross-validated bit-for-bit against the independently
+                     recovered 2026-08-28 run (21 extracted quantities, exact match to full
+                     double precision). Reference rebaselined ts_883 -> ts_920 (t=20736000 s).
+                     Full record: DSM/AGENTS.md 2026-08-31 entry 29. -->
                 <potential_augmentation_prefactor_vs_dry_density>
                     <dry_densities>900 1400 1600 1800</dry_densities>
-                    <prefactors>4367.227700212952 46000.0 104689.9129 265905.06</prefactors>
+                    <prefactors>18469.144929 46000.0 104689.9129 265905.06</prefactors>
                 </potential_augmentation_prefactor_vs_dry_density>
                 <potential_augmentation_prefactor_live_dry_density>true</potential_augmentation_prefactor_live_dry_density>
                 <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length

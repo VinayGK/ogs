@@ -32,7 +32,8 @@
   the run, because a swelling material loses swelling potential and holding K at the
   emplacement density is physically wrong.  Knots are the Dixon-propagated Model I
   calibration chain, each cell fitted to the Dixon Fig.1 median at its own rho_d:
-      rho_d =  900 -> K =   4367.2277   (target 0.3500522009 MPa)   RATIFIED 2026-08-17 [see note]
+      rho_d =  900 -> K =  18469.144929 (target 0.3500522009 MPa)   RE-FIT 2026-08-28, supersedes
+          4367.2277 (contaminated fit, see dd900.prj/DSM/AGENTS.md entry 27-28) [see note]
       rho_d = 1400 -> K =  46000.0      (target  4.9    MPa)
       rho_d = 1600 -> K = 104689.9129   (target 14.161  MPa)
       rho_d = 1800 -> K = 265905.06     (target 40.6    MPa)
@@ -179,9 +180,17 @@
                 <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
                 <micro_potential_convention>negative_attractive</micro_potential_convention>
                 <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
+                <!-- K-TABLE UPDATE RATIFIED 2026-08-31 (Vinay, live conversation): adopted
+                     per Vinay's go-ahead to bring this file's 900-knot into line with the
+                     corrected dd900 re-fit (18469.144929 J/kg, supersedes the n_s-contaminated
+                     4367.227700212952 J/kg; DSM/AGENTS.md 2026-08-28 entry 28). Fresh
+                     end-to-end run cross-validated bit-for-bit against the independently
+                     recovered 2026-08-28 run (max abs/rel diff = 0.0, every point_data field,
+                     all 90 nodes). Reference rebaselined ts_880 -> ts_888 (t=17280000 s). Full
+                     record: DSM/AGENTS.md 2026-08-31 entry 29. -->
                 <potential_augmentation_prefactor_vs_dry_density>
                     <dry_densities>900 1400 1600 1800</dry_densities>
-                    <prefactors>4367.227700212952 46000.0 104689.9129 265905.06</prefactors>
+                    <prefactors>18469.144929 46000.0 104689.9129 265905.06</prefactors>
                 </potential_augmentation_prefactor_vs_dry_density>
                 <potential_augmentation_prefactor_live_dry_density>true</potential_augmentation_prefactor_live_dry_density>
                 <potential_augmentation_exponent>7.5e-7</potential_augmentation_exponent>
