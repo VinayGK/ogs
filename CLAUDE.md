@@ -594,9 +594,14 @@ the micro-macro Pi-path / vdW augmentation potential (i.e. invokes
 **Calibration anchor** (the dataset against which K =
 `vdw_augmentation_prefactor` is fit) — closed list of TWO:
 
-1. **Dixon (2023)** — MX-80 swelling pressure vs EMDD≡ρ_d
-   (Dixon 2023 Fig. 1; medians 1.12 / 2.61 / 6.09 MPa at
-   ρ_d=1400/1600/1800 kg/m³).
+1. **Dixon (2023)** — MX-80 swelling pressure vs EMDD≡ρ_d, per the
+   EURAD-2 MS33 working-group convention of 2026-05-27 (Dixon 2023
+   Fig. 1 median: σ_swell[MPa] = 0.003·exp(5.2883·EMDD[Mg/m³]);
+   medians 4.900 / 14.161 / 40.600 MPa at ρ_d=1400/1600/1800 kg/m³).
+   Production calibration is applied via the live K(ρ_d) log-linear
+   interpolation table (4 knots: 900/1400/1600/1800 kg/m³; see
+   PotentialExchangeParameters.h), not a single point-fit — this
+   closed list still governs which anchor any knot must cite.
 2. **Villar (year, dataset)** — Villar swelling-pressure
    datasets (target sigma values cited from a specific table /
    figure of a specific Villar publication, e.g. "Villar 2007
