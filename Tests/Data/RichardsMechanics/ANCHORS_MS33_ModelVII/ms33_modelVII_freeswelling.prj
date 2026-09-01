@@ -119,7 +119,30 @@ initial micro water content is set to the 99 MPa-equilibrium value.
         dedicated "elastic — Young/Poisson" warning block at the end of this provenance comment
         (SINGLE material, E=52 MPa Constant, no per-material split needed; 2026-06-08 correction
         left VII E untouched; nu=0.3). geometry = 50 mm
-        reference cell (r25 mesh). retention P0=27MPa,a=0.45; rel.perm S_e^3; rho_s=2780;
+        reference cell (r25 mesh). rel.perm S_e^3; rho_s=2780;
+        macro retention               : SaturationTuller.  *** HEADER CORRECTED 2026-08-31
+                       (§6.7(1) header–value consistency). *** This block previously read
+                       "retention P0=27MPa,a=0.45", i.e. it documented a van Genuchten curve
+                       that this file does NOT implement: no van-Genuchten property exists in
+                       this deck and the literals 27e6 / 2.7e7 / 27000000 / 0.45 occur ZERO
+                       times in it.  The LIVE macro retention property is
+                       <type>SaturationTuller</type>, with
+                           area_factor_tuller           = 1.0
+                           pore_area_shapefactor_tuller = 0.8584073464102069
+                           characteristic_pore_size     = 1e-5   m
+                           surface_tension              = 0.0715 N/m
+                           cavitation_pressure          = 1.4e8  Pa
+                       Source status, per parameter: cavitation_pressure = 1.4e8 Pa is Or and
+                       Tuller (2002), WRR 38(5) 1061.  The Tuller pore geometry
+                       (area_factor_tuller, pore_area_shapefactor_tuller,
+                       characteristic_pore_size) and surface_tension are ported from the
+                       dsm_mfront_hierarchical parity PRJs, as the inline comment at the
+                       property itself records.  A parity or port branch is NOT one of
+                       §12.1's six allowed source families (Beacon / EPFL / Dixon / Villar /
+                       EURAD-MS / FEBEX); it is recorded here as historical provenance only.
+                       TODO(Vinay) — §12.1-admissible source required; live value documented, provenance outstanding.
+                       No numeric literal was changed by this correction; the live values above
+                       are transcribed from the property block itself.
         cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20 Israelachvili & Adams 1978; lambda=7.5e-7
         co-calibrated; micro EOS / Tuller geom / specific_surface 523 m2/g [TODO(Vinay): primary
         locators]; alpha_M phenomenological.
@@ -295,7 +318,13 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                          params: area_factor=1.0, shapefactor=0.8584073464102069, char_pore_size=1e-5 m,
                          surface_tension=0.0715 N/m (water). cavitation_pressure=1.4e8 Pa = homogeneous-
                          nucleation tensile strength of water (Or & Tuller 2002 WRR 38(5) 1061); NOTE
-                         (audit): not present in dsm_mfront_hierarchical; inert at <=100 MPa suction. -->
+                         (audit): not present in dsm_mfront_hierarchical; inert at <=100 MPa suction.
+                         The dsm_mfront_hierarchical port origin of the geometry params and
+                         surface_tension is NOT one of the six source families allowed by
+                         CLAUDE.md 12.1 (Beacon / EPFL / Dixon / Villar / EURAD-MS / FEBEX):
+                         historical provenance only.
+                         TODO(Vinay) — §12.1-admissible source required; live value documented, provenance outstanding.
+                         Source-status line added 2026-08-31; no value changed. -->
                     <name>saturation</name>
                     <type>SaturationTuller</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>

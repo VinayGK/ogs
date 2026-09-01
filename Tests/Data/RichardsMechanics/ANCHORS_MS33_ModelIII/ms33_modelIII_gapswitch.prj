@@ -58,7 +58,33 @@
                                 2026-06-15 WITH this warning; absent from the spec and
                                 from thm-lit; not calibrated.  Warning is mandatory.
     elastic nu = 0.3          : EURAD-MS, CIMNE-UPC spec set
-    retention (P0=27 MPa, a=0.45) : EURAD-MS, MS33 task specification
+    macro retention           : SaturationTuller.  *** HEADER CORRECTED 2026-08-31
+                                (§6.7(1) header–value consistency). *** This line previously
+                                read "retention (P0=27 MPa, a=0.45) : EURAD-MS, MS33 task
+                                specification", i.e. it documented a van Genuchten curve that
+                                this file does NOT implement: no van-Genuchten property exists
+                                in this deck and the literals 27e6 / 2.7e7 / 27000000 / 0.45
+                                occur ZERO times in it.  The LIVE macro retention property is
+                                <type>SaturationTuller</type>, with
+                                    area_factor_tuller           = 1.0
+                                    pore_area_shapefactor_tuller = 0.8584073464102069
+                                    characteristic_pore_size     = 1e-5   m
+                                    surface_tension              = 0.0715 N/m
+                                    cavitation_pressure          = 1.4e8  Pa
+                                Source status, per parameter:
+                                  cavitation_pressure = 1.4e8 Pa : Or and Tuller (2002),
+                                    WRR 38(5) 1061 — see the p_cav line below.
+                                  area_factor_tuller / pore_area_shapefactor_tuller /
+                                    characteristic_pore_size / surface_tension : Tuller pore
+                                    geometry and water surface tension, carried over from the
+                                    parity PRJs of the dsm_mfront_hierarchical branch (cf. the
+                                    equivalent inline comments in Models IV and VII).  A parity
+                                    or port branch is NOT one of §12.1's six allowed source
+                                    families (Beacon / EPFL / Dixon / Villar / EURAD-MS /
+                                    FEBEX); it is recorded here as historical provenance only.
+                                    TODO(Vinay) — §12.1-admissible source required; live value documented, provenance outstanding.
+                                No numeric literal was changed by this correction; the live
+                                values above are transcribed from the property block itself.
     rel. permeability S_e^3   : EURAD-MS, MS33 task specification
     solid density rho_s=2780  : EURAD-MS, MS33 task specification
     initial porosity phi0=0.42446 : EURAD-MS (from rho_d=1600 and rho_s=2780)
@@ -267,6 +293,16 @@
                     <exponent>3</exponent>
                 </property>
                 <property>
+                    <!-- Tuller macro retention (parity-branch params: area_factor=1.0,
+                         shapefactor=0.8584073464102069, char_pore_size=1e-5 m,
+                         surface_tension=0.0715 N/m (water)); cavitation_pressure=1.4e8 Pa =
+                         homogeneous-nucleation tensile strength of water (Or and Tuller 2002,
+                         WRR 38(5) 1061).  The geometry params and surface_tension come from
+                         the dsm_mfront_hierarchical parity PRJs, which is NOT one of the six
+                         source families allowed by CLAUDE.md 12.1 (Beacon / EPFL / Dixon /
+                         Villar / EURAD-MS / FEBEX): historical provenance only.
+                         TODO(Vinay) — §12.1-admissible source required; live value documented, provenance outstanding.
+                         Comment added 2026-08-31; no value changed. -->
                     <name>saturation</name>
                     <type>SaturationTuller</type>
                     <residual_liquid_saturation>0.0</residual_liquid_saturation>
