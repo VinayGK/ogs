@@ -3630,3 +3630,96 @@ K may legitimately carry strain -- the criterion does not arise.
   EITHER direction; not re-checked against the current `:5478` tangent branch.
 - IV's 36x step reduction: UNEXPLAINED.
 - IV worsens against the teams under exact while III and VII improve -- not a uniform offset.
+
+## 2026-09-02 — the exact route drops TWO strain-independent terms at assembly; one is a defect, one is intended-but-mis-justified — OPEN(Vinay)
+
+### 46. MEASURED 2026-09-02 — operational and exact disagree at eps_v IDENTICALLY ZERO; mechanism fully decomposed
+
+Three independent lanes (source trace, numerical bisection, unit-test reconciliation) converged on
+the same two surviving terms. Model I cells are fully Dirichlet-constrained: |u|_max = 0.000000e+00,
+eps_v = 0 for all time, so every strain-path term in the exact energy is identically zero. The
+routes still differ.
+
+    Ps^op - Ps^ex = SUM_k ( n_S^k - n_s_ref )( n_l^k Pi^k - n_l^{k-1} Pi^{k-1} )   <- W, REV weight
+                  - SUM_k n_S^k * b * p_conf^k * ( n_l^k - n_l^{k-1} )             <- D, p_conf drain
+
+**W — DEFECT, undocumented.** The exact branch calls `computeStrainedFilmEnergyPair` with
+`nS <- active_nS`, but every document describing that slot says the eigenstress weight is
+`1 - phi_M`: `PotentialExchange.h:776,:798`; the operational branch's OWN comment at
+`RichardsMechanicsFEM-impl.h:2599` ("n_S passed in is the REV macro-solid fraction (1 - phi_M)");
+`PI_OF_NL_EV_IMPLEMENTATION.md:140`. `computeActiveMicroSolidVolumeFraction` returns `n_s_ref`
+(Reference) or `1-n_l` (CurrentPorositySplit) -- NEVER `1-phi_M`. `n_S` appears ZERO times in the
+exact branch (`:2362-2431`), grep-verified by three lanes.
+Provenance: the 2026-05-26 comment at `:444-454` records the function USED to return `1-phi_M` and
+was deliberately changed. The active_nS denominator fix (CLAUDE.md §2 incident) was correct FOR THE
+vdW LAW and was silently inherited by the eigenstress prefactor.
+ROOT CAUSE IS SIGNATURE-LEVEL: the helper fuses two physically distinct quantities into one `nS`
+argument -- the film-geometry fraction inside the vdW law (`h = n_l/(nS*rho_SR*Sa)`, `mu ~ nS^3`,
+`xi ~ 1/nS`, `:82-148`) AND the eigenstress REV prefactor (`:936`). The operational branch keeps
+them as two separate numbers. One argument cannot carry both. Measured weight mismatch at t_end:
+2.84x (dd900), 1.99 / 1.74 / 1.54x (dd1400/1600/1800).
+
+**D — INTENDED and Vinay-authorized, but its stated justification is FALSE at eps_v = 0.**
+`RichardsMechanicsFEM-impl.h:2355-2363` carries a "PHYSICS TRADEOFF (predicted, §5)" comment
+claiming "on the drained line the two agree". At eps_v = 0 the drained line is p_conf = -K_d*0 = 0
+while the ACTUAL p_conf = Ps (0.35 ... 40.6 MPa) -- the excursion is 100% of p_conf. The comment
+even names the failing case ("fully confined, eps_v~0 with p_conf growing"); that warning was never
+propagated to the `PotentialExchange.h:770-799` header, to `PI_OF_NL_EV_IMPLEMENTATION.md:174`, or
+to any test. `computeStrainedFilmEnergyPair` has no p_conf parameter at all.
+
+**The near-agreement is an ARITHMETIC ACCIDENT.** W and D each carry 8-20% of Ps and very nearly
+cancel; the observed shifts are the residue. Per-cell decomposition sums exactly (reconstruction
+error -0.097% ... -0.0001%):
+
+| cell | gap Ps_ex-Ps_op [MPa] | from W | from D | Ps_op [MPa] |
+|---|---|---|---|---|
+| dd900 | +0.325330 (+92.94%) | +0.103 | +0.222 | 0.35005220099112877 |
+| dd1400 | +0.196350 (+4.007%) | -1.239 | +1.433 | 4.899970339977161 |
+| dd1600 | +0.067325 (+0.476%) | -3.246 | +3.311 | 14.159948034188325 |
+| dd1800 | -0.327293 (-0.806%) | -7.950 | +7.622 | 40.600313177350884 |
+
+Absolute gaps are all the same order (+0.325 / +0.196 / +0.067 / -0.327 MPa), monotone in density,
+crossing zero between dd1600 and dd1800. The sign flip at dd1800 is W overtaking D.
+Because `active_nS` is constant, the exact accumulator telescopes exactly:
+`Ps_ex(end) = n_s_ref * [ n_l,N*Pi(n_l,N) - n_l,0*Pi(n_l,0) ]`, reproduced to <=5e-16 relative in all
+four cells by two independent lanes. The exact-route Ps carries NO phi_M, NO p_conf, NO b, NO kappa:
+swept over 7-14 Biot values it gives ONE distinct Ps per cell, bit-identical final VTU md5s. The
+operational route does not equal its own instantaneous level (7.740 vs 4.900 at dd1400) -- it is a
+genuine path integral.
+
+**PREDICTED (arithmetic from the measured decomposition, NOT re-run): fixing W ALONE makes agreement
+an order of magnitude WORSE** -- it removes the cancellation, leaving D alone at
++63 / +29 / +23 / +19 % of Ps, uniformly positive. Do NOT treat the weight as an isolated fix.
+
+**macro_porosity_floor REFUTED as the discriminator** (two-way test, MEASURED, all [DIAG],
+uncommitted): dd900 floor OFF -> gap GROWS +92.9 -> +143.5%; floor 0.16 -> +59.6%; adding floor 0.08
+to inert cells moves the gap in BOTH directions (dd1600 +0.48 -> -1.25%, sign flip). The floor is a
+modulator via `n_S = 1-phi_M`, not the mechanism; dd900's gap is strictly monotone in n_S/active_nS
+(3.089/2.842/2.595 -> 143.5/92.9/59.6%), which positively confirms W.
+CORRECTION to an earlier claim in this session: dd900 is NOT a 20x outlier -- its absolute gap
+(+0.325 MPa) is the same order as dd1800's (-0.327 MPa). What distinguishes it is n_s_ref = 0.3237,
+the smallest of the four, on a Ps ~100x smaller than dd1800's.
+
+### 47. TEST-COVERAGE FINDING 2026-09-02 — neither existing test gates this
+
+- `ZeroStrainReduction` CANNOT discriminate. Counterfactual constructed at six parameter sets (the
+  test's own two plus all four production Model I sets): the assertion is an ALGEBRAIC IDENTITY of
+  the helper, residual 1.7e-19 ... 1.0e-09 against tolerances 3.2e-6 ... 1.8e-4 Pa, margin 1e4-1e5x.
+  It is true at every parameter set and carries no information about which state the FEM is in.
+- `AssembledExactPairClosesOperationalSigmaDoesNot` does NOT document the discrepancy as intended.
+  It runs a DRAINED-LINE path (p_conf = -K_d*eps_v, e0 = -0.03 -> e1 = 0) and its `sigma_operational`
+  is defined (test:351-360) with the p_conf drain DELIBERATELY REMOVED -- "the held-fixed p_conf
+  drain cancels on a closed loop". Model I sits at eps_v = 0 with p_conf at full swelling pressure,
+  i.e. maximally off that path. The test's own justification for dropping p_conf is precisely the
+  assumption Model I violates.
+
+### 48. OPEN(Vinay) 2026-09-02 — guardrail §9 fires (model-formulation decision)
+
+- **Is the correct REV weight for the exact eigenstress `1-phi_M` (as all three documents state) or
+  the frozen `n_s_ref` (as the code does)?** No lane proposed or applied a fix. Separating W from D
+  requires a two-parameter split in the helper signature -- a code change nobody made.
+- **How much of the favourable III/IV/VII exact-route result (III BELOW -> INSIDE band, VII to +1.29%
+  of the five-team mean) is attributable to these two dropped terms rather than to the formulation?**
+  That question was not asked before the campaign and should gate adoption.
+- The `:2355-2363` tradeoff comment's warning was never propagated to the helper header, the design
+  doc, or any test -- a documentation-propagation gap independent of the physics ruling.
