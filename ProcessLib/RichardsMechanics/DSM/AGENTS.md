@@ -3545,3 +3545,88 @@ only way to confirm pass/fail state.
    `NumLib::LocalLinearLeastSquaresExtrapolator` -- a generic, cross-process
    path, so any fix there is outside DSM's exclusive scope and needs broader
    review.
+
+## 2026-09-01 — the EXACT one-Psi route runs clean; its recorded blocker is STALE; four K-side "fixes" refuted
+
+### 43. MEASURED 2026-09-01 — film_energy_route=exact runs the whole suite with ZERO rejected steps
+
+Vinay's derived one-Psi formulation (Psi_film = -(1-phi_M)*n_l*[I_vdw+I_aug+S],
+I_T = int_0^{eps_v} Pi_T(w(e)) de, kinematic h-law w(e)=n_l(1+kappa*e);
+`PotentialExchange.h:770-963`, `computeStrainedFilmEnergyPair`) was switched ON via PRJ
+flags only -- NO code change, NO rebuild. Both elements are children of
+`<potential_exchange>`: `<film_strain_coupling>kinematic</...>` +
+`<film_energy_route>exact</...>`. `exact` REQUIRES `kinematic` (MEASURED,
+`ExactFilmEnergyPair.cpp:93-104`); default is Operational.
+
+**The 2026-06-25 blocker ("~87% assembled-tangent mismatch under confinement -> III/IV
+stagnate", PREDICTED NOT VERIFIED) does NOT describe this binary.** All three decks reached
+t_end exactly, ZERO rejected steps, no dt collapse, no cap hits:
+
+| model | confinement | steps exact | vs operational | max Newton |
+|---|---|---|---|---|
+| III | CONFINED | 999 | 888 (+12.5%) | 12 |
+| IV | CONFINED | 590 | 21500 (-97.3%, 36x FEWER) | 11 |
+| VII | unconfined | 1171 | 920 (+27.3%) | 13 |
+
+The predicted pattern INVERTED -- the confined pair was cheap, the unconfined one costliest.
+The ONLY convergence failure in the campaign was the OPERATIONAL route (III hit max_iter=60,
+diverged at step 5, t=5.666 s).
+
+Results (MEASURED; extractors validated against committed references first):
+
+| model | operational | exact Psi | team band | movement |
+|---|---|---|---|---|
+| III T/C/B MPa | 2.0138792096/2.0065415161/1.9936228708 | 3.1423878924/3.1184999783/3.0513069540 | [2.5720,7.4660] | BELOW -> INSIDE |
+| IV T/C/B MPa | 4.393548876/4.361817351/0.892441777 | 5.018500722/4.973680939/1.254148507 | Top [1.5053,3.1659] | above -> further above |
+| VII e_top | 1.1264739847 | 1.2240454450 | [1.0857,1.3210] mean 1.2085 | INSIDE fringe -> INSIDE, +1.29% of team mean |
+
+Change concentrated in `swelling_stress` (~1.2 MPa, 12-13% rel, both confined decks);
+hydraulics barely move (III pressure 0.97%, permeability bit-identical).
+
+Flag-live proof (OGS does NOT log the parsed route, and `ConfigTree.cpp:455-527` only WARNS on
+an unread tag -- a misplaced element is a near-silent no-op): (a) exact+off fatals at
+`CreateRichardsMechanicsProcess.cpp:736`; (b) bogus route value fatals in `parseFilmEnergyRoute`;
+(c) matched 1-day probe 131 vs 146 steps with swelling_stress differing 1.846e3 Pa; (d) zero
+`warning:` lines in the IV log.
+
+Also MEASURED from source: the H2 concern from `ULTRACODE_REVIEW_2026-06-14.md:33` (exact route
+sourcing a parse-time scalar K, ignoring the live table) IS FIXED in HEAD -- both halves source
+`effectiveAugmentationPrefactor(params, phi)`, mu-half `:735`, eigenstress `:2328`. exact x live-K
+is legitimate.
+
+### 44. REFUTED 2026-09-01 — four K-side "fixes"; do not repeat them
+
+| variant | K argument | outcome |
+|---|---|---|
+| live-K (ships) | rho_SR*(1-phi_total) | fails the dPi/dphi_M=0 criterion |
+| frozen-K | rho_d0 scalar | III +298%, VII +33% -> OUT of band |
+| micro-argument | rho_SR*(1-n_l) | III +1153%, VII +118%; clips at the TOP knot (2780) for ~10 d, i.e. LEAVES Dixon's calibrated domain |
+| conjugate term | unchanged | VOID -- the lane posited Psi = phi_m*Pi and differentiated THAT |
+
+**The conjugate-term lane's error is the one to guard against.** Psi_film is the strain-path
+INTEGRAL of Pi under a geometry law, NOT phi_m*Pi. Composing the energy with Pi instead of with
+the geometry h is exactly the error Vinay had already identified and corrected (Pi = -dE/dh is
+the gradient). Its +47% VII result and III/IV blow-ups are artifacts of a mis-posited energy and
+are NOT evidence about the physics.
+
+Root cause of all three overshoots: all three shipping decks are `LinearElasticIsotropic`,
+E=52e6 Pa (uncited working value), so there is NO mechanical softening -- the decreasing live-K
+was the only softening mechanism in the model. Corroborates the standing, never-re-run Task-13
+finding that the residual is "missing dry-side plasticity, not K".
+
+The energy criterion `dPi/dphi_M = 0` (used to reject CurrentTotalSolidFraction 2026-06-05) is
+an ARTIFACT of the operational route POSITING sigma_sw rather than deriving it. Under the exact
+route both halves come from one Psi by differentiation, integrability holds by construction, and
+K may legitimately carry strain -- the criterion does not arise.
+
+### 45. OPEN(Vinay) 2026-09-01
+
+- Adoption of the exact route as production: Vinay's ruling, NOT taken here.
+- RE-FIT question: every K knot was calibrated under the OPERATIONAL route, so the Dixon anchor
+  was fitted against a different stress path than production would then use.
+- Model I control under the exact-route campaign: staged, md5-verified byte-identical, but
+  NEVER EXECUTED -- negative-control gap.
+- The ~87% assembled-tangent mismatch (`ULTRACODE_REVIEW_2026-06-14.md:44`): unverified in
+  EITHER direction; not re-checked against the current `:5478` tangent branch.
+- IV's 36x step reduction: UNEXPLAINED.
+- IV worsens against the teams under exact while III and VII improve -- not a uniform offset.
