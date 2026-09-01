@@ -3347,3 +3347,109 @@ evidence of which commit a run used.** Compare `reference_lit_mcp_ogs_source` /
 
 **Resolved from entry 38:** its closing sentence ("committing, and any push, are Vinay's calls")
 is CLOSED 2026-08-31 — Vinay instructed both. Everything else in entry 38 remains open under O1.
+
+## 2026-09-01 — deliverable moved to the post-cascade generation; TWO NEW PHYSICS FINDINGS on the live-K path — OPEN(Vinay)
+
+### 41. DONE 2026-09-01 — mechanical batch shipped (deliverable currency, workbooks, headers, snapshot)
+
+Vinay: "finish all mechanical agentic stuff" / "commit and push the batch".
+- Deliverable moved to the post-cascade set (eurad-anchors `c310f65`): III
+  2.0138792096/2.0065415161/1.9936228708 MPa, IV 4.3935488764/4.3618173505/
+  0.8924417770 MPa, VII e_top 1.1264739847 / e_mean 1.1259356770. Printed K table
+  corrected to the live one. Three docs recompiled clean (30/21/29 pp, zero
+  overfull boxes vs a HEAD baseline). New record CANONICAL_RESULTS_2026-08-31_cascade.json
+  (md5 bf42cd05, deterministic); figures md5 f0f15db1/37621b12/361bdfe7.
+- Model_VII_BGR.xlsx was internally mixing generations (log-linear stress rows,
+  sigma0=0-era porosity/dry-density rows and porosity series, -8.9% vs BGR's own
+  text). Fixed. III and IV measured clean on those rows.
+- Retention provenance headers corrected in all three shipping decks (this repo,
+  `bed5b76df4`): they claimed van Genuchten P0=27 MPa / a=0.45 where the live
+  model is SaturationTuller and those literals occur zero times. Comment-only,
+  verified; four Tuller literals remain TODO(Vinay) for a §12.1-admissible source.
+- §6.8 snapshot `2026-08-31_1155_..._last_successful` (eurad-anchors `9d06499`),
+  08-26 folder renamed back to `_successful` with handover note.
+
+CORRECTION to this session's own earlier reporting: an audit lane asserted the
+BGR workbooks were "already with the organizer"; a second lane labelled that
+INFERRED; the adjudication dropped the label and it was reported as fact.
+MEASURED afterwards: `tex/eurad2_MS34/.../BGR_DATA/Model_{III,IV,VII}/` are all
+EMPTY (only Model_I and Reference_Configuration hold files). The empty folders
+are CONFIRMED INTENTIONAL (Vinay, relayed via session task13-cf, 2026-08-31) --
+NOT a submission gap, not an open item. The VII workbook fix stands on its own
+merits regardless of delivery timing. Recording the escalation pattern because it
+is the E2/E3 failure mode: a plausible claim gaining confidence at each hop.
+
+### 42. OPEN(Vinay) 2026-09-01 — the live-K path fails the SAME energy test that killed CurrentTotalSolidFraction
+
+Supersedes the framing of entry 40 O1: the defect is larger than "the 900-knot
+was fit under the wrong n_s".
+
+**Finding A (MEASURED).** `PotentialExchangeParameters.h:574-586` looks K up at
+`micro_solid_density_reference * (1.0 - phi)` with `phi` = current TOTAL porosity
+-- numerically the exact quantity `CurrentTotalSolidFraction` would have used for
+nS, and which was REJECTED 2026-06-05 as energy-inconsistent. K sits inside the
+micro potential (`PotentialExchange.h:123-131`, `out.mu_lR += mu_aug`), so
+`dPi/dphi_M|_{n_l} != 0` through K. The shipping configuration fails test (1) of
+the very proof used to kill the nS route.
+Quantitatively, at VII's final state: `mu_vdW ~ 4.6e-5 J/kg` vs `mu_aug ~ 16572
+J/kg` -- the vdW base is EIGHT ORDERS below the augmentation; Pi *is* the K-term
+(s_aug = 1.0000). Effective contact-area power `1 + s_aug*dlnK/dlnrho_d`:
+2.83 (rho_d=1000), 3.37 (1300), 3.49 (1363, III final), 7.17 (1500), 7.58 (1600).
+Energy-safe = 1. Rejected mode = 4. Shipping config = 3.4-7.6.
+NOT re-derived as a closed loop integral; the claim is that it fails the same
+exact differential test the rejection doc treats as decisive.
+
+**Finding B (MEASURED).** phi_M = porosity - micro_porosity = 0.000e+00 exactly at
+both models' final frames, and micro_water_content == micro_porosity == porosity
+bit-for-bit. Therefore `1 - phi_total ≡ 1 - n_l` identically in the late regime,
+so the claim that `CurrentPorositySplit` tracks a different quantity from bulk
+density is FALSE in this operating regime -- that energy-safe mode does restore
+K/nS consistency where the headline numbers are read. VII trajectory: phi_M 0.4244
+(t=0) -> <=0.0966 (100d) -> 0.000000 (>=200d).
+
+**Exposure (MEASURED).** III and VII spend >90% of the run inside the 900-1400
+segment (crossing 1400 at ~day 17-18 from a 1600 start). Weight on the 900-knot at
+final state: III 0.0731, VII 0.1936, IV up to 1.000 (flat clamp, part of its domain
+sits below 900). Chain validated: predicted K ratio for III 1.1111 vs observed
+headline move +9.15/+9.33/+10.55%. Measured elasticities: III dln(sigma)/dlnK ~
+0.83-0.96; VII dln(e)/dlnK ~ 0.054-0.063.
+
+**Also measured:** only TWO nS modes are implemented (`Reference`,
+`CurrentPorositySplit`); the third is a specced-and-killed design, never code.
+Enum at `PotentialExchangeParameters.h:249-253`, parse `OGS_FATAL`s otherwise.
+The rejection doc's derivative literal is printed unsigned; sympy returns it
+negative. Its locators have drifted (live: `PotentialExchange.h:232/248`).
+
+**The question that collapses the option menu, Vinay's alone:** the 2026-08-17/18
+ruling made live-K the physics truth for III/IV/VII. It now measurably fails the
+same `dPi/dphi_M = 0` test that killed `CurrentTotalSolidFraction`, at a higher
+effective power over part of the range. EITHER that test is decisive -- in which
+case live-K must go (options 1/4 below) -- OR it is not, in which case the
+rejection of `CurrentTotalSolidFraction` needs revisiting on identical grounds.
+BOTH CANNOT STAND.
+
+Option menu (all III/VII figures PREDICTED from two-point elasticities, none re-run):
+| # | option | energy-safe | cures A | III | VII | cost |
+| 0 | disclose only | no change | no | 2.014 | 1.1265 | prose |
+| 1 | floor K arg at rho_SR*n_s (=1600) | yes | yes | ~4.47 MPa | e~1.194 | run+rebaseline |
+| 2 | per-model K tables | no | no | few % | <1% | RE-FIT+run+rebaseline |
+| 3 | current_porosity_split + re-fit | yes | no | re-fit | re-fit | RE-FIT+run+rebaseline |
+| 4 | live-K off, frozen per-deck K | yes | yes | ~4.47 MPa | e~1.194 | flag+run+rebaseline |
+| 5 | K(rho_d, n_s) explicit | NO (new channel) | no | ~+17% | ~+21% | new formulation |
+Option 5 is a novel constitutive term with no §12.1 source and is listed only for
+completeness. Option 3 has one deck of code mileage in the whole tree
+(`beacon_1a01_dsm_micromacro_stressprobe.prj`).
+
+**Sequencing recommendation (agent opinion, not a ruling):** settle the energy
+question FIRST -- it is free, needs no runs, and determines whether the table is
+consulted at more than one point at all. Then the n_s/K mechanism, then the parked
+"literal Dixon values for dd1400/1600/1800" decision evaluated against whatever
+table is live by then, then ONE consolidated re-run + rebaseline + snapshot rather
+than three. Reverse order costs at least one extra full suite re-run and risks a
+§6.7 cross-artifact window.
+
+**Side finding (§6.7.1 candidate, low priority, not fixed):**
+`ms33_modelVII_freeswelling.prj:7` states `K=103879 J/kg` with no supersession
+marker while the live 1600-knot is 104689.9129; lines 95-96 and 205 do carry the
+"SUPERSEDED 2026-08-17" annotation, so :7 is a stale summary line. III's header is
+clean.
