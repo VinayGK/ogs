@@ -3723,3 +3723,131 @@ the smallest of the four, on a Ps ~100x smaller than dd1800's.
   That question was not asked before the campaign and should gate adoption.
 - The `:2355-2363` tradeoff comment's warning was never propagated to the helper header, the design
   doc, or any test -- a documentation-propagation gap independent of the physics ruling.
+
+## 2026-09-02 — THREE-ROUND ADVERSARIAL REVIEW of the exact one-Psi route: helper sound, surroundings not; SEVEN open items for Vinay
+
+### 49. Review structure and why three rounds mattered
+
+R1 find (4 lanes, documentation-first) -> R2 refute (adversarial, prompted to KILL) -> R3a audit the
+kills + R3b fresh re-attack (blind to R2) -> adjudicate. 11 agents, 14 new simulations in R3b.
+**Two R2 kills were UNSOUND and R3a restored them** -- the specific failure mode the third round
+exists to catch:
+- F5 (mu-level claim): R2 refuted a DERIVATIVE at eps_v != 0 in place of a LEVEL claim at eps_v = 0,
+  and never opened the documentation on the question it had reframed. Restored as C2, blocker.
+- F2 (severity demotion): R2's reclassification was sound, its demotion rested on two false claims.
+
+### 50. THE HELPER IS SOUND; EVERY DEFECT IS IN WHAT SURROUNDS IT
+
+R1 re-derived `computeStrainedFilmEnergyPair` term by term against `PI_OF_NL_EV_IMPLEMENTATION.md`
+§2.1: I_vdw, I_aug, mu_mech, all three derivative blocks, sigma_sw_m and the kappa->0 reduction are
+ALL CORRECT. The Maxwell cross identity holds to rounding BY CONSTRUCTION (`PotentialExchange.h:947-949`
+and `:908-913` are one expression rearranged), MEASURED to pass at a 1e-9 gate; R2's GP drivers
+reproduced the closed forms to machine precision. **Vinay's formulation is not in question.**
+
+### 51. CONFIRMED FINDINGS (survived all three rounds) -- blockers first
+
+**C5 -- THE CAMPAIGN'S CONTRAST CHANGED TWO SETTINGS AT ONCE. MEASURED, and it qualifies every
+headline this session reported.** The shipping decks sit at `film_strain_coupling = Off` (parse
+default, `PotentialExchangeParameters.h:508`); each EXACT deck differs by TWO lines, adding
+`kinematic` AND `exact`. The middle rung was never run until R3b ran it:
+  III Top: Off **2.0138792096** (888 steps, 1 rej) -> kinematic-only **1.5062108715** (952, 0)
+           -> exact **3.1423878924** (999, 0). Band [2.5720, 7.4660].
+  VII e_mean: **1.1259357844** -> **1.0953577889** -> **1.2229747777**.
+  IV kinematic-only: **ERROR TERMINATION** at t = 2172321 s (12.6% of t_end), dt 22994 -> 0.1 s,
+  25 rejected. So IV's 36.4x step reduction is NOT attributable to the kinematic coupling.
+The kinematic rung moves III the OPPOSITE way (further BELOW band). "The exact route moves III into
+the band" is a two-variable claim and must be reported as a three-rung contrast.
+
+**C1 -- the R3 load-work term S uses TOTAL volumetric strain where the drained-line identity it
+encodes requires the MECHANICAL one. Blocker, formulation fork.** `local_context.volumetric_strain =
+trace(eps.eps)` (`:3531/:4060/:6054`) while `volumetric_mechanical_strain` is computed two lines away
+(`:2807`) and unused. MEASURED at the VII exact end state: eps_v = 0.24651893, actual p_conf =
++1.348936e5 Pa, surrogate -K_d*eps_v = **-1.068249e7 Pa** (K_d = 4.33333e7) -- **80x and opposite
+sign**; `-K_d*eps_v^mech` recovers p_conf to the spatial spread. Psi_film is ONE energy in ONE eps_v,
+so the h-law (total) and S cannot use different strains without breaking the pair.
+
+**C2 -- the exact mu half has NO load-transmission channel. Blocker.** `:697-699` removes the
+`+b*p_conf/rho_lR` term under exact. MEASURED (3 FEM runs, dd1600): exact is **bit-identical to
+`film_strain_coupling=off`** in n_l and micro_pressure (5.85563632e7 both) while operational adds
++12.93 kJ/kg, 24% of the mu level (micro_pressure 4.44272993e7). At the VII strain: exact
+**-1408.2 J/kg** vs operational **+1827.2 J/kg** -- OPPOSITE SIGN, 3.2 kJ/kg apart. The boxed Step-19
+gate (`b*K_d > 3*kappa*Pi`) does not describe the exact route: no constant -b*K_d, no 3*kappa*Pi.
+R3a: the documented slopes +2Pi/rho and +3*kappa*Pi/rho are vdW-core-ONLY while production Pi is
+~100% augmentation (Pi_vdw/Pi = 2.56e-10 at VII). Candidate mechanism for VII's over-swell.
+
+**C3 -- xi0 = 1 is a sign-change locus in the exact mu half, and Model IV STRADDLES IT INSIDE ONE
+MESH. Blocker.** Exact: `rho*dmu_mech/deps_v|_0 = 2*Pi_vdw - (1-xi0)*Pi_aug`, sign-indefinite.
+Operational is expulsive everywhere in production. MEASURED xi0 at end states: dd900 1.8359 /
+dd1400 0.9039 / dd1600 0.6763 / dd1800 0.4993 / VII 0.8767 / **IV clay 0.7917, IV pellet
+1.2874-1.7803**. Model I Ps shift is monotone in xi0 (+92.97 / +4.01 / +0.47 / -0.81 %). The link to
+IV's band position and its 36x step drop is PREDICTED, not verified.
+
+**C4 -- Model I under exact breaks the Dixon anchor at the 900 knot by 1.93x without re-fit.**
+dd900 0.35 target -> op 0.3500522010 -> exact **0.6753821363** (+92.97%); dd1400 +4.01%; dd1600
++0.47%; dd1800 -0.81%. Entry 46's W+D decomposition confirmed to six decimals in all four cells.
+
+**C6 -- under exact the assembled tangent is a live WRONG-MODEL, WRONG-WEIGHT contribution.**
+`:5418-5422` seeds the swelling tangent from the M2 explicit-K channel gated only on
+`live_dry_density && dK_dphi_sw != 0 && is_pfmb` -- **no route test** -- and differentiates the
+OPERATIONAL telescoped form at w_eff with the actual p_conf, weighted by `n_S_sw = 1-phi_M_sw` = 1.0
+against the residual's active_nS = 0.5755. All three EXACT decks set live-K + PorosityFromMassBalance
+and rho_d = 1250.6 is table-interior, so dK/dphi != 0. `pair.dsigma_sw_dnl` is computed and consumed
+NOWHERE in ProcessLib. This closes entry 45's "87% mismatch" item as MEASURED-in-source (numerical
+impact still INFERRED).
+
+**C7-C11 (should-fix / latent):** S renormalises the drained bulk modulus by `1 - nS*n_l*b` = **31.7%**
+(55% under the doc-specified kappa), stated in NO document, and Q2 was resolved only by inference
+(`PI_OF_NL_EV:674-676` reads "implement that now" as a Q2 answer). Three doc sentences assert the FEM
+eigenstress site is UNCHANGED under exact (`PotentialExchange.h:796-798`, `PI_OF_NL_EV:177-179`,
+`:675`) -- true when written 2026-06-11 (`70015f8e2b`), falsified by H1 2026-06-14 (`1144cef56c`).
+Test coverage does not reach production state: `FrozenHLimitMatchesShippedPartner` runs kappa = 1e-9
+(series branch) while production uses kappa ~ 0.58; T-3's strain grid is 24.7x below the measured VII
+strain; T-8 `ExpulsionProbeDrainedRamp` is GTEST_SKIP. Macro-floor cutoff g is applied to mu and never
+to the eigenstress in EITHER route (latent: all three campaign decks set floor 0.0; the two
+unregistered `formB_piexact` decks set 0.08). `include_S` is hard-coded true at `:725/:2411/:2421`,
+not PRJ-selectable as §2.2 implies. `CurrentPorositySplit` + exact breaks the one-Psi property outright
+and is unguarded.
+
+### 52. OPEN(Vinay) -- SEVEN questions the review could not close from the documentation
+
+- **Q-A. Which volumetric strain enters S -- total or mechanical?** The docs give the drained-line form
+  and never state which strain realises it; the only warning (`:2355-2363`) names the CONFINED case,
+  the opposite extreme from where it bites. Stake: 80x, opposite sign, at VII.
+- **Q-B. kappa under `aggregate`: `active_nS` (code) or `1-phi_M` (FOUR doc sites + the user-facing
+  OGS_FATAL)?** `STRAINED_FILM:227-230` records D1 as "RESOLVED (Vinay 2026-06-09): kappa = 1-phi_M";
+  `maxwell_from_psi.tex:763`+`:59`; `PI_OF_NL_EV:140`; `CreateRichardsMechanicsProcess.cpp:110-112`.
+  `1-phi_M == 1.0` STRUCTURALLY in all three EXACT decks (they omit TransportPorosityFromMassBalance),
+  so the ratio is a constant **1.7375**. MEASURED stake: VII e 1.2229747777 (aggregate) vs
+  **1.1924490611** (unity) = -2.50%, which **flips VII from above to below the five-team mean**;
+  III -10.1%, i.e. **28% of the entire route movement**. Not exact-specific -- it is the shipped
+  kinematic coupling. Note `maxwell_from_psi.tex` Step 19 itself says which kappa survives is
+  "an experiment, not a theorem".
+- **Q-C. Q2: keep S or drop it?** Never explicitly ruled; `PI_OF_NL_EV:601-608` tags it open
+  `[formulation]`. Stake: the undocumented 31.7% modulus renormalisation, against an uncited E=52 MPa
+  and the standing Task-13 "missing dry-side plasticity" finding.
+- **Q-D. Should the exact mu half carry a load-transmission channel at all?** `STRAINED_FILM` §2 [D]
+  says "the reversal lives in the load-transmission term"; `:697-699` removes it; no document
+  reconciles them.
+- **Q-E. Re-fit the K table under exact, or not?** Now quantified: dd900 +92.97% (factor 1.93) vs the
+  Dixon median, monotone in xi0, whose crossover sits BETWEEN the dd900 and dd1400 knots.
+- **Q-F. `specific_surface = 523`: m2/kg or m2/g?** `PotentialExchange.h:223` annotates m2/kg and the
+  code consumes it so; every MS33 provenance header and both dated reviews write **m2/g**. Under the
+  physically-consistent m2/g pair (S_a x1000, lambda /1000, xi invariant) Pi_aug is bit-invariant while
+  Pi_vdw/Pi goes from ~2e-10 to **0.19-0.20** and `mu_mech` **FLIPS SIGN** (-1427.16 -> +81.97 J/kg).
+  Load-bearing, not cosmetic.
+- **Q-G. Which VII quantity is the headline** -- e at the r=0 top node (1.2240454450), the top-row mean
+  (1.2236798732), or the domain mean (1.2229747777)? The campaign quoted two of these; the published
+  deviation is currently ambiguous at the 0.1% level.
+
+### 53. Agent-closable with Vinay's go-ahead (each implies a source edit the review could not make)
+
+A-1 quantify C6 by adding the route test at `:5241/:5249` in a scratch build and re-running.
+A-2 run VII/III exact with `include_S=false` (C7's nominated refutation) -- needs a source edit,
+    `include_S` is hard-coded.
+A-3 test IV's dt-collapse mechanism by disabling the p_conf drain -- `film_pressure_coupling=false` is
+    SILENTLY OVERRIDDEN to true at `CreateRichardsMechanicsProcess.cpp:673-680`, unreachable from a PRJ.
+A-4 extend T-3 to the production branch/strain range, add a kappa~0.58 case, un-skip T-8 for the SIGN
+    only (needs no magnitudes, so §3 does not block that half).
+A-5 isolate C3 with a deck sweeping n_l across xi0 = 1 in the pellet material.
+A-6 doc/deck hygiene: correct the four stale sentences (C8), annotate the two unregistered piexact
+    decks (C10), guard CurrentPorositySplit + exact (C11).
