@@ -242,5 +242,20 @@ AddTest(
     beacon_1c_reference_t_1000.000000.vtu beacon_1c_dsm_micromacro_smoke_t_1000.000000.vtu micro_pressure micro_pressure 1e-12 1e-12
     beacon_1c_reference_t_1000.000000.vtu beacon_1c_dsm_micromacro_smoke_t_1000.000000.vtu micro_saturation micro_saturation 1e-12 0
     beacon_1c_reference_t_1000.000000.vtu beacon_1c_dsm_micromacro_smoke_t_1000.000000.vtu swelling_stress swelling_stress 1e-12 0
-    beacon_1c_reference_t_1000.000000.vtu beacon_1c_dsm_micromacro_smoke_t_1000.000000.vtu sigma sigma 1e-12 1e-10
+    # GUARDRAIL EXEMPTION CLAUDE.md sec 1.2 (2026-09-01): sigma abs gate
+    # widened one order of magnitude (1e-12 -> 1e-11), per Vinay's explicit
+    # approval, in response to the ogsds01 Jenkins run (ctest --parallel 20,
+    # --preset bgr) failing this vtkdiff with sigma abs max norm up to
+    # 4.91e-11 on the zz component and rel max norm 57.7 on the near-zero rz
+    # (shear) component. NOTE (flagged to Vinay before landing): this widening
+    # is NOT expected to make that run's comparison pass -- 4.91e-11 still
+    # exceeds the new 1e-11 gate by ~5x, and the rz rel blowup (near-zero
+    # reference value) is untouched by an abs-only change. Root cause not
+    # otherwise identified as a beacon_1c code regression (see DSM/AGENTS.md);
+    # leading hypothesis is ogsds01 toolchain/build noise beyond what 81b344a
+    # measured (cross-compiler epsilon ~4.4e-16..7.8e-16) when it set the
+    # prior 1e-12 floor. rel gate intentionally left unchanged (Vinay's
+    # choice); scope limited to beacon_1c only, not the 1a01/1b siblings,
+    # which currently pass under the unchanged 1e-12/1e-10 gates.
+    beacon_1c_reference_t_1000.000000.vtu beacon_1c_dsm_micromacro_smoke_t_1000.000000.vtu sigma sigma 1e-11 1e-10
 )

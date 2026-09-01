@@ -3453,3 +3453,95 @@ than three. Reverse order costs at least one extra full suite re-run and risks a
 marker while the live 1600-knot is 104689.9129; lines 95-96 and 205 do carry the
 "SUPERSEDED 2026-08-17" annotation, so :7 is a stale summary line. III's header is
 clean.
+
+---
+
+## 2026-09-01 — beacon_1c ctest vtkdiff failure (ogsds01 Jenkins run): diagnosed; sigma abs gate widened one order of magnitude (Vinay-approved); NOT expected to fully close
+
+**Trigger:** Vinay shared a Jenkins ctest log (`ctest -D HOSTNAME:STRING=ogsds01
+--parallel 20 --preset bgr`), 3/1055 tests failing. Only one is DSM:
+`RichardsMechanics_beacon_1c_dsm_micromacro_reference-time-omp-vtkdiff` (#721).
+The other two (`ThermoHydroMechanics/MultiMaterial/DP_MCC/TM/square_1e1_2_matIDs-omp`
+#980, `ThermoHydroMechanics/Linear/Beam_sealed_bimaterial/square_1e2_function-omp`
+#987) are hard nonlinear-solver divergences at the first time step, CONFIRMED
+unrelated to DSM: neither PRJ has been touched by any DSM commit since the
+`6af2391` bulk import; #980's MFront `ModCamClay_semiExpl_constE.mfront` was
+touched by 2026-08-12 commit `b4ff1e3`, but only a comment string + two
+unrelated `Mechanics/ModifiedCamClay` test tolerances -- no compiled-code
+change (the `@Algorithm` line is byte-identical before/after).
+
+**DSM finding.** The vtkdiff `sigma` comparison against the committed
+`beacon_1c_reference_t_1000.000000.vtu` fails: abs max norm
+`[9.55e-12, 4.91e-11, 9.55e-12, 7.97e-12]` (axisymmetric rr/zz/phiphi/rz), all
+four exceeding the `1e-12` abs gate; rel max norm on the rz (shear) component
+is `57.7` (5771%) against the `1e-10` rel gate -- that component's reference
+value is near zero, so any absolute noise reads as an enormous percentage.
+Every other compared field (displacement, pressure, saturation, porosity,
+transport_porosity, micro_pressure, micro_saturation, swelling_stress) passes
+at ~1e-14..1e-16. Siblings `beacon_1a01`/`beacon_1b` (identical Tests.cmake
+gates) pass in the same run.
+
+**Ruled out: source-code regression.** `beacon_1c_dsm_micromacro_smoke.prj`
+runs with K=0 (`hamaker_constant=1e-30`, no `vdw_augmentation_prefactor`
+table) -- confirmed by reading `PotentialExchange.h`'s
+`if (potential_augmentation_prefactor > 0.0)` guard directly, not just citing
+`ee5816fc`'s commit message. Every DSM commit since `ee5816fc` (2026-08-12,
+when the current reference was baselined) either only touches the live-K /
+`AugmentationPrefactorTable` code (dead for K=0: `1bb414a`, `1030f06`,
+`7ec39ec`, `2c066ce`, `642a8f8`, `d2ce0b7`), or is `331ff56` (same day,
+`use_analytic_micro_jacobian` false->true) -- and this AGENTS.md already
+records the tip AFTER `331ff56` as re-verified "22/22 PASS (gating 6 +
+beacon 9-family + double_porosity + MCC shear/biax)", i.e. beacon_1c passed
+against this exact committed reference WITH the analytic Jacobian already
+active, on the verification machine. No plausible code-path change since
+that verified-passing state.
+
+**Leading (not closed) hypothesis:** build/toolchain-specific floating-point
+divergence on Jenkins host `ogsds01`, beyond the noise budget `81b344a`
+measured when it set the `1e-12` gate (cross-compiler ogs09/gcc 13.3.0 vs
+macOS/clang: 4.4e-16..7.8e-16 -- ~10^4-10^5x smaller than the 4.91e-11
+observed here). `grep -rl ogsds01` across the repo: zero prior mentions --
+this host has never been characterized against ogs09/clang. Cross-compiler
+confirmation of even the MS33 III/VII baselines was already "open on Vinay's
+desk" per an earlier entry above, so this gap was never fully closed even for
+the family it was originally measured on.
+
+New lead (adversarially checked, not yet confirmed as the actual cause):
+`RichardsMechanicsFEM-impl.h:1102`'s `#pragma STDC FP_CONTRACT OFF` covers the
+micro 2x2 solve and `computeSecondaryVariableConcrete` (sigma_eff
+finalization, line 5938), but `NumLib::LocalLinearLeastSquaresExtrapolator`
+-- the generic, process-agnostic integration-point-to-node extrapolation that
+actually writes nodal `sigma` into the VTU -- carries no such guard
+(`grep -rl FP_CONTRACT NumLib` empty). A real, previously-unconfirmed
+unguarded-FMA gap in a code path shared by every process, not DSM-exclusive.
+
+**Action taken (Vinay's explicit approval — "you may change the tolerance by
+one order of magnitude"):** `ProcessLib/RichardsMechanics/Tests.cmake`,
+beacon_1c's `sigma` DIFF_DATA row, abs gate `1e-12 -> 1e-11` (rel gate `1e-10`
+left unchanged, Vinay's choice). GUARDRAIL EXEMPTION CLAUDE.md sec 1.2
+documented inline at the edit site. Scope limited to beacon_1c only --
+beacon_1a01/beacon_1b pass under the unchanged gates and were not touched.
+
+**Flagged before landing, per sec 5 (predicted, not verified):** this change
+is arithmetically insufficient to make test #721 pass on the ogsds01 run's
+own numbers -- the zz-component's measured 4.91e-11 deviation still exceeds
+the new 1e-11 gate by ~5x, and the rz rel-gate blowup (near-zero reference)
+is untouched by an abs-only change. No local build/ctest available in this
+session to re-verify; the next actual CI run (or Vinay's own rebuild) is the
+only way to confirm pass/fail state.
+
+**Open, for Vinay:**
+1. Whether to widen abs further -- measured noise suggests `~1e-10` would
+   cover this run with ~2x margin (same margin-derivation style as
+   `81b344a`), but that is two orders of magnitude, beyond what was approved
+   here.
+2. Whether to set sigma's rel gate to `0` (matching the pattern already used
+   for every other near-zero-prone field in this same DIFF_DATA block) --
+   no realistic rel-gate widening fixes a near-zero-reference blowup.
+3. Whether to characterize the `ogsds01` toolchain against `ogs09`/macOS-clang
+   (per `81b344a`'s own methodology) to close the still-open cross-compiler
+   noise-floor question.
+4. Whether to add an `FP_CONTRACT` guard to (or otherwise investigate)
+   `NumLib::LocalLinearLeastSquaresExtrapolator` -- a generic, cross-process
+   path, so any fix there is outside DSM's exclusive scope and needs broader
+   review.
