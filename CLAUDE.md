@@ -911,6 +911,58 @@ the alternative costs.
 > pressure-abstol change on III/IV/VII missed that the DISPLACEMENT
 > component was the binding one. §13.3(6).
 
+### §13.5 Check the history before assuming — it is usually there
+
+Approved by Vinay 2026-09-03: *"make a rule to check history, if available,
+so that there are no assumptions."*
+
+Before asserting **why** something is the way it is, or that something was
+never decided, never discussed, or has no provenance, you MUST search the
+history that exists. Assuming in the presence of retrievable history is a
+§13 violation, not a shortcut.
+
+The history that exists here, and is expected to be searched:
+
+1. **`git log` / `git blame` / `git log -S<literal>` / `git log -p`** — who
+   introduced a value or expression, when, and what the commit message said.
+   `-S` on a literal finds its birth commit directly.
+2. **The worklogs** — `AGENTS.md` in the affected directory, and the
+   `DSM/*.md` design and review documents. Decisions are recorded there with
+   dates.
+3. **Prior session transcripts and subagent logs** under
+   `~/.claude/projects/<project>/` — grep these before claiming a topic was
+   never discussed with Vinay. Discussion is not the same as authorship: a
+   value typed by an agent may have been settled with him in conversation
+   first, and the transcript is where that shows.
+4. **The canonical result records** — `~/ogs-models/CANONICAL_RESULTS_*.json`
+   carry a `lineage` key naming every superseded generation. Read it before
+   quoting any headline number.
+5. **Memory files** under `~/.claude/projects/<project>/memory/`.
+
+Two failure modes this rule targets specifically:
+
+- **Absence read as authorship.** "X appears nowhere in his messages"
+  establishes only that a token is absent from one stream. It does NOT
+  establish that he did not decide it, was not consulted, or does not own it.
+  State the search and its scope; never let it imply more.
+- **Orphaned convention read as arbitrary.** A label or value with no
+  definition in the current tree usually has an ancestor in git history. Find
+  the ancestor before calling something undefined or unmotivated.
+
+> **Incident — "he never wrote the S term" (2026-09-03):** a sweep of 974 of
+> Vinay's turns found zero hits for `include_s`, `K_drained`, `0.5*b`,
+> `eps_v^2`, and that absence was reported in a way that implied the S term
+> was un-vetted. It was agent-typed *after exhaustive discussion with him*.
+> The token scan was accurate; the inference from it was not.
+
+> **Incident — "route R3" called undefined (2026-09-03):** six searches across
+> two lanes correctly found no definition of the label in the working tree,
+> and it was reported as an orphan. Its ancestor was in git history the whole
+> time — Vinay's unnumbered "route R", commit `9f7dfffd64a4` (2026-06-09),
+> which additionally records `n_S = 1 - phi_M` and independently corroborates
+> the eigenstress-weight ruling of 2026-09-02. Searching the tree is not
+> searching the history.
+
 ---
 
 ## Scope
