@@ -177,6 +177,35 @@ in the response:
 Raw tolerance literals require user approval — see §3 tolerance
 incident.
 
+### §1.3 Declared unit vs consumed unit — the mechanical check
+
+Approved by Vinay 2026-09-02.
+
+Every dimensioned PRJ parameter MUST carry its unit in the
+`ogs-prj-audit` registry (`audit/properties/bands.yaml`), and the audit
+gate MUST fail when that declared unit disagrees with the unit the
+consuming code annotates. A parameter whose unit is declared in only
+one of the two places, or in neither, is non-compliant.
+
+A dimensional-consistency comment is NOT this check. §4.2's unit
+annotation verifies that exponents balance; it is blind to scale, and
+balances identically under a wrong unit. §1.3 compares the two
+declarations against each other. Both are required.
+
+> **Incident — specific_surface m²/g vs m²/kg (2026-09-02):**
+> `specific_surface = 523` is m²/g (Seiphoori, Ferrari & Laloui 2014,
+> Géotechnique 64(9):721-734, Tab. 1 p. 724; corroborated Tang &
+> Cui 2005 CGJ Tab. 3 / Saiyouri et al. 1998 at
+> 522 m²/g). `PotentialExchange.h:223` annotated it `[m^2/kg]` and
+> consumed it as such. The DSM van der Waals core carries Sa³ with no
+> compensating λ, so the mismatch suppressed it by exactly 1e9 while
+> ξ = h/λ stayed invariant and hid it. `bands.yaml:42` had already
+> declared `m^2/g` — correctly — with no rule comparing it to the
+> code, and with null bands so it never fired. The infrastructure
+> existed and was inert. OGS's own house convention for the tag name
+> is per gram
+> (`Documentation/ProjectFile/prj/chemical_system/surface/site/t_specific_surface_area.md`).
+
 ---
 
 ## §2 Calibration vs verification — NEVER cross the streams
@@ -303,6 +332,29 @@ If you cannot annotate the units, the change is not finished.
 > sides; mixing units produced a silent dimensional error.
 > See [[ogs_rm_dsm_potential_physics]].
 
+### §4.3 Powers of unit-bearing quantities — state the magnitude
+
+Approved by Vinay 2026-09-02.
+
+Any expression that raises a unit-bearing quantity to a power ≥ 2 MUST
+carry, in addition to §4.2's dimensional annotation, the **physical
+magnitude** its inputs imply — evaluated at a named state, with the
+quantity a reader can sanity-check:
+
+```cpp
+// Units: A · Sa^3 · nS^3 · rho_SR^3 / (n_l^3 · rho_lR) = J/kg  ✓  (§4.2)
+// Magnitude at dd1600 endpoint (n_l = 0.4245, Sa = 5.23e5 m^2/kg):
+//   h = n_l/(nS*rho_SR*Sa) = 5.07e-10 m = 0.51 nm ~ 2 water layers  (§4.3)
+```
+
+Rationale: a dimensional check cannot detect a scale error, and a power
+≥ 2 amplifies one. The magnitude line makes it human-visible. A film
+thickness of 507 nm written next to the word "interlayer" is caught in
+one second; `[m^2/kg]^3` balancing to J/kg is not.
+
+Where the derived magnitude has an accepted physical range, say so and
+cite it. If you cannot state the magnitude, the change is not finished.
+
 ---
 
 ## §5 Documenting consequences — predicted ≠ verified
@@ -422,6 +474,26 @@ Conversational discussion is exempt from this section.
       re-synced from the corrected source at commit time — never commit
       a bundle whose frozen copy predates a provenance fix.
 
+   5. **One symbol, one meaning per translation unit.** (Approved by
+      Vinay 2026-09-02.) A symbol MUST NOT carry two distinct physical
+      meanings within one header or source file without an explicit
+      disambiguating suffix on at least one of them. Where two related
+      fractions, densities or potentials coexist, each MUST be named
+      for what it references (`nS_micro` / `nS_rev`, not `nS` twice).
+      A signature or OGS_FATAL string that documents one meaning while
+      a sibling function assumes the other is a STOP.
+
+      > **Incident — nS collision (2026-09-02):**
+      > `computeVanDerWaalsMicroPotential` takes `nS` = the micro solid
+      > volume fraction (`micro_solid_volume_fraction_reference`,
+      > 0.5755 at ρ_d = 1600), while `computeFilmPressureMicroPotential`
+      > OGS_FATALs with "requires n_S = 1 - phi_M > 0" — adjacent
+      > functions in one header, two meanings, differing by a factor
+      > ρ_s/ρ_d = 1.7375, which is cubed inside the vdW core. The
+      > collision produced a false "second defect" hypothesis that
+      > survived until three independent lanes killed it, and it is the
+      > same shape as the recorded `active_nS` incident in §2.
+
    Run the check, state what was verified, and only then commit/push.
 
 8. **Per-run result snapshots (standard mechanism, Vinay 2026-06-10).**
@@ -478,6 +550,45 @@ Sequence only genuinely dependent steps (design → build → verify).
 Don't fan out trivial seconds-long tasks (spawn overhead exceeds the
 gain). Mirrors the global profile rule of 2026-06-08; codified here at
 Vinay's instruction so it binds every agent operating in this repo.
+
+### §6.10 Durable scratch — never leave work where it can be purged (Vinay, 2026-09-03)
+
+**The session scratchpad under `/private/tmp/claude-501/...` is EPHEMERAL and
+IS purged.** It may vanish between one day and the next, without warning and
+without a prompt. Never let it be the only home for anything you would want
+to cite, re-run, compare against, or hand back.
+
+**The durable scratch root is `~/ogs-models/scratch/`.** Every campaign,
+calibration sweep, probe set, diagnostic matrix or dossier that could be
+referenced later lives there, in a folder named per §6.8
+(`<YYYY-MM-DD>_<HHMM>_<branch-or-topic>_<status>`), with a one-paragraph
+`README.md` saying what it is and what produced it.
+
+Working rule, in order of preference:
+
+1. **Write there in the first place** when the work is a campaign or will
+   produce numbers anyone might quote.
+2. **Mirror as soon as it produces a keeper** — the moment a run converges, a
+   calibration lands, or a dossier is written, copy it out. Do not defer to
+   "when the task is done"; the task may end after the purge.
+3. `/private/tmp` stays fine for genuinely throwaway intermediates — a scratch
+   PRJ edit, a one-shot probe script, a log you will read once — but nothing
+   whose loss would cost a re-run.
+
+A number that can no longer be reproduced is not MEASURED any more (§5); it
+reverts to INHERITED and must be re-derived before it is used again (§13.3(4)).
+
+> **Incident — an overnight purge cost ~130 experiments (2026-09-02/03):**
+> The corrected-Sa divergence campaign wrote everything to the session
+> scratchpad. Overnight `/private/tmp` was pruned and `gauge2x2/` (the 2×2
+> gauge matrix), `campaign_sa/` (the 7-deck suite), `ktable/` (the K re-fits),
+> `cure/` (~130 cure experiments), `diverge/` (the divergence
+> characterisation) and `vii_ab/` were all lost. Only the material that had
+> already been mirrored to `~/ogs-models/` survived. The surviving scratch was
+> rescued to
+> `~/ogs-models/eurad-ANCHORS/runs/2026-09-02_1913_dsm_native_maxwell_conjugate_successful/scratch_rescued/`
+> the same night, which is what this rule now makes automatic rather than
+> lucky. See [[project_scratch_and_merge_register]].
 
 ## §7 Authorship and commit hygiene
 
@@ -715,6 +826,90 @@ A change that alters a material-parameter literal in a DSM PRJ MUST:
 > material params to be re-attributed to Beacon, calibration K to be
 > sourced from a Villar/Dixon anchor, headers added per §12.2 before
 > the next reference-VTU refresh.
+
+---
+
+## §13 Adversarial verification — the default, not the exception
+
+Approved by Vinay 2026-09-02: *"add a guardrail to adversarially verify
+all things, as much as possible, unless it is absolutely failsafe and
+straightforward."*
+
+### §13.1 The rule
+
+Before ANY claim, number, finding, verdict or status reaches the user,
+a document, a commit message or another agent, it MUST have survived a
+deliberate attempt to REFUTE it. Confirming a result is not verifying
+it. The attempt must be genuinely independent — a different route,
+lens, tool or agent — and must go to the primary source.
+
+Report what the attempt found, including when it found nothing.
+
+### §13.2 The only exemption — failsafe AND straightforward
+
+Skip §13.1 only when BOTH hold:
+
+- **failsafe**: being wrong is self-revealing and harmless — the next
+  step would fail loudly rather than silently carry the error; and
+- **straightforward**: the tool result IS the evidence, with no
+  inference between observation and claim.
+
+Compiling, applying a diff, a file existing, `xmllint` passing: exempt.
+Anything with an inference step is NOT exempt, however obvious it looks.
+When in doubt, verify — the cost is minutes, and this file records what
+the alternative costs.
+
+### §13.3 Claim classes that are NEVER exempt
+
+1. **Any number that will be reported.** Re-derive it by a second route.
+2. **"It ran / it passed / it failed."** Verify WHAT executed — the
+   actual file, binary and configuration — not what you intended to run.
+3. **Absence claims** ("exactly N consumers", "nothing else reads this",
+   "it appears nowhere"). These need an exhaustive search by two
+   independent indexes; a couple of greps is not a census.
+4. **Any value inherited from another agent, run or document.** It is
+   INHERITED until you reproduce it yourself; never re-label it MEASURED.
+5. **A refutation.** A kill is itself a claim and must be audited. A
+   false refutation is worse than a missed finding, because it removes
+   a true result from the record and nobody looks again.
+6. **A negative diagnosis from changing a knob.** If a setting is
+   changed and the failure is unchanged, verify the setting took effect
+   before concluding the knob is irrelevant — and check WHICH component
+   binds.
+7. **A quotation's standing.** Verify a source passage is current and
+   authoritative, not superseded, draft, commented-out or historical.
+
+### §13.4 Incidents anchoring this rule (all 2026-09-02)
+
+> **Wrong deck, four false PASSes.** A campaign runner selected the
+> project file with `ls ms33_*.prj | head -1`, which resolved
+> alphabetically to an unpatched, sometimes deprecated deck. Four
+> "Model I passed", one "Model III passed" and one "Model VII failed"
+> were reported before the output filenames were checked against the
+> intended ones. All six were void; the decks that ran still read
+> `Sa=523.0`. §13.3(2) exists because of this.
+
+> **Draft ink quoted as settled.** `paper_DSM.tex:1755-1770` was
+> presented as the paper's position on the nS referencing. It sits
+> inside a `\textcolor{red}{` opened at `:1744` — draft. The only
+> accepted-black statement on the subject, `:2280-2282`, says the
+> opposite. §13.3(7).
+
+> **A three-generations-stale headline.** VII `e_top = 1.2183` was
+> carried in five memory files, including the always-loaded index and
+> the living run board, as the current value. It is gen 1 of four; the
+> current value is 1.1264739847. §13.3(4) and (7).
+
+> **A false absence claim.** "There are exactly two consumers of
+> `specific_surface`" was reported from two greps. There are three; the
+> third is in the exact route. §13.3(3).
+
+> **Two knob diagnoses, one right and one wrong.** dd900 under live nS
+> failed identically under changed `minimum_dt` and `abstols` — correctly
+> read as "not the knob", and the real cause (the analytic Jacobian's
+> live-nS chain) was then found. But the same reasoning applied to a
+> pressure-abstol change on III/IV/VII missed that the DISPLACEMENT
+> component was the binding one. §13.3(6).
 
 ---
 
