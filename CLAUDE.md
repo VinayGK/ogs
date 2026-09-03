@@ -407,22 +407,20 @@ Conversational discussion is exempt from this section.
 
 3. **Never delete .md files.** If content is superseded, annotate as
    historical/deprecated within the file.
-   - **They must stay under git control — committed, not merely on disk.**
-     CLAUDE.md, every AGENTS.md, and all guardrail/worklog `.md` files MUST
-     be tracked *and committed* (present in git history) so that a fresh
-     `git worktree` and the main checkout inherit them. The failure mode
-     this rule guards against is NOT only `.gitignore`: an **untracked**
-     CLAUDE.md (one that was never `git add`-ed) is silently absent from
-     every new worktree and from `master` — which is exactly how this file
-     went missing and had to be re-borrowed from another tree (2026-06-06).
-     Therefore: (a) never list them in `.gitignore` or `.git/info/exclude`;
-     if a pattern (`CLAUDE.md`, `AGENTS.md`, `AGENTS_*.md`) ever excludes
-     them, remove it and re-add the files; (b) if any is untracked, `git
-     add` and commit it on a **durable branch (master)** so it propagates
-     to all worktrees, not just the throwaway one you are in; (c) verify
-     with `git ls-files CLAUDE.md` — empty output means the rule is being
-     violated right now. These files may only be *cleaned up* (trimmed,
-     reflowed, annotated historical) — never removed from disk or index.
+   - **They must be committed, not merely on disk.** CLAUDE.md, every
+     AGENTS.md, and all guardrail/worklog `.md` files are tracked and
+     committed on a durable branch (master), because an untracked or
+     ignored copy is silently absent from every fresh `git worktree` and
+     from `master`. Therefore: (a) never list them in `.gitignore` or
+     `.git/info/exclude`; if a pattern (`CLAUDE.md`, `AGENTS.md`,
+     `AGENTS_*.md`) ever excludes them, remove it and re-add the files;
+     (b) if any is untracked, `git add` and commit it on master so it
+     propagates to all worktrees, not just the throwaway one you are in;
+     (c) verify with `git ls-files CLAUDE.md` — empty output means the
+     rule is being violated right now. These files may only be *cleaned
+     up* (trimmed, reflowed, annotated historical) — never removed from
+     disk or index. The two occasions this file went missing (2026-05-29,
+     2026-06-06) are recorded in [[feedback_research_guardrails]].
 
 4. **Never remove agent instructions from AGENTS.md.** Mark completed
    steps as DONE with a YYYY-MM-DD timestamp and a one-line outcome.
@@ -541,10 +539,10 @@ Conversational discussion is exempt from this section.
 
 ### §6.9 Parallel dispatch — standing rule (Vinay, 2026-06-10)
 
-When a task involves multiple INDEPENDENT simulations, models, builds,
-or analysis sub-tasks, START THEM SIMULTANEOUSLY — one per available
+When a task involves multiple independent simulations, models, builds,
+or analysis sub-tasks, start them simultaneously — one per available
 processor-budget slot (`sysctl -n hw.physicalcpu`; size OMP threads so
-total ≈ cores) — NEVER one-at-a-time. The same applies to agent
+total ≈ cores) — never one at a time. The same applies to agent
 sub-tasks: independent work is fanned out in one dispatch, not queued.
 Sequence only genuinely dependent steps (design → build → verify).
 Don't fan out trivial seconds-long tasks (spawn overhead exceeds the
@@ -881,35 +879,16 @@ the alternative costs.
 
 ### §13.4 Incidents anchoring this rule (all 2026-09-02)
 
-> **Wrong deck, four false PASSes.** A campaign runner selected the
-> project file with `ls ms33_*.prj | head -1`, which resolved
-> alphabetically to an unpatched, sometimes deprecated deck. Four
-> "Model I passed", one "Model III passed" and one "Model VII failed"
-> were reported before the output filenames were checked against the
-> intended ones. All six were void; the decks that ran still read
-> `Sa=523.0`. §13.3(2) exists because of this.
-
-> **Draft ink quoted as settled.** `paper_DSM.tex:1755-1770` was
-> presented as the paper's position on the nS referencing. It sits
-> inside a `\textcolor{red}{` opened at `:1744` — draft. The only
-> accepted-black statement on the subject, `:2280-2282`, says the
-> opposite. §13.3(7).
-
-> **A three-generations-stale headline.** VII `e_top = 1.2183` was
-> carried in five memory files, including the always-loaded index and
-> the living run board, as the current value. It is gen 1 of four; the
-> current value is 1.1264739847. §13.3(4) and (7).
-
-> **A false absence claim.** "There are exactly two consumers of
-> `specific_surface`" was reported from two greps. There are three; the
-> third is in the exact route. §13.3(3).
-
-> **Two knob diagnoses, one right and one wrong.** dd900 under live nS
-> failed identically under changed `minimum_dt` and `abstols` — correctly
-> read as "not the knob", and the real cause (the analytic Jacobian's
-> live-nS chain) was then found. But the same reasoning applied to a
-> pressure-abstol change on III/IV/VII missed that the DISPLACEMENT
-> component was the binding one. §13.3(6).
+Five incidents from one day motivate §13.3, one per claim class: a
+campaign runner that picked its deck with `ls | head -1` and reported
+six void PASS/FAIL verdicts (§13.3(2)); a draft `\textcolor{red}` passage
+of paper_DSM.tex quoted as the paper's settled position (§13.3(7)); a
+Model VII headline value carried three generations stale across five
+memory files, the always-loaded index included (§13.3(4) and (7)); a
+two-grep census that missed the third consumer of `specific_surface`
+(§13.3(3)); and a pressure-abstol knob test that missed the displacement
+component binding (§13.3(6)). Full narratives:
+[[incident_adversarial_verification_2026-09-02]].
 
 ### §13.5 Check the history before assuming — it is usually there
 

@@ -1,0 +1,30 @@
+{
+  "_comment": "Project hooks approved by Vinay 2026-09-03 (prompt audit, hunk 22). They enforce in code what CLAUDE.md states in prose: 6.2/6.3 (no deletion of tracked VTU/PRJ or any .md), 7 (no Co-Authored-By: Claude trailer), and xmllint after every PRJ edit (memory: incident_xml_double_hyphen_comment_parse). Commands were pipe-tested against real and synthetic inputs before being written.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r \".tool_input.file_path // empty\"); case \"$f\" in *.prj) xmllint --noout \"$f\" || { echo \"xmllint failed on $f: check for a -- inside an XML comment (memory: incident_xml_double_hyphen_comment_parse)\" >&2; exit 2; } ;; esac",
+            "timeout": 30,
+            "statusMessage": "xmllint on edited PRJ"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "c=$(jq -r \".tool_input.command // empty\"); if printf \"%s\" \"$c\" | grep -Eq \"(^|[;&|[:space:]])(git[[:space:]]+)?rm[[:space:]].*(Tests/Data/[^[:space:]]*\\.(vtu|prj)|\\.md)([[:space:]]|$)\"; then echo \"Blocked by CLAUDE.md 6.2/6.3: never delete tracked VTU/PRJ files or any .md file; annotate as historical instead\" >&2; exit 2; fi; if printf \"%s\" \"$c\" | grep -Eq \"git[[:space:]]+commit\" && printf \"%s\" \"$c\" | grep -Eq \"(^|[\\n])[[:space:]]*Co-Authored-By: Claude|--trailer[= ]+[\\\"']?Co-Authored-By: Claude\"; then echo \"Blocked by CLAUDE.md 7: no Co-Authored-By: Claude trailer unless Vinay explicitly asked for one\" >&2; exit 2; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
