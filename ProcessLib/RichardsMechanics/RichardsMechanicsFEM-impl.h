@@ -5697,7 +5697,19 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // SparseLU compute() failure) per the at-scale comparison
                     // 2026-06-09; flip to true to opt in. Analytic micro 2x2 (a)
                     // is unchanged — the strict win.
-                    constexpr bool enable_dsm_swelling_up_jacobian = false;
+                    // 2026-09-03 (Vinay: "fix the ruled exact + re-fit K to at
+                    // least run the models to t_end"): the constexpr false
+                    // became the PRJ switch <eigenstress_u_jacobian> (default
+                    // false = bit-identical). Under film_energy_route = exact
+                    // the block below takes its two scalars from the
+                    // exact-route pair (consistent with the residual at
+                    // computeReferenceMicroPorositySwellingStressIncrement);
+                    // under the operational route the legacy scalars stay.
+                    // Diagnosis behind it: Model VII Newton stall at 26.26 d,
+                    // contraction ratio -> 1, linear convergence since 8 d —
+                    // the u-block had no eigenstress tangent at all.
+                    bool const enable_dsm_swelling_up_jacobian =
+                        potential_exchange_params_ptr->eigenstress_u_jacobian;
                     // Scope: already inside `if (potential_exchange_enabled)`,
                     // which IS the p^disj (Pi-path) DSM path. Do NOT additionally
                     // gate on saturation_micro: the Pi-path models REMOVE that
@@ -5788,14 +5800,6 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         double const p_film_swj =
                             Pi_bare_swj - b_swj * p_conf_drain_swj;
 
-                        // u-p (via n_l): d sigma_sw/d n_l * dn_l/dpL on identity2,
-                        // with d sigma_sw/d n_l = -(1-phi_M)*( p_film + n_l*dPi/dn_l ).
-                        double const dsigma_sw_dnl_scalar_swj =
-                            -n_S_swj * (p_film_swj + n_l * dPi_dnl_swj);
-                        MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
-                            const d_delta_sigma_sw_dpL =
-                                (dsigma_sw_dnl_scalar_swj * dn_l_dpL) * identity2;
-
                         auto const& C_consistent_swj =
                             *std::get<StiffnessTensor<DisplacementDim>>(
                                 constitutive_data);
@@ -5806,7 +5810,116 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                 *this->material_states_[ip]
                                      .material_state_variables);
                         auto const C_el_inv_swj = C_el_swj.inverse().eval();
+                        double const K_drained_swj =
+                            drainedBulkModulusFromStiffness<DisplacementDim>(
+                                C_el_swj);  // Pa
 
+                        // ── Tangent scalars ─────────────────────────────────
+                        // OPERATIONAL route (legacy, unchanged):
+                        //   d sigma_sw/d n_l   = -(1-phi_M)*(p_film + n_l*Pi')
+                        //   d sigma_sw/d eps_v = +(1-phi_M)*n_l*b*K_drained
+                        // Units: [-]*(Pa + [-]*Pa/[-]) = Pa per n_l;
+                        //        [-]*[-]*[-]*Pa = Pa per strain  ✓ (§4.2)
+                        double dsigma_sw_dnl_scalar_swj =
+                            -n_S_swj * (p_film_swj + n_l * dPi_dnl_swj);
+                        double dsigma_sw_deps_v_scalar_swj =
+                            n_S_swj * n_l * b_swj * K_drained_swj;
+                        // EXACT route (2026-09-03): both scalars from the
+                        // strained-film pair evaluated at the CURRENT state
+                        // with the SAME arguments the residual uses in
+                        // computeReferenceMicroPorositySwellingStressIncrement
+                        // (exact branch): n_l, eps_v = variables.volumetric_
+                        // strain, kappa, b, K_drained(C_el), include_S = true,
+                        // rho_pi (micro rho_lR state if use_micro_liquid_
+                        // density_for_micro_pressure else rho_LR),
+                        // active_nS(n_l), rho_SR, A, Sa, sign, live K(phi),
+                        // exponent, dnS_dnl = 0, floor, W = 1-phi_M(n_l, phi)
+                        // and dlnW/dn_l under rev_macro_solid (NaN / 0 under
+                        // film_geometry). phi = the current PorosityData
+                        // state, exactly as the residual's total_porosity.
+                        // sigma_sw_m = -W*n_l*(Pi(w_eff(n_l,eps_v)) + b*K_d*
+                        // eps_v): the pair's dsigma_sw_dnl carries the n_l
+                        // prefactor, the w_eff chain and the (W'/W) chain;
+                        // dsigma_sw_deps_v the w_eff chain and b*K_d, with W
+                        // frozen in eps_v (phi frozen in-step, as in the
+                        // residual). Units as above (§4.2); magnitude (§4.3)
+                        // in PotentialExchange.h at the derivative.
+                        auto const& pep_swj = *potential_exchange_params_ptr;
+                        bool const exact_route_swj =
+                            pep_swj.film_strain_coupling !=
+                                FilmStrainCouplingMode::Off &&
+                            pep_swj.film_energy_route ==
+                                FilmEnergyRoute::Exact &&
+                            std::isfinite(variables.volumetric_strain);
+                        if (exact_route_swj)
+                        {
+                            double const phi_state_swj =
+                                std::get<ProcessLib::ThermoRichardsMechanics::
+                                             PorosityData>(
+                                    this->current_states_[ip])
+                                    .phi;  // [-]
+                            double const rho_lR_state_swj =
+                                *std::get<MicroLiquidDensity>(
+                                    this->current_states_[ip]);  // kg/m^3
+                            double const rho_pi_swj =
+                                pep_swj.use_micro_liquid_density_for_micro_pressure
+                                    ? rho_lR_state_swj
+                                    : rho_LR;  // kg/m^3
+                            double const K_aug_swj =
+                                effectiveAugmentationPrefactor(
+                                    pep_swj, phi_state_swj);  // J/kg
+                            bool const use_rev_swj =
+                                pep_swj.eigenstress_weight ==
+                                EigenstressWeightMode::RevMacroSolid;
+                            double const W_swj =
+                                use_rev_swj
+                                    ? computeRevMacroSolidFractionWeight(
+                                          n_l, phi_state_swj)
+                                    : std::numeric_limits<double>::quiet_NaN();
+                            double const dlnW_swj =
+                                use_rev_swj
+                                    ? computeRevMacroSolidFractionWeightDLogDnl(
+                                          n_l, phi_state_swj)
+                                    : 0.0;  // 1/n_l
+                            double const kappa_swj =
+                                pep_swj.film_strain_kappa ==
+                                        FilmStrainKappaMode::Aggregate
+                                    ? active_nS_bare_swj
+                                    : 1.0;
+                            auto const pair_swj = computeStrainedFilmEnergyPair(
+                                n_l, variables.volumetric_strain, kappa_swj,
+                                b_swj, K_drained_swj, true /*include_S*/,
+                                rho_pi_swj, active_nS_bare_swj,
+                                pep_swj.micro_solid_density_reference,
+                                pep_swj.hamaker_constant,
+                                pep_swj.specific_surface,
+                                microPotentialSignFactorFromParameters(pep_swj),
+                                K_aug_swj, pep_swj.potential_augmentation_exponent,
+                                0.0 /*dnS_dnl: frozen nS (B1)*/,
+                                pep_swj.micro_water_content_floor, W_swj,
+                                dlnW_swj);
+                            dsigma_sw_dnl_scalar_swj =
+                                pair_swj.dsigma_sw_dnl;  // Pa per n_l
+                            dsigma_sw_deps_v_scalar_swj =
+                                pair_swj.dsigma_sw_deps_v;  // Pa per strain
+                        }
+
+                        // MEASURED 2026-09-03 (Model VII free swelling, ruled
+                        // exact config, re-fit K, 0-7 d): with K[u,p] assembled
+                        // Newton needs 8.6 its/step where the tangent-off run
+                        // needs 2.0; with K[u,u] alone 2.0. The K[u,p] chain
+                        // (dsigma_sw_dnl * dn_l_dpL) is therefore NOT consistent
+                        // with the implicit n_l(p_L, eps_v) local solve as
+                        // linearised by computeImplicitNlDpL — left in place
+                        // for the record, but the switch should not be used in
+                        // production until that chain is reconciled. K[u,u]
+                        // alone is neutral (III fixed-dt 7.96 vs 7.93 its/step)
+                        // and does not move the VII stall (26.30 vs 26.26 d).
+                        // u-p (via n_l): d sigma_sw/d n_l * dn_l/dpL on identity2.
+                        MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
+                            const d_delta_sigma_sw_dpL =
+                                (dsigma_sw_dnl_scalar_swj * dn_l_dpL) *
+                                identity2;  // Pa per Pa
                         local_Jac
                             .template block<displacement_size, pressure_size>(
                                 displacement_index, pressure_index)
@@ -5814,19 +5927,13 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                           C_el_inv_swj * d_delta_sigma_sw_dpL *
                                           N_p * w;
 
-                        // u-eps (K[u,u]): d sigma_sw/d eps_v =
-                        //   +(1-phi_M)*n_l*b*K_drained.
-                        // eps_v = identity2^T B u, so the block is
+                        // u-eps (K[u,u]): eps_v = identity2^T B u, so the block is
                         //   B^T C C_el^{-1} (dsigma_sw/deps_v * identity2)
                         //        identity2^T B w.
-                        double const K_drained_swj =
-                            drainedBulkModulusFromStiffness<DisplacementDim>(
-                                C_el_swj);
-                        double const dsigma_sw_deps_v_scalar_swj =
-                            n_S_swj * n_l * b_swj * K_drained_swj;
                         MathLib::KelvinVector::KelvinVectorType<DisplacementDim>
                             const dsigma_sw_deps_v =
-                                dsigma_sw_deps_v_scalar_swj * identity2;
+                                dsigma_sw_deps_v_scalar_swj *
+                                identity2;  // Pa per strain
                         local_Jac
                             .template block<displacement_size, displacement_size>(
                                 displacement_index, displacement_index)

@@ -557,6 +557,16 @@ struct PotentialExchangeParameters
     EigenstressWeightMode eigenstress_weight =
         EigenstressWeightMode::FilmGeometry;
 
+    // ── Displacement-block eigenstress tangent (K[u,u], K[u,p]) ─────────────
+    // PRJ <eigenstress_u_jacobian>true</eigenstress_u_jacobian>. Default false
+    // = the pre-2026-09-03 behaviour bit-for-bit (the block introduced and
+    // parked OFF on 2026-06-09, 8a0f531f5d / 4e2a2813a5, stays off). true re-enables it; under film_energy_route =
+    // exact it is wired to the exact-route pair (dsigma_sw_deps_v,
+    // dsigma_sw_dnl), under the operational route to the legacy scalars.
+    // JACOBIAN ONLY — the residual is untouched. Re-enabled at Vinay's
+    // instruction 2026-09-03 after the Model VII Newton-stall diagnosis.
+    bool eigenstress_u_jacobian = false;
+
     // ── K(rho_d): augmentation prefactor as a function of dry density ──────
     // Optional piecewise-linear table K = K(rho_d) [J/kg vs kg/m^3]. When set
     // together with `dry_density`, the augmentation prefactor above is

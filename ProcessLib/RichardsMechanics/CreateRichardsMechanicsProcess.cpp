@@ -770,6 +770,11 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             defaults ? toString(defaults->eigenstress_weight)
                      : "film_geometry"));
 
+    //! \ogs_file_param{prj__processes__process__potential_exchange__eigenstress_u_jacobian}
+    auto const eigenstress_u_jacobian = config.getConfigParameter<bool>(
+        "eigenstress_u_jacobian",
+        defaults ? defaults->eigenstress_u_jacobian : false);
+
     // Macro-porosity floor phi_M,min: keeps the macro pore from collapsing into
     // the interlayer (n_l capped at (phi-floor)/(1-floor)); 0 -> no floor.
     // MANDATORY (Vinay 2026-06-17): like micro_water_content_floor, the top-level
@@ -849,6 +854,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         film_strain_kappa,
         film_energy_route,
         eigenstress_weight,
+        eigenstress_u_jacobian,
         potential_augmentation_prefactor_vs_dry_density,
         dry_density,
         potential_augmentation_prefactor_live_dry_density};

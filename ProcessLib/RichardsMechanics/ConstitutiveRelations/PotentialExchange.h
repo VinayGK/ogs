@@ -822,6 +822,14 @@ struct StrainedFilmEnergyPairData
     double dmu_mech_drho_lR = 0.0;   // (J/kg)/(kg/m^3)
     double sigma_sw_m = 0.0;         // Pa (drained-line eigenstress half)
     double dsigma_sw_dnl = 0.0;      // Pa per unit n_l
+    // d(sigma_sw_m)/d(eps_v) at FIXED n_l and FIXED weight W. NOTE: phi is
+    // NOT frozen within the step (PorosityFromMassBalance updates it every
+    // Newton iteration), so a dW/dphi*dphi/deps_v chain is omitted here; it
+    // is a difference of two legs one step apart, ~1e-3 relative (algebra
+    // review 2026-09-03). Consumed by the displacement-block eigenstress tangent
+    // K[u,u] (RichardsMechanicsFEM-impl.h, eigenstress_u_jacobian), per the
+    // 2026-09-03 Model VII stall diagnosis, as specified by Vinay 2026-09-03.
+    double dsigma_sw_deps_v = 0.0;   // Pa per unit strain
     // Pre-cutoff bare-law reference values, exposed so the fold point can
     // recover the macro-floor cutoff factor g = mu_post/mu_pre and its chain.
     double mu_bare_pre = 0.0;        // J/kg
@@ -987,6 +995,34 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
     // nS_film = 0.5755395683453237. The weight ratio at that state is
     // 1/0.5755395683 = 1.7375 = rho_s/rho_d = 2780/1600.  (§4.3)
     out.sigma_sw_m = -W * n_l * (Pi_weff + biot_b * K_d * eps);        // Pa
+    // d(sigma_sw_m)/d(eps_v) at fixed n_l, W (2026-09-03, Vinay: "fix the
+    // ruled exact + re-fit K to at least run the models to t_end").
+    //   Pi_weff = -rho_lR*(mu_v/f^3 + mu_a*E),  f = 1 + kappa*eps,
+    //   E = exp(-xi0*kappa*eps)
+    //   dPi_weff/deps = -rho_lR*(-3*kappa*mu_v/f^4 - xi0*kappa*mu_a*E)
+    //                 =  rho_lR*kappa*(3*mu_v/f^4 + xi0*mu_a*E)
+    //   d(sigma_sw_m)/deps = -W*n_l*(dPi_weff/deps + b*K_d)
+    // Same clamped_f guard as dmu_mech_deps_v: on the clamp f is flat in eps
+    // (the residual is flat there too), so only the S-term slope survives.
+    // Units: [-]*[-]*((kg/m^3)*[-]*(J/kg)*[-] + [-]*Pa) = Pa per strain ✓ (§4.2)
+    // Magnitude (§4.3) at the VII bottom node, 20 d (T3 frames 2026-09-03):
+    //   W = 0.83, n_l = 0.42, b = 1, K_d = 43.3 MPa (E = 52 MPa, nu = 0.3):
+    //   S part = -0.83*0.42*43.3e6 = -1.5e7 Pa per strain; the vdW part is
+    //   0 with the core off (hamaker 1e-30) and the aug part is O(Pi_a*xi0*kappa)
+    //   ~ 1e7 Pa per strain at xi0 ~ 0.7 — both of order K_d, i.e. the
+    //   swelling tangent is comparable to the elastic one, which is why its
+    //   omission stalls Newton (contraction ratio -> 1).
+    {
+        double const dPi_weff_deps =
+            clamped_f ? 0.0
+                      : rho_lR * kappa *
+                            (3.0 * mu_v / (f * f * f * f) +
+                             ((potential_augmentation_prefactor > 0.0)
+                                  ? xi0 * mu_a * E
+                                  : 0.0));  // Pa per strain
+        out.dsigma_sw_deps_v =
+            -W * n_l * (dPi_weff_deps + biot_b * K_d);  // Pa per strain
+    }
     // d(sigma_sw)/d(n_l) — exact chain through the n_l prefactor, through
     // w_eff = n_l*(1+x), AND (new, 2026-09-02) through the WEIGHT itself:
     //   d/dn_l[-W(n_l)*n_l*P] = -W*d/dn_l[n_l*P] + (W'/W)*sigma_sw_m

@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
 #include <iostream>
 
 #include "ProcessLib/RichardsMechanics/RichardsMechanicsFEM-impl.h"
@@ -188,6 +189,84 @@ TEST(RichardsMechanicsExactFilmPair, MaxwellIdentityAndFDChains)
                     (2 * dr);
                 EXPECT_NEAR(p.dmu_mech_drho_lR, fd_rho,
                             5e-5 * std::abs(fd_rho) + 1e-12);
+            }
+        }
+    }
+}
+
+// Anchor: analytical limit — derivative consistency of the NEW
+// d(sigma_sw_m)/d(eps_v) field (2026-09-03, consumed by the displacement-block
+// eigenstress tangent K[u,u], eigenstress_u_jacobian) against a central finite
+// difference of sigma_sw_m in eps_v at fixed n_l and fixed weight W. No
+// expected physical value; the tolerance is the FD truncation/roundoff bound
+// derived here: O(de^2) relative + eps_mach*|sigma_sw_m|/(2*de) absolute.
+// Covers: augmentation off/on, kappa = active_nS and 1, three strains
+// including the zero-strain reference, and W = NaN (fused default) vs a
+// finite REV weight with its dlnW/dn_l chain (which must NOT enter this
+// derivative — W is frozen in eps_v within the step).
+TEST(RichardsMechanicsExactFilmPair, SigmaSwStrainDerivativeMatchesFD)
+{
+    for (auto const& st : {ExactPairSampleState{}, withAug()})
+    {
+        for (double const kappa : {st.active_nS, 1.0})
+        {
+            for (double const n_l : {0.1, 0.3, 0.5})
+            {
+                for (double const eps_v : {0.0, 0.05, -0.02})
+                {
+                    for (bool const finite_W : {false, true})
+                    {
+                        double const W = finite_W
+                                             ? 0.7
+                                             : std::numeric_limits<
+                                                   double>::quiet_NaN();
+                        double const dlnW = finite_W ? -1.3 : 0.0;
+                        auto const at = [&](double const e)
+                        {
+                            return computeStrainedFilmEnergyPair(
+                                n_l, e, kappa, st.biot, st.K_drained, true,
+                                st.rho_lR, st.active_nS, st.rho_SR,
+                                st.hamaker, st.Sa, st.sign, st.K_aug,
+                                st.lambda_aug, 0.0, st.floor, W, dlnW);
+                        };
+                        auto const p = at(eps_v);
+                        double const de = 1e-6;
+                        double const fd = (at(eps_v + de).sigma_sw_m -
+                                           at(eps_v - de).sigma_sw_m) /
+                                          (2 * de);
+                        double const roundoff_floor =
+                            1e-15 * std::abs(p.sigma_sw_m) / de;
+                        EXPECT_NEAR(p.dsigma_sw_deps_v, fd,
+                                    1e-5 * std::abs(fd) + roundoff_floor + 1e-6)
+                            << "aug=" << (st.K_aug > 0) << " kappa=" << kappa
+                            << " n_l=" << n_l << " eps_v=" << eps_v
+                            << " finite_W=" << finite_W;
+                        // The S-term slope must be present exactly once:
+                        // with the vdW/aug part removed analytically the
+                        // remainder is -W_eff*n_l*b*K_d.
+                        double const W_eff = finite_W ? W : st.active_nS;
+                        if (st.K_aug == 0.0)
+                        {
+                            // vdW-only: dPi/deps = rho*kappa*3*mu_v/f^4; check
+                            // the S part by subtracting the FD of the
+                            // include_S=false pair.
+                            auto const at_noS = [&](double const e)
+                            {
+                                return computeStrainedFilmEnergyPair(
+                                    n_l, e, kappa, st.biot, st.K_drained,
+                                    false, st.rho_lR, st.active_nS, st.rho_SR,
+                                    st.hamaker, st.Sa, st.sign, st.K_aug,
+                                    st.lambda_aug, 0.0, st.floor, W, dlnW);
+                            };
+                            double const s_part =
+                                p.dsigma_sw_deps_v -
+                                at_noS(eps_v).dsigma_sw_deps_v;
+                            EXPECT_NEAR(s_part, -W_eff * n_l * st.biot *
+                                                    st.K_drained,
+                                        1e-9 * W_eff * n_l * st.K_drained);
+                        }
+                    }
+                }
             }
         }
     }
