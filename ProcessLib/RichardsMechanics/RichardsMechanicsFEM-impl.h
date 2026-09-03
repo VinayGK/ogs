@@ -485,6 +485,76 @@ inline double computePreviousMicroSolidVolumeFraction(
     return std::max(1e-16, 1.0 - n_l_prev_safe);
 }
 
+// ── REV macro-solid fraction W = 1 - phi_M, the EIGENSTRESS/ENERGY weight ───
+// CLAUDE.md §6.7.5 (one symbol, one meaning) + Vinay's ruling 2026-09-02.
+//
+// This is a DIFFERENT quantity from computeActiveMicroSolidVolumeFraction()
+// directly above, which returns the FILM GEOMETRY fraction (n_s_ref, or the
+// aggregate 1 - n_l) that references the gravimetric water content. The two
+// were fused into one `nS` argument of computeStrainedFilmEnergyPair until
+// 2026-09-02. They are named apart here so a reader can never re-fuse them.
+//
+// W is the fraction of the REV occupied by aggregate, so phi_m = W*n_l is the
+// micro porosity — exactly the weight the operational branch already applies
+// (impl.h "n_S passed in is the REV macro-solid fraction (1 - phi_M)") and
+// exactly what this header's Psi_film derivation documents.
+//
+// Definition and clamp are taken from the hierarchical porosity split above
+// (phi_M = clamp((phi - n_l)/(1 - n_l), 0, phi)), NOT re-derived, so W here
+// can never disagree with the phi_M the state actually carries. Evaluating it
+// at the step's held-fixed total porosity phi (the same convention as
+// K_aug_sw and p_conf) makes W a pure function of n_l within the step, which
+// is what lets the telescoped increment stay the exact difference of one
+// step-local Psi(n_l, eps_v).
+//
+// NOTE on chains: phi is an INPUT to the split (it is re-partitioned, never
+// recomputed from n_l), so dphi/dn_l == 0 and no further n_l chain exists.
+// phi DOES depend on eps_v, so W is strain-dependent too; that channel is
+// deliberately NOT wired here (frozen-phi convention) — see the DSM worklog.
+inline double computeRevMacroSolidFractionWeight(double const n_l,
+                                                 double const total_porosity)
+{
+    // Mirrors computeTransportPorosityUpdate's clamps verbatim.
+    double const phi_safe = std::max(0.0, total_porosity);            // [-]
+    double const n_l_safe = std::clamp(std::max(0.0, n_l), 0.0, phi_safe);
+    double const one_minus_n_l = std::max(1e-12, 1.0 - n_l_safe);     // [-]
+    double const phi_M =
+        std::clamp((phi_safe - n_l_safe) / one_minus_n_l, 0.0, phi_safe);
+    // Units: [-] (a volume fraction). Magnitude over an MS33 run (MEASURED
+    // 2026-09-02 from the exact-route VTUs of Models I, III and VII alike):
+    // 0.575540 at t=0 -> 1.000000 at t_end, where phi_M hits its 0 clamp and
+    // the whole REV solid carries the film. Cross-checked in the same VTUs
+    // against the identity (1-phi)/(1-n_l), which agrees to 6 digits at both
+    // ends. Bounded in (0, 1] because n_l <= phi always.  (§4.2/§4.3)
+    return std::max(1e-16, 1.0 - phi_M);  // [-]
+}
+
+// d(ln W)/d(n_l) for the weight above, at held-fixed phi.  [1/n_l]
+//   W = (1 - phi)/(1 - n_l)  =>  dW/dn_l = W/(1 - n_l)  =>  dlnW/dn_l =
+//   1/(1 - n_l).
+// Returns 0 on the clamped branches, where W is locally constant in n_l --
+// the same freeze convention the porosity split and dphi_deps_v_sw use.
+inline double computeRevMacroSolidFractionWeightDLogDnl(
+    double const n_l, double const total_porosity)
+{
+    double const phi_safe = std::max(0.0, total_porosity);            // [-]
+    double const n_l_safe = std::clamp(std::max(0.0, n_l), 0.0, phi_safe);
+    double const one_minus_n_l = std::max(1e-12, 1.0 - n_l_safe);     // [-]
+    double const phi_M_candidate = (phi_safe - n_l_safe) / one_minus_n_l;
+    // Clamped -> dphi_M/dn_l = 0 -> dW/dn_l = 0. MEASURED: the lower clamp
+    // (phi_M = 0) is ON at the endpoint of all three exact-route MS33 runs.
+    if (!(phi_M_candidate > 0.0) || phi_M_candidate > phi_safe ||
+        !(n_l_safe < phi_safe))
+    {
+        return 0.0;  // [1/n_l]
+    }
+    // Units: 1/[-] = per unit n_l. Magnitude at III's endpoint state
+    // (n_l in [0.50766, 0.510416], MEASURED 2026-09-02 from the run VTU):
+    // 1/(1 - n_l) in [2.031, 2.043] per unit n_l -- the same 1/(1-n_l) that
+    // sets the free-swelling loop gain.  (§4.2/§4.3)
+    return 1.0 / one_minus_n_l;  // [1/n_l]
+}
+
 struct ReducedMicroLiquidDensityData
 {
     double rho_lR = 0.0;
@@ -736,7 +806,19 @@ inline void applyFilmPressureMicroPotential(
                                            local_context.phi),  // K [J/kg]
             potential_exchange_params.potential_augmentation_exponent,
             0.0 /*dnS_dnl: frozen nS (B1)*/,
-            potential_exchange_params.micro_water_content_floor);
+            potential_exchange_params.micro_water_content_floor,
+            // AUDIT DIAGNOSTIC 2026-09-03: give the MU half the same live REV
+            // weight the eigenstress half now carries, so mu_mech can pick up
+            // the W' channel. NaN in FilmGeometry mode -> unchanged.
+            (potential_exchange_params.eigenstress_weight ==
+             EigenstressWeightMode::RevMacroSolid)
+                ? computeRevMacroSolidFractionWeight(n_l, local_context.phi)
+                : std::numeric_limits<double>::quiet_NaN(),
+            (potential_exchange_params.eigenstress_weight ==
+             EigenstressWeightMode::RevMacroSolid)
+                ? computeRevMacroSolidFractionWeightDLogDnl(n_l,
+                                                            local_context.phi)
+                : 0.0);
 
         // Macro-floor cutoff factor g = mu_post/mu_pre (g == 1 when the
         // cutoff is inactive; g == 0 at full bulk -> film physics off).
@@ -2397,6 +2479,45 @@ computeReferenceMicroPorositySwellingStressIncrement(
             n_l_prev, PotentialExchangeLocalSolveContext{}, params_h1);
         double const active_nS_curr_h1 = computeActiveMicroSolidVolumeFraction(
             n_l, PotentialExchangeLocalSolveContext{}, params_h1);
+        // ── §6.7.5 split: the EIGENSTRESS/ENERGY weight, distinct from the
+        // FILM GEOMETRY fraction active_nS_*_h1 above (which continues to set
+        // h, xi0 and the vdW nS^3 core, and is also the kappa scale below).
+        // FilmGeometry mode -> NaN sentinel -> the pair falls back to
+        // nS_film, i.e. bit-for-bit the pre-split behaviour.
+        // RevMacroSolid mode -> W = 1 - phi_M per leg, at the step's
+        // held-fixed total porosity phi (the same phi K_aug_sw used above), so
+        // W is a pure function of n_l within the step and the telescoped
+        // increment stays the exact difference of one step-local Psi.
+        bool const use_rev_weight_h1 =
+            params_h1.eigenstress_weight ==
+            EigenstressWeightMode::RevMacroSolid;
+        if (use_rev_weight_h1 && !std::isfinite(total_porosity))
+        {
+            OGS_FATAL(
+                "The exact-route DSM swelling stress with eigenstress_weight "
+                "= 'rev_macro_solid' needs the total porosity phi to form the "
+                "REV weight 1 - phi_M = (1-phi)/(1-n_l), but phi is not finite "
+                "at this call site. Refusing to fall back silently to the "
+                "film-geometry fraction, which would drop Vinay's 2026-09-02 "
+                "ruling without a diagnostic. (CLAUDE.md §6.7.5)");
+        }
+        double const nan_h1 = std::numeric_limits<double>::quiet_NaN();
+        double const W_prev_h1 =
+            use_rev_weight_h1 ? computeRevMacroSolidFractionWeight(
+                                    n_l_prev, total_porosity)
+                              : nan_h1;  // [-]
+        double const W_curr_h1 =
+            use_rev_weight_h1
+                ? computeRevMacroSolidFractionWeight(n_l, total_porosity)
+                : nan_h1;  // [-]
+        double const dlnW_prev_h1 =
+            use_rev_weight_h1 ? computeRevMacroSolidFractionWeightDLogDnl(
+                                    n_l_prev, total_porosity)
+                              : 0.0;  // [1/n_l]
+        double const dlnW_curr_h1 =
+            use_rev_weight_h1 ? computeRevMacroSolidFractionWeightDLogDnl(
+                                    n_l, total_porosity)
+                              : 0.0;  // [1/n_l]
         double const kappa_prev_h1 =
             params_h1.film_strain_kappa == FilmStrainKappaMode::Aggregate
                 ? active_nS_prev_h1
@@ -2413,7 +2534,7 @@ computeReferenceMicroPorositySwellingStressIncrement(
                 params_h1.hamaker_constant, params_h1.specific_surface, sign_h1,
                 K_aug_sw, params_h1.potential_augmentation_exponent,
                 0.0 /*dnS_dnl: frozen nS (B1)*/,
-                params_h1.micro_water_content_floor)
+                params_h1.micro_water_content_floor, W_prev_h1, dlnW_prev_h1)
                 .sigma_sw_m;  // Pa
         double const sigma_sw_m_curr_h1 =
             computeStrainedFilmEnergyPair(
@@ -2423,7 +2544,7 @@ computeReferenceMicroPorositySwellingStressIncrement(
                 params_h1.hamaker_constant, params_h1.specific_surface, sign_h1,
                 K_aug_sw, params_h1.potential_augmentation_exponent,
                 0.0 /*dnS_dnl: frozen nS (B1)*/,
-                params_h1.micro_water_content_floor)
+                params_h1.micro_water_content_floor, W_curr_h1, dlnW_curr_h1)
                 .sigma_sw_m;  // Pa
         delta_sigma_sw.noalias() +=
             (sigma_sw_m_curr_h1 - sigma_sw_m_prev_h1) * identity2_h1;  // Pa
@@ -4975,7 +5096,18 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                                 sign_m1, K_aug_m1,
                                 pep_m1.potential_augmentation_exponent,
                                 0.0 /*dnS_dnl: frozen nS (B1)*/,
-                                pep_m1.micro_water_content_floor);
+                                pep_m1.micro_water_content_floor,
+                                // AUDIT DIAGNOSTIC 2026-09-03 (mirror of P1).
+                                (pep_m1.eigenstress_weight ==
+                                 EigenstressWeightMode::RevMacroSolid)
+                                    ? computeRevMacroSolidFractionWeight(n_l,
+                                                                         phi)
+                                    : std::numeric_limits<double>::quiet_NaN(),
+                                (pep_m1.eigenstress_weight ==
+                                 EigenstressWeightMode::RevMacroSolid)
+                                    ? computeRevMacroSolidFractionWeightDLogDnl(
+                                          n_l, phi)
+                                    : 0.0);
                             // g_cut = mu_lR(post macro-floor cutoff)/mu_bare_pre,
                             // matching the residual fold (L738). The residual
                             // mu_lR_vdw already carries the cutoff; recover g via

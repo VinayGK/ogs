@@ -296,6 +296,29 @@ enum class FilmEnergyRoute
     Exact
 };
 
+// ── Eigenstress/energy REV weight (CLAUDE.md §6.7.5; Vinay's ruling
+// 2026-09-02: "it should be the first", i.e. the aggregate fraction 1-phi_M) ─
+// Selects WHICH solid fraction weights the exact route's eigenstress
+// sigma_sw_m and energy Psi_film in computeStrainedFilmEnergyPair. It does NOT
+// touch the film geometry (h, xi0, the vdW nS^3 core), which keeps using
+// active_nS in every mode — that separation is the point of the switch.
+//
+// FilmGeometry:  the pre-2026-09-02 fused behaviour — the weight IS the film
+//                geometry fraction active_nS. Default, bit-for-bit. Physically
+//                wrong per the ruling; kept so the split is provably
+//                behaviour-preserving and so old results stay reproducible.
+// RevMacroSolid: the ruled weight, W = 1 - phi_M = (1-phi)/(1-n_l), evaluated
+//                per leg at the step's held-fixed total porosity phi, with the
+//                d(1-phi_M)/dn_l chain term wired into dsigma_sw_dnl.
+//
+// Only the Exact route consults this; the operational and OFF branches already
+// carry the passed n_S = 1 - phi_M and are untouched in every mode.
+enum class EigenstressWeightMode
+{
+    FilmGeometry,
+    RevMacroSolid
+};
+
 // Create-time admissibility of the (film_strain_coupling, film_energy_route)
 // combination (PI_OF_NL_EV_IMPLEMENTATION.md §3 mode matrix). Pure predicate so
 // it is unit-testable; the OGS_FATAL lives at the parse site.
@@ -399,6 +422,18 @@ inline constexpr char const* toString(FilmEnergyRoute const route)
             return "operational";
         case FilmEnergyRoute::Exact:
             return "exact";
+    }
+    return "unknown";
+}
+
+inline constexpr char const* toString(EigenstressWeightMode const mode)
+{
+    switch (mode)
+    {
+        case EigenstressWeightMode::FilmGeometry:
+            return "film_geometry";
+        case EigenstressWeightMode::RevMacroSolid:
+            return "rev_macro_solid";
     }
     return "unknown";
 }
@@ -515,6 +550,12 @@ struct PotentialExchangeParameters
     // routes (Pi at w_eff with the actual p_conf), so only the fold-point mu
     // assembly differs.
     FilmEnergyRoute film_energy_route = FilmEnergyRoute::Operational;
+
+    // ── Eigenstress/energy REV weight (CLAUDE.md §6.7.5) ────────────────────
+    // See the enum above. FilmGeometry (default) is bit-for-bit the pre-split
+    // behaviour; RevMacroSolid applies Vinay's 2026-09-02 ruling (1 - phi_M).
+    EigenstressWeightMode eigenstress_weight =
+        EigenstressWeightMode::FilmGeometry;
 
     // ── K(rho_d): augmentation prefactor as a function of dry density ──────
     // Optional piecewise-linear table K = K(rho_d) [J/kg vs kg/m^3]. When set

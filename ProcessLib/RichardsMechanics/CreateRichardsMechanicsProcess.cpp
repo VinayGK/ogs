@@ -133,6 +133,28 @@ FilmEnergyRoute parseFilmEnergyRoute(std::string const& route)
         route);
 }
 
+EigenstressWeightMode parseEigenstressWeightMode(std::string const& mode)
+{
+    if (mode == "film_geometry")
+    {
+        return EigenstressWeightMode::FilmGeometry;
+    }
+    if (mode == "rev_macro_solid")
+    {
+        return EigenstressWeightMode::RevMacroSolid;
+    }
+
+    OGS_FATAL(
+        "RichardsMechanics: unsupported potential_exchange "
+        "eigenstress_weight '{}'. Currently supported: 'film_geometry' "
+        "(the pre-2026-09-02 fused behaviour: the exact route's eigenstress "
+        "and energy are weighted by the FILM GEOMETRY fraction active_nS; "
+        "default, bit-for-bit) and 'rev_macro_solid' (Vinay's ruling "
+        "2026-09-02: weight by the REV macro-solid fraction 1 - phi_M). "
+        "(CLAUDE.md §6.7.5)",
+        mode);
+}
+
 MacroPorosityUpdateMode parseMacroPorosityUpdateMode(
     std::string const& mode)
 {
@@ -736,6 +758,18 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context, toString(film_strain_coupling));
     }
 
+    // ── Eigenstress/energy REV weight (CLAUDE.md §6.7.5) ────────────────────
+    // 'film_geometry' (default, bit-for-bit): the exact route's sigma_sw_m and
+    // Psi_film keep the fused film-geometry fraction. 'rev_macro_solid':
+    // Vinay's 2026-09-02 ruling, weight by 1 - phi_M. Only the exact route
+    // consults it, so it is accepted (and inert) on the other routes rather
+    // than rejected — the operational/OFF branches already use 1 - phi_M.
+    auto const eigenstress_weight = parseEigenstressWeightMode(
+        config.getConfigParameter<std::string>(
+            "eigenstress_weight",
+            defaults ? toString(defaults->eigenstress_weight)
+                     : "film_geometry"));
+
     // Macro-porosity floor phi_M,min: keeps the macro pore from collapsing into
     // the interlayer (n_l capped at (phi-floor)/(1-floor)); 0 -> no floor.
     // MANDATORY (Vinay 2026-06-17): like micro_water_content_floor, the top-level
@@ -814,6 +848,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         film_strain_coupling,
         film_strain_kappa,
         film_energy_route,
+        eigenstress_weight,
         potential_augmentation_prefactor_vs_dry_density,
         dry_density,
         potential_augmentation_prefactor_live_dry_density};
