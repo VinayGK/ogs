@@ -408,7 +408,7 @@ Conversational discussion is exempt from this section.
 3. **Never delete .md files.** If content is superseded, annotate as
    historical/deprecated within the file.
    - **They must be committed, not merely on disk.** CLAUDE.md, every
-     AGENTS.md, and all guardrail/worklog `.md` files are tracked and
+     AGENTS.md, and all guardrail/worklog `.md` files MUST be tracked and
      committed on a durable branch (master), because an untracked or
      ignored copy is silently absent from every fresh `git worktree` and
      from `master`. Therefore: (a) never list them in `.gitignore` or
@@ -542,7 +542,7 @@ Conversational discussion is exempt from this section.
 When a task involves multiple independent simulations, models, builds,
 or analysis sub-tasks, start them simultaneously — one per available
 processor-budget slot (`sysctl -n hw.physicalcpu`; size OMP threads so
-total ≈ cores) — never one at a time. The same applies to agent
+total ≈ cores) — never one-at-a-time. The same applies to agent
 sub-tasks: independent work is fanned out in one dispatch, not queued.
 Sequence only genuinely dependent steps (design → build → verify).
 Don't fan out trivial seconds-long tasks (spawn overhead exceeds the
@@ -886,8 +886,9 @@ of paper_DSM.tex quoted as the paper's settled position (§13.3(7)); a
 Model VII headline value carried three generations stale across five
 memory files, the always-loaded index included (§13.3(4) and (7)); a
 two-grep census that missed the third consumer of `specific_surface`
-(§13.3(3)); and a pressure-abstol knob test that missed the displacement
-component binding (§13.3(6)). Full narratives:
+(§13.3(3)); and the same knob reasoning that correctly cleared dd900's
+dt and abstol knobs, then missed that the displacement component was the
+one binding on III/IV/VII (§13.3(6)). Full narratives:
 [[incident_adversarial_verification_2026-09-02]].
 
 ### §13.5 Check the history before assuming — it is usually there
