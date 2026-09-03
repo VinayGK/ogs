@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "BaseLib/Error.h"
 #include "ProcessLib/RichardsMechanics/PotentialExchangeParameters.h"
@@ -778,7 +779,23 @@ inline StrainedFilmStateData computeStrainedFilmState(
 //   S   = 0.5*b*K_drained*eps_v^2      (transmitted-load work, route R3;
 //                                       caller may drop it via include_S)
 //
-// gives BOTH halves by differentiation; Maxwell holds identically. In mu-space
+// gives BOTH halves by differentiation; Maxwell holds identically.
+//
+// WEIGHT vs FILM GEOMETRY (§6.7.5 split, Vinay's ruling 2026-09-02). The
+// (1-phi_M) written above is the REV weight and is now ACTUALLY (1-phi_M):
+// it is supplied by the caller as `eigenstress_rev_weight`. Before this split
+// the routine had ONE `nS` argument doing two jobs, and the caller passed the
+// film-geometry fraction (active_nS) into both, so the eigenstress and the
+// energy silently carried the wrong weight. The two are numerically distinct:
+//   1 - phi_M = (1-phi)/(1-n_l)   runs 0.5755 -> 1.0 over an MS33 run,
+//   active_nS (Reference mode)    is frozen at n_s_ref = 0.5755395683453237.
+// They coincide at t=0 only because the MS33 decks set n_s_ref = 1 - phi0.
+// Because W now depends on n_l, dsigma_sw_dnl gains the (W'/W)*sigma_sw_m
+// chain term; the caller supplies W'/W as `eigenstress_rev_weight_dln_dnl`.
+// Both parameters default to the pre-split fused behaviour (W = nS_film,
+// W' = 0), so every call site that does not opt in is bit-for-bit unchanged.
+//
+// In mu-space
 // (mu_T = -Pi_T/rho_lR; sign conventions inherited from the bare law):
 //
 //   M_v = mu_v(n_l)*G3,  G3 = [1-(1+x)^-2]/(2*kappa),  x = kappa*eps_v
@@ -814,24 +831,52 @@ struct StrainedFilmEnergyPairData
 inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
     double const n_l, double const eps_v, double const kappa,
     double const biot_b, double const K_drained, bool const include_S,
-    double const rho_lR, double const nS, double const rho_SR,
+    double const rho_lR, double const nS_film, double const rho_SR,
     double const hamaker_constant, double const specific_surface,
     double const potential_sign_factor,
     double const potential_augmentation_prefactor,
     double const potential_augmentation_exponent, double const dnS_dnl,
-    double const n_l_floor)
+    double const n_l_floor,
+    // ── §6.7.5 split (Vinay's ruling 2026-09-02) ────────────────────────────
+    // W = the REV eigenstress/energy WEIGHT = 1 - phi_M [-]. NaN sentinel
+    // (default) -> W = nS_film, i.e. the pre-split fused behaviour,
+    // bit-for-bit. See the block comment above for why the two differ.
+    double const eigenstress_rev_weight =
+        std::numeric_limits<double>::quiet_NaN(),
+    // d ln W / d n_l [1/n_l], the chain term the n_l-dependent weight
+    // requires; 0 (default) = frozen weight, the legacy tangent.
+    double const eigenstress_rev_weight_dln_dnl = 0.0)
 {
     StrainedFilmEnergyPairData out;
+
+    // ── Resolve the two DISTINCT solid fractions this routine consumes ─────
+    // nS_film  : FILM GEOMETRY. Sets the film thickness h = n_l/(nS*rho_SR*Sa)
+    //            and the decay ratio xi0, and enters the vdW core as nS^3. It
+    //            is the AGGREGATE solid fraction that references the
+    //            gravimetric water content (impl.h:444-468, the 2026-05-26
+    //            active_nS fix; CLAUDE.md §2).
+    // W        : REV EIGENSTRESS/ENERGY WEIGHT. The fraction of the REV the
+    //            micro film occupies, phi_m = W*n_l. Documented as (1 - phi_M)
+    //            in this header's own derivation above and in
+    //            impl.h:2599 / PI_OF_NL_EV_IMPLEMENTATION.md:140, but silently
+    //            inherited nS_film's value before this split.
+    // They are NOT the same number: 1 - phi_M = (1-phi)/(1-n_l) runs 0.5755 ->
+    // 1.0 over an MS33 run (MEASURED, exact-route VTUs 2026-09-02) while the
+    // frozen reference nS is constant at 0.5755395683453237.
+    bool const have_W = std::isfinite(eigenstress_rev_weight);
+    double const W = have_W ? eigenstress_rev_weight : nS_film;  // [-]
+    double const dlnW_dnl =
+        have_W ? eigenstress_rev_weight_dln_dnl : 0.0;  // [1/n_l]
 
     // Per-term bare values at the TRUE n_l (floor handled inside the law).
     // vdW-only call (augmentation off) + full call; aug term by subtraction —
     // keeps the split in sync with any future change of the bare law.
     auto const full = computeVanDerWaalsMicroPotential(
-        n_l, rho_lR, nS, rho_SR, hamaker_constant, specific_surface,
+        n_l, rho_lR, nS_film, rho_SR, hamaker_constant, specific_surface,
         potential_sign_factor, potential_augmentation_prefactor,
         potential_augmentation_exponent, dnS_dnl, n_l_floor);
     auto const vdw = computeVanDerWaalsMicroPotential(
-        n_l, rho_lR, nS, rho_SR, hamaker_constant, specific_surface,
+        n_l, rho_lR, nS_film, rho_SR, hamaker_constant, specific_surface,
         potential_sign_factor, 0.0, 0.0, dnS_dnl, n_l_floor);
     double const mu_v = vdw.mu_lR;                // J/kg (cubic core)
     double const mu_a = full.mu_lR - vdw.mu_lR;   // J/kg (augmentation)
@@ -856,7 +901,7 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
     double const n_l_eff = floored ? n_l_floor : n_l;
     double const xi0 =
         (potential_augmentation_prefactor > 0.0)
-            ? n_l_eff / (potential_augmentation_exponent * nS * rho_SR *
+            ? n_l_eff / (potential_augmentation_exponent * nS_film * rho_SR *
                          specific_surface)
             : 0.0;  // unused when no augmentation
 
@@ -933,30 +978,56 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
         -rho_lR * (mu_v / (f * f * f) +
                    ((potential_augmentation_prefactor > 0.0) ? mu_a * E
                                                              : 0.0));  // Pa
-    out.sigma_sw_m = -nS * n_l * (Pi_weff + biot_b * K_d * eps);       // Pa
-    // d(sigma_sw)/d(n_l) — exact chain through BOTH the n_l prefactor and
-    // w_eff = n_l*(1+x):  d/dn_l[n_l*Pi_T(n_l*f)]:
+    // Units: [-]*[-]*(Pa + [-]*Pa*[-]) = Pa  ✓  (§4.2)
+    // Magnitude at the III exact-route endpoint (MEASURED 2026-09-02 from the
+    // run VTU ts_982, nodal range over the mesh): W = 1 - phi_M = 1.000000
+    // everywhere (phi_M has reached its 0 clamp) and n_l in [0.50766,
+    // 0.510416], so phi_m = W*n_l in [0.508, 0.510] of the REV carries the
+    // film — against phi_m in [0.292, 0.294] under the pre-split frozen
+    // nS_film = 0.5755395683453237. The weight ratio at that state is
+    // 1/0.5755395683 = 1.7375 = rho_s/rho_d = 2780/1600.  (§4.3)
+    out.sigma_sw_m = -W * n_l * (Pi_weff + biot_b * K_d * eps);        // Pa
+    // d(sigma_sw)/d(n_l) — exact chain through the n_l prefactor, through
+    // w_eff = n_l*(1+x), AND (new, 2026-09-02) through the WEIGHT itself:
+    //   d/dn_l[-W(n_l)*n_l*P] = -W*d/dn_l[n_l*P] + (W'/W)*sigma_sw_m
+    // where d/dn_l[n_l*Pi_T(n_l*f)] is
     //   vdW: (1-3)*Pi_v(w_eff) = -2*Pi_v(w_eff)
     //   aug: Pi_a(w_eff)*(1 - xi0*f)
+    // The (W'/W)*sigma_sw_m term is what makes the pair Maxwell-exact once W
+    // depends on n_l; with the frozen weight (dlnW_dnl = 0, the default) it
+    // vanishes and the legacy tangent is recovered bit-for-bit. It is the
+    // SAME expression on both the floored and unfloored branches because
+    // sigma_sw_m already carries the full -W*n_l*P product.
     if (!floored)
     {
         double const Pi_v_weff = -rho_lR * mu_v / (f * f * f);  // Pa
         double const Pi_a_weff =
             (potential_augmentation_prefactor > 0.0) ? -rho_lR * mu_a * E
                                                      : 0.0;  // Pa
+        // Units: [-]*Pa + [1/n_l]*Pa = Pa per n_l  ✓  (§4.2)
         out.dsigma_sw_dnl =
-            -nS * (-2.0 * Pi_v_weff + Pi_a_weff * (1.0 - xi0 * f) +
-                   biot_b * K_d * eps);  // Pa per n_l
+            -W * (-2.0 * Pi_v_weff + Pi_a_weff * (1.0 - xi0 * f) +
+                  biot_b * K_d * eps) +
+            dlnW_dnl * out.sigma_sw_m;  // Pa per n_l
     }
     else
     {
-        out.dsigma_sw_dnl = -nS * (Pi_weff + biot_b * K_d * eps);  // Pa per n_l
+        // Units: [-]*Pa + [1/n_l]*Pa = Pa per n_l  ✓  (§4.2)
+        out.dsigma_sw_dnl = -W * (Pi_weff + biot_b * K_d * eps) +
+                            dlnW_dnl * out.sigma_sw_m;  // Pa per n_l
     }
 
     // ── energy (drained-line S-form; for the loop test) ────────────────────
     // Psi_film = -(1-phi_M)*n_l*[I_vdw + I_aug + S], I_T = -rho_lR*M_T.
+    // The SAME REV weight as sigma_sw_m — sigma_sw_m is dPsi_film/deps_v, so
+    // if the two used different weights the pair would no longer come from
+    // one Psi and the exact route would lose the property it exists for.
+    // Units: [-]*[-]*((kg/m^3)*(J/kg) + [-]*Pa*[-]) = J/m^3 REV  ✓  (§4.2)
+    // Magnitude at the III endpoint (MEASURED, ts_982): W = 1.000000 against
+    // the pre-split 0.5755395683 — the stored film energy per REV rises by
+    // the same 1.7375 factor as the eigenstress, as it must for one Psi.  (§4.3)
     out.Psi_film =
-        -nS * n_l *
+        -W * n_l *
         (-rho_lR * (mu_v * G3 + ((potential_augmentation_prefactor > 0.0)
                                      ? mu_a * Gx
                                      : 0.0)) +
