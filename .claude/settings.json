@@ -1,0 +1,30 @@
+{
+  "_comment": "Project hooks approved by Vinay 2026-09-03 (prompt audit, hunk 22), rewritten after adversarial verification. PreToolUse/Bash runs .claude/hooks/pre_bash.sh: blocks deletion of tracked VTU/PRJ under Tests/Data and of any .md (CLAUDE.md 6.2/6.3) and gives an early warning on a Claude co-author trailer (7); the authoritative 7 check is the shared git hook .git/hooks/commit-msg. PostToolUse runs xmllint --noout on every edited PRJ (memory: incident_xml_double_hyphen_comment_parse).",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r \".tool_input.file_path // empty\"); [ -f \"$f\" ] || exit 0; case \"$f\" in *.prj|*.PRJ) xmllint --noout \"$f\" || { echo \"xmllint failed on $f: check for a -- inside an XML comment (memory: incident_xml_double_hyphen_comment_parse)\" >&2; exit 2; } ;; esac",
+            "timeout": 30,
+            "statusMessage": "xmllint on edited PRJ"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/pre_bash.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
