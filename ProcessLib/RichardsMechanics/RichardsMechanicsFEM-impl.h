@@ -819,12 +819,14 @@ inline double solidConstitutiveLiquidPressure(
 // with a smooth barrier that diverges at the capacity:
 //   x = n_l / n_cap,  h(x) = x^8 / (1 - x),  mu_lR -> mu_lR (1 - h(x))
 // (mu_lR < 0 attractive: the factor passes through 0 at x = 0.87 and turns
-// repulsive beyond, -> +inf at x -> 1), with the consistent derivative
+// repulsive beyond, -> +inf at x -> 1; the MEASURED exchange equilibrium sits
+// at x = 0.81 of the capacity, dd1600 cell and Model VII alike, 2026-09-04),
+// with the consistent derivative
 //   d mu / d n_l -> d mu/d n_l (1 - h) - mu h'(x) / n_cap.
 // Units: [J/kg]*[-] = J/kg (§4.2). Magnitude (§4.3) at dd1600 (n_cap = 0.371):
 // at n_l = 0.30 (x = 0.81) h = 0.98 -> the attractive well is nearly
-// cancelled; equilibrium sits at x ~ 0.87 (n_l ~ 0.32, phi_M ~ 0.15); the
-// clamp stays as a safety only. The barrier enters the EXCHANGE potential only, not the
+// cancelled; the equilibrium sits at x = 0.81 (MEASURED: n_l = 0.301 at
+// dd1600, phi_M = 0.18); the clamp stays as a safety only. The barrier enters the EXCHANGE potential only, not the
 // eigenstress pair (the film pressure remains the vdW/augmentation law).
 inline void applyMicroCapacityBarrier(
     VanDerWaalsMicroPotentialData& out, double const n_l,
