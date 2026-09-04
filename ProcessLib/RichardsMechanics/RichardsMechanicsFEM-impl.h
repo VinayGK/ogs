@@ -378,6 +378,46 @@ inline double boundedMicroWaterContentCeiling(
     return std::max(n_l_floor, compute_total_porosity_bound());
 }
 
+// 2026-09-04 (Vinay: "solve this with only valid physics of bentonite
+// resaturation"): the interlayer capacity ceiling. With the micro void-ratio
+// law e_m(e_w) = beta0 e_w^2 + beta1 e_w + e_m0 (Della Vecchia et al. 2015
+// eq. 16; Dieudonné et al. 2017 eq. 14, Tab. 1 for MX-80) the aggregates at
+// full saturation hold at most e_m(e) of micro void per unit solid volume,
+// e = phi/(1-phi) the current total void ratio, so the micro water content
+// (REV volume fraction, saturated micropores) is bounded by
+//   n_l <= (1 - phi) * e_m(e)          [-]   (§4.2: [-]*[-])
+// which is BELOW the pore-space bound phi whenever e_m(e) < e — the macro pore
+// keeps (e - e_m)/(1+e) of the volume and the remaining water stays in it.
+// Magnitude (§4.3) at phi0 = 0.4245 (e = 0.7375, MX-80 Tab. 1 parameters):
+//   e_m = 0.48*0.544 + 0.1*0.7375 + 0.31 = 0.645 -> n_l,max = 0.5755*0.645 =
+//   0.371 (vs phi = 0.4245), phi_M,min = (0.7375-0.645)/1.7375 = 0.053.
+// Without the law (has_micro_void_ratio_capacity = false) the old ceiling is
+// returned unchanged.
+inline double boundedMicroWaterContentCeiling(
+    PotentialExchangeLocalSolveContext const& local_context,
+    double const n_l_floor,
+    PotentialExchangeParameters const& params)
+{
+    double const bound = boundedMicroWaterContentCeiling(local_context, n_l_floor);
+    if (!params.has_micro_void_ratio_capacity)
+    {
+        return bound;
+    }
+    // phi as the ceiling function sees it (its own porosity bound is the
+    // pore-space ceiling itself when n_l_floor does not bind)
+    double const phi = std::max(bound, n_l_floor);
+    if (!(phi > 0.0 && phi < 1.0))
+    {
+        return bound;
+    }
+    double const e = phi / (1.0 - phi);                                     // [-]
+    double const e_m = params.micro_void_ratio_capacity_beta0 * e * e +
+                       params.micro_void_ratio_capacity_beta1 * e +
+                       params.micro_void_ratio_capacity_e_m0;               // [-]
+    double const capacity = (1.0 - phi) * std::max(e_m, 0.0);               // [-]
+    return std::max(n_l_floor, std::min(bound, capacity));
+}
+
 inline TransportPorosityUpdateData computeTransportPorosityUpdate(
     double const phi, double const phi_M_prev, double const phi_m_prev,
     double const n_l, double const volumetric_strain,
@@ -748,6 +788,74 @@ inline void applyMacroFloorCutoff(
     out.dmu_lR_drho_SR *= g_cut;
 }
 
+
+// 2026-09-04: constitutive liquid pressure handed to the SOLID material:
+// -(p_cap + p_sw_prev) when stiffness_includes_swelling_pressure, else -p_cap.
+// p_sw_prev = -tr(sigma_sw_prev)/3 [Pa] (compression positive, >= 0).
+template <int DisplacementDim>
+inline double solidConstitutiveLiquidPressure(
+    double const p_cap_ip,
+    MathLib::KelvinVector::KelvinVectorType<DisplacementDim> const& sigma_sw_prev,
+    PotentialExchangeParameters const* const params)
+{
+    if (params == nullptr || !params->stiffness_includes_swelling_pressure)
+    {
+        return -p_cap_ip;
+    }
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(
+            DisplacementDim)>::identity2;
+    double const p_sw_prev = std::max(0.0, -sigma_sw_prev.dot(identity2) / 3.0);  // Pa
+    return -(p_cap_ip + p_sw_prev);  // Pa
+}
+
+// 2026-09-04 — interlayer CAPACITY barrier (resaturation physics, Vinay's
+// ruling of 2026-09-04). With the micro void-ratio capacity law switched on
+// (Dieudonné et al. 2017 Tab. 1, see boundedMicroWaterContentCeiling) the
+// aggregates cannot hold more than n_cap = (1-phi) e_m(e) of interlayer water.
+// A hard clamp at n_cap makes the exchange kink and Newton stall exactly when
+// the wetted end reaches it (MEASURED 2026-09-04: kap2 VII stalled at 20.35 d,
+// the day the cap engaged). Instead the micro chemical potential is folded
+// with a smooth barrier that diverges at the capacity:
+//   x = n_l / n_cap,  h(x) = x^8 / (1 - x),  mu_lR -> mu_lR (1 - h(x))
+// (mu_lR < 0 attractive: the factor passes through 0 at x = 0.87 and turns
+// repulsive beyond, -> +inf at x -> 1), with the consistent derivative
+//   d mu / d n_l -> d mu/d n_l (1 - h) - mu h'(x) / n_cap.
+// Units: [J/kg]*[-] = J/kg (§4.2). Magnitude (§4.3) at dd1600 (n_cap = 0.371):
+// at n_l = 0.30 (x = 0.81) h = 0.98 -> the attractive well is nearly
+// cancelled; equilibrium sits at x ~ 0.87 (n_l ~ 0.32, phi_M ~ 0.15); the
+// clamp stays as a safety only. The barrier enters the EXCHANGE potential only, not the
+// eigenstress pair (the film pressure remains the vdW/augmentation law).
+inline void applyMicroCapacityBarrier(
+    VanDerWaalsMicroPotentialData& out, double const n_l,
+    PotentialExchangeLocalSolveContext const& local_context,
+    PotentialExchangeParameters const& params)
+{
+    if (!params.has_micro_void_ratio_capacity)
+    {
+        return;
+    }
+    double const n_cap = boundedMicroWaterContentCeiling(
+        local_context, params.micro_water_content_floor, params);
+    if (!(n_cap > 0.0) || !(n_l > 0.0))
+    {
+        return;
+    }
+    double const x = std::min(n_l / n_cap, 1.0 - 1e-9);  // [-]
+    double const one_minus_x = 1.0 - x;
+    // shape: h = x^8/(1-x). MEASURED with x^2/(1-x) the equilibrium sat at
+    // x = 0.62 (the factor's zero crossing), i.e. far below the capacity;
+    // x^8 moves the zero crossing to x = 0.87 while h < 0.06 for x < 0.62
+    // (§1.2 scoped shape exponent; the capacity itself is the cited law).
+    double const x7 = std::pow(x, 7);
+    double const h = x7 * x / one_minus_x;                                 // [-]
+    double const dh_dx =
+        (8.0 * x7 * one_minus_x + x7 * x) / (one_minus_x * one_minus_x);   // [-]
+    double const mu = out.mu_lR;                                           // J/kg
+    out.mu_lR = mu * (1.0 - h);                                            // J/kg
+    out.dmu_lR_dnl = out.dmu_lR_dnl * (1.0 - h) - mu * dh_dx / n_cap;      // J/kg per n_l
+}
+
 inline void applyFilmPressureMicroPotential(
     VanDerWaalsMicroPotentialData& out, double const n_l,
     double const rho_lR_used, double const active_nS,
@@ -755,6 +863,7 @@ inline void applyFilmPressureMicroPotential(
     PotentialExchangeParameters const& potential_exchange_params)
 {
     applyMacroFloorCutoff(out, n_l, local_context, potential_exchange_params);
+    applyMicroCapacityBarrier(out, n_l, local_context, potential_exchange_params);
     if (!(potential_exchange_params.film_pressure_coupling &&
           std::isfinite(local_context.confining_pressure_p_conf)))
     {
@@ -996,7 +1105,7 @@ solveReferenceMassStoragePredictorState(
                   dt_safe
             : 0.0;
     double const n_l_ceiling =
-        boundedMicroWaterContentCeiling(local_context, n_l_floor);
+        boundedMicroWaterContentCeiling(local_context, n_l_floor, potential_exchange_params);
 
     auto evaluate = [&](double const n_l)
     {
@@ -1193,7 +1302,7 @@ solveReferenceMassStorageCoupledState(
                   dt_safe
             : 0.0;
     double const n_l_ceiling =
-        boundedMicroWaterContentCeiling(local_context, n_l_floor);
+        boundedMicroWaterContentCeiling(local_context, n_l_floor, potential_exchange_params);
 
     auto evaluate = [&](double const n_l, double const rho_lR)
     {
@@ -1733,7 +1842,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
             : 0.0;
     double const n_l_ceiling =
         use_microstate_storage_mode
-            ? boundedMicroWaterContentCeiling(local_context, n_l_floor)
+            ? boundedMicroWaterContentCeiling(local_context, n_l_floor, potential_exchange_params)
             : std::max(n_l_floor, 1.0);
 
     auto eval_at = [&](double const n_l)
@@ -3177,7 +3286,14 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         NumLib::shapeFunctionInterpolate(-p_L, N_p, p_cap_ip);
 
         variables.capillary_pressure = p_cap_ip;
-        variables.liquid_phase_pressure = -p_cap_ip;
+        variables.liquid_phase_pressure = solidConstitutiveLiquidPressure<DisplacementDim>(
+            p_cap_ip,
+            std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                   ConstitutiveStress_StrainTemperature::
+                                       SwellingDataStateful<DisplacementDim>>>(
+                this->prev_states_[ip])
+                ->sigma_sw,
+            this->getPotentialExchangeParameters());
         // setting pG to 1 atm
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
@@ -3468,7 +3584,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
             isPotentialExchangeEnabled(this->getPotentialExchangeParameters());
         eps_m_prev.noalias() =
-            swelling_stress_active ? eps + C_el.inverse() * sigma_sw : eps;
+            (swelling_stress_active &&
+             !isEigenstressAdditive(this->getPotentialExchangeParameters()))
+                ? eps + C_el.inverse() * sigma_sw
+                : eps;  // additive mode (2026-09-04): sigma_sw not in eps_m
     }
 }
 
@@ -3568,7 +3687,14 @@ void RichardsMechanicsLocalAssembler<
         NumLib::shapeFunctionInterpolate(-p_L_prev, N_p, p_cap_prev_ip);
 
         variables.capillary_pressure = p_cap_ip;
-        variables.liquid_phase_pressure = -p_cap_ip;
+        variables.liquid_phase_pressure = solidConstitutiveLiquidPressure<DisplacementDim>(
+            p_cap_ip,
+            std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                   ConstitutiveStress_StrainTemperature::
+                                       SwellingDataStateful<DisplacementDim>>>(
+                this->prev_states_[ip])
+                ->sigma_sw,
+            this->getPotentialExchangeParameters());
         // setting pG to 1 atm
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
@@ -3582,10 +3708,18 @@ void RichardsMechanicsLocalAssembler<
             medium->property(MPL::PropertyType::biot_coefficient)
                 .template value<double>(variables, x_position, t, dt);
         auto& state_current = this->current_states_[ip];
+        // 2026-09-04: C_el converts the swelling eigenstress into the mechanical-
+        // strain increment (eps_m - eps_m_prev = d eps + C_el^{-1} d sigma_sw).
+        // The stress integration starts from the START-OF-STEP stress and
+        // evaluates a stress-dependent tangent there (KappaElastic: K = v0
+        // p_hat/kappa), so C_el must be evaluated at that same state, not at
+        // the last Newton iterate (MEASURED otherwise: Model I dd1600 jumped
+        // to -506 MPa when the suction vanished). Inert for a constant tangent.
         variables.stress =
-            std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
-                DisplacementDim>>(state_current)
-                .sigma_eff;
+            std::get<PrevState<ProcessLib::ConstitutiveRelations::
+                                   EffectiveStressData<DisplacementDim>>>(
+                this->prev_states_[ip])
+                ->sigma_eff;
         // Set mechanical strain temporary to compute tangent stiffness.
         variables.mechanical_strain
             .emplace<MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
@@ -3593,6 +3727,10 @@ void RichardsMechanicsLocalAssembler<
         auto const C_el = ip_data_[ip].computeElasticTangentStiffness(
             variables, t, x_position, dt, this->solid_material_,
             *this->material_states_[ip].material_state_variables);
+        variables.stress =
+            std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
+                DisplacementDim>>(state_current)
+                .sigma_eff;  // restore the current iterate for the other users
 
         auto const beta_SR = (1 - alpha) / this->solid_material_.getBulkModulus(
                                                t, x_position, &C_el);
@@ -3785,9 +3923,11 @@ void RichardsMechanicsLocalAssembler<
                 solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
                 isPotentialExchangeEnabled(
                     this->getPotentialExchangeParameters());
-            eps_m.noalias() = swelling_stress_active
-                                  ? eps.eps + C_el.inverse() * sigma_sw
-                                  : eps.eps;
+            eps_m.noalias() =
+                (swelling_stress_active &&
+                 !isEigenstressAdditive(this->getPotentialExchangeParameters()))
+                    ? eps.eps + C_el.inverse() * sigma_sw
+                    : eps.eps;  // additive mode (2026-09-04)
             variables.mechanical_strain.emplace<
                 MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
                 eps_m);
@@ -3806,15 +3946,79 @@ void RichardsMechanicsLocalAssembler<
             auto const& eps_m =
                 std::get<ProcessLib::ConstitutiveRelations::
                              MechanicalStrainData<DisplacementDim>>(state_current);
-            auto& eps_m_prev =
+            auto& eps_m_prev_stored =
                 std::get<PrevState<ProcessLib::ConstitutiveRelations::
                                        MechanicalStrainData<DisplacementDim>>>(
                     state_previous);
 
+            // 2026-09-04 (kappa-law hypoelasticity, Vinay's ruling): the swelling
+            // eigenstress enters as eps_m = eps + C_el^{-1} sigma_sw, which is a
+            // stress-additive eigenstress (sigma_eff = C eps + sigma_sw) only if
+            // the SAME C_el forms eps_m and eps_m_prev. With a stress/suction-
+            // dependent tangent the stored eps_m_prev carries the previous
+            // step's C_el and the increment acquires the spurious term
+            // (C_el^{-1} - C_el_prev^{-1}) sigma_sw_prev (MEASURED: Model I
+            // dd1600 gave Ps = -226 MPa). Re-form eps_m_prev with the CURRENT
+            // C_el so that eps_m - eps_m_prev = (eps - eps_prev)
+            // + C_el^{-1} (sigma_sw - sigma_sw_prev). For a constant C_el this
+            // equals the stored value bit-for-bit (linear-elastic decks
+            // unchanged).
+            PrevState<ProcessLib::ConstitutiveRelations::MechanicalStrainData<
+                DisplacementDim>>
+                eps_m_prev = eps_m_prev_stored;
+            bool const additive_eig = isEigenstressAdditive(
+                this->getPotentialExchangeParameters());
+            if (solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
+                isPotentialExchangeEnabled(this->getPotentialExchangeParameters()))
+            {
+                auto const& eps_prev_state =
+                    std::get<PrevState<StrainData<DisplacementDim>>>(
+                        state_previous)
+                        ->eps;
+                auto const& sigma_sw_prev_state =
+                    std::get<PrevState<
+                        ProcessLib::ThermoRichardsMechanics::
+                            ConstitutiveStress_StrainTemperature::
+                                SwellingDataStateful<DisplacementDim>>>(
+                        state_previous)
+                        ->sigma_sw;
+                eps_m_prev->eps_m.noalias() =
+                    eps_prev_state +
+                    (additive_eig ? 0.0 : 1.0) *
+                        (C_el.inverse() * sigma_sw_prev_state);
+            }
+
+            // 2026-09-04: restore the MACRO liquid pressure for the solid
+            // material (see the Jacobian path).
+            variables.capillary_pressure = p_cap_ip;
+            variables.liquid_phase_pressure = solidConstitutiveLiquidPressure<DisplacementDim>(
+                p_cap_ip,
+                std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                       ConstitutiveStress_StrainTemperature::
+                                           SwellingDataStateful<DisplacementDim>>>(
+                    state_previous)
+                    ->sigma_sw,
+                this->getPotentialExchangeParameters());
             auto const C = ip_data_[ip].updateConstitutiveRelation(
                 variables, t, x_position, dt, temperature, sigma_eff,
                 sigma_eff_prev, eps_m, eps_m_prev, this->solid_material_,
                 this->material_states_[ip].material_state_variables);
+            if (isEigenstressAdditive(this->getPotentialExchangeParameters()))
+            {
+                // additive eigenstress (2026-09-04), see the Jacobian path
+                sigma_eff.sigma_eff.noalias() +=
+                    std::get<ProcessLib::ThermoRichardsMechanics::
+                                 ConstitutiveStress_StrainTemperature::
+                                     SwellingDataStateful<DisplacementDim>>(
+                        state_current)
+                        .sigma_sw -
+                    std::get<PrevState<
+                        ProcessLib::ThermoRichardsMechanics::
+                            ConstitutiveStress_StrainTemperature::
+                                SwellingDataStateful<DisplacementDim>>>(
+                        state_previous)
+                        ->sigma_sw;  // incremental, see the Jacobian path
+            }
 
             if (this->process_data_.use_numerical_jacobian)
             {
@@ -4094,17 +4298,46 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             .template value<double>(variables, x_position, t, dt);
     *std::get<ProcessLib::ThermoRichardsMechanics::BiotData>(constitutive_data) = alpha;
 
+    // 2026-09-04: C_el converts the swelling eigenstress into the mechanical-
+    // strain increment (eps_m - eps_m_prev = d eps + C_el^{-1} d sigma_sw).
+    // The stress integration starts from the START-OF-STEP stress and
+    // evaluates a stress-dependent tangent there (KappaElastic: K = v0
+    // p_hat/kappa), so C_el must be evaluated at that same state, not at
+    // the last Newton iterate (MEASURED otherwise: Model I dd1600 jumped
+    // to -506 MPa when the suction vanished). Inert for a constant tangent.
     variables.stress =
-        std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
-            DisplacementDim>>(state_current)
-            .sigma_eff;
+        std::get<PrevState<ProcessLib::ConstitutiveRelations::
+                               EffectiveStressData<DisplacementDim>>>(
+            state_previous)
+            ->sigma_eff;
     // Set mechanical strain temporary to compute tangent stiffness.
     variables.mechanical_strain
         .emplace<MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
             eps.eps);
+    // 2026-09-04: the solid material may depend on the liquid pressure
+    // (KappaElastic.mfront: p_hat = p + s). This path never set it, so an
+    // MFront behaviour with a LiquidPressure external state variable read
+    // NaN (MEASURED: Eigen solver initialization failure at step 1). Set it
+    // here, before the tangent and the stress update, on both the current and
+    // the previous variable arrays; inert for materials that ignore it.
+    variables.capillary_pressure = p_cap_ip;
+    variables.liquid_phase_pressure = solidConstitutiveLiquidPressure<DisplacementDim>(
+        p_cap_ip,
+        std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                               ConstitutiveStress_StrainTemperature::
+                                   SwellingDataStateful<DisplacementDim>>>(
+            state_previous)
+            ->sigma_sw,
+        potential_exchange_parameters);
+    variables_prev.capillary_pressure = p_cap_prev_ip;
+    variables_prev.liquid_phase_pressure = -p_cap_prev_ip;
     auto const C_el = ip_data.computeElasticTangentStiffness(
         variables, t, x_position, dt, solid_material,
         *material_state_data.material_state_variables);
+    variables.stress =
+        std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
+            DisplacementDim>>(state_current)
+            .sigma_eff;  // restore the current iterate for the other users
 
     auto const beta_SR =
         (1 - alpha) / solid_material.getBulkModulus(t, x_position, &C_el);
@@ -4398,8 +4631,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
             isPotentialExchangeEnabled(potential_exchange_parameters);
         eps_m.noalias() =
-            swelling_stress_active ? eps.eps + C_el.inverse() * sigma_sw
-                                   : eps.eps;
+            (swelling_stress_active &&
+             !isEigenstressAdditive(potential_exchange_parameters))
+                ? eps.eps + C_el.inverse() * sigma_sw
+                : eps.eps;  // additive mode (2026-09-04)
         variables.mechanical_strain
             .emplace<MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
                 eps_m);
@@ -4416,15 +4651,87 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         auto const& eps_m =
             std::get<ProcessLib::ConstitutiveRelations::MechanicalStrainData<
                 DisplacementDim>>(state_current);
-        auto& eps_m_prev =
+        auto& eps_m_prev_stored =
             std::get<PrevState<ProcessLib::ConstitutiveRelations::
                                    MechanicalStrainData<DisplacementDim>>>(
                 state_previous);
 
+            // 2026-09-04 (kappa-law hypoelasticity, Vinay's ruling): the swelling
+        // eigenstress enters as eps_m = eps + C_el^{-1} sigma_sw, which is a
+        // stress-additive eigenstress (sigma_eff = C eps + sigma_sw) only if
+        // the SAME C_el forms eps_m and eps_m_prev. With a stress/suction-
+        // dependent tangent the stored eps_m_prev carries the previous
+        // step's C_el and the increment acquires the spurious term
+        // (C_el^{-1} - C_el_prev^{-1}) sigma_sw_prev (MEASURED: Model I
+        // dd1600 gave Ps = -226 MPa). Re-form eps_m_prev with the CURRENT
+        // C_el so that eps_m - eps_m_prev = (eps - eps_prev)
+        // + C_el^{-1} (sigma_sw - sigma_sw_prev). For a constant C_el this
+        // equals the stored value bit-for-bit (linear-elastic decks
+        // unchanged).
+        PrevState<ProcessLib::ConstitutiveRelations::MechanicalStrainData<
+            DisplacementDim>>
+            eps_m_prev = eps_m_prev_stored;
+        bool const additive_eig =
+            isEigenstressAdditive(potential_exchange_parameters);
+        if (solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
+            isPotentialExchangeEnabled(potential_exchange_parameters))
+        {
+            auto const& eps_prev_state =
+                std::get<PrevState<StrainData<DisplacementDim>>>(
+                    state_previous)
+                    ->eps;
+            auto const& sigma_sw_prev_state =
+                std::get<PrevState<
+                    ProcessLib::ThermoRichardsMechanics::
+                        ConstitutiveStress_StrainTemperature::
+                            SwellingDataStateful<DisplacementDim>>>(
+                    state_previous)
+                    ->sigma_sw;
+            eps_m_prev->eps_m.noalias() =
+                    eps_prev_state +
+                    (additive_eig ? 0.0 : 1.0) *
+                        (C_el.inverse() * sigma_sw_prev_state);
+        }
+
+        // 2026-09-04: the DSM exchange helpers above overwrite
+        // variables.capillary_pressure with the MICRO pressure for the micro
+        // EOS. The solid material must see the MACRO liquid pressure that the
+        // tangent C_el saw (MEASURED otherwise: confined Model I dd1600 gave
+        // p_eff 23.59 MPa against its own swelling stress 14.161 MPa — the
+        // stress update integrated with a different suction than C_el).
+        variables.capillary_pressure = p_cap_ip;
+        variables.liquid_phase_pressure = solidConstitutiveLiquidPressure<DisplacementDim>(
+            p_cap_ip,
+            std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                   ConstitutiveStress_StrainTemperature::
+                                       SwellingDataStateful<DisplacementDim>>>(
+                state_previous)
+                ->sigma_sw,
+            potential_exchange_parameters);
         auto C = ip_data.updateConstitutiveRelation(
             variables, t, x_position, dt, temperature, sigma_eff,
             sigma_eff_prev, eps_m, eps_m_prev, solid_material,
             material_state_data.material_state_variables);
+        if (isEigenstressAdditive(potential_exchange_parameters))
+        {
+            // additive eigenstress (2026-09-04): sigma_eff = sigma(eps) +
+            // sigma_sw, exact for any tangent; sigma_sw = the accumulated
+            // swelling eigenstress state (compressive < 0). Units: Pa.
+            // INCREMENTAL: the material integrated from sigma_eff_prev, which
+            // already contains sigma_sw_prev; add only d sigma_sw.
+            sigma_eff.sigma_eff.noalias() +=
+                std::get<ProcessLib::ThermoRichardsMechanics::
+                             ConstitutiveStress_StrainTemperature::
+                                 SwellingDataStateful<DisplacementDim>>(
+                    state_current)
+                    .sigma_sw -
+                std::get<PrevState<
+                    ProcessLib::ThermoRichardsMechanics::
+                        ConstitutiveStress_StrainTemperature::
+                            SwellingDataStateful<DisplacementDim>>>(
+                    state_previous)
+                    ->sigma_sw;
+        }
 
         *std::get<StiffnessTensor<DisplacementDim>>(constitutive_data) = std::move(C);
     }
@@ -4548,7 +4855,14 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         NumLib::shapeFunctionInterpolate(-p_L_prev, N_p, p_cap_prev_ip);
 
         variables.capillary_pressure = p_cap_ip;
-        variables.liquid_phase_pressure = -p_cap_ip;
+        variables.liquid_phase_pressure = solidConstitutiveLiquidPressure<DisplacementDim>(
+            p_cap_ip,
+            std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                   ConstitutiveStress_StrainTemperature::
+                                       SwellingDataStateful<DisplacementDim>>>(
+                this->prev_states_[ip])
+                ->sigma_sw,
+            this->getPotentialExchangeParameters());
         // setting pG to 1 atm
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
@@ -6205,7 +6519,14 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         NumLib::shapeFunctionInterpolate(-p_L_prev, N_p, p_cap_prev_ip);
 
         variables.capillary_pressure = p_cap_ip;
-        variables.liquid_phase_pressure = -p_cap_ip;
+        variables.liquid_phase_pressure = solidConstitutiveLiquidPressure<DisplacementDim>(
+            p_cap_ip,
+            std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                   ConstitutiveStress_StrainTemperature::
+                                       SwellingDataStateful<DisplacementDim>>>(
+                this->prev_states_[ip])
+                ->sigma_sw,
+            this->getPotentialExchangeParameters());
         // setting pG to 1 atm
         // TODO : rewrite equations s.t. p_L = pG-p_cap
         variables.gas_phase_pressure = 1.0e5;
@@ -6247,10 +6568,15 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             medium->property(MPL::PropertyType::biot_coefficient)
                 .template value<double>(variables, x_position, t, dt);
         auto& state_current = this->current_states_[ip];
+        // 2026-09-04: third constitutive path — same treatment as the two
+        // assembly paths (adversarial review 2026-09-04): C_el at the
+        // START-OF-STEP stress, the state the material integration starts
+        // from; inert for a constant tangent.
         variables.stress =
-            std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
-                DisplacementDim>>(state_current)
-                .sigma_eff;
+            std::get<PrevState<ProcessLib::ConstitutiveRelations::
+                                   EffectiveStressData<DisplacementDim>>>(
+                this->prev_states_[ip])
+                ->sigma_eff;
         // Set mechanical strain temporary to compute tangent stiffness.
         variables.mechanical_strain
             .emplace<MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
@@ -6258,6 +6584,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         auto const C_el = ip_data_[ip].computeElasticTangentStiffness(
             variables, t, x_position, dt, this->solid_material_,
             *this->material_states_[ip].material_state_variables);
+        variables.stress =
+            std::get<ProcessLib::ConstitutiveRelations::EffectiveStressData<
+                DisplacementDim>>(state_current)
+                .sigma_eff;  // restore the converged iterate for the other users
 
         auto const beta_SR = (1 - alpha) / this->solid_material_.getBulkModulus(
                                                t, x_position, &C_el);
@@ -6513,9 +6843,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 solid_phase.hasProperty(MPL::PropertyType::swelling_stress_rate) ||
                 isPotentialExchangeEnabled(
                     this->getPotentialExchangeParameters());
-            eps_m.noalias() = swelling_stress_active
-                                  ? eps + C_el.inverse() * sigma_sw
-                                  : eps;
+            eps_m.noalias() =
+                (swelling_stress_active &&
+                 !isEigenstressAdditive(this->getPotentialExchangeParameters()))
+                    ? eps + C_el.inverse() * sigma_sw
+                    : eps;  // additive mode (2026-09-04)
             variables.mechanical_strain.emplace<
                 MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
                 eps_m);
@@ -6534,15 +6866,68 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
             auto const& eps_m =
                 std::get<ProcessLib::ConstitutiveRelations::
                              MechanicalStrainData<DisplacementDim>>(state_current);
-            auto const& eps_m_prev =
+            auto const& eps_m_prev_stored =
                 std::get<PrevState<ProcessLib::ConstitutiveRelations::
                                        MechanicalStrainData<DisplacementDim>>>(
                     state_previous);
-
+            // 2026-09-04: re-form eps_m_prev with the CURRENT C_el (see the
+            // assembly paths); in additive mode the eigenstress is not in eps_m.
+            PrevState<ProcessLib::ConstitutiveRelations::MechanicalStrainData<
+                DisplacementDim>>
+                eps_m_prev = eps_m_prev_stored;
+            bool const additive_eig = isEigenstressAdditive(
+                this->getPotentialExchangeParameters());
+            if (solid_phase.hasProperty(
+                    MPL::PropertyType::swelling_stress_rate) ||
+                isPotentialExchangeEnabled(
+                    this->getPotentialExchangeParameters()))
+            {
+                auto const& eps_prev_state =
+                    std::get<PrevState<StrainData<DisplacementDim>>>(
+                        state_previous)
+                        ->eps;
+                auto const& sigma_sw_prev_state =
+                    std::get<PrevState<
+                        ProcessLib::ThermoRichardsMechanics::
+                            ConstitutiveStress_StrainTemperature::
+                                SwellingDataStateful<DisplacementDim>>>(
+                        state_previous)
+                        ->sigma_sw;
+                eps_m_prev->eps_m.noalias() =
+                    eps_prev_state +
+                    (additive_eig ? 0.0 : 1.0) *
+                        (C_el.inverse() * sigma_sw_prev_state);
+            }
+            // the solid material must see the MACRO liquid pressure
+            variables.capillary_pressure = p_cap_ip;
+            variables.liquid_phase_pressure = solidConstitutiveLiquidPressure<DisplacementDim>(
+                p_cap_ip,
+                std::get<PrevState<ProcessLib::ThermoRichardsMechanics::
+                                       ConstitutiveStress_StrainTemperature::
+                                           SwellingDataStateful<DisplacementDim>>>(
+                    state_previous)
+                    ->sigma_sw,
+                this->getPotentialExchangeParameters());
             ip_data_[ip].updateConstitutiveRelation(
                 variables, t, x_position, dt, temperature, sigma_eff,
                 sigma_eff_prev, eps_m, eps_m_prev, this->solid_material_,
                 this->material_states_[ip].material_state_variables);
+            if (additive_eig)
+            {
+                // additive eigenstress (2026-09-04): sigma_eff += d sigma_sw
+                sigma_eff.sigma_eff.noalias() +=
+                    std::get<ProcessLib::ThermoRichardsMechanics::
+                                 ConstitutiveStress_StrainTemperature::
+                                     SwellingDataStateful<DisplacementDim>>(
+                        state_current)
+                        .sigma_sw -
+                    std::get<PrevState<
+                        ProcessLib::ThermoRichardsMechanics::
+                            ConstitutiveStress_StrainTemperature::
+                                SwellingDataStateful<DisplacementDim>>>(
+                        state_previous)
+                        ->sigma_sw;
+            }
         }
 
         auto const& b = this->process_data_.specific_body_force;

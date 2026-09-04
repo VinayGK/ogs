@@ -1,0 +1,97 @@
+@DSL Default;
+@Behaviour KappaElastic;
+@Author Implemented for Vinay Kumar (BGR), per his ruling of 2026-09-04;
+@Date 04/09/2026;
+@Description{
+  Logarithmic (Cam-clay-type) hypoelasticity for compacted bentonite, small strain,
+  with the BExM constitutive stress p + s driving the bulk modulus. See the comment block below.
+}
+//   Logarithmic (Cam-clay-type) hypoelasticity for compacted bentonite, small strain:
+//     K = v0 * p_hat / kappa,   G = 3 K (1 - 2 nu) / (2 (1 + nu))   (constant Poisson ratio)
+//   with the stiffness-driving pressure
+//     p_hat = max( p_eff + w_s * s , p_min ),   s = max(-p_LR, 0) the matric suction,
+//   i.e. the BExM micro/macro elastic law of Alonso, Vaunat & Gens (1999, Eng. Geol. 54)
+//   in which the elastic volumetric compressibility is logarithmic in the constitutive
+//   stress p + s (net mean stress plus suction). w_s = 1 recovers p + s; w_s = 0 gives
+//   the saturated Cam-clay law on the effective mean stress alone.
+//   Rationale (2026-09-04, MS33 Model VII free swelling): a linear-elastic REV with
+//   E = 52 MPa cannot expand enough to hold the interlayer water the film potential
+//   demands at 0.2 MPa confinement, so the run ends at the n_l = phi ceiling. With the
+//   log law the stiffness is ~800 MPa at 99 MPa suction and ~1.7 MPa once saturated at
+//   0.2 MPa, which is the compliance real MX-80 shows on wetting.
+//   Semi-implicit hypoelastic increment: K and G are evaluated at p_hat with p_eff at the
+//   START of the step and the suction at the END of the step (explicit in p_eff, implicit
+//   in suction); the tangent is the same frozen K, G. Consistent to first order in the
+//   strain increment; the exponential exact integration of the absP Cam-clay variant is
+//   not used because p_hat contains the suction, whose increment is not a function of
+//   the strain increment.
+//   p_min floors the stiffness at zero effective stress and zero suction (kPa scale;
+//   see the deck for the derivation of its value) — the same role as the pamb
+//   parameter of ModCamClay_semiExpl_constE.
+//   Units: p [Pa], K [Pa], kappa [-], v0 [-] = 1/(1 - phi0).
+//   Volume ratio v is held at v0 (linearised, as in ModCamClay_semiExpl_absP).
+
+@MaterialProperty real nu;
+@PhysicalBounds nu in [-1:0.5];
+nu.setGlossaryName("PoissonRatio");
+
+@MaterialProperty real ka;
+@PhysicalBounds ka in [0:*[;
+ka.setEntryName("SwellingLineSlope");
+
+@MaterialProperty real v0;
+@PhysicalBounds v0 in [1:*[;
+v0.setEntryName("InitialVolumeRatio");
+
+@MaterialProperty stress p_min;
+@PhysicalBounds p_min in [0:*[;
+p_min.setEntryName("MinimumConstitutivePressure");
+
+@MaterialProperty real w_s;
+@PhysicalBounds w_s in [0:1];
+w_s.setEntryName("SuctionWeightInStiffness");
+
+@ExternalStateVariable stress p_LR;
+p_LR.setEntryName("LiquidPressure");
+
+@AuxiliaryStateVariable stress K_out;
+K_out.setGlossaryName("BulkModulus");
+@AuxiliaryStateVariable stress p_hat_out;
+p_hat_out.setEntryName("ConstitutivePressure");
+
+@LocalVariable stress K;
+@LocalVariable stress G;
+
+@ProvidesSymmetricTangentOperator;
+
+@Integrator{
+  constexpr auto id = Stensor::Id();
+  // p_eff at the start of the step (sig holds the previous stress), compression positive
+  const auto p_eff0 = -trace(sig) / 3;                       // Pa
+  // matric suction at the END of the step; NaN only if a caller never set it
+  const auto pL1 = p_LR + dp_LR;
+  const auto s1 = std::isfinite(pL1) ? std::max(-pL1, stress(0)) : stress(0);  // Pa
+  const auto vk = v0 / ka;                                   // [-]
+  const auto deV = trace(deto);
+  const auto deD = deviator(deto);
+  // EXACT integration of the log law over the step (2026-09-04, after the
+  // adversarial review): d p_eff / d eps_V = -vk * p_hat with p_hat = p_eff + w_s s
+  // and s frozen at s1 over the step gives
+  //   p_hat1 = max(p_hat0, p_min) * exp(-vk * deV),  p_eff1 = p_hat1 - w_s s1,
+  // i.e. the stiffness grows as the skeleton compresses and the strain that
+  // relaxes a given stress ratio is bounded by (ka/v0) ln(ratio) — the
+  // meaning of a swelling index. The frozen-K first-order increment used
+  // before was unbounded for an eigenstress much larger than p_hat.
+  const auto p_hat0 = std::max(p_eff0 + w_s * s1, p_min);   // Pa
+  const auto p_hat1 = p_hat0 * std::exp(-vk * deV);          // Pa
+  const auto p_eff1 = p_hat1 - w_s * s1;                     // Pa
+  K = vk * p_hat1;                                           // Pa (end-of-step tangent, exact d p_eff/d eps_V)
+  G = 3 * K * (1 - 2 * nu) / (2 * (1 + nu));                 // Pa
+  const auto s_dev0 = deviator(sig);
+  sig = s_dev0 + 2 * G * deD - p_eff1 * id;                  // Pa
+  K_out = K;
+  p_hat_out = p_hat1;
+  if (computeTangentOperator_) {
+    Dt = K * Stensor4::IxI() + 2 * G * Stensor4::K();        // Pa
+  }
+}

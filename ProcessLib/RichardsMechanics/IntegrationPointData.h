@@ -83,6 +83,21 @@ struct IntegrationPointData final
             .emplace<MathLib::KelvinVector::KelvinVectorType<DisplacementDim>>(
                 eps_m_prev->eps_m);
         variable_array_prev.temperature = temperature;
+        // 2026-09-04: solid materials may read the liquid pressure /
+        // saturation as MFront external state variables (KappaElastic:
+        // K = v0 (p + s)/kappa). This freshly built prev-array left them NaN,
+        // so MFront's increment (s1 - s0) was NaN and the behaviour fell back
+        // to zero suction during the stress update while the tangent used
+        // the true suction (MEASURED: Model I dd1600 Ps ~ 0 until the suction
+        // vanished, then -506 MPa). Use the END-of-step values on both sides,
+        // exactly as computeElasticTangentStiffness does (prev = current), so
+        // tangent and stress update see the same constitutive pressure.
+        variable_array_prev.liquid_phase_pressure =
+            variable_array.liquid_phase_pressure;
+        variable_array_prev.capillary_pressure =
+            variable_array.capillary_pressure;
+        variable_array_prev.liquid_saturation =
+            variable_array.liquid_saturation;
 
         auto&& solution = solid_material.integrateStress(
             variable_array_prev, variable_array, t, x_position, dt,

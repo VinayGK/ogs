@@ -775,6 +775,35 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         "eigenstress_u_jacobian",
         defaults ? defaults->eigenstress_u_jacobian : false);
 
+    //! \ogs_file_param{prj__processes__process__potential_exchange__eigenstress_additive}
+    auto const eigenstress_additive = config.getConfigParameter<bool>(
+        "eigenstress_additive",
+        defaults ? defaults->eigenstress_additive : false);
+
+    // 2026-09-04: optional micro void-ratio capacity law (Dieudonné 2017).
+    bool has_micro_void_ratio_capacity =
+        defaults ? defaults->has_micro_void_ratio_capacity : false;
+    double micro_void_ratio_capacity_beta0 =
+        defaults ? defaults->micro_void_ratio_capacity_beta0 : 0.0;
+    double micro_void_ratio_capacity_beta1 =
+        defaults ? defaults->micro_void_ratio_capacity_beta1 : 0.0;
+    double micro_void_ratio_capacity_e_m0 =
+        defaults ? defaults->micro_void_ratio_capacity_e_m0 : 0.0;
+    //! \ogs_file_param{prj__processes__process__potential_exchange__micro_void_ratio_capacity}
+    if (auto const cap = config.getConfigSubtreeOptional(
+            "micro_void_ratio_capacity"))
+    {
+        has_micro_void_ratio_capacity = true;
+        micro_void_ratio_capacity_beta0 = cap->getConfigParameter<double>("beta0");
+        micro_void_ratio_capacity_beta1 = cap->getConfigParameter<double>("beta1");
+        micro_void_ratio_capacity_e_m0 = cap->getConfigParameter<double>("e_m0");
+    }
+    //! \ogs_file_param{prj__processes__process__potential_exchange__stiffness_includes_swelling_pressure}
+    auto const stiffness_includes_swelling_pressure =
+        config.getConfigParameter<bool>(
+            "stiffness_includes_swelling_pressure",
+            defaults ? defaults->stiffness_includes_swelling_pressure : false);
+
     // Macro-porosity floor phi_M,min: keeps the macro pore from collapsing into
     // the interlayer (n_l capped at (phi-floor)/(1-floor)); 0 -> no floor.
     // MANDATORY (Vinay 2026-06-17): like micro_water_content_floor, the top-level
@@ -855,6 +884,12 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         film_energy_route,
         eigenstress_weight,
         eigenstress_u_jacobian,
+        eigenstress_additive,
+        has_micro_void_ratio_capacity,
+        micro_void_ratio_capacity_beta0,
+        micro_void_ratio_capacity_beta1,
+        micro_void_ratio_capacity_e_m0,
+        stiffness_includes_swelling_pressure,
         potential_augmentation_prefactor_vs_dry_density,
         dry_density,
         potential_augmentation_prefactor_live_dry_density};

@@ -530,6 +530,46 @@ public:
             behaviour_data.s1.external_state_variables[0] =
                 variable_array.temperature;
         }
+        // 2026-09-04 (kappa-law bentonite hypoelasticity, KappaElastic.mfront):
+        // behaviours may declare FURTHER scalar external state variables after
+        // the implicit Temperature. Previously these were silently left at
+        // zero (MEASURED: KappaElastic read s = 0 and collapsed to the p_min
+        // stiffness floor). Feed the ones OGS knows by glossary/entry name;
+        // refuse anything else loudly.
+        for (std::size_t i = 1; i < _behaviour.esvs.size(); ++i)
+        {
+            auto const& esv = _behaviour.esvs[i];
+            if (mgis::behaviour::getVariableSize(esv, _behaviour.hypothesis) !=
+                1)
+            {
+                OGS_FATAL(
+                    "MFront: external state variable '{:s}' must be a scalar.",
+                    esv.name);
+            }
+            double v_prev = 0.0;
+            double v_curr = 0.0;
+            if (esv.name == "LiquidPressure")
+            {
+                v_prev = variable_array_prev.liquid_phase_pressure;
+                v_curr = variable_array.liquid_phase_pressure;
+            }
+            else if (esv.name == "Saturation")
+            {
+                v_prev = variable_array_prev.liquid_saturation;
+                v_curr = variable_array.liquid_saturation;
+            }
+            else
+            {
+                OGS_FATAL(
+                    "MFront: unsupported external state variable '{:s}' "
+                    "(supported after Temperature: LiquidPressure, "
+                    "Saturation).",
+                    esv.name);
+            }
+            // all ESVs are scalars here, so the storage offset equals i
+            behaviour_data.s0.external_state_variables[i] = v_prev;
+            behaviour_data.s1.external_state_variables[i] = v_curr;
+        }
 
         // rotation tensor
         std::optional<KelvinMatrixType<DisplacementDim>> Q;

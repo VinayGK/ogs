@@ -567,6 +567,54 @@ struct PotentialExchangeParameters
     // instruction 2026-09-03 after the Model VII Newton-stall diagnosis.
     bool eigenstress_u_jacobian = false;
 
+    // ── Additive eigenstress (2026-09-04, kappa-law campaign) ───────────────
+    // PRJ <eigenstress_additive>true</eigenstress_additive>. Default false =
+    // the shipping route: sigma_sw enters the solid material as the
+    // mechanical strain eps_m = eps + C_el^{-1} sigma_sw (exact for a
+    // constant C_el). true: the material sees eps_m = eps and sigma_sw is
+    // ADDED to the returned effective stress, sigma_eff = sigma(eps) +
+    // sigma_sw — the only form that is exact for a stress/suction-dependent
+    // tangent (MEASURED 2026-09-04: with KappaElastic the strain route gave
+    // p_eff 23.59 MPa against its own sigma_sw 14.161 MPa in the confined
+    // Model I cell). Round-off-identical to the strain route for linear
+    // elasticity; NOT bit-identical, hence opt-in.
+    bool eigenstress_additive = false;
+
+    // ── Micro void-ratio capacity (2026-09-04, resaturation physics) ────────
+    // PRJ <micro_void_ratio_capacity><beta0/><beta1/><e_m0/></...> (optional).
+    // Della Vecchia, Dieudonné, Jommi & Charlier 2015 (IJNAMG 39) eq. 16 /
+    // Dieudonné, Della Vecchia & Charlier 2017 (Can. Geotech. J. 54) eq. 14:
+    //   e_m(e_w) = beta0 e_w^2 + beta1 e_w + e_m0
+    // the intra-aggregate (micro) void ratio as a function of the water ratio,
+    // calibrated on MIP (MX-80: beta0 = 0.48, beta1 = 0.1, e_m0 = 0.31, Tab. 1
+    // of the 2017 paper, data Delage 2006 / Wang 2012 / Seiphoori 2014).
+    // Used here as the CAPACITY of the interlayer: the micro water content
+    // n_l (REV volume fraction, micro pores saturated) cannot exceed
+    // (1 - phi) e_m(e) with e = phi/(1 - phi) the total void ratio, i.e. the
+    // aggregates cannot absorb more than their saturated micro void ratio at
+    // the current structure; the remainder of the incoming water stays in the
+    // macropores. Replaces the pore-space ceiling n_l <= phi (which is the
+    // beta = 1 "all water becomes micro void" assumption that closes the macro
+    // pore completely). When not set (has_micro_void_ratio_capacity = false)
+    // the old ceiling applies, bit-for-bit.
+    bool has_micro_void_ratio_capacity = false;
+    double micro_void_ratio_capacity_beta0 = 0.0;
+    double micro_void_ratio_capacity_beta1 = 0.0;
+    double micro_void_ratio_capacity_e_m0 = 0.0;
+
+    // ── Swelling pressure in the skeleton's constitutive pressure (2026-09-04)
+    // PRJ <stiffness_includes_swelling_pressure>true</...> (default false).
+    // For a stress-dependent skeleton law (KappaElastic, K = v0 p_hat/kappa)
+    // the constitutive pressure fed to the material through the LiquidPressure
+    // channel becomes s + p_sw, p_sw = -tr(sigma_sw)/3 >= 0 the accumulated
+    // swelling eigenstress at the start of the step: the interlayer pressure
+    // the aggregates carry is the DSM analogue of BExM's micro suction in
+    // p_hat = p + s (Alonso, Vaunat & Gens 1999), and it keeps the free wetted
+    // face from reaching p_hat -> 0 (MEASURED 2026-09-04, kap3 VII: the outer
+    // bottom corner at p_eff = -0.18 MPa, s = 0 fell to the p_min floor
+    // stiffness and all three components stalled at 20 d).
+    bool stiffness_includes_swelling_pressure = false;
+
     // ── K(rho_d): augmentation prefactor as a function of dry density ──────
     // Optional piecewise-linear table K = K(rho_d) [J/kg vs kg/m^3]. When set
     // together with `dry_density`, the augmentation prefactor above is
@@ -670,4 +718,9 @@ inline double effectiveAugmentationPrefactorPhiDerivative(
     }
     return 0.0;  // J/kg per unit phi
 }
+inline bool isEigenstressAdditive(PotentialExchangeParameters const* const p)
+{
+    return p != nullptr && p->eigenstress_additive;
+}
+
 }  // namespace ProcessLib::RichardsMechanics

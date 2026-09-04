@@ -25,6 +25,7 @@ set(_mfront_behaviours
     GuentherSalzer
     GuentherSalzerDilatancy_semi_expl
     HoekBrownC2
+    KappaElastic
     Lubby2
     Lubby2mod
     ModCamClay_semiExpl
