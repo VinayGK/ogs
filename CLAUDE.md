@@ -723,7 +723,7 @@ specific dataset row and target sigma value in the PRJ header.
 relative permeability {m, η}, ρ_s, n_l, ρ_d target, p_cav, vdW base
 A, micro-EOS parameters, biot_coefficient, intrinsic permeability,
 porosity, mass-transfer coefficient α_M, … and any other dimensioned
-material literal in the PRJ) — closed list of SIX allowed source
+material literal in the PRJ) — closed list of SEVEN allowed source
 families:
 
 1. **Beacon** — Beacon project benchmark spec / Beacon experimental
