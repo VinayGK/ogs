@@ -744,6 +744,23 @@ families:
    specific report/paper + table/figure per parameter. (FEBEX bentonite
    ≠ MX-80; do not conflate with the Dixon/MX-80 family.)
 
+7. **Dieudonné (Liège / TU Delft)** — approved by Vinay 2026-09-04
+   ("I approve Anne-Catherine's work as a reference"). Compacted-bentonite
+   microstructure and water retention: the micro void-ratio law
+   e_m(e_w) and its MX-80 / FEBEX / MX-80-sand coefficients, the
+   double-porosity retention model, the micro/macro water partition on
+   wetting. Sources: Dieudonné (2016), PhD thesis, Université de Liège,
+   "Hydromechanical behaviour of compacted bentonite: from micro-scale
+   analysis to macro-scale modelling"; Dieudonné, Della Vecchia &
+   Charlier (2017), Can. Geotech. J. 54(7), 915–925 (e.g. eq. 14,
+   Tab. 1); Della Vecchia, Dieudonné, Jommi & Charlier (2015), Int. J.
+   Numer. Anal. Meth. Geomech. 39, 702–723 (eq. 16); Dieudonné,
+   Gatabin, Talandier, Collin & Charlier (2016), E3S Web Conf. 9, 11012.
+   All four are in `~/thm-lit/pdfs/` (indexed). Cite paper + equation /
+   table / page per parameter, as for every other family. The MIP data
+   behind the MX-80 coefficients are EPFL's (Seiphoori, Ferrari & Laloui
+   2014) plus Delage 2006 and Wang 2012 — say so when citing.
+
 Any other source (lab handbook, internal memo, "standard value",
 "typical for bentonite", a tuned value with no provenance) is
 FORBIDDEN. If a parameter has no source from this list → STOP and
