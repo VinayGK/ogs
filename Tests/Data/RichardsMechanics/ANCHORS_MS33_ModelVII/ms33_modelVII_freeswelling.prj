@@ -4,7 +4,24 @@ EURAD-2 MS33 Theoretical Benchmarking — Model VII
 Free swelling, loading and unloading
 BGR / DSM native hierarchical vdW-augmented model
 
-Reference configuration: rho_d=1600 kg/m³, phi0=0.424460, K=103879 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes earlier 27371.90)
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460.
+  K IS NOT A SCALAR IN THIS DECK. It is supplied by the live K(rho_d) table below
+  (potential_augmentation_prefactor_vs_dry_density: knots 900/1400/1600/1800 =
+  18469.144929 / 46000.0 / 104689.9129 / 265905.06 J/kg), interpolated log-linearly at the
+  evolving dry density, with potential_augmentation_prefactor_live_dry_density = true.
+  The knot in force at rho_d=1600 is 104689.9129 J/kg.
+  (900 knot: 18469.144929 is the gen-4 knot, fit at macro_porosity_floor = 0.08 in the dd900
+  cell; 24241.892204, re-fit 2026-09-07 at floor 0.0, is a CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07),
+  not yet in the table.)
+  HISTORICAL (annotated 2026-09-03, retained per CLAUDE.md 6.3/6.4, not deleted): this line
+  previously read "K=103879 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes earlier
+  27371.90)". That scalar was correct when written (2026-06-15, commit a08f1aabd0d) and was
+  SUPERSEDED at the 2026-08-17 live-K switch, exactly as the section 12 provenance block below
+  already records under "fitted K". It went stale on THIS line only; rho_d and phi0 here remain
+  live, which is why the stale K read as current. Found by the provenance sweep of 2026-09-03
+  (CLAUDE.md 6.7.1); correction approved by Vinay (2026-09-03 09:13, "fix the VII deck line 7,
+  annotate"); the edit sat uncommitted in the shipped worktree and is carried into this branch
+  on 2026-09-07 (audit 2026-09-04 item B11).
 Geometry: 50mm diam × 70mm height axisymmetric cylinder (r=0–0.025m, z=0–0.070m)
 
 Free swelling under constant axial stress = 0.2 MPa (1-D oedometer-like):
@@ -92,7 +109,11 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                        median fit sigma_swell [MPa] = 0.003 * exp(5.2883 * EMDD [Mg/m3]).
         dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1600 kg/m3
         target sigma : 14.161 MPa
-        fitted K     : 103879.0 J/kg (potential_augmentation_prefactor) at sigma0=-1.5e5.
+        fitted K     : live K(rho_d) table (see the K TABLE block below): 900/1400/1600/1800 ->
+                       18469.144929 / 46000.0 / 104689.9129 / 265905.06 J/kg; the knot in force at
+                       rho_d=1600 is 104689.9129 J/kg (sigma0=0 "Option C" form-(a) recalibration).
+                       Line re-led 2026-09-07 (audit 2026-09-04 item B7). HISTORY, kept for lineage:
+                       103879.0 J/kg (potential_augmentation_prefactor) at sigma0=-1.5e5.
                        SUPERSEDED 2026-08-17 for live evaluation by 104689.9129 J/kg, the
                        sigma0=0 "Option C" form-(a) recalibration at rho_d=1600 (same value
                        ms33_modelIII_gapswitch.prj uses); see the K TABLE block below.
@@ -106,8 +127,11 @@ initial micro water content is set to the 99 MPa-equilibrium value.
       radial confinement; e climbs from ~0.73 to ~1.50), so the physical argument for III/IV
       ("a swelling material loses swelling potential; pricing it at the emplacement density
       is wrong") applies at least as strongly here. Identical Dixon-propagated knots as III:
-          rho_d =  900 -> K =  18469.144929 (target 0.3500522009 MPa)   RE-FIT 2026-08-28, supersedes
-          4367.2277 (contaminated fit, see dd900.prj/DSM/AGENTS.md entry 27-28)
+          rho_d =  900 -> K =  18469.144929 (target 0.3500522009 MPa)   gen 4, RE-FIT 2026-08-28 (fit
+          at floor 0.08 in the dd900 cell, audit 2026-09-04 B1), which superseded 4367.2277
+          (contaminated fit, see dd900.prj/DSM/AGENTS.md entry 27-28).
+          CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): 24241.892204 J/kg, re-fit at
+          macro_porosity_floor = 0.0; not yet in the live table.
           rho_d = 1400 -> K =  46000.0      (target  4.9    MPa)
           rho_d = 1600 -> K = 104689.9129   (target 14.161  MPa)
           rho_d = 1800 -> K = 265905.06     (target 40.6    MPa)
@@ -115,6 +139,10 @@ initial micro water content is set to the 99 MPa-equilibrium value.
       top probe under the prior fixed-K run; no extrapolation beyond the 900-1800 knots).
       Same CAVEAT as III (open, Vinay's call): linear PiecewiseLinearInterpolation vs Dixon's
       exponential law overshoots across the wide 900-1400 chord.
+      RESOLVED 2026-08-26 (Vinay's decision, commit bed3e395da): the LIVE K(rho_d) path now
+      interpolates LOG-LINEARLY between knots (node-preserving, fitted K values untouched);
+      the caveat above describes the superseded linear scheme and is kept as history
+      (line added 2026-09-07, audit 2026-09-04 item B7).
       Material parameters (source per group): as Model I dd1600; elastic E,nu: see the
         dedicated "elastic — Young/Poisson" warning block at the end of this provenance comment
         (SINGLE material, E=52 MPa Constant, no per-material split needed; 2026-06-08 correction
@@ -144,8 +172,15 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                        No numeric literal was changed by this correction; the live values above
                        are transcribed from the property block itself.
         cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20 Israelachvili & Adams 1978; lambda=7.5e-7
-        co-calibrated; micro EOS / Tuller geom / specific_surface 523 m2/g [TODO(Vinay): primary
-        locators]; alpha_M phenomenological.
+        co-calibrated; micro EOS / Tuller geom [TODO(Vinay): primary locators]; alpha_M
+        phenomenological.
+        specific_surface=523 m2/g     : EPFL family (CLAUDE.md 12.1 family 2): Seiphoori, Ferrari & Laloui
+                       (2014), Geotechnique 64(9):721-734, Tab. 1 p. 724, in m2/g. RULED Vinay
+                       2026-09-02; corroborated Tang & Cui (2005) CGJ Tab. 3 and Saiyouri et al.
+                       (1998) at 522 m2/g. UNIT CLASH, disclosed not changed: declared m2/g here,
+                       consumed as m2/kg by PotentialExchange.h (CLAUDE.md 1.3 incident 2026-09-02).
+                       Locator entered 2026-09-07 (audit 2026-09-04 item B9); the previous text of
+                       this line was "literature MX-80  [TODO(Vinay): primary locator]".
         elastic — Poisson nu=0.3      : EURAD-MS / CIMNE-UPC (CIMNE-UPC.tex Tab. tab:CIMNE_BBM L283).
         elastic — Young E=52 MPa      : *** WARNING: UNCITED WORKING VALUE — NOT A §12.1 MATERIAL
                        CONSTANT. *** Vinay-approved 2026-06-15 for use WITH this explicit warning
@@ -218,6 +253,12 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                      recovered 2026-08-28 run (21 extracted quantities, exact match to full
                      double precision). Reference rebaselined ts_883 -> ts_920 (t=20736000 s).
                      Full record: DSM/AGENTS.md 2026-08-31 entry 29. -->
+                <!-- CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): 900 knot 18469.144929 -> 24241.892204 J/kg,
+                     re-fit in the dd900 cell at macro_porosity_floor = 0.0 (this deck's own floor) instead
+                     of 0.08; 1400/1600/1800 knots untouched. NOT YET ADOPTED: the live table below still
+                     carries the gen-4 knot 18469.144929 (this commit is comment-only). If adopted, the same
+                     table lands byte-identically in III/IV/VII with the re-run, the rebaselined reference
+                     and the record CANONICAL_RESULTS_2026-09-07_gen5.json / DSM/AGENTS.md gen-5 entry. -->
                 <potential_augmentation_prefactor_vs_dry_density>
                     <dry_densities>900 1400 1600 1800</dry_densities>
                     <prefactors>18469.144929 46000.0 104689.9129 265905.06</prefactors>
@@ -228,7 +269,7 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                       Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
                 <potential_augmentation_exponent>7.5e-7</potential_augmentation_exponent>
                   <micro_water_content_floor>7.06e-5</micro_water_content_floor> <!-- 1W crystalline-hydration interlayer-water floor; Boek & Sprik 2003 (MD) / Marry et al. 2008 (1W Na-montmorillonite hydration); derivation in task13 TASK13_MCC_BLOCKAGE.md; adopted Vinay 2026-06-17 (commit 9e5459d00b). Caps Pi at the 1W minimum. -->
-                  <macro_porosity_floor>0.0</macro_porosity_floor> <!-- INERT for the LE submission suite (restores audited Dixon-exact config: 6/6 green, I=4.9218/14.1602/40.8448 verified 2026-06-23). Active 0.08 (Vinay 2026-06-17) broke dd1600/IV/III convergence + pulled dd1800 -8% off Dixon (measured 2026-06-23); 0.08 remains the experimental form-(b)/expulsion floor. Revert per "make submission ready"; countermandable. -->
+                  <macro_porosity_floor>0.0</macro_porosity_floor> <!-- INERT for the LE submission suite (restores audited Dixon-exact config: 6/6 green, I=4.9218/14.1602/40.8448 verified 2026-06-23; HISTORICAL sigma0=-1.5e5-era numbers, current Model I values are in the 12.2 provenance block: 4.899970/14.159948/40.600313 MPa, gen 4 record CANONICAL_RESULTS_2026-08-31_cascade.json, unchanged in gen 5). Active 0.08 (Vinay 2026-06-17) broke dd1600/IV/III convergence + pulled dd1800 -8% off Dixon (measured 2026-06-23); 0.08 remains the experimental form-(b)/expulsion floor. Revert per "make submission ready"; countermandable. CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): moving the dd900 calibration cell's floor 0.08 -> 0.0 as well (it is 0.08 there through gen 4, audit 2026-09-04 blocker B1), so that the live table's 900 knot is fit in the same constitutive state this deck consumes it in; not yet adopted, this deck's own 0.0 is unchanged. -->
     </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
+<OpenGeoSysProject>
 <!--
   DSM provenance (CLAUDE.md 12)
+  (block moved to immediately after the root tag on 2026-09-07 per CLAUDE.md 12.2; text otherwise unchanged
+  except the dated gen-5 CANDIDATE annotations)
   Benchmark family : EURAD-MS (EURAD-2 MS33 theoretical benchmarking, Model III)
   Geometry / BC    : axisymmetric cylinder r=25 mm, h=70 mm, 2 mm lateral technological
                      gap represented by a BC SWITCH - the outer radial boundary swells
@@ -32,8 +35,11 @@
   the run, because a swelling material loses swelling potential and holding K at the
   emplacement density is physically wrong.  Knots are the Dixon-propagated Model I
   calibration chain, each cell fitted to the Dixon Fig.1 median at its own rho_d:
-      rho_d =  900 -> K =  18469.144929 (target 0.3500522009 MPa)   RE-FIT 2026-08-28, supersedes
-          4367.2277 (contaminated fit, see dd900.prj/DSM/AGENTS.md entry 27-28) [see note]
+      rho_d =  900 -> K =  18469.144929 (target 0.3500522009 MPa)   gen 4, RE-FIT 2026-08-28 (fit at
+          floor 0.08 in the dd900 cell, audit 2026-09-04 blocker B1), which superseded 4367.2277
+          (contaminated fit, see dd900.prj/DSM/AGENTS.md entry 27-28) [see note].
+          CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): 24241.892204 J/kg, re-fit at macro_porosity_floor
+          = 0.0 (the state this deck evaluates the knot in); not yet in the live table.
       rho_d = 1400 -> K =  46000.0      (target  4.9    MPa)
       rho_d = 1600 -> K = 104689.9129   (target 14.161  MPa)
       rho_d = 1800 -> K = 265905.06     (target 40.6    MPa)
@@ -92,7 +98,13 @@
     vdW base A_Hamaker=2.2e-20 : Israelachvili & Adams (1978), J. Chem. Soc. Faraday
                                 Trans. I 74, p. 975, Tab. 2 (mica-water-mica SFA)
     augmentation exponent lambda=7.5e-7 : Dixon (2023) calibration chain
-    specific_surface = 523    : TODO(Vinay) - locator still outstanding
+    specific_surface = 523    : EPFL family (CLAUDE.md 12.1 family 2): Seiphoori, Ferrari & Laloui
+                       (2014), Geotechnique 64(9):721-734, Tab. 1 p. 724, in m2/g. RULED Vinay
+                       2026-09-02; corroborated Tang & Cui (2005) CGJ Tab. 3 and Saiyouri et al.
+                       (1998) at 522 m2/g. UNIT CLASH, disclosed not changed: declared m2/g here,
+                       consumed as m2/kg by PotentialExchange.h (CLAUDE.md 1.3 incident 2026-09-02).
+                       Locator entered 2026-09-07 (audit 2026-09-04 item B9); the previous text of
+                       this line was "literature MX-80  [TODO(Vinay): primary locator]".
     micro EOS (a=1e-16, b=1)  : as Model I; a=1e-16 makes the micro EOS effectively
                                 constant (CLAUDE.md 2 EOS-bypass note applies)
     intrinsic permeability 9.392480e-19 : 160x the deck's Kozeny-Carman base
@@ -167,10 +179,11 @@
                                 equilibrates the confined Reference within 200 d.
     floors                    : micro_water_content_floor = 7.06e-5 (1W interlayer,
                                 Boek & Sprik 2003 / Marry 2008);
-                                macro_porosity_floor = 0.0 (INERT, LE submission config)
+                                macro_porosity_floor = 0.0 (LE submission config; CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07):
+                                0.0 in ALL seven decks incl. the dd900 calibration cell, so the
+                                900 knot is fit in the state it is consumed in)
     mass-transfer alpha_M     : phenomenological, NOT identified by these benchmarks
 -->
-<OpenGeoSysProject>
     <meshes>
         <mesh axially_symmetric="true">ms33_cylinder_r25_h70.vtu</mesh>
         <mesh axially_symmetric="true">ms33_cylinder_r25_h70_left.vtu</mesh>
@@ -214,6 +227,12 @@
                      recovered 2026-08-28 run (max abs/rel diff = 0.0, every point_data field,
                      all 90 nodes). Reference rebaselined ts_880 -> ts_888 (t=17280000 s). Full
                      record: DSM/AGENTS.md 2026-08-31 entry 29. -->
+                <!-- CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): 900 knot 18469.144929 -> 24241.892204 J/kg,
+                     re-fit in the dd900 cell at macro_porosity_floor = 0.0 (this deck's own floor) instead
+                     of 0.08; 1400/1600/1800 knots untouched. NOT YET ADOPTED: the live table below still
+                     carries the gen-4 knot 18469.144929 (this commit is comment-only). If adopted, the same
+                     table lands byte-identically in III/IV/VII with the re-run, the rebaselined reference
+                     and the record CANONICAL_RESULTS_2026-09-07_gen5.json / DSM/AGENTS.md gen-5 entry. -->
                 <potential_augmentation_prefactor_vs_dry_density>
                     <dry_densities>900 1400 1600 1800</dry_densities>
                     <prefactors>18469.144929 46000.0 104689.9129 265905.06</prefactors>

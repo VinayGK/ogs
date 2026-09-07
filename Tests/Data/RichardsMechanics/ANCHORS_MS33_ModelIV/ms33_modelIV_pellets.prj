@@ -68,8 +68,26 @@ Official benchmark spec (MSXX §Model IV):
                        SHARED Dixon-propagated table (sigma0=0 Option-C form-(a) chain,
                        identical to ms33_modelIII_gapswitch.prj / ms33_modelVII_freeswelling.prj):
                          900/1400/1600/1800 -> 18469.144929/46000.0/104689.9129/265905.06 J/kg
-                       (900-knot RE-FIT 2026-08-28, supersedes 4367.227700212952, contaminated
-                       fit, see dd900.prj/DSM/AGENTS.md entry 27-28)
+                       (900-knot gen 4, RE-FIT 2026-08-28 at floor 0.08 in the dd900 cell, audit
+                       2026-09-04 B1; supersedes 4367.227700212952, contaminated fit, see
+                       dd900.prj/DSM/AGENTS.md entry 27-28. CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07):
+                       24241.892204 J/kg, re-fit at macro_porosity_floor = 0.0; not yet in the table)
+        fitted K     : NOT A SCALAR in this deck: the live table above, one table for BOTH zones.
+                       Knot in force at the block's emplacement rho_d=1600: 104689.9129 J/kg; at the
+                       pellet zone's emplacement rho_d=900: 18469.144929 J/kg (gen 4; gen-5 candidate
+                       24241.892204 under evaluation, 2026-09-07). Log-linear
+                       interpolation between knots (commit bed3e395da, Vinay 2026-08-26), FLAT CLAMP
+                       outside [900, 1800].
+                       PELLET ZONE BELOW THE TABLE FLOOR (MEASURED, gen-4 final frame ts_21500,
+                       re-measured 2026-09-07 from the committed reference): 130 of 1066 nodes
+                       (z = 26.25-33.25 mm, all r, i.e. the band just under the block/pellet
+                       interface) have rho_d < 900 kg/m3 (min 834.47) and are therefore CLAMPED at
+                       K(900); pellet-zone mean 1037.7 / max 1158.1; block 1123.9-1416.8. The
+                       "COMPACTS 900 -> ~1045-1160" statements in this header hold for the probe
+                       and the zone mean, NOT for that sub-interface band, which decompacts below
+                       its emplacement density (audit 2026-09-04 item B8). A gen-5 re-measurement,
+                       if gen 5 is adopted, goes to CANONICAL_RESULTS_2026-09-07_gen5.json
+                       model_IV.zone_stats.
                        Declared ONCE at the top level of <potential_exchange> (not per-medium);
                        both media inherit it via `defaults` (CreateRichardsMechanicsProcess.cpp).
                        sigma0 stays -1.5e5 (unchanged, same known convention gap as III/VII; not
@@ -136,7 +154,14 @@ Official benchmark spec (MSXX §Model IV):
                        are transcribed from the property blocks themselves.
         phi0=0.676259 = 1-rho_d/rho_s; cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20
         Israelachvili & Adams 1978; lambda=7.5e-7 co-calibrated; micro EOS / Tuller geom /
-        specific_surface [TODO(Vinay): primary locators]; alpha_M phenomenological.
+        alpha_M phenomenological.
+        specific_surface=523 m2/g     : EPFL family (CLAUDE.md 12.1 family 2): Seiphoori, Ferrari & Laloui
+                       (2014), Geotechnique 64(9):721-734, Tab. 1 p. 724, in m2/g. RULED Vinay
+                       2026-09-02; corroborated Tang & Cui (2005) CGJ Tab. 3 and Saiyouri et al.
+                       (1998) at 522 m2/g. UNIT CLASH, disclosed not changed: declared m2/g here,
+                       consumed as m2/kg by PotentialExchange.h (CLAUDE.md 1.3 incident 2026-09-02).
+                       Locator entered 2026-09-07 (audit 2026-09-04 item B9); the previous text of
+                       this line was "literature MX-80  [TODO(Vinay): primary locator]".
       NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
     -->
     <meshes>
@@ -211,6 +236,12 @@ Official benchmark spec (MSXX §Model IV):
                      all 1066 nodes, both rep1 and rep2). Reference rebaselined ts_577 -> ts_21500
                      (t=17280000 s). Full record: DSM/AGENTS.md 2026-08-31 entry 30 (cascade
                      entry 29 covers III/VII; this file completes it). -->
+                <!-- CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): 900 knot 18469.144929 -> 24241.892204 J/kg,
+                     re-fit in the dd900 cell at macro_porosity_floor = 0.0 (this deck's own floor) instead
+                     of 0.08; 1400/1600/1800 knots untouched. NOT YET ADOPTED: the live table below still
+                     carries the gen-4 knot 18469.144929 (this commit is comment-only). If adopted, the same
+                     table lands byte-identically in III/IV/VII with the re-run, the rebaselined reference
+                     and the record CANONICAL_RESULTS_2026-09-07_gen5.json / DSM/AGENTS.md gen-5 entry. -->
                 <potential_augmentation_prefactor_vs_dry_density>
                     <dry_densities>900 1400 1600 1800</dry_densities>
                     <prefactors>18469.144929 46000.0 104689.9129 265905.06</prefactors>
@@ -237,10 +268,15 @@ Official benchmark spec (MSXX §Model IV):
                      question U-1). -->
                 <medium id="1">
                     <micro_solid_volume_fraction_reference>0.3237410071942446</micro_solid_volume_fraction_reference>
+                    <!-- n_l0 = 6.59e-4 here (born b7f07736eb, 2026-06-02) vs 6.58e-4 in
+                         ANCHORS_MS33_ModelI/ms33_modelI_dd900.prj (born 0bb248930f, 2026-06-10) for the
+                         same rho_d=900 / 99 MPa micro-suction IC. One of the two is a transcription
+                         drift; audit 2026-09-04 item B10, ruling OPEN(Vinay). Both values stated,
+                         NEITHER changed (2026-09-07). -->
                     <initial_micro_water_content>6.59e-4</initial_micro_water_content>
                 </medium>
                   <micro_water_content_floor>7.06e-5</micro_water_content_floor> <!-- 1W crystalline-hydration interlayer-water floor; Boek & Sprik 2003 (MD) / Marry et al. 2008 (1W Na-montmorillonite hydration); derivation in task13 TASK13_MCC_BLOCKAGE.md; adopted Vinay 2026-06-17 (commit 9e5459d00b). Caps Pi at the 1W minimum. -->
-                  <macro_porosity_floor>0.0</macro_porosity_floor> <!-- INERT for the LE submission suite (restores audited Dixon-exact config: 6/6 green, I=4.9218/14.1602/40.8448 verified 2026-06-23). Active 0.08 (Vinay 2026-06-17) broke dd1600/IV/III convergence + pulled dd1800 -8% off Dixon (measured 2026-06-23); 0.08 remains the experimental form-(b)/expulsion floor. Revert per "make submission ready"; countermandable. -->
+                  <macro_porosity_floor>0.0</macro_porosity_floor> <!-- INERT for the LE submission suite (restores audited Dixon-exact config: 6/6 green, I=4.9218/14.1602/40.8448 verified 2026-06-23; HISTORICAL sigma0=-1.5e5-era numbers, current Model I values are in the 12.2 provenance block: 4.899970/14.159948/40.600313 MPa, gen 4 record CANONICAL_RESULTS_2026-08-31_cascade.json, unchanged in gen 5). Active 0.08 (Vinay 2026-06-17) broke dd1600/IV/III convergence + pulled dd1800 -8% off Dixon (measured 2026-06-23); 0.08 remains the experimental form-(b)/expulsion floor. Revert per "make submission ready"; countermandable. CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): moving the dd900 calibration cell's floor 0.08 -> 0.0 as well (it is 0.08 there through gen 4, audit 2026-09-04 blocker B1), so that the live table's 900 knot is fit in the same constitutive state this deck consumes it in; not yet adopted, this deck's own 0.0 is unchanged. -->
     </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
@@ -480,7 +516,10 @@ Official benchmark spec (MSXX §Model IV):
         </parameter>
         <!-- PER-MATERIAL Young's modulus (Group parameter keyed by MaterialID; Vinay 2026-06-08).
              MaterialID 0 (bentonite block, z=0.035-0.070 m) = 52e6 Pa
-               (EURAD-2 MS33 Table TH-G [TODO(Vinay): confirm]);
+               (source: see the "elastic - Young E=52 MPa" WARNING block in the 12.2 provenance header:
+                UNCITED WORKING VALUE, Vinay-approved 2026-06-15; the former "EURAD-2 MS33 Table TH-G"
+                attribution that stood on this line is SUPERSEDED by that block, corrected 2026-09-07,
+                audit 2026-09-04 item B10);
              MaterialID 1 (pellet zone, z=0-0.035 m) = 2e6 Pa
                (Vinay-approved 2026-06-08 soft-pellet convergence value; NOT a measured constant).
              Supersedes the prior Constant E=52e6 (which over-stiffened the pellet zone). -->
