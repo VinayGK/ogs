@@ -3,12 +3,22 @@
 <!--
   DSM provenance (CLAUDE.md 12)
   (block moved to immediately after the root tag on 2026-09-07 per CLAUDE.md 12.2; text otherwise unchanged
-  except the dated gen-5 CANDIDATE annotations)
+  except the dated GEN 5 additions)
   Benchmark family : EURAD-MS (EURAD-2 MS33 theoretical benchmarking, Model III)
-  Geometry / BC    : axisymmetric cylinder r=25 mm, h=70 mm, 2 mm lateral technological
-                     gap represented by a BC SWITCH - the outer radial boundary swells
-                     FREE until u_r reaches 2 mm, then becomes a rigid Dirichlet wall
-                     (container contact).  Switch implemented in
+  Geometry / BC    : axisymmetric clay cylinder r=23 mm (Ø46 mm), h=70 mm, inside the Ø50 mm
+                     cell: 2 mm lateral technological gap represented by a BC SWITCH - the outer
+                     radial boundary swells FREE until u_r reaches 2 mm (r = 25 mm = cell wall),
+                     then becomes a rigid Dirichlet wall (container contact).
+                     SPEC-CONFORMANCE FIX 2 (Vinay 2026-09-08 "approve all five, run them as one
+                     campaign"; audits/2026-09-08_spec_conformance_full/AUDIT.md §3 + refutation
+                     row 2): spec Fig3gapelementa.jpg labels the clay "46 mm" in the "50 mm" cell;
+                     UCLM.tex L370 "radius of 23 mm"; CIMNE template row (23,0,40); CIMNE.tex L591
+                     ~1.35 g/cm3 = 1600*(23/25)^2. Through gen 4 (2026-08-31) the clay was r = 25 mm
+                     with the wall latched at r = 27 mm (effective Ø54 cell, +18 % clay volume,
+                     post-closure rho_d 1372 vs the spec's 1354 kg/m3) - SUPERSEDED. Mesh: MaterialID 0
+                     of the tracked ms33_gap2mm_r25_h70.vtu (1 x 1.75 mm, 920 quads) extracted as
+                     ms33_clay_r23_h70.vtu; NOTE the discretisation is finer than the gen-4 5 x 5 mm
+                     mesh (a refinement rides along with the geometry fix).  Switch implemented in
                      ms33_modelIII_gapswitch_bc.py (mirrors the Task-13 2023
                      getDirichletBCValue switch).  rho_d = 1600 kg/m3 at emplacement.
 
@@ -35,11 +45,11 @@
   the run, because a swelling material loses swelling potential and holding K at the
   emplacement density is physically wrong.  Knots are the Dixon-propagated Model I
   calibration chain, each cell fitted to the Dixon Fig.1 median at its own rho_d:
-      rho_d =  900 -> K =  18469.144929 (target 0.3500522009 MPa)   gen 4, RE-FIT 2026-08-28 (fit at
-          floor 0.08 in the dd900 cell, audit 2026-09-04 blocker B1), which superseded 4367.2277
-          (contaminated fit, see dd900.prj/DSM/AGENTS.md entry 27-28) [see note].
-          CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): 24241.892204 J/kg, re-fit at macro_porosity_floor
-          = 0.0 (the state this deck evaluates the knot in); not yet in the live table.
+      rho_d =  900 -> K =  24241.892204 (target 0.3500522009 MPa)   GEN 5 RE-FIT 2026-09-07 at
+          macro_porosity_floor = 0.0 (Vinay "i approve gen 5"; the state this deck evaluates the
+          knot in), supersedes 18469.144929 (gen 4, RE-FIT 2026-08-28 but fit at floor 0.08 in the
+          dd900 cell, audit 2026-09-04 blocker B1), which superseded 4367.2277 (contaminated fit,
+          see dd900.prj/DSM/AGENTS.md entry 27-28) [see note]
       rho_d = 1400 -> K =  46000.0      (target  4.9    MPa)
       rho_d = 1600 -> K = 104689.9129   (target 14.161  MPa)
       rho_d = 1800 -> K = 265905.06     (target 40.6    MPa)
@@ -179,17 +189,21 @@
                                 equilibrates the confined Reference within 200 d.
     floors                    : micro_water_content_floor = 7.06e-5 (1W interlayer,
                                 Boek & Sprik 2003 / Marry 2008);
-                                macro_porosity_floor = 0.0 (LE submission config; CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07):
+                                macro_porosity_floor = 0.0 (LE submission config; GEN 5 2026-09-07:
                                 0.0 in ALL seven decks incl. the dd900 calibration cell, so the
                                 900 knot is fit in the state it is consumed in)
     mass-transfer alpha_M     : phenomenological, NOT identified by these benchmarks
 -->
     <meshes>
-        <mesh axially_symmetric="true">ms33_cylinder_r25_h70.vtu</mesh>
-        <mesh axially_symmetric="true">ms33_cylinder_r25_h70_left.vtu</mesh>
-        <mesh axially_symmetric="true">ms33_cylinder_r25_h70_right.vtu</mesh>
-        <mesh axially_symmetric="true">ms33_cylinder_r25_h70_bottom.vtu</mesh>
-        <mesh axially_symmetric="true">ms33_cylinder_r25_h70_top.vtu</mesh>
+        <!-- 2026-09-08 (spec-conformance fix 2): clay r = 23 mm, 920 quads (1 x 1.75 mm), = MaterialID 0 of
+             the tracked ms33_gap2mm_r25_h70.vtu extracted; boundary meshes regenerated (_right at r = 23 mm).
+             Through gen 4 this list read ms33_cylinder_r25_h70(.vtu/_left/_right/_bottom/_top): the r = 25 mm,
+             5 x 5 mm, 70-quad mesh - clay Ø50 in an effective Ø54 cell. Those files stay tracked. -->
+        <mesh axially_symmetric="true">ms33_clay_r23_h70.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_clay_r23_h70_left.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_clay_r23_h70_right.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_clay_r23_h70_bottom.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_clay_r23_h70_top.vtu</mesh>
     </meshes>
     <python_script>ms33_modelIII_gapswitch_bc.py</python_script>
     <processes>
@@ -227,15 +241,14 @@
                      recovered 2026-08-28 run (max abs/rel diff = 0.0, every point_data field,
                      all 90 nodes). Reference rebaselined ts_880 -> ts_888 (t=17280000 s). Full
                      record: DSM/AGENTS.md 2026-08-31 entry 29. -->
-                <!-- CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): 900 knot 18469.144929 -> 24241.892204 J/kg,
+                <!-- GEN 5 (Vinay 2026-09-07, "i approve gen 5"): 900 knot 18469.144929 -> 24241.892204 J/kg,
                      re-fit in the dd900 cell at macro_porosity_floor = 0.0 (this deck's own floor) instead
-                     of 0.08; 1400/1600/1800 knots untouched. NOT YET ADOPTED: the live table below still
-                     carries the gen-4 knot 18469.144929 (this commit is comment-only). If adopted, the same
-                     table lands byte-identically in III/IV/VII with the re-run, the rebaselined reference
-                     and the record CANONICAL_RESULTS_2026-09-07_gen5.json / DSM/AGENTS.md gen-5 entry. -->
+                     of 0.08; 1400/1600/1800 knots untouched. Same table byte-identical in III/IV/VII.
+                     Re-run and reference rebaselined the same day; record
+                     CANONICAL_RESULTS_2026-09-07_gen5.json and DSM/AGENTS.md gen-5 entry. -->
                 <potential_augmentation_prefactor_vs_dry_density>
                     <dry_densities>900 1400 1600 1800</dry_densities>
-                    <prefactors>18469.144929 46000.0 104689.9129 265905.06</prefactors>
+                    <prefactors>24241.892204 46000.0 104689.9129 265905.06</prefactors>
                 </potential_augmentation_prefactor_vs_dry_density>
                 <potential_augmentation_prefactor_live_dry_density>true</potential_augmentation_prefactor_live_dry_density>
                 <potential_augmentation_exponent>7.5e-7</potential_augmentation_exponent>
@@ -405,13 +418,13 @@
             <initial_condition>displacement0</initial_condition>
             <boundary_conditions>
                 <!-- Axis of symmetry: u_r = 0 -->
-                <boundary_condition><mesh>ms33_cylinder_r25_h70_left</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
+                <boundary_condition><mesh>ms33_clay_r23_h70_left</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
                 <!-- Outer radial boundary: PYTHON SWITCH free-swell -> Dirichlet u_r=2mm on gap closure -->
-                <boundary_condition><mesh>ms33_cylinder_r25_h70_right</mesh><type>Python</type><component>0</component><bc_object>gap_switch</bc_object></boundary_condition>
+                <boundary_condition><mesh>ms33_clay_r23_h70_right</mesh><type>Python</type><component>0</component><bc_object>gap_switch</bc_object></boundary_condition>
                 <!-- Bottom: u_z = 0 -->
-                <boundary_condition><mesh>ms33_cylinder_r25_h70_bottom</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
+                <boundary_condition><mesh>ms33_clay_r23_h70_bottom</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
                 <!-- Top lid: u_z = 0 -->
-                <boundary_condition><mesh>ms33_cylinder_r25_h70_top</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
+                <boundary_condition><mesh>ms33_clay_r23_h70_top</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
             </boundary_conditions>
         </process_variable>
         <process_variable>
@@ -421,7 +434,7 @@
             <initial_condition>pressure_ic</initial_condition>
             <boundary_conditions>
                 <!-- Hydration from bottom: suction ramp 100->0 MPa over 20 days -->
-                <boundary_condition><mesh>ms33_cylinder_r25_h70_bottom</mesh><type>Dirichlet</type><parameter>pressure_bc</parameter></boundary_condition>
+                <boundary_condition><mesh>ms33_clay_r23_h70_bottom</mesh><type>Dirichlet</type><parameter>pressure_bc</parameter></boundary_condition>
             </boundary_conditions>
         </process_variable>
     </process_variables>
