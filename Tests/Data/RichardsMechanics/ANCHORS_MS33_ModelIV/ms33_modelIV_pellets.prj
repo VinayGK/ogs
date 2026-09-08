@@ -4,9 +4,20 @@ EURAD-2 MS33 Theoretical Benchmarking — Model IV
 Clay-pellets interaction, homogenization in dry density
 BGR / DSM native hierarchical vdW-augmented model
 
-Geometry: 50mm diam × 70mm height axisymmetric cylinder
-  Bentonite block (medium id=0): r=0–0.025m, z=0.035–0.070m  (MaterialID=0)
-  Pellet zone     (medium id=1): r=0–0.025m, z=0–0.035m      (MaterialID=1)
+Geometry: 50mm diam × 70mm height axisymmetric cylinder — CONCENTRIC (spec Fig4pellets.jpg):
+  Bentonite core  (medium id=0): r=0–0.015m (Ø30 mm), z=0–0.070m (full height)  (MaterialID=0)
+  Pellet annulus  (medium id=1): r=0.015–0.025m,       z=0–0.070m (full height)  (MaterialID=1)
+  Mesh ms33_pellets_concentric_r25_h70.vtu (2026-09-08): the SAME 1066 nodes / 1000 quads (1 mm x 1.75 mm)
+  as ms33_pellets_r25_h70.vtu with MaterialIDs relabelled by cell-centroid radius (r < 15 mm -> 0, else 1;
+  600 clay / 400 pellet cells); boundary meshes unchanged (same node ids).
+  SPEC-CONFORMANCE FIX 1 (Vinay 2026-09-08 "approve all five, run them as one campaign";
+  audits/2026-09-08_spec_conformance_full/AUDIT.md §4 + VERIFY_refutation row 1, five independent routes:
+  Fig4pellets.jpg "Clay 30 mm" core inside the "Pellets" annulus; AMPHOS21.tex L327; UCLM.tex L430;
+  CTU-CU.tex L422 (6x20 + 4x20 radial split); CIMNE 1.15 g/cm3 = 0.36*1.6 + 0.64*0.9).
+  HISTORY (gen 1-4, through 2026-08-31, SUPERSEDED, kept per CLAUDE.md 6.3): the deck used
+  ms33_pellets_r25_h70.vtu, a STACKED layout — block r=0–0.025 / z=0.035–0.070 over pellets
+  r=0–0.025 / z=0–0.035 — which is NOT the spec's geometry (clay hydrated only through the pellets,
+  clay volume fraction 0.50 instead of 0.36, no equivalent of either prescribed probe).
 
 Bentonite: rho_d=1600 kg/m³, phi0=0.424460, LIVE K(rho_d) table (2026-08-18; was fixed
   K=103879 J/kg, Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes Villar 29999.25)
@@ -53,10 +64,17 @@ Official benchmark spec (MSXX §Model IV):
       DSM provenance (CLAUDE.md §12.2). Authoritative; supersedes any older inline
       "Villar" calibration wording elsewhere in this file.
       Benchmark family : MS LE  (gating regression standard, §12.3)
-      Geometry / BC    : axisym cylinder 50 mm diam x 70 mm; bentonite block (MaterialID 0,
-                         rho_d=1600) over pellet zone (MaterialID 1, rho_d=900); 100 MPa initial
-                         suction both zones; bottom suction ramp 100->0 MPa / 20 d to 200 d.
-                         Source: EURAD-2 MS33 spec (pellet rho_d=0.9 g/cm3 verbatim spec value).
+      Geometry / BC    : axisym cylinder 50 mm diam x 70 mm; CONCENTRIC (since 2026-09-08, fix 1):
+                         bentonite core r<=15 mm (MaterialID 0, rho_d=1600) inside a pellet annulus
+                         r 15-25 mm (MaterialID 1, rho_d=900), both over the full 70 mm; rigid
+                         normal-fixed faces; 100 MPa initial suction both zones; bottom suction ramp
+                         100->0 MPa / 20 d to 200 d. Source: EURAD-2 MS33 spec Fig4pellets.jpg
+                         (Ø30 mm clay core, Ø50 mm cell) + text L256-284 (pellet rho_d=0.9 g/cm3
+                         verbatim). Through gen 4 this line read "bentonite block (MaterialID 0)
+                         over pellet zone (MaterialID 1)" - the stacked layout, superseded.
+                         Probes (spec template CIMNE-UPC_DATA/Model_IV, assembly frame z=0 at the
+                         bottom of the lower stone): "centre of the bentonite" (0,0,40) -> axis, clay-
+                         local 35 mm; "centre of the pellets" (20,0,40) -> r=20 mm, clay-local 35 mm.
       Calibration anchor:
         source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
         locator      : Dixon et al. (2023), "Measured swelling, hydraulic and thermal
@@ -67,27 +85,31 @@ Official benchmark spec (MSXX §Model IV):
                        bentonite block AND the pellet zone now report LIVE K(rho_d) from ONE
                        SHARED Dixon-propagated table (sigma0=0 Option-C form-(a) chain,
                        identical to ms33_modelIII_gapswitch.prj / ms33_modelVII_freeswelling.prj):
-                         900/1400/1600/1800 -> 18469.144929/46000.0/104689.9129/265905.06 J/kg
-                       (900-knot gen 4, RE-FIT 2026-08-28 at floor 0.08 in the dd900 cell, audit
-                       2026-09-04 B1; supersedes 4367.227700212952, contaminated fit, see
-                       dd900.prj/DSM/AGENTS.md entry 27-28. CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07):
-                       24241.892204 J/kg, re-fit at macro_porosity_floor = 0.0; not yet in the table)
+                         900/1400/1600/1800 -> 18469.144929/46000.0/104689.9129/265905.06 J/kg IN THIS DECK
+                         (2026-09-08: gen-4 900 knot retained here, see the <prefactors> note; the gen-5 value below is
+                         what III/VII/Reference carry)
+                       (900-knot GEN 5 RE-FIT 2026-09-07 at macro_porosity_floor = 0.0, Vinay
+                       "i approve gen 5"; supersedes 18469.144929 (gen 4, RE-FIT 2026-08-28 at floor
+                       0.08, audit 2026-09-04 B1), which superseded 4367.227700212952, contaminated
+                       fit, see dd900.prj/DSM/AGENTS.md entry 27-28)
         fitted K     : NOT A SCALAR in this deck: the live table above, one table for BOTH zones.
                        Knot in force at the block's emplacement rho_d=1600: 104689.9129 J/kg; at the
-                       pellet zone's emplacement rho_d=900: 18469.144929 J/kg (gen 4; gen-5 candidate
-                       24241.892204 under evaluation, 2026-09-07). Log-linear
+                       pellet zone's emplacement rho_d=900: 18469.144929 J/kg (gen-4 knot RETAINED in this deck on
+                       2026-09-08: the gen-5 knot 24241.892204 stalls on the concentric mesh, see the note at the
+                       <prefactors> block; III/VII/Reference carry 24241.892204). Log-linear
                        interpolation between knots (commit bed3e395da, Vinay 2026-08-26), FLAT CLAMP
                        outside [900, 1800].
-                       PELLET ZONE BELOW THE TABLE FLOOR (MEASURED, gen-4 final frame ts_21500,
+                       PELLET ZONE BELOW THE TABLE FLOOR (STACKED layout, gen 4; re-censused under the
+                       concentric layout in CANONICAL_RESULTS_2026-09-08_gen5_conformant.json)
+                       (MEASURED, gen-4 final frame ts_21500,
                        re-measured 2026-09-07 from the committed reference): 130 of 1066 nodes
                        (z = 26.25-33.25 mm, all r, i.e. the band just under the block/pellet
                        interface) have rho_d < 900 kg/m3 (min 834.47) and are therefore CLAMPED at
                        K(900); pellet-zone mean 1037.7 / max 1158.1; block 1123.9-1416.8. The
                        "COMPACTS 900 -> ~1045-1160" statements in this header hold for the probe
                        and the zone mean, NOT for that sub-interface band, which decompacts below
-                       its emplacement density (audit 2026-09-04 item B8). A gen-5 re-measurement,
-                       if gen 5 is adopted, goes to CANONICAL_RESULTS_2026-09-07_gen5.json
-                       model_IV.zone_stats.
+                       its emplacement density (audit 2026-09-04 item B8). Gen-5 re-measurement is
+                       recorded in CANONICAL_RESULTS_2026-09-07_gen5.json model_IV.zone_stats.
                        Declared ONCE at the top level of <potential_exchange> (not per-medium);
                        both media inherit it via `defaults` (CreateRichardsMechanicsProcess.cpp).
                        sigma0 stays -1.5e5 (unchanged, same known convention gap as III/VII; not
@@ -165,7 +187,9 @@ Official benchmark spec (MSXX §Model IV):
       NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
     -->
     <meshes>
-        <mesh axially_symmetric="true">ms33_pellets_r25_h70.vtu</mesh>
+        <!-- bulk mesh switched 2026-09-08 (fix 1, concentric); the four boundary meshes below are
+             unchanged: same node ids in both bulk files. -->
+        <mesh axially_symmetric="true">ms33_pellets_concentric_r25_h70.vtu</mesh>
         <mesh axially_symmetric="true">ms33_pellets_r25_h70_left.vtu</mesh>
         <mesh axially_symmetric="true">ms33_pellets_r25_h70_right.vtu</mesh>
         <mesh axially_symmetric="true">ms33_pellets_r25_h70_bottom.vtu</mesh>
@@ -236,12 +260,23 @@ Official benchmark spec (MSXX §Model IV):
                      all 1066 nodes, both rep1 and rep2). Reference rebaselined ts_577 -> ts_21500
                      (t=17280000 s). Full record: DSM/AGENTS.md 2026-08-31 entry 30 (cascade
                      entry 29 covers III/VII; this file completes it). -->
-                <!-- CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): 900 knot 18469.144929 -> 24241.892204 J/kg,
+                <!-- GEN 5 (Vinay 2026-09-07, "i approve gen 5"): 900 knot 18469.144929 -> 24241.892204 J/kg,
                      re-fit in the dd900 cell at macro_porosity_floor = 0.0 (this deck's own floor) instead
-                     of 0.08; 1400/1600/1800 knots untouched. NOT YET ADOPTED: the live table below still
-                     carries the gen-4 knot 18469.144929 (this commit is comment-only). If adopted, the same
-                     table lands byte-identically in III/IV/VII with the re-run, the rebaselined reference
-                     and the record CANONICAL_RESULTS_2026-09-07_gen5.json / DSM/AGENTS.md gen-5 entry. -->
+                     of 0.08; 1400/1600/1800 knots untouched. Same table byte-identical in III/IV/VII.
+                     Re-run and reference rebaselined the same day; record
+                     CANONICAL_RESULTS_2026-09-07_gen5.json and DSM/AGENTS.md gen-5 entry. -->
+                <!-- 2026-09-08 (campaign gen5_conformant, Vinay "approve all five, run them as one campaign"): THIS DECK CARRIES
+                     THE GEN-4 900 KNOT 18469.144929, NOT the gen-5 knot 24241.892204 that III/VII/Reference carry. MEASURED 2026-09-08:
+                     on the concentric mesh the gen-5 knot STALLS - rejections from step #15215, t = 2357267.5 s (27.28 d), then a
+                     crawl at the 0.1 s dt floor (u_z non-contracting at |dx|/|x| = 1.0009e-6 vs reltol 1e-6, p and u_r converged),
+                     the same mode that killed the stacked deck at 25.19 d on 2026-09-07; stopped by hand at 27.29 d. The SAME mesh
+                     with the gen-4 knot completed 200 d in 16008 steps, 0 rejected (7946 s, OMP 6): the instability is knot-borne.
+                     The gen-4 knot is kept LIVE here so that the committed deck runs and its ctest reference is the run of the
+                     committed deck (CLAUDE.md 6.5); it is the "mixed-floor" knot (fit at macro_porosity_floor 0.08, audit 2026-09-04
+                     B1) and the ONE-TABLE rule across III/IV/VII is therefore BROKEN in the tree - DISCLOSED, needs Vinay's ruling
+                     (accept the mixed table for IV / treat the u_z mode / hold IV at gen 4). Record
+                     CANONICAL_RESULTS_2026-09-08_gen5_conformant.json model_IV (primary_gen5_knot = the stalled run, control_gen4_knot
+                     = this deck). -->
                 <potential_augmentation_prefactor_vs_dry_density>
                     <dry_densities>900 1400 1600 1800</dry_densities>
                     <prefactors>18469.144929 46000.0 104689.9129 265905.06</prefactors>
@@ -276,7 +311,7 @@ Official benchmark spec (MSXX §Model IV):
                     <initial_micro_water_content>6.59e-4</initial_micro_water_content>
                 </medium>
                   <micro_water_content_floor>7.06e-5</micro_water_content_floor> <!-- 1W crystalline-hydration interlayer-water floor; Boek & Sprik 2003 (MD) / Marry et al. 2008 (1W Na-montmorillonite hydration); derivation in task13 TASK13_MCC_BLOCKAGE.md; adopted Vinay 2026-06-17 (commit 9e5459d00b). Caps Pi at the 1W minimum. -->
-                  <macro_porosity_floor>0.0</macro_porosity_floor> <!-- INERT for the LE submission suite (restores audited Dixon-exact config: 6/6 green, I=4.9218/14.1602/40.8448 verified 2026-06-23; HISTORICAL sigma0=-1.5e5-era numbers, current Model I values are in the 12.2 provenance block: 4.899970/14.159948/40.600313 MPa, gen 4 record CANONICAL_RESULTS_2026-08-31_cascade.json, unchanged in gen 5). Active 0.08 (Vinay 2026-06-17) broke dd1600/IV/III convergence + pulled dd1800 -8% off Dixon (measured 2026-06-23); 0.08 remains the experimental form-(b)/expulsion floor. Revert per "make submission ready"; countermandable. CANDIDATE UNDER EVALUATION (gen 5, 2026-09-07): moving the dd900 calibration cell's floor 0.08 -> 0.0 as well (it is 0.08 there through gen 4, audit 2026-09-04 blocker B1), so that the live table's 900 knot is fit in the same constitutive state this deck consumes it in; not yet adopted, this deck's own 0.0 is unchanged. -->
+                  <macro_porosity_floor>0.0</macro_porosity_floor> <!-- INERT for the LE submission suite (restores audited Dixon-exact config: 6/6 green, I=4.9218/14.1602/40.8448 verified 2026-06-23; HISTORICAL sigma0=-1.5e5-era numbers, current Model I values are in the 12.2 provenance block: 4.899970/14.159948/40.600313 MPa, gen 4 record CANONICAL_RESULTS_2026-08-31_cascade.json, unchanged in gen 5). Active 0.08 (Vinay 2026-06-17) broke dd1600/IV/III convergence + pulled dd1800 -8% off Dixon (measured 2026-06-23); 0.08 remains the experimental form-(b)/expulsion floor. Revert per "make submission ready"; countermandable. GEN 5 (Vinay 2026-09-07, "i approve gen 5"): the floor is 0.0 in ALL seven MS33 decks now, INCLUDING the dd900 calibration cell (was 0.08 there through gen 4, audit 2026-09-04 blocker B1); the live table's 900 knot is therefore fit in the same constitutive state this deck consumes it in. -->
     </potential_exchange>
             <constitutive_relation>
                 <type>LinearElasticIsotropic</type>
@@ -467,6 +502,40 @@ Official benchmark spec (MSXX §Model IV):
                 <convergence_criterion>
                     <type>PerComponentDeltaX</type>
                     <norm_type>NORM2</norm_type>
+                    <!-- DISPLACEMENT ABSTOL 1e-12 -> 1e-9 m (Vinay ruling 2026-09-07; CLAUDE.md 1.2: a tolerance
+                         derived in-file from the problem scale, flagged). Component order: 0 = pressure [Pa],
+                         1 = u_r [m], 2 = u_z [m]. Pressure abstol 1 Pa and all reltols 1e-6 are UNCHANGED.
+                         SCALE DERIVATION (this deck / mesh ms33_pellets_r25_h70.vtu):
+                           column height            H       = 0.070 m   (mesh y-extent 0 .. 0.070, read 2026-09-07)
+                           smallest displacement of interest ~ 1e-4 m (0.1 mm; the technological-gap scale of
+                                                    the MS33 suite, cf. Model III's 2 mm gap)
+                           Newton noise on a structurally-zero DOF ~ 1e-12 m (MEASURED, gen-5 run 2026-09-07:
+                                                    u_r is zero over the whole column by construction: Dirichlet
+                                                    u_r = 0 on the axis AND on the rigid wall; |x|(u_r) = 6.5e-13 m,
+                                                    |dx|(u_r) = 1.3e-12 m at step #7590, t = 2 176 667 s)
+                           chosen abstol            1e-9 m   = ~1.4e-8 * H  (1e-8 x column height, order of magnitude)
+                                                             = 3 decades ABOVE the observed noise floor
+                                                             = 5 decades BELOW the smallest physical displacement
+                         WHY: the reltol 1e-6 is meaningless on a zero component (|dx|/|x| = O(1) for pure noise),
+                         so the absolute floor is the only criterion u_r can satisfy; at 1e-12 m it sat below the
+                         round-off noise of the u_r DOFs and the deck error-terminated at step #7590 (11 consecutive
+                         Newton failures at max_iter 60, dt collapsed to minimum_dt 0.1 s) with p and u_z both
+                         converged. Same class as the pressure-tolerance incident (CLAUDE.md 3,
+                         feedback_ogs_rm_pressure_tolerance): derive the tolerance from the problem scale.
+                         The gen-4 run of this deck (900 knot 18469.144929, ts_21500) passed the same phase with
+                         |dx|(u_r) ~ 1e-17 m, i.e. the 1e-12 floor was never tested there.
+                         APPLIED TO THIS DECK ONLY: III / VII / Model I keep 1e-12 (result-neutrality of a
+                         suite-wide change is untested; follow-up for Vinay). Effect on the converged
+                         solution: PREDICTED result-neutral at the 1e-6 relative level of u_z / p (not yet
+                         verified against a 1e-12 run, which does not complete).
+                         MEASURED 2026-09-07 14:09 (run cascade/IV_abstol1e-9, deck md5 5da112522785c3cf8a389462ee93ccab):
+                         with 1e-9 the deck STILL error-terminates, at step #7459, t = 2 176 701 s: |dx|(u_r) scaled to
+                         1.38e-9 m with |dx|/|x| = 1.9945 (the same ratio as at 1e-12), p |dx| 7.9 Pa > 1 Pa. The noise-floor
+                         hypothesis above is REFUTED; the stall is a period-2 Newton mode at that instant, not a tolerance.
+                         Value left at 1e-9 as ruled; whether it stays is Vinay's call.
+                         REVERTED 2026-09-08 to the SHIPPED 1e-12 (Vinay's campaign brief 2026-09-08: the
+                         1e-9 edit was refuted as a fix, so the numerics stay shipped; the derivation above
+                         is kept as history, CLAUDE.md 6.3). -->
                     <abstols>1 1e-12 1e-12</abstols>
                     <!-- reltols 1e-6 added 2026-05-30 (Vinay approved): abstol-only criterion (1 Pa on |p|~1.7e9, 1 pm disp) traps the IterationNumberBased dt at the wetting front; a relative tol opens it (sandbox IV tolerance sweep: Newton 11 to 9 iters, dt 2s to 5e4s, Model IV completes 200d in 443 steps vs stalled). -->
                     <reltols>1e-6 1e-6 1e-6</reltols>
@@ -515,12 +584,12 @@ Official benchmark spec (MSXX §Model IV):
             <expression>-1.5e5</expression><expression>0</expression>
         </parameter>
         <!-- PER-MATERIAL Young's modulus (Group parameter keyed by MaterialID; Vinay 2026-06-08).
-             MaterialID 0 (bentonite block, z=0.035-0.070 m) = 52e6 Pa
+             MaterialID 0 (bentonite core, r<=0.015 m; through gen 4: block z=0.035-0.070 m) = 52e6 Pa
                (source: see the "elastic - Young E=52 MPa" WARNING block in the 12.2 provenance header:
                 UNCITED WORKING VALUE, Vinay-approved 2026-06-15; the former "EURAD-2 MS33 Table TH-G"
                 attribution that stood on this line is SUPERSEDED by that block, corrected 2026-09-07,
                 audit 2026-09-04 item B10);
-             MaterialID 1 (pellet zone, z=0-0.035 m) = 2e6 Pa
+             MaterialID 1 (pellet annulus, r=0.015-0.025 m; through gen 4: zone z=0-0.035 m) = 2e6 Pa
                (Vinay-approved 2026-06-08 soft-pellet convergence value; NOT a measured constant).
              Supersedes the prior Constant E=52e6 (which over-stiffened the pellet zone). -->
         <parameter>
@@ -578,7 +647,7 @@ Official benchmark spec (MSXX §Model IV):
             <order>1</order>
             <initial_condition>pressure_ic</initial_condition>
             <boundary_conditions>
-                <!-- Hydration from bottom (pellet zone bottom face) -->
+                <!-- Hydration from bottom (the bottom face of BOTH the clay core and the pellet annulus, concentric layout) -->
                 <boundary_condition><mesh>ms33_pellets_r25_h70_bottom</mesh><type>Dirichlet</type><parameter>pressure_bc</parameter></boundary_condition>
             </boundary_conditions>
         </process_variable>

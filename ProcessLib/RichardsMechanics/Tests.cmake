@@ -94,6 +94,11 @@ if (NOT OGS_USE_MPI)
     # kept the deck before and now drops it. Timings are
     # machine-local (this workstation, non-MPI, OpenMP thread counts as
     # listed); CI headroom is expected, not verified.
+    # 2026-09-08 (spec-conformance fix 1, Vinay "approve all five, run them as one
+    # campaign"): the deck now runs the CONCENTRIC mesh ms33_pellets_concentric_r25_h70
+    # (clay core r <= 15 mm inside the pellet annulus) with the gen-4 900 knot retained
+    # (the gen-5 knot stalls on this mesh at 27.28 d, see the deck); measured 7946 s /
+    # 16008 steps at OMP 6 on 2026-09-08 -> RUNTIME 10736 kept (worst case on record).
     OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIV/ms33_modelIV_pellets.prj RUNTIME 10736)
     # K(rho_d) equivalence pair (each material's k0 x20 spec, for speed): the
     # table-K variant resolves K = K(dry_density) at parse time and must
