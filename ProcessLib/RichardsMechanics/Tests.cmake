@@ -53,7 +53,16 @@ if (NOT OGS_USE_MPI)
     # Model III ships the GAP-SWITCH deck (Vinay 2026-08-17). The outer radial
     # boundary swells free until u_r reaches the 2 mm technological gap, then
     # switches to a rigid Dirichlet wall — true container contact.
-    OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIII/ms33_modelIII_gapswitch.prj RUNTIME 120)
+    # 2026-09-08 (spec-conformance fix 2, Vinay "approve all five, run them as one
+    # campaign"): the deck now runs the clay r = 23 mm mesh ms33_clay_r23_h70
+    # (920 quads) with the wall latching at r = 25 mm; measured 211.7 s / 943 steps
+    # (OMP 2) and 2xx s at OMP 1 on 2026-09-08 -> RUNTIME 120 -> 300.
+    OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIII/ms33_modelIII_gapswitch.prj RUNTIME 300)
+    # Reference Configuration (confined dd1600 column, no gap), TRACKED and registered
+    # 2026-09-08 (spec-conformance fix 4): 160x KC-base permeability + the live K(rho_d)
+    # table of III/IV/VII, so the reference curve is on the models' hydraulics.
+    # Measured 9.6 s / 771 steps (OMP 1) on 2026-09-08.
+    OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_Reference/ms33_reference_dd1600.prj RUNTIME 60)
     # DEPRECATED 2026-08-17 — soft 2-medium gap annulus surrogate: no contact
     # mechanics, over-closes to ~67% with a residual aperture. Superseded by the
     # gap-switch deck above. Deck and reference retained (CLAUDE.md §6.2/§6.3);
@@ -95,6 +104,8 @@ if (NOT OGS_USE_MPI)
     # OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIV/ms33_modelIV_pellets_kref20x.prj RUNTIME 240)
     # DE-REGISTERED 2026-08-12 (Vinay): cannot pass as registered (no <test_definition>; OGS hard-fails at parse under the ctest wrapper). The two ModelIV variants additionally DIVERGE on the merged code (die ts #825 FD / #2333 analytic). Decks kept per never-delete; re-register only with ratified references.
     # OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIV/ms33_modelIV_pellets_kofdd.prj RUNTIME 240)
+    # 2026-09-08 (spec-conformance fix 3): step-and-hold traction ladder + 7 half-interval
+    # output frames; measured 217.8 s / 973 steps (OMP 2) on 2026-09-08 -> RUNTIME 300 kept.
     OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling.prj RUNTIME 300)
     # K(rho_d) feature on a 2nd model (single-material Model VII -> table resolves
     # to the rho_d=1600 node, a physical no-op; k0 x50 spec for speed). Run to
