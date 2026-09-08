@@ -112,6 +112,15 @@ if (NOT OGS_USE_MPI)
     # 2026-09-08 (spec-conformance fix 3): step-and-hold traction ladder + 7 half-interval
     # output frames; measured 217.8 s / 973 steps (OMP 2) on 2026-09-08 -> RUNTIME 300 kept.
     OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling.prj RUNTIME 300)
+    # 2026-09-08 campaign v2 (spec-audit 3x, LANE1 F1 / LANE2 #1): LADDER-550 variant of Model VII on
+    # the CURRENT spec ladder (theoretical_benchmarking.tex Table Loading_unloading_path: 50-d stages
+    # 0.2/0.4/1/2.5/5/2.5/1/0.4 MPa, 10-d ramps, t_end 550 d; see the deck header for the citation).
+    # SUPPLEMENTS the 240-d Q&A-schedule deck above (CLAUDE.md §3: supplement, never replace); which
+    # ladder is the headline is pending Vinay's ruling. Own output prefix
+    # ms33_modelVII_freeswelling_ladder550, so the two VII ctests never share an output file name.
+    # Same two-tier tolerances as the parent deck. Measured 278.75 s / 1304 steps (OMP 2) on
+    # 2026-09-08 (campaign v2 runs/VII_550/run.log) -> RUNTIME 300, as the parent.
+    OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550.prj RUNTIME 300)
     # K(rho_d) feature on a 2nd model (single-material Model VII -> table resolves
     # to the rho_d=1600 node, a physical no-op; k0 x50 spec for speed). Run to
     # t_end 2026-06-08. Exercises the table-resolution path on the free-swelling cell.

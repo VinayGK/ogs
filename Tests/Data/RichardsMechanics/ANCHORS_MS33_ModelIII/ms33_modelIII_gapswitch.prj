@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <OpenGeoSysProject>
+<!-- CAMPAIGN v2 2026-09-08 (Vinay: '3x audit against specs ... results ground up'): output grid set to the data-collection template's
+     5-day rows (audit 2026-09-08_spec_audit_3x LANE2 finding 3); physics, BCs and numerics unchanged from the 2026-09-08 conformant deck. -->
+
 <!--
   DSM provenance (CLAUDE.md 12)
   (block moved to immediately after the root tag on 2026-09-07 per CLAUDE.md 12.2; text otherwise unchanged
@@ -376,7 +379,7 @@
             <type>VTK</type>
             <prefix>ms33_modelIII_gapswitch</prefix>
             <suffix>_ts_{:timestep}_t_{:time}</suffix>
-            <fixed_output_times>86400 432000 864000 1296000 1728000 4320000 8640000 12960000 17280000</fixed_output_times>
+            <fixed_output_times>86400 432000 864000 1296000 1728000 2160000 2592000 3024000 3456000 3888000 4320000 4752000 5184000 5616000 6048000 6480000 6912000 7344000 7776000 8208000 8640000 9072000 9504000 9936000 10368000 10800000 11232000 11664000 12096000 12528000 12960000 13392000 13824000 14256000 14688000 15120000 15552000 15984000 16416000 16848000 17280000</fixed_output_times>
             <variables>
                 <variable>pressure</variable>
                 <variable>displacement</variable>
