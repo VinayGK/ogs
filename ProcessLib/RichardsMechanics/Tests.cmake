@@ -99,6 +99,10 @@ if (NOT OGS_USE_MPI)
     # (clay core r <= 15 mm inside the pellet annulus) with the gen-4 900 knot retained
     # (the gen-5 knot stalls on this mesh at 27.28 d, see the deck); measured 7946 s /
     # 16008 steps at OMP 6 on 2026-09-08 -> RUNTIME 10736 kept (worst case on record).
+    # 2026-09-08 campaign v2 (spec-audit 3x, LANE2 finding 3): output grid = the data-collection template's
+    # 5-day rows (41 fixed output times); physics/BCs/knot unchanged; reference re-registered ts_16008 -> ts_16527
+    # (old one in superseded_references_2026-09-08_v2/). Measured 7957.37 s / 16527 steps at OMP 6 on 2026-09-08
+    # (campaign v2 runs/IV/run.log) -> RUNTIME 10736 kept.
     OgsTest(PROJECTFILE RichardsMechanics/ANCHORS_MS33_ModelIV/ms33_modelIV_pellets.prj RUNTIME 10736)
     # K(rho_d) equivalence pair (each material's k0 x20 spec, for speed): the
     # table-K variant resolves K = K(dry_density) at parse time and must

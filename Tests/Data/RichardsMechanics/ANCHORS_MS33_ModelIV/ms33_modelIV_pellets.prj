@@ -708,6 +708,23 @@ Official benchmark spec (MSXX §Model IV):
       (md5 7b404973b1c0ddb99a4cc2a1f42ebe7d) is SUPERSEDED and was moved
       (git mv, never deleted) to superseded_references_2026-08-31/ in this
       directory. Full record: DSM/AGENTS.md entry 30.
+      RE-BASELINED 2026-09-08, gen5_conformant campaign (spec-conformance fix 1, Vinay's ruling of 2026-09-08 "approve
+      all five, run them as one campaign": CONCENTRIC mesh ms33_pellets_concentric_r25_h70, clay core r <= 15 mm inside
+      the pellet annulus; gen-4 900 knot 18469.144929 retained because the gen-5 knot stalls on this mesh at 27.28 d):
+      reference became ms33_modelIV_pellets_ts_16008_t_17280000.000000.vtu (md5 27379f65629edabf3f1e8badf86b1458;
+      ITSELF SUPERSEDED by the same day's campaign v2, see below, now in superseded_references_2026-09-08_v2/). Run:
+      16008 accepted steps, 0 rejected, 7946 s at OMP 6. The former STACKED-layout reference
+      ts_21500_t_17280000.000000.vtu (md5 53392b6a0308fc12d7f978f614066719) is SUPERSEDED and was moved (git mv, never
+      deleted) to superseded_references_2026-09-08/ in this directory.
+      RE-BASELINED AGAIN 2026-09-08, campaign v2 (the ONLY change to this deck is <fixed_output_times> set to the
+      organizers' data-collection 5-day grid, audit 2026-09-08_spec_audit_3x LANE2 finding 3; physics, BCs, mesh, knot
+      and numerics unchanged): the LIVE reference is now ms33_modelIV_pellets_ts_16527_t_17280000.000000.vtu
+      (md5 1bc0d9e9689920fc198cef2651746af0, recomputed 2026-09-08 from the committed file), = the campaign-v2 run frame
+      (~/ogs-models/scratch/2026-09-08_0936_gen5_conformant_v2_inflight/runs/IV/out, same md5, laptop and mac mini
+      copies identical). Run: 16527 accepted steps, 0 rejected, 7957.37 s at OMP 6, binary maxwell-conjugate-20260602
+      (md5 cea9d7d81972f732385b41a71e50f20e). The former reference ts_16008_t_17280000.000000.vtu is SUPERSEDED and was
+      moved (git mv, never deleted) to superseded_references_2026-09-08_v2/. Same physical time (200 d); spec-frame
+      probes move by <= 1.6e-5 MPa; vtkdiff old-vs-new (MEASURED, mac mini) in superseded_references_2026-09-08_v2/README.md.
       Physics anchor: (f) regression baseline previously approved by user.
       Reference = the SINGLE final-time output VTU committed beside this PRJ
       (timestep at t_end). vtkdiff (Applications/ApplicationsLib/

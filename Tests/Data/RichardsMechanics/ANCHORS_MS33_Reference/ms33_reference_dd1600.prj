@@ -342,6 +342,18 @@ GAP=0.002 m is spec geometry. EXPERIMENTAL VARIANT - not a registered ctest.
     </curves>
     <!-- REGRESSION BASELINE (CLAUDE.md 3, anchor (f)): the single final-time output VTU committed beside this
          PRJ; two-tier tolerances as in ms33_modelIII_gapswitch.prj. Registered 2026-09-08. -->
+    <!-- RE-BASELINED 2026-09-08 (campaign v2; ONLY change to this deck is <fixed_output_times> set to the organizers'
+         data-collection 5-day grid, audit 2026-09-08_spec_audit_3x LANE2 finding 3 - physics, BCs, mesh and numerics
+         unchanged): the LIVE reference is now ms33_reference_dd1600_ts_855_t_17280000.000000.vtu
+         (md5 db714d4685daa1cb207af8a6807ac452, recomputed 2026-09-08 from the committed file), = the campaign-v2 run frame
+         (~/ogs-models/scratch/2026-09-08_0936_gen5_conformant_v2_inflight/runs/Ref/out, same md5); 855 accepted steps,
+         0 rejected, 11.78 s at OMP 1, binary maxwell-conjugate-20260602 (md5 cea9d7d81972f732385b41a71e50f20e). The former
+         reference ts_771_t_17280000.000000.vtu (md5 414d63ce70f9117a0311dcf1658142c0; 771 steps / 0 rejected, 9.56 s,
+         gen5_conformant campaign of the same morning) is SUPERSEDED and moved (git mv, never deleted) to
+         superseded_references_2026-09-08_v2/: every listed output time forces a step to land there, so the adaptive
+         stepping takes a different path and the final ts index changes; the ctest wrapper matches output<->reference by
+         IDENTICAL file name, so the old reference cannot pass by construction. Same physical time (200 d); difference =
+         time-stepping footprint only, MEASURED with vtkdiff (all 11 test fields) in the campaign's OGS_TREE_LANE_2026-09-08.md. -->
     <test_definition>
         <vtkdiff><regex>ms33_reference_dd1600_ts_.*_t_17280000\.0+\.vtu</regex><field>displacement</field><absolute_tolerance>1e-9</absolute_tolerance><relative_tolerance>1e-7</relative_tolerance></vtkdiff>
         <vtkdiff><regex>ms33_reference_dd1600_ts_.*_t_17280000\.0+\.vtu</regex><field>saturation</field><absolute_tolerance>1e-8</absolute_tolerance><relative_tolerance>1e-8</relative_tolerance></vtkdiff>

@@ -14,3 +14,9 @@ old reference cannot pass by construction. Run completed cleanly on the laptop a
 OGS_TREE_LANE_2026-09-08.md's task 3 (16527 accepted steps, 0 rejected, 0 error lines, 7957.4 s at OMP 6). The two
 frames are the same physical time; their difference is the time-stepping footprint only — MEASURED 2026-09-08 with
 vtkdiff (max abs / max componentwise rel, all 11 test fields) in `/Users/vinaykumar/ogs-models/scratch/2026-09-08_0936_gen5_conformant_v2_inflight/OGS_TREE_LANE_2026-09-08.md`.
+
+vtkdiff old (ts_16008) -> new (ts_16527), MEASURED 2026-09-08 on the mac mini (build maxwell_conjugate_20260824), abs max / rel max:
+displacement 4.8e-8, 3.0e-7 / 7.3e-5, 5.8e-4; saturation 2.7e-7 / 2.2e-5; porosity 3.1e-5 / 5.1e-5; transport_porosity 1.7e-4 / 5.5e-2
+(at its floor); micro_porosity 1.5e-4 / 3.6e-4; micro_water_content 6.0e-5 / 1.1e-4; dry_density_solid 8.6e-2 / 7.8e-5; sigma 1.8e2 Pa
+/ 1.4e1 (near-zero shear); swelling_stress 2.4e2 Pa / 9.5e-4; pressure 11.6 Pa / 1.1e-5; micro_pressure 1.7e3 Pa / 2.7e-4. Spec-frame
+probes 2.397472 / 2.391977 / 2.373192 MPa (04:37 run: 2.397459 / 2.391964 / 2.373176), pellet centre 1.290556 (1.290552).
