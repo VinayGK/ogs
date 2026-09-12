@@ -761,6 +761,29 @@ families:
    behind the MX-80 coefficients are EPFL's (Seiphoori, Ferrari & Laloui
    2014) plus Delage 2006 and Wang 2012 — say so when citing.
 
+8. **SKB (Äspö / SR-Site THM data reports)** — approved by Vinay
+   2026-09-12 ("approve the eighth family"), on the pellet-modulus
+   question. Mechanical stiffness of compacted MX-80 as a function of
+   its state: the swelling-pressure–void-ratio relation and the tangent
+   modulus derived from it. Principal source: Åkesson, Kristensson,
+   Börgesson, Dueck & Hernelind (2010), "THM modelling of buffer,
+   backfill and other system components — critical processes and
+   scenarios", SKB Technical Report TR-10-11, Svensk
+   Kärnbränslehantering AB — Tab. 9-2 (printed p. 220) with Eqs. 9-12
+   and 9-13 and Fig. 9-5. Read it for what it is: Tab. 9-2's Young's
+   modulus is NOT eight independent measurements, it is a tangent
+   modulus DERIVED from the measured swelling-pressure–void-ratio
+   relation and used as a constant "valid for the average stress as an
+   approximation" (the report's own words, p. 219). As printed the table
+   is E = 4.714 p in every row, so citing it means adopting a stiffness
+   proportional to the local swelling pressure. Evaluated on the Dixon
+   anchor it gives 1.65 / 23.1 / 66.8 / 191 MPa at ρ_d =
+   900 / 1400 / 1600 / 1800 kg/m³. The table is compacted blocks in
+   oedometer loading; transferring it to a granular pellet fill is an
+   assumption and MUST be stated as one wherever it is used. Text
+   extraction in
+   `~/git/eurad-anchors/audits/2026-09-03_E_vs_rhod_search_successful/lane4/`.
+
 Any other source (lab handbook, internal memo, "standard value",
 "typical for bentonite", a tuned value with no provenance) is
 FORBIDDEN. If a parameter has no source from this list → STOP and
