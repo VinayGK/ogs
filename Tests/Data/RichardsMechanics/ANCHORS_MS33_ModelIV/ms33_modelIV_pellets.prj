@@ -280,8 +280,11 @@ Official benchmark spec (MSXX §Model IV):
                      with the gen-4 knot completed 200 d in 16008 steps, 0 rejected (7946 s, OMP 6): the instability is knot-borne.
                      The gen-4 knot is kept LIVE here so that the committed deck runs and its ctest reference is the run of the
                      committed deck (CLAUDE.md 6.5); it is the "mixed-floor" knot (fit at macro_porosity_floor 0.08, audit 2026-09-04
-                     B1) and the ONE-TABLE rule across III/IV/VII is therefore BROKEN in the tree - DISCLOSED, needs Vinay's ruling
-                     (accept the mixed table for IV / treat the u_z mode / hold IV at gen 4). Record
+                     B1) and the ONE-TABLE rule across III/IV/VII is therefore BROKEN in the tree - DISCLOSED. RULED 2026-09-13, Vinay: "ship model iv on the gen 4 point, disclosed" - the mixed
+                     table is accepted for IV and this deck ships as is. MEASURED 2026-09-12/13: this deck with macro_porosity_floor
+                     0.08 throughout (the floor the gen-4 knot was fit at) collapsed near 30 d, stopped at 30.18 d after 1433
+                     rejections (eurad-anchors runs/2026-09-12_1957_modelIV_gen4point_floor008_consistency_failed), so no single
+                     floor makes the table self-consistent. Record
                      CANONICAL_RESULTS_2026-09-08_gen5_conformant.json model_IV (primary_gen5_knot = the stalled run, control_gen4_knot
                      = this deck). -->
                 <potential_augmentation_prefactor_vs_dry_density>
