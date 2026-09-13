@@ -142,8 +142,12 @@ Official benchmark spec (MSXX §Model IV):
                        (Vinay 2026-06-08) is UNCHANGED by this K decision.
       Material parameters (source per group): as Model I; elastic — PER-MATERIAL Young's modulus
         (Group parameter keyed by MaterialID; Vinay 2026-06-08): MaterialID 0 (clay block) E=52 MPa,
-        MaterialID 1 (pellet zone) E=2 MPa (Vinay-approved 2026-06-08 soft-pellet convergence value,
-        NOT a measured constant); nu=0.3 both.
+        MaterialID 1 (pellet zone) E=2 MPa (working value approved by Vinay 2026-06-08 as a soft-pellet
+        convergence value, NOT a measured constant; corroborated by SKB TR-10-11 (Akesson et al. 2010)
+        Tab. 9-2, E = 4.714 p within 0.5 percent (p = swelling pressure), which gives 1.65 MPa at rho_d 900
+        on the Dixon (2023) median, e = 2.09, beyond the e below 1.5 range SKB states; CLAUDE.md 12.1 family 8 (master 45273e77e7)
+        approved 2026-09-12, Vinay: keep 2 MPa, cite SKB as corroboration; the transfer from the buffer
+        relation to a granular pellet fill is an assumption); nu=0.3 both.
         elastic — Poisson nu=0.3      : EURAD-MS / CIMNE-UPC (CIMNE-UPC.tex Tab. tab:CIMNE_BBM L283).
         elastic — Young E=52 MPa      : *** WARNING: UNCITED WORKING VALUE — NOT A §12.1 MATERIAL
                        CONSTANT. *** Vinay-approved 2026-06-15 for use WITH this explicit warning
@@ -154,7 +158,10 @@ Official benchmark spec (MSXX §Model IV):
                        supersede if a real §12.1 source (Beacon/EPFL/Dixon/Villar/EURAD-MS/FEBEX) or
                        a Model-I lab calibration appears. SUPERSEDES the prior incorrect "EURAD-2 MS33
                        spec TH-G" attribution of E (that value is NOT in the spec).
-                       (IV pellet zone MaterialID 1 E=2 MPa is the same uncited working-value family.)
+                       (Among the elastic constants, only the clay E = 52 MPa is uncited. The IV pellet zone MaterialID 1
+                       E=2 MPa is a working value corroborated by SKB TR-10-11 Tab. 9-2, CLAUDE.md 12.1 family 8 (master 45273e77e7),
+                       see the per-material elastic line above; until 2026-09-13 this line called it the
+                       same uncited working-value family.)
         geometry = 50 mm reference cell (r25 mesh). rel.perm S_e^3; rho_s=2780; pellet
         macro retention               : SaturationTuller.  *** HEADER CORRECTED 2026-08-31
                        (§6.7(1) header–value consistency). *** This block previously read
@@ -271,7 +278,8 @@ Official benchmark spec (MSXX §Model IV):
                      re-fit in the dd900 cell at macro_porosity_floor = 0.0 (this deck's own floor) instead
                      of 0.08; 1400/1600/1800 knots untouched. Same table byte-identical in III/IV/VII.
                      Re-run and reference rebaselined the same day; record
-                     CANONICAL_RESULTS_2026-09-07_gen5.json and DSM/AGENTS.md gen-5 entry. -->
+                     CANONICAL_RESULTS_2026-09-07_gen5.json and DSM/AGENTS.md gen-5 entry.
+                     SUPERSEDED 2026-09-08: this deck carries the gen-4 900 knot, see the dated comment below. -->
                 <!-- 2026-09-08 (campaign gen5_conformant, Vinay "approve all five, run them as one campaign"): THIS DECK CARRIES
                      THE GEN-4 900 KNOT 18469.144929, NOT the gen-5 knot 24241.892204 that III/VII/Reference carry. MEASURED 2026-09-08:
                      on the concentric mesh the gen-5 knot STALLS - rejections from step #15215, t = 2357267.5 s (27.28 d), then a
@@ -280,11 +288,13 @@ Official benchmark spec (MSXX §Model IV):
                      with the gen-4 knot completed 200 d in 16008 steps, 0 rejected (7946 s, OMP 6): the instability is knot-borne.
                      The gen-4 knot is kept LIVE here so that the committed deck runs and its ctest reference is the run of the
                      committed deck (CLAUDE.md 6.5); it is the "mixed-floor" knot (fit at macro_porosity_floor 0.08, audit 2026-09-04
-                     B1) and the ONE-TABLE rule across III/IV/VII is therefore BROKEN in the tree - DISCLOSED. RULED 2026-09-13, Vinay: "ship model iv on the gen 4 point, disclosed" - the mixed
-                     table is accepted for IV and this deck ships as is. MEASURED 2026-09-12/13: this deck with macro_porosity_floor
-                     0.08 throughout (the floor the gen-4 knot was fit at) collapsed near 30 d, stopped at 30.18 d after 1433
-                     rejections (eurad-anchors runs/2026-09-12_1957_modelIV_gen4point_floor008_consistency_failed), so no single
-                     floor makes the table self-consistent. Record
+                     B1) and the ONE-TABLE rule across III/IV/VII is therefore BROKEN in the tree - DISCLOSED.
+                     RULED 2026-09-13, Vinay: "ship model iv on the gen 4 point, disclosed"; the mixed table is accepted for IV and
+                     this deck ships as is. MEASURED 2026-09-12/13: this deck at macro_porosity_floor 0.08 throughout (the floor the
+                     gen-4 knot was fit at) does not complete: collapse near 30 d, aborted at 30.18 d after 1436 rejections
+                     (eurad-anchors runs/2026-09-12_1957_modelIV_gen4point_floor008_consistency_failed, Correction 2). Separately,
+                     from the calibration record: the 900 knot was fit at floor 0.08 and the 1400/1600/1800 knots at 0.0, so no
+                     single floor matches the fit state of all four. Record
                      CANONICAL_RESULTS_2026-09-08_gen5_conformant.json model_IV (primary_gen5_knot = the stalled run, control_gen4_knot
                      = this deck). -->
                 <potential_augmentation_prefactor_vs_dry_density>
@@ -600,7 +610,11 @@ Official benchmark spec (MSXX §Model IV):
                 attribution that stood on this line is SUPERSEDED by that block, corrected 2026-09-07,
                 audit 2026-09-04 item B10);
              MaterialID 1 (pellet annulus, r=0.015-0.025 m; through gen 4: zone z=0-0.035 m) = 2e6 Pa
-               (Vinay-approved 2026-06-08 soft-pellet convergence value; NOT a measured constant).
+               (working value approved by Vinay 2026-06-08 as a soft-pellet convergence value, NOT a measured
+                constant; corroborated by SKB TR-10-11 (Akesson et al. 2010) Tab. 9-2, E = 4.714 p within 0.5 percent
+                (p = swelling pressure): 1.65 MPa at rho_d 900 on the Dixon (2023) median, e = 2.09, beyond the
+                e below 1.5 range SKB states; CLAUDE.md 12.1 family 8 (master 45273e77e7) approved 2026-09-12; the transfer from the buffer
+                relation to a granular pellet fill is an assumption).
              Supersedes the prior Constant E=52e6 (which over-stiffened the pellet zone). -->
         <parameter>
             <name>E</name>

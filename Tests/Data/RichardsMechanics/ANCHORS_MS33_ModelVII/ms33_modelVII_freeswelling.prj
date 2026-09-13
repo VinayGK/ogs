@@ -621,7 +621,8 @@ initial micro water content is set to the 99 MPa-equilibrium value.
       superseded_references_2026-09-08_v2/. Same physical time (240 d); vtkdiff old-vs-new (MEASURED) in the campaign's
       OGS_TREE_LANE_2026-09-08.md: the TIGHT tier fails on displacement and the porosity family. This deck keeps the 240-d
       Q&A schedule; the CURRENT spec ladder (50-d holds to 550 d) is the SUPPLEMENT deck ms33_modelVII_freeswelling_ladder550.prj
-      beside it (CLAUDE.md 3: supplement, never replace). Which ladder is the headline is PENDING Vinay's ruling.
+      beside it (CLAUDE.md 3: supplement, never replace). Headline ladder: RULED 2026-09-12 (Vinay: keep both variants of
+      model vii): both ladders registered and reported, neither is the headline.
       Physics anchor: (f) regression baseline previously approved by user.
       Reference = the SINGLE final-time output VTU committed beside this PRJ
       (timestep at t_end). vtkdiff (Applications/ApplicationsLib/

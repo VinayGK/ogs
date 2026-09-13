@@ -49,7 +49,8 @@ unloading stage'). Each stage = 10-d linear ramp from the previous rung, then HE
   2026-09-08 campaign v2 (lane figures). Independent re-derivation from the two final frames, mean of phi/(1-phi)
   over the 26 top-face nodes: 1.130139 vs 1.129489 (MEASURED 2026-09-08, this lane). The 0.1-d-ramp variant is NOT
   shipped as a deck. WHICH LADDER IS THE HEADLINE (this 550-d spec ladder or the 240-d Q&A schedule of
-  ms33_modelVII_freeswelling.prj) IS PENDING VINAY'S RULING; both are registered until then.
+  ms33_modelVII_freeswelling.prj): RULED 2026-09-12 (Vinay: keep both variants of model vii): both ladders
+  registered and reported, neither is the headline.
   LINEAGE: the parent deck's 240-d step-and-hold schedule (0.1-d ramps, 5-d holds, Questions.tex R23/R27) is kept
   in the traction_ramp curve comment below as the superseded-for-this-deck curve.
 
@@ -67,8 +68,9 @@ initial micro water content is set to the 99 MPa-equilibrium value.
      0-200 d 0.2 / 200-250 0.4 / 250-300 1 / 300-350 2.5 / 350-400 5 / 400-450 2.5 / 450-500 1 / 500-550 0.4 MPa;
      'A 10-day ramp can be applied during each loading and unloading stage'. THIS DECK: 10-day linear ramps at each stage
      start, t_end 550 d, suction BC held at 0 to 550 d, output on the template's 5-day grid. The shipped 2026-09-08 deck
-     follows the Q&A schedule (5-d holds, 240 d; Questions.tex R23/R27) - the spec is self-contradictory; Vinay's ruling pending
-     on which is the headline. No other change. -->
+     follows the Q&A schedule (5-d holds, 240 d; Questions.tex R23/R27) - the spec is self-contradictory.
+     Headline ladder: RULED 2026-09-12 (Vinay: keep both variants of model vii): both ladders registered and reported,
+     neither is the headline. No other change. -->
 
   <!-- GUARDRAIL §12.5 audit (2026-08-17, Vinay-approved): intrinsic permeability
        set to 160x the deck's Kozeny-Carman base 5.8703e-21 m^2 = 9.39248e-19 m^2
@@ -125,8 +127,10 @@ initial micro water content is set to the 99 MPa-equilibrium value.
                          commit f626d67, 2026-07-01: 'Each loading and unloading step will be
                          applied over a duration of 50 days'; 'A 10-day ramp can be applied
                          during each loading and unloading stage'). LADDER-550 VARIANT of the
-                         240-d deck, added 2026-09-08 (campaign v2); headline ladder pending
-                         Vinay's ruling (see the file header). The paragraph below describes the
+                         240-d deck, added 2026-09-08 (campaign v2). Headline ladder: RULED
+                         2026-09-12 (Vinay: keep both variants of model vii): both ladders
+                         registered and reported, neither is the headline (see the file header).
+                         The paragraph below describes the
                          parent deck's 240-d fix and is kept as lineage.
                          SPEC-CONFORMANCE FIX 3 (2026-09-08, Vinay "approve all five, run them as
                          one campaign"; audit audits/2026-09-08_spec_conformance_full/AUDIT.md §5 +
@@ -573,7 +577,10 @@ initial micro water content is set to the 99 MPa-equilibrium value.
       <campaign v2>/runs/VII_550/out/ms33_modelVII_freeswelling_ts_1304_t_47520000.000000.vtu
       (renamed only for this deck's output prefix, so the two VII ctests never share an
       output file name). Physics anchor: (f) regression baseline, pending Vinay's
-      ratification with the headline-ladder ruling. Tolerances are the parent deck's
+      explicit approval of this reference. That approval is a separate item from the
+      headline-ladder question, which is RULED 2026-09-12 (Vinay: keep both variants of model vii): both
+      ladders registered and reported, neither is the headline; that ruling does not
+      by itself approve this reference. Tolerances are the parent deck's
       two-tier set, unchanged. Every paragraph below this one is the PARENT deck's
       reference lineage (ms33_modelVII_freeswelling_ts_*_t_20736000), inherited as
       history and not describing this deck's reference.
