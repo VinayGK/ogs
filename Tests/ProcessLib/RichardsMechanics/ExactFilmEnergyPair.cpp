@@ -2,21 +2,22 @@
 // SPDX-License-Identifier: BSD-3-Clause
 //
 // EXACT one-Psi strained-film energy pair (film_energy_route = exact) —
-// unit tests. Design: ProcessLib/RichardsMechanics/DSM/
-// PI_OF_NL_EV_IMPLEMENTATION.md (tests T-2..T-5, T-7; T-1 is run-level,
-// T-6/T-8 blocked on decisions Q3/Q4 -> GTEST_SKIP).
+// unit tests covering tests T-2..T-5 and T-7 below (T-1 is a run-level
+// counterpart outside this file; T-6 and T-8 are skipped, each blocked on
+// an open modelling decision — see the per-test comments and skip
+// messages below).
 //
-// Physics anchors (CLAUDE.md §3): analytical limits (zero strain, kappa->0
-// reduction to the shipped integrable partner), derived identities
-// (FD-vs-analytic chains; the Maxwell cross identity), conservation law
-// (loop integral of a gradient field vanishes). No fitted expected values;
-// tolerances derive from the FD step / quadrature order in this file.
+// Physics anchors: analytical limits (zero strain, kappa->0 reduction to
+// the shipped integrable partner), derived identities (FD-vs-analytic
+// chains; the Maxwell cross identity), conservation law (loop integral of
+// a gradient field vanishes). No fitted expected values; tolerances
+// derive from the FD step / quadrature order in this file.
 //
-// Sample-state parameter values mirror the prior approved unit tests in
+// Sample-state parameter values reuse the existing unit tests in
 // StrainedFilmPotential.cpp / DSMMicroMacroSingleIntegrationPoint.cpp
 // (hamaker 6.0e-20 J, Sa 1000 m^2/kg, rho_SR 2650 kg/m^3, nS 0.6,
-// rho_lR 1100 kg/m^3, biot 1.0, K_drained 1.5e8 Pa) — citation source:
-// prior user-approved test code in this repository.
+// rho_lR 1100 kg/m^3, biot 1.0, K_drained 1.5e8 Pa); source: those test
+// files in this repository.
 
 #include <gtest/gtest.h>
 
@@ -40,11 +41,11 @@ struct ExactPairSampleState
     // NegativeAttractive convention (the MS33 PRJ family): mu_lR < 0,
     // Pi = -rho*mu_lR > 0.
     double sign = -1.0;
-    double K_aug = 0.0;     // augmentation off by default; tests switch it on
+    double K_aug = 0.0;  // augmentation off by default; tests switch it on
     double lambda_aug = 0.0;
     double floor = 0.0;
-    double biot = 1.0;          // prior approved test value
-    double K_drained = 1.5e8;   // Pa, prior approved test value
+    double biot = 1.0;         // prior approved test value
+    double K_drained = 1.5e8;  // Pa, prior approved test value
 };
 
 StrainedFilmEnergyPairData pairAt(ExactPairSampleState const& st,
@@ -61,42 +62,44 @@ StrainedFilmEnergyPairData pairAt(ExactPairSampleState const& st,
 VanDerWaalsMicroPotentialData bare(ExactPairSampleState const& st,
                                    double const w)
 {
-    return computeVanDerWaalsMicroPotential(w, st.rho_lR, st.active_nS,
-                                            st.rho_SR, st.hamaker, st.Sa,
-                                            st.sign, st.K_aug, st.lambda_aug,
-                                            0.0, st.floor);
+    return computeVanDerWaalsMicroPotential(
+        w, st.rho_lR, st.active_nS, st.rho_SR, st.hamaker, st.Sa, st.sign,
+        st.K_aug, st.lambda_aug, 0.0, st.floor);
 }
 
-// Augmentation parameters for the with-aug variants: K_aug magnitude of the
-// Model-I fitted family order (cited: prior approved calibration record,
-// K = 7654.9 J/kg at dd1400, memory ogs_rm_dsm_potential_physics); lambda
-// from h-scale: h0 = n_l/(nS*rho_SR*Sa) ~ 1.9e-7 m at the sample state, take
-// lambda = h0 so xi0 ~ 1 (structural probe placement, not a material claim).
+// Augmentation parameters for the with-aug variants: K_aug set to the order
+// of magnitude of the Model I fitted calibration (K = 7654.9 J/kg at dry
+// density 1400 kg/m^3); lambda from the h-scale: h0 = n_l/(nS*rho_SR*Sa) ~
+// 1.9e-7 m at the sample state, take lambda = h0 so xi0 ~ 1 (structural
+// probe placement, not a material claim).
 ExactPairSampleState withAug()
 {
     ExactPairSampleState st;
-    st.K_aug = 7654.9;  // J/kg
+    st.K_aug = 7654.9;                                            // J/kg
     st.lambda_aug = st.n_l / (st.active_nS * st.rho_SR * st.Sa);  // m
     return st;
 }
 }  // namespace
 
-// Anchor: approved baseline — default route must stay Operational so every
-// existing PRJ is bit-for-bit unaffected (T-1 run-level counterpart).
+// Anchor: default-route baseline — default route must stay Operational so
+// every existing PRJ is bit-for-bit unaffected (T-1 run-level counterpart).
 TEST(RichardsMechanicsExactFilmPair, DefaultRouteIsOperational)
 {
     PotentialExchangeParameters params;
     EXPECT_EQ(params.film_energy_route, FilmEnergyRoute::Operational);
 }
 
-// T-7 (helper level): the §3 mode-matrix predicate.
+// T-7 (helper level): the mode-matrix predicate governing which
+// film-strain-coupling / film-energy-route combinations are valid.
 TEST(RichardsMechanicsExactFilmPair, FilmEnergyRouteCombinationMatrix)
 {
     using M = FilmStrainCouplingMode;
     using R = FilmEnergyRoute;
     EXPECT_TRUE(isValidFilmEnergyRouteCombination(M::Off, R::Operational));
-    EXPECT_TRUE(isValidFilmEnergyRouteCombination(M::Kinematic, R::Operational));
-    EXPECT_TRUE(isValidFilmEnergyRouteCombination(M::Equilibrium, R::Operational));
+    EXPECT_TRUE(
+        isValidFilmEnergyRouteCombination(M::Kinematic, R::Operational));
+    EXPECT_TRUE(
+        isValidFilmEnergyRouteCombination(M::Equilibrium, R::Operational));
     EXPECT_TRUE(isValidFilmEnergyRouteCombination(M::Kinematic, R::Exact));
     EXPECT_FALSE(isValidFilmEnergyRouteCombination(M::Off, R::Exact));
     EXPECT_FALSE(isValidFilmEnergyRouteCombination(M::Equilibrium, R::Exact));
@@ -140,8 +143,8 @@ TEST(RichardsMechanicsExactFilmPair, MaxwellIdentityAndFDChains)
                 // Maxwell cross identity (analytic vs analytic — the pair is
                 // a gradient by construction; tolerance at rounding scale).
                 double const lhs = p.dsigma_sw_dnl;  // Pa per n_l
-                double const rhs = st.active_nS * st.rho_lR *
-                                   p.dmu_mech_deps_v;  // Pa per n_l
+                double const rhs =
+                    st.active_nS * st.rho_lR * p.dmu_mech_deps_v;  // Pa per n_l
                 EXPECT_NEAR(lhs, rhs, 1e-9 * std::max(std::abs(lhs), 1.0))
                     << "kappa=" << kappa << " eps_v=" << eps_v;
 
@@ -206,12 +209,11 @@ TEST(RichardsMechanicsExactFilmPair, FrozenHLimitMatchesShippedPartner)
         for (double const eps_v : {-0.03, 0.01})
         {
             auto const b0 = bare(st, st.n_l);
-            double const Pi = -st.rho_lR * b0.mu_lR;             // Pa
-            double const dPi = -st.rho_lR * b0.dmu_lR_dnl;       // Pa per n_l
-            double const d2Pi = -st.rho_lR * b0.d2mu_lR_dnl2;    // Pa per n_l^2
+            double const Pi = -st.rho_lR * b0.mu_lR;           // Pa
+            double const dPi = -st.rho_lR * b0.dmu_lR_dnl;     // Pa per n_l
+            double const d2Pi = -st.rho_lR * b0.d2mu_lR_dnl2;  // Pa per n_l^2
             auto const shipped = computeIntegrableMechanicalMicroPotential(
-                Pi, dPi, d2Pi, st.n_l, eps_v, st.biot, st.K_drained,
-                st.rho_lR);
+                Pi, dPi, d2Pi, st.n_l, eps_v, st.biot, st.K_drained, st.rho_lR);
             auto const p = pairAt(st, st.n_l, eps_v, kappa);
 
             double const tol_rel = 10.0 * kappa;
@@ -227,32 +229,32 @@ TEST(RichardsMechanicsExactFilmPair, FrozenHLimitMatchesShippedPartner)
 
 // T-5. Anchor: conservation law — for the EXACT pair the work integral around
 // a closed (eps_v, n_l) loop vanishes (gradient field); the OPERATIONAL cut
-// has a Maxwell defect O(Pi*kappa*eps_v) and must NOT vanish (predicted in
-// STRAINED_FILM_IMPLEMENTATION.md §9a — this test measures it; report per
-// CLAUDE.md §5.1). Trapezoid quadrature is O(N^-2): the exact loop residual
-// must fall below rel_bound = 50/N^2 of the path work scale (50 bounds the
-// curvature-to-scale ratio on this path, checked by the N-halving assert);
-// the operational defect must sit ABOVE the same bound by the separation
-// factor below.
-// N2 (review 2026-06-14): the 100x separation is the MEASURED margin, not a
-// derived bound. The §9a operational defect scales as O(Pi*kappa*eps_v)
-// (relative |W|/scale -> a finite O(1) number independent of N), while the
-// quadrature bound is 50/N^2; their ratio therefore grows like N^2 and is NOT
-// a fixed 100. At N=400 the MEASURED defect/bound ratio is ~3.0e3 (|W|/scale =
+// has a Maxwell defect O(Pi*kappa*eps_v) and must NOT vanish (a predicted
+// defect; this test measures it directly). Trapezoid quadrature is O(N^-2):
+// the exact loop residual must fall below rel_bound = 50/N^2 of the path
+// work scale (50 bounds the curvature-to-scale ratio on this path, checked
+// by the N-halving assert); the operational defect must sit ABOVE the same
+// bound by the separation factor below.
+// N2: the 100x separation is the MEASURED margin, not a derived bound. The
+// predicted operational-route defect scales as O(Pi*kappa*eps_v) (relative
+// |W|/scale -> a finite O(1) number independent of N), while the quadrature
+// bound is 50/N^2; their ratio therefore grows like N^2 and is NOT a fixed
+// 100. At N=400 the MEASURED defect/bound ratio is ~3.0e3 (|W|/scale =
 // 0.933, bound 3.125e-4); 100 is a deliberately conservative floor well below
 // that. Deriving the exact O(Pi*kappa*eps_v) leading coefficient analytically
 // would require the closed-form path integral (the operational mu-share is
 // non-conservative by construction); the conservative measured floor is used
-// instead. measured: defect/bound ~3.0e3 at N=400 (this test, commit of this
-// change); floor asserted: 100.
-// Loop ranges are structural probes around the sample state (CLAUDE.md §1.2),
-// matching the strain magnitudes already used in the approved tests.
+// instead. measured: defect/bound ~3.0e3 at N=400 (this test); floor
+// asserted: 100.
+// Loop ranges are structural probes around the sample state, not physical
+// measurements, matching the strain magnitudes already used in the existing
+// tests above.
 TEST(RichardsMechanicsExactFilmPair, ReversibilityLoopClosesExactOnly)
 {
     auto const st = withAug();
     double const kappa = st.active_nS;
-    double const e0 = -0.03, e1 = 0.0;     // eps_v range (compression leg)
-    double const n0 = 0.27, n1 = 0.33;     // n_l range around the sample state
+    double const e0 = -0.03, e1 = 0.0;  // eps_v range (compression leg)
+    double const n0 = 0.27, n1 = 0.33;  // n_l range around the sample state
 
     auto const loop = [&](int const N, bool const exact_route)
     {
@@ -289,12 +291,12 @@ TEST(RichardsMechanicsExactFilmPair, ReversibilityLoopClosesExactOnly)
                 double const xA = xa + (xb - xa) * t0, xB = xa + (xb - xa) * t1;
                 double const yA = ya + (yb - ya) * t0, yB = ya + (yb - ya) * t1;
                 double const dx = xB - xA, dy = yB - yA;
-                double const fA = sigma_half(yA, xA) * dx +
-                                  st.active_nS * st.rho_lR * mu_half(yA, xA) *
-                                      dy;  // J/m^3
-                double const fB = sigma_half(yB, xB) * dx +
-                                  st.active_nS * st.rho_lR * mu_half(yB, xB) *
-                                      dy;  // J/m^3
+                double const fA =
+                    sigma_half(yA, xA) * dx +
+                    st.active_nS * st.rho_lR * mu_half(yA, xA) * dy;  // J/m^3
+                double const fB =
+                    sigma_half(yB, xB) * dx +
+                    st.active_nS * st.rho_lR * mu_half(yB, xB) * dy;  // J/m^3
                 W += 0.5 * (fA + fB);
                 Wabs += std::abs(0.5 * (fA + fB));
             }
@@ -321,11 +323,11 @@ TEST(RichardsMechanicsExactFilmPair, ReversibilityLoopClosesExactOnly)
     // Exact: below the quadrature bound, and converging (halving check).
     EXPECT_LE(std::abs(W_exact), rel_bound * Wabs_exact);
     EXPECT_LE(std::abs(W_exact2), std::abs(W_exact) + 1e-30);
-    // Operational: the §9a defect sits far above the quadrature bound.
+    // Operational: the predicted defect sits far above the quadrature bound.
     EXPECT_GE(std::abs(W_op), 100.0 * rel_bound * Wabs_op);
 }
 
-// H1 assembled-pair discriminator (review 2026-06-14). Anchor: conservation
+// H1 assembled-pair discriminator. Anchor: conservation
 // law (closed-loop work of a gradient field vanishes). The ASSEMBLED residual
 // folds the EXACT mu_mech into mu_lR (post-H2), but BEFORE H1 the eigenstress
 // site sourced the OPERATIONAL sigma half (Pi(w_eff)*micro-weight, NOT the
@@ -336,8 +338,10 @@ TEST(RichardsMechanicsExactFilmPair, ReversibilityLoopClosesExactOnly)
 // the micro-weighted bare disjoining pressure -nS*n_l*Pi(w_eff) (the p_conf
 // drain is held fixed across a step in the assembled telescope -> path-
 // independent, cancels on a closed loop). Same drained-line path and scale as
-// ReversibilityLoopClosesExactOnly. predicted/measured reported per §5.1.
-TEST(RichardsMechanicsExactFilmPair, AssembledExactPairClosesOperationalSigmaDoesNot)
+// ReversibilityLoopClosesExactOnly. The predicted/measured distinction
+// applies to any reported outcome of this test.
+TEST(RichardsMechanicsExactFilmPair,
+     AssembledExactPairClosesOperationalSigmaDoesNot)
 {
     auto const st = withAug();
     double const kappa = st.active_nS;
@@ -358,7 +362,8 @@ TEST(RichardsMechanicsExactFilmPair, AssembledExactPairClosesOperationalSigmaDoe
         double const Pi_weff = -st.rho_lR * bare(st, w_eff).mu_lR;  // Pa
         return -st.active_nS * n_l * Pi_weff;                       // Pa
     };
-    // mu half [J/kg]: the EXACT mu_mech (what the assembled mu_lR folds, post-H2).
+    // mu half [J/kg]: the EXACT mu_mech (what the assembled mu_lR folds,
+    // post-H2).
     auto const mu_exact = [&](double const n_l, double const eps_v)
     { return pairAt(st, n_l, eps_v, kappa).mu_mech; };  // J/kg
 
@@ -376,8 +381,10 @@ TEST(RichardsMechanicsExactFilmPair, AssembledExactPairClosesOperationalSigmaDoe
                 double const yA = ya + (yb - ya) * t0, yB = ya + (yb - ya) * t1;
                 double const dx = xB - xA, dy = yB - yA;
                 auto const sig = [&](double const y, double const x)
-                { return exact_sigma ? sigma_exact(y, x)
-                                     : sigma_operational(y, x); };
+                {
+                    return exact_sigma ? sigma_exact(y, x)
+                                       : sigma_operational(y, x);
+                };
                 double const fA = sig(yA, xA) * dx + st.active_nS * st.rho_lR *
                                                          mu_exact(yA, xA) * dy;
                 double const fB = sig(yB, xB) * dx + st.active_nS * st.rho_lR *
@@ -406,19 +413,20 @@ TEST(RichardsMechanicsExactFilmPair, AssembledExactPairClosesOperationalSigmaDoe
     EXPECT_GE(std::abs(W_op), 100.0 * rel_bound * Wabs_op);
 }
 
-// T-6 — blocked on decisions Q3 (mass-derivative freeze) and Q4 (K_liq
-// value+source); see PI_OF_NL_EV_IMPLEMENTATION.md §8.
+// T-6 — skipped: blocked on two open modelling decisions, the
+// mass-derivative treatment (fixed-volume vs kinematic) and the K_liq
+// value and its source.
 TEST(RichardsMechanicsExactFilmPair, LiquidCarrierEnergyPressureConsistency)
 {
-    GTEST_SKIP() << "TODO(Vinay): blocked on Q3 (fixed-volume vs kinematic "
-                    "mass-derivative) and Q4 (K_liq value + source); "
-                    "PI_OF_NL_EV_IMPLEMENTATION.md §2.2/§8.";
+    GTEST_SKIP() << "Blocked on two open modelling decisions: the "
+                    "mass-derivative treatment (fixed-volume vs kinematic), "
+                    "and the liquid bulk modulus value with its source.";
 }
 
 // T-8 — run-level expulsion probe (drained oedometer ramp past the
-// crossover); magnitudes TODO(Vinay).
+// crossover); magnitudes not yet specified.
 TEST(RichardsMechanicsExactFilmPair, ExpulsionProbeDrainedRamp)
 {
-    GTEST_SKIP() << "TODO(Vinay): run-level probe (T-8); expected magnitudes "
-                    "TODO; PI_OF_NL_EV_IMPLEMENTATION.md §5.";
+    GTEST_SKIP() << "Run-level expulsion probe: the expected magnitudes are "
+                    "not yet specified, so no assertion is made here.";
 }
