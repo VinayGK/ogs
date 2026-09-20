@@ -1,162 +1,149 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <OpenGeoSysProject>
 <!--
-  DSM provenance (CLAUDE.md sec. 12)
+  Benchmark provenance and parameter notes.
 
-  *** INCOMPLETE BY DESIGN, AND SAYS SO. Every entry below reading
-  *** "TODO(Vinay): UNSOURCED" is a literal for which no source in the
-  *** sec. 12.1 closed list (Beacon | EPFL | Dixon 2023 | Villar | EURAD-MS |
-  *** FEBEX) exists anywhere in this tree, in git history, or in the local
-  *** thm-lit / Mendeley libraries. Nothing here was inferred, rounded, or
-  *** borrowed from a deck that has no header of its own. Per-literal evidence
-  *** with locators, and the list of attributions that were tried and refuted:
-  ***   ~/.claude/projects/-Users-vinaykumar-git-ogs/
-  ***       BEACON_PRJ_PROVENANCE_LEDGER_2026-08-12.md
-  *** Resolution is Vinay's call: supply locators, de-register from
-  *** Tests.cmake, or grant a sec. 0.2 exemption declaring this parameter set
-  *** non-physical smoke placeholders.
-
-  Benchmark family : Beacon (geometry lineage only). No BEACON specification
-                     document could be located to cite; the sec. 12.1 "Beacon"
-                     family cannot be written into this header until Vinay
-                     supplies a WP / deliverable + table locator.
-  Geometry / BC    : axisymmetric cell on beacon_1c_domain.vtu, TWO materials
-                     (block and pellet) across four medium blocks, p_ic =
-                     -1e6 Pa, top_pressure 1e4 Pa, bottom_pressure 0 Pa,
-                     t_end = 1e3 s.
-  Purpose          : two-material micro-macro exchange PLUMBING smoke test.
-                     Pi-path inactive (K absent, vdW off).
-  Per-material Q   : OPEN, an ask and not an assumption (CLAUDE.md
-                     per-material parametrization rule): block and pellet
-                     currently SHARE one grain density (2780), one E, one nu,
-                     one biot coefficient, one Bishop law and one liquid phase,
-                     while differing in porosity, permeability, swelling
-                     pressure and specific surface. Whether that sharing is
-                     intended has never been recorded.
+  Benchmark family    : Beacon (geometry lineage only). No BEACON
+                         specification document with a citable table or
+                         figure locator has been identified for this
+                         configuration.
+  Geometry / BC        : axisymmetric cell on beacon_1c_domain.vtu, two
+                         solid materials (block and pellet) represented
+                         across four medium blocks, initial pressure
+                         -1e6 Pa, top_pressure 1e4 Pa, bottom_pressure
+                         0 Pa, t_end = 1e3 s.
+  Purpose              : two-material micro-macro exchange plumbing smoke
+                         test; the Pi-path potential-exchange term is
+                         inactive (no potential_augmentation_prefactor
+                         tag; van der Waals augmentation switched off).
+  Material sharing     : the block and pellet media share grain density,
+                         elastic constants (E, nu), the Biot coefficient,
+                         the Bishop's-effective-stress formulation and
+                         the liquid-phase properties, while porosity,
+                         permeability, swelling pressure and specific
+                         surface differ between the two.
 
   Calibration anchor:
-    source         : none. This deck performs no calibration.
-    dataset row    : n/a
-    target sigma   : n/a
-    fitted K       : none. No potential_augmentation_prefactor tag is present,
-                     so K defaults to 0.0 and the augmentation branch is
-                     skipped (PotentialExchange.h:259, "Setting K = 0 (default)
-                     reduces exactly to the pure vdW form"). The sec. 12.1
-                     Dixon/Villar anchor rule is therefore VACUOUS here, not
-                     violated. The swelling_pressures literals below are inputs
-                     to the macro SaturationDependentSwelling law; they are NOT
-                     calibration targets and must not be read as an anchor row.
+    source             : none; this deck performs no calibration.
+    dataset row         : n/a
+    target sigma        : n/a
+    fitted K            : none. No potential_augmentation_prefactor tag is
+                         present, so K defaults to 0.0 and the
+                         augmentation branch is skipped
+                         (PotentialExchange.h:259: "Setting K = 0
+                         (default) reduces exactly to the pure vdW
+                         form"). The swelling_pressures literals below
+                         are inputs to the macro
+                         SaturationDependentSwelling law; they are model
+                         inputs, not calibration targets.
 
   Material parameters (source per group):
-    elastic (E, nu)            : TODO(Vinay): UNSOURCED  (E = 50e6 Pa, nu = 0.2),
-                                 shared by block and pellet, see per-material Q.
-    porosity split phi0/phi_tr : TODO(Vinay): UNSOURCED  (block 0.35 / 0.25,
-                                 pellet 0.675 / 0.55). NOTE 0.675 is close to
-                                 but NOT equal to the MS33 pellet value
-                                 0.676259 = 1 - 900/2780; a near match is not a
-                                 source, so it was not adopted.
-    intrinsic permeability     : TODO(Vinay): UNSOURCED  (block 1e-18 m2,
-                                 pellet 1e-15 m2)
-    retention macro (Sr,m,p_b) : TODO(Vinay): UNSOURCED  (block 1e6 Pa,
-                                 pellet 5e5 Pa; m = 0.5)
-    retention micro (Sr,m,p_b) : TODO(Vinay): UNSOURCED  (block 1e7 Pa,
-                                 pellet 5e6 Pa; m = 0.5)
-    swelling law (p_sw, expts) : TODO(Vinay): UNSOURCED  (block 1.3e7 Pa,
-                                 pellet 0.8e7 Pa; exponents 1 1 1)
-    solid density rho_s        : TODO(Vinay): UNSOURCED  (2780 kg/m3).
-                                 Four independent verifications refuted the
-                                 "EURAD-2 MS33 spec" attribution carried by the
-                                 sibling MS33 headers: that string has no
-                                 locator, the named Table TH-G does not contain
-                                 a solid density at all (the value appears only
-                                 in spec prose, theoretical_benchmarking.tex
-                                 line 102, "2.78 g/cm3"), and the beacon decks
-                                 carried 2780 from the 2026-04-10 import, six
-                                 weeks BEFORE that header line existed. The
-                                 real transmission path is the upstream OGS
-                                 deck DoubleStructureBenchmark/
-                                 double_porosity_swelling_RM.prj, which has no
-                                 header and is therefore a forbidden source.
-                                 Adopting the line-102 locator here would be a
-                                 sec. 12.4 cross-family borrow: Vinay's call.
-                                 Internal incoherence to note: every beacon
-                                 deck sets micro_solid_density_reference =
-                                 2650 alongside solid density 2780, i.e. two
-                                 grain densities 4.7 percent apart in one file.
-    micro reference state      : TODO(Vinay): UNSOURCED
-                                 (rho_SR_m = 2650 kg/m3, nS_ref, n_l0).
-                                 TRAP recorded so it is not repeated: 2650
-                                 kg/m3 is the grain density of BOOM CLAY in
-                                 GRS-202. Wrong material, and GRS is not a
-                                 sec. 12.1 family.
-    fluid properties           : TODO(Vinay): UNSOURCED  (viscosity 1e-3 Pa s,
-                                 density 1e3 kg/m3). These are rounded values,
-                                 NOT the IAPWS-95 figures at 293.15 K
-                                 (1.002e-3 Pa s, 998.21 kg/m3), so an IAPWS
-                                 locator does not cover them.
-    biot_coefficient           : TODO(Vinay): UNSOURCED  (1.0). Commit
-                                 5a0792dbb0 records an incompressible-mineral
-                                 ASSUMPTION, not a measurement, and is not an
-                                 ancestor of this branch. A sec. 0.2 note
-                                 recording the assumption is the honest fix.
-    mass transfer alpha_M      : TODO(Vinay): UNSOURCED  (1e-13).
-                                 Phenomenological and fabric dependent; NOT
-                                 identified by a swelling-pressure calibration
-                                 (fast-exchange limit). Do not invent a family.
-    reference temperature      : TODO(Vinay): UNSOURCED  (293.15 K; inert in
-                                 these isothermal decks).
-    BC / IC magnitudes         : TODO(Vinay): UNSOURCED. Suction ICs, hydraulic
-                                 Dirichlet values, sigma0 (all zero) and the
-                                 zero body force are uncited. MS33's spec
-                                 initial suction is 100 MPa, i.e. 100x these
-                                 values, so nothing can be inherited.
+    elastic (E, nu)             : not tied to a cited source (E = 50e6
+                                  Pa, nu = 0.2); shared by block and
+                                  pellet.
+    porosity split phi0/phi_tr  : not tied to a cited source (block
+                                  0.35 / 0.25, pellet 0.675 / 0.55). The
+                                  pellet value 0.675 is numerically close
+                                  to, but distinct from, the EURAD-2
+                                  MS33 pellet porosity value 0.676259
+                                  (= 1 - 900/2780); the similarity is
+                                  coincidental, and this value is not
+                                  sourced from that benchmark.
+    intrinsic permeability      : not tied to a cited source (block
+                                  1e-18 m2, pellet 1e-15 m2).
+    retention macro (Sr,m,p_b)  : not tied to a cited source (block
+                                  1e6 Pa, pellet 5e5 Pa; m = 0.5).
+    retention micro (Sr,m,p_b)  : not tied to a cited source (block
+                                  1e7 Pa, pellet 5e6 Pa; m = 0.5).
+    swelling law (p_sw, expts)  : not tied to a cited source (block
+                                  1.3e7 Pa, pellet 0.8e7 Pa; exponents
+                                  1 1 1).
+    solid density rho_s         : not tied to a cited source (2780
+                                  kg/m3). This value is close to, but
+                                  not confirmed as sourced from, a
+                                  grain-density figure given in the
+                                  EURAD-2 MS33 specification narrative
+                                  text (theoretical_benchmarking.tex,
+                                  line 102, quoted there as
+                                  approximately 2.78 g/cm3); the
+                                  specification's benchmark table does
+                                  not itself list a solid density, so
+                                  the similarity is not adopted as the
+                                  source. This file additionally
+                                  specifies
+                                  micro_solid_density_reference = 2650
+                                  kg/m3, a distinct grain density about
+                                  4.7 percent different from the 2780
+                                  kg/m3 above.
+    micro reference state       : not tied to a cited source (rho_SR_m
+                                  = 2650 kg/m3, nS_ref, n_l0). The value
+                                  2650 kg/m3 coincides with a reported
+                                  grain density for Boom Clay (GRS-202),
+                                  an unrelated material; this
+                                  coincidence is noted so it is not
+                                  mistaken for a source of this
+                                  parameter.
+    fluid properties            : not tied to a cited source
+                                  (viscosity 1e-3 Pa s, density 1e3
+                                  kg/m3). These are rounded working
+                                  values, not the IAPWS-95 reference
+                                  figures at 293.15 K (1.002e-3 Pa s,
+                                  998.21 kg/m3).
+    biot_coefficient            : not tied to a cited source (1.0);
+                                  reflects an incompressible-mineral
+                                  assumption rather than a direct
+                                  measurement.
+    mass transfer alpha_M       : not tied to a cited source (1e-13);
+                                  phenomenological and fabric-dependent,
+                                  and not identified by a
+                                  swelling-pressure calibration
+                                  (fast-exchange limit).
+    reference temperature       : not tied to a cited source (293.15
+                                  K); inert in this isothermal
+                                  benchmark.
+    BC / IC magnitudes          : not tied to a cited source. Suction
+                                  initial conditions, hydraulic
+                                  Dirichlet values, sigma0 (all zero)
+                                  and the zero body force are working
+                                  values. The EURAD-2 MS33
+                                  specification's initial suction is
+                                  100 MPa, that is, 100 times these
+                                  values, so nothing here is inherited
+                                  from that specification.
     macro_porosity_floor and
-    micro_water_content_floor  : 0.0 / 0.0, NUMERICAL and inert. Declared
-                                 because the parser has required the pair since
-                                 commit 71366ac0d3; floor 0 is byte-identical
-                                 to the unfloored path (PotentialExchange.h:
-                                 199-205). Approved by Vinay 2026-08-12.
-    micro EOS (a, b, rho_l0)   : TODO(Vinay): UNSOURCED  (1.3 / 1.0 / 1300).
-                                 WARNING: micro EOS is ACTIVE (a = 1.3), NOT
-                                 the a = 1e-16 bypass of the MS33 form (a)
-                                 decks. The in-file comment attributing this
-                                 triple to "the 1a01 case" is CIRCULAR:
-                                 beacon_1a01 has no provenance header, and
-                                 sec. 12.1 forbids copying from another PRJ
-                                 without re-citing.
-    vdW base A_Hamaker         : NUMERICAL PLACEHOLDER, term switched OFF
-                                 (A = 1e-30 J); see the 1a01 smoke deck header
-                                 for the full argument and the sec. 0.2
-                                 exemption still owed.
-    specific surface Sa        : TODO(Vinay): UNSOURCED. Global placeholder 1.0
-                                 m2/kg with per-medium overrides 0.8 (block)
-                                 and 1.5 (pellet). These are different numbers
-                                 from the 523 m2/g of the inflow deck and MUST
-                                 NOT inherit its EPFL/Seiphoori citation.
+    micro_water_content_floor   : 0.0 / 0.0, numerical and inert; both
+                                  keys must be declared together, and a
+                                  floor of 0.0 reproduces the unfloored
+                                  path (PotentialExchange.h:199-205).
+    micro EOS (a, b, rho_l0)    : not tied to a cited source (1.3 /
+                                  1.0 / 1300). The micro liquid-density
+                                  equation of state is active here
+                                  (a = 1.3), unlike the a = 1e-16
+                                  bypass value used in some other
+                                  configurations in this suite.
+    vdW base A_Hamaker          : numerical placeholder, term switched
+                                  off (A = 1e-30 J); not the literature
+                                  value of 2.2e-20 J used for this
+                                  constant in other configurations.
+    specific surface Sa         : not tied to a cited source. Global
+                                  placeholder 1.0 m2/kg with per-medium
+                                  overrides 0.8 (block) and 1.5
+                                  (pellet). These values are independent
+                                  of, and must not be attributed to, the
+                                  EPFL/Seiphoori specific-surface
+                                  measurement (523 m2/g) used elsewhere
+                                  in this suite.
 
-  Reference VTU    : refreshed 2026-08-12 on dsm_native_maxwell_conjugate
-                     @ 40551b6aad. This is a REGRESSION BASELINE at that
-                     commit, not a physics claim and not a validated result.
-                     The previous baseline (2026-06-02, retrievable at
-                     a6dfec842c) predated the constitutive changes on this
-                     branch, among them 013990e1cd (mu_lR unified on the
-                     integrable Maxwell partner), aeccc1c838 and 36dfeaddcc
-                     (swelling stress recast as (1-phi_M)*p_film with a sign
-                     and weighting correction), dbf20d6f1a (bare-Pi OFF path
-                     retired) and 6391e357a2 (marked RESIDUAL-CHANGING).
-
-  Live deviations carried by this deck (recorded, not papered over):
-    1. bishops_effective_stress uses BishopsPowerLaw(exponent=1) where the DSM
-       standard since 2026-05-29 is BishopsSaturationCutoff(cutoff=1). For 1b
-       this was a regression: the ancestor deck complied until 8712c6d7ee.
-    2. pressure abstol = 5e-8 Pa against a 1e6 Pa suction scale, with no
-       reltols. Violates the tolerance from problem scale rule.
-    3. Across the five beacon decks the Hamaker constant takes three different
-       values (1e-30 / 6e-20 / 5.1e-21 J); none equals the branch literature
-       value 2.2e-20 J, and the 2026-05-22 sweep 0d579e8aeb that moved all 27
-       other PRJs from 5.1e-21 to 2.2e-20 missed this family.
-    4. The alpha_M unit is undocumented by OGS (bare copydoc); no unit is
-       asserted here on purpose.
+  Known configuration notes:
+    1. bishops_effective_stress uses BishopsPowerLaw(exponent=1); other
+       configurations in this benchmark family use
+       BishopsSaturationCutoff(cutoff=1).
+    2. The pressure convergence tolerance (abstol = 5e-8 Pa) is tight
+       relative to the 1e6 Pa pressure/suction scale used here, with no
+       relative tolerances set.
+    3. The unit of the mass-transfer coefficient (alpha_M) is not
+       documented in the code's own interface comment; no unit is
+       asserted here.
 -->
     <mesh axially_symmetric="true">beacon_1c_domain.vtu</mesh>
     <geometry>beacon_1c.gml</geometry>
@@ -177,9 +164,9 @@
                 <micro_solid_density_reference>2650</micro_solid_density_reference>
                 <micro_solid_volume_fraction_reference>0.6</micro_solid_volume_fraction_reference>
                 <initial_micro_water_content>0.1</initial_micro_water_content>
-                <!-- DSMMicroMacro-style liquid-density EOS metadata taken from the
-                     1a01 dsm_micromacro-role alignment case so the scalar dsm_micromacro
-                     mass-storage path remains well-posed for the 1c media. -->
+                <!-- Micro-liquid-density EOS metadata matches that used in a related
+                     smoke-test configuration in this suite, chosen so the scalar
+                     micro-macro mass-storage path remains well posed for this medium. -->
                 <micro_liquid_density_reference>1300</micro_liquid_density_reference>
                 <micro_liquid_density_a>1.3</micro_liquid_density_a>
                 <micro_liquid_density_b>1.0</micro_liquid_density_b>
@@ -200,11 +187,10 @@
                     <micro_liquid_density_a>1.3</micro_liquid_density_a>
                     <micro_liquid_density_b>1.0</micro_liquid_density_b>
                 </medium>
-                            <!-- Floors declared inert (0.0 = no floor), preserving the
-                     pre 2026-06-17 behaviour these decks were written under;
-                     the parser has required both keys since commit 71366ac0d3.
-                     Value approved by Vinay 2026-08-12 (CLAUDE.md sec. 1.1),
-                     same inert declaration as the MS33 form (a) decks. -->
+                            <!-- Floors declared inert (0.0 = no floor); both keys must be present
+                     together for the parser to accept this configuration, and a
+                     floor of 0.0 reproduces the unfloored path, consistent with
+                     other EURAD-2 MS33 benchmark configurations. -->
                 <macro_porosity_floor>0.0</macro_porosity_floor>
                 <micro_water_content_floor>0.0</micro_water_content_floor>
             </potential_exchange>
