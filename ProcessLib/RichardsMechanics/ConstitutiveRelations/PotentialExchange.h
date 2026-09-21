@@ -251,10 +251,14 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     // same formula at the numeral the shipped decks carry instead - Sa = 523
     // with n_l = 0.01, nS = 0.6, rho_SR = 2650 kg/m^3
     // (beacon_1a01_dsm_micromacro_inflow.prj:186-189) - and it gives
-    //   h = 1.20e-8 m = 12 nm ~ 40 water layers,
-    // a factor 1e3 off the anchor. That is the disclosed m^2/g vs m^2/kg unit
-    // item disclosed in the provenance header of that deck, NOT a
-    // separate defect; this line exists so it is visible at the point of use.
+    //   h = 1.20e-8 m = 12 nm, i.e. tens of water layers rather than the
+    // two above. Since h is inversely proportional to Sa, entering the same
+    // numeral under the other unit convention moves h by exactly 1e3: that
+    // is the m^2/g vs m^2/kg item disclosed in the provenance header of that
+    // deck, NOT a separate defect. (The remaining difference between 12 nm
+    // and the 0.51 nm anchor is the different state - that deck sits at
+    // n_l = 0.01 and nS = 0.6, not at the dd1600 values.) This line exists
+    // so the scale is visible at the point of use.
     // Value uses n_l_eff (the floored water content). When clamped this is the
     // capped Pi(n_l_floor); when unclamped (incl. floor = 0) it is the exact
     // unfloored mu_lR_vdW.
