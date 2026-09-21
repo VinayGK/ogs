@@ -672,11 +672,10 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 // calibrated value — only on the pair being one whose round-trip misses.
 // Sources of the three numbers:
 //   K(900)  = 4367.227700212952 J/kg — a historical dd900 calibration
-//             value, kept on record in the provenance block of
 //             value, kept on record in the provenance block of the
 //             author's ANCHORS MS33 Model I dd900 project file, which is
-//             not part of this repository. The value that
-//             later replaced it is deliberately not used here: with the
+//             not part of this repository. The value that later
+//             replaced it is deliberately not used here: with the
 //             current 900-knot the segment round-trips exactly and the
 //             test would stop discriminating (see below).
 //   K(1400) = 46000.0, K(1600) = 104689.9129 J/kg — the shipped live table
