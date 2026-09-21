@@ -313,8 +313,7 @@ inline constexpr bool isValidFilmEnergyRouteCombination(
            mode == FilmStrainCouplingMode::Kinematic;
 }
 
-inline constexpr char const* toString(
-    MicroPotentialConvention const convention)
+inline constexpr char const* toString(MicroPotentialConvention const convention)
 {
     switch (convention)
     {
@@ -330,7 +329,7 @@ inline constexpr double microPotentialSignFactor(
     MicroPotentialConvention const convention)
 {
     return convention == MicroPotentialConvention::NegativeAttractive ? -1.0
-                                                                       : 1.0;
+                                                                      : 1.0;
 }
 
 inline constexpr char const* toString(LocalNonlinearSolveMode const mode)
@@ -359,8 +358,7 @@ inline constexpr char const* toString(MacroPorosityUpdateMode const mode)
     return "unknown";
 }
 
-inline constexpr char const* toString(
-    MicroSolidVolumeFractionMode const mode)
+inline constexpr char const* toString(MicroSolidVolumeFractionMode const mode)
 {
     switch (mode)
     {
@@ -461,8 +459,10 @@ struct PotentialExchangeParameters
     // mu_lR_aug = sign * K * exp(-h / lambda)
     // Zero prefactor (default) disables augmentation and preserves
     // existing behaviour.
-    double potential_augmentation_prefactor = 0.0;     // K      [J/kg], must be >= 0
-    double potential_augmentation_exponent = 0.0;  // lambda [m],    must be > 0 if K > 0
+    double potential_augmentation_prefactor =
+        0.0;  // K      [J/kg], must be >= 0
+    double potential_augmentation_exponent =
+        0.0;  // lambda [m],    must be > 0 if K > 0
 
     // -- Disjoining-pressure FLOOR via a micro-water-content lower bound
     // ------- Optional lower bound n_l,min [-] on the water content USED IN THE
@@ -499,10 +499,12 @@ struct PotentialExchangeParameters
     // (same solid-fluid volume partitioning; one-Psi consistency) and threaded
     // into the local solve via
     // PotentialExchangeLocalSolveContext::biot_coefficient.
-    double film_pressure_gate_width = 0.0;        // smooth-gate width w [Pa]; 0 -> sharp fallback
+    double film_pressure_gate_width =
+        0.0;  // smooth-gate width w [Pa]; 0 -> sharp fallback
     // DEPRECATED: swelling stress is now (1-phi_M)*p_film; this modulus
     // is unused.
-    double film_pressure_swelling_modulus = 0.0;  // eigenstrain modulus K_sw [Pa]; 0 -> drained K
+    double film_pressure_swelling_modulus =
+        0.0;  // eigenstrain modulus K_sw [Pa]; 0 -> drained K
 
     // -- Macro-porosity floor --------------------------------------------
     // phi_M,min (REV macro porosity). Prevents the macro pore from collapsing
@@ -515,7 +517,8 @@ struct PotentialExchangeParameters
     // EPFL MIP bimodal pore structure (Seiphoori 2014 / Acta 2022).
     // 0 (default) -> no floor -> bit-for-bit unchanged.
     double macro_porosity_floor = 0.0;
-    double macro_floor_cutoff_width = 0.0;  // film-to-bulk cutoff width in n_l [-]; 0 -> default 5% of n_l_cap
+    double macro_floor_cutoff_width = 0.0;  // film-to-bulk cutoff width in n_l
+                                            // [-]; 0 -> default 5% of n_l_cap
 
     // -- Strained-film disjoining law --------------------------------------
     // When != Off, the bare disjoining law is evaluated at the strained film
