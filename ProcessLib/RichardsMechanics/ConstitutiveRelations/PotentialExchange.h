@@ -242,9 +242,9 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     // The leading /rho_lR converts J/m^3 (Pa) to J/kg — dimensionally
     // required by the exchange equation rho_l_hat = alpha * (mu_LR - mu_lR).
     //
-    // MAGNITUDE (CLAUDE.md §4.3; Sa, nS and rho_SR all enter cubed here, so a
-    // scale error is amplified by three and the §4.2 balance above cannot see
-    // it). At the dd1600 anchor recorded in CLAUDE.md §4.3 - n_l = 0.4245,
+    // MAGNITUDE (Sa, nS and rho_SR all enter cubed here, so a scale error is
+    // amplified by three and the dimensional balance above cannot see it).
+    // At the dd1600 reference state - n_l = 0.4245,
     // Sa = 5.23e5 m^2/kg - the implied mean film thickness is
     //   h = n_l/(nS*rho_SR*Sa) = 5.07e-10 m = 0.51 nm ~ 2 water layers,
     // which is the accepted interlayer range for compacted MX-80. Read the
@@ -253,7 +253,7 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     // (beacon_1a01_dsm_micromacro_inflow.prj:186-189) - and it gives
     //   h = 1.20e-8 m = 12 nm ~ 40 water layers,
     // a factor 1e3 off the anchor. That is the disclosed m^2/g vs m^2/kg unit
-    // item (CLAUDE.md §1.3 and the provenance header of that deck), NOT a
+    // item disclosed in the provenance header of that deck, NOT a
     // separate defect; this line exists so it is visible at the point of use.
     // Value uses n_l_eff (the floored water content). When clamped this is the
     // capped Pi(n_l_floor); when unclamped (incl. floor = 0) it is the exact
@@ -627,7 +627,7 @@ computeIntegrableMechanicalMicroPotential(double const Pi, double const dPi_dnl,
     double const A = Pi + n_l * dPi_dnl;
     double const Bmod = biot_b * K_drained;
     // mu_lR_mech = -[ A*eps_v + 0.5*B*eps_v^2 ] / rho_lR   [J/kg]
-    // MAGNITUDE (CLAUDE.md §4.3; eps_v enters squared). At the beacon_1a01
+    // MAGNITUDE (eps_v enters squared). At the beacon_1a01
     // deck's elastic constants E = 50 MPa, nu = 0.2 (K_drained = E/(3(1-2nu))
     // = 27.8 MPa), b = 1 and a 1% volumetric strain eps_v = 1e-2:
     //   0.5*B*eps_v^2/rho_lR = 0.5*27.8e6*1e-4/1e3 = 1.39 J/kg,
@@ -947,7 +947,7 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
     double const mu_mech_aug = (potential_augmentation_prefactor > 0.0)
                                    ? mu_a * (x_over_kappa * E - xi0 * Gx)
                                    : 0.0;                               // J/kg
-    // MAGNITUDE (CLAUDE.md §4.3; eps enters squared here and again in Psi_film
+    // MAGNITUDE (eps enters squared here and again in Psi_film
     // below). Same state as computeIntegrableMechanicalMicroPotential above -
     // K_d = 27.8 MPa, b = 1, eps = 1e-2, rho_lR = 1e3 kg/m^3 - gives
     // mu_mech_S = -1.39 J/kg, and the matching Psi_film share

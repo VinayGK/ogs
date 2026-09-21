@@ -859,7 +859,7 @@ inline void applyFilmPressureMicroPotential(
         double const b_sf = local_context.biot_coefficient;
         double const mu_load = b_sf * p_conf_sf / rho_lR_used;  // J/kg
 
-        // REPLACEMENT, not accumulation (CLAUDE.md §4.1 awareness note): the
+        // REPLACEMENT, not accumulation: the
         // six writes below overwrite `out` with the law re-evaluated at the
         // strained state w_eff, so the unconditional
         // applyMacroFloorCutoff(out, ...) at the top of this function is
