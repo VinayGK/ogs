@@ -1,7 +1,8 @@
 # Handoff — review–fix loop on `dsm_upstream_mr_2026-09-20`
 
 Written 2026-09-21 on the laptop, to be picked up on the mac mini.
-Run id `20260921-135430`. Full trace: `ledger.jsonl`; regenerated summary: `report.md`.
+Run id `20260921-135430`. Full trace: `ledger.jsonl`; regenerated summary:
+`report.md`; compilation notes: `BUILD-NOTES.md`.
 
 ---
 
@@ -52,29 +53,33 @@ git -C <worktree> rebase --autosquash --interactive c41ada5f75
 
 ## Verification environment — read this before rebuilding
 
-**The branch does not build out of the box on macOS 26.** `range-v3` (pinned at
-c704) uses `_LIBCPP_TEMPLATE_VIS`, which the macOS 26 libc++ removed, so every
-translation unit that includes it fails. The failing targets were the
-`BaseLib` / `GeoLib` / `MathLib` / `NumLib` PCHs and `MaterialLib_Utils` — none of
-them in the branch diff, which is confined to `ProcessLib/RichardsMechanics`,
+**Full detail is in `BUILD-NOTES.md`; read that before configuring anything.**
+Summary:
+
+**The branch does not build unaided on macOS 27 / SDK 27.** `range-v3` (pinned at
+c704) references `_LIBCPP_TEMPLATE_VIS`, a visibility macro that libc++ no longer
+defines, so every translation unit that includes it fails. The failing targets were
+the `BaseLib` / `GeoLib` / `MathLib` / `NumLib` PCHs and `MaterialLib_Utils` — none
+of them in the branch diff, which is confined to `ProcessLib/RichardsMechanics`,
 `Tests`, `Tests/Data` and `web`. So this is a **pre-existing toolchain/dependency
 incompatibility, not branch-introduced**; the older build dirs only still work
 because their objects predate the SDK bump.
 
-Worked around with build-dir-only compile definitions. **No source file was
-touched, so this workaround does not travel with the branch** — you must
-reapply it on the mac mini:
+One build-dir-only flag fixes it. **No source file was touched, so it does not
+travel with the branch** — reapply it on the mac mini *only if that host needs it*:
 
 ```bash
 cmake -S <worktree> -B <builddir> -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
   -DOGS_USE_MFRONT=ON -DOGS_BUILD_TESTING=ON -DOGS_BUILD_UTILS=ON \
   -DCPM_SOURCE_CACHE=<cpm cache> \
-  -DCMAKE_CXX_FLAGS="-D_LIBCPP_TEMPLATE_VIS= -D_LIBCPP_ENUM_VIS= -D_LIBCPP_EXCEPTION_ABI= -D_LIBCPP_HIDDEN= -D_LIBCPP_FUNC_VIS= -D_LIBCPP_TYPE_VIS="
+  -DCMAKE_CXX_FLAGS="-D_LIBCPP_TEMPLATE_VIS="
 ```
 
-If the mac mini runs an older SDK that still defines these macros, drop
-`CMAKE_CXX_FLAGS` and check whether it builds unaided — worth knowing either way.
+`OGS_BUILD_TESTING=ON` is required — the branch adds unit tests, and the older DSM
+build dirs have it OFF. Try configuring **without** `CMAKE_CXX_FLAGS` first; if the
+mini's SDK still defines the macro it builds unaided and the flag should not be
+carried over. `BUILD-NOTES.md` §7 has the one-line check.
 
 Verification command (adjust the build dir):
 
@@ -189,9 +194,9 @@ python3 ~/.claude/skills/review-fix-loop/scripts/ledger.py \
   in this run speaks to benchmark or reference-VTU status.
 - The seven fixes are comment-only, so the green verification is a statement that
   nothing broke, not evidence that any physics was validated.
-- The `_LIBCPP_*_VIS` workaround means the binary under test was built with
-  slightly different visibility attributes than an unmodified toolchain would
-  produce. It is the only way this branch builds on this host, but it is a
-  deviation and is recorded as one.
+- The `-D_LIBCPP_TEMPLATE_VIS=` workaround means the binary under test was built
+  with one visibility macro emptied relative to an unaffected toolchain. It is the
+  minimum needed to compile on this host, but it is a deviation and is recorded as
+  one in `BUILD-NOTES.md`.
 - The loop has not converged. Round 2 still produced 14 new findings, so more
   remain to be found; 8 rounds of budget are left.
