@@ -67,7 +67,7 @@ StrainedFilmStateData state(StrainedFilmSampleState const& st,
 }
 }  // namespace
 
-// Anchor: baseline — the defaults must stay Off/Aggregate so every
+// Anchor: baseline -- the defaults must stay Off/Aggregate so every
 // existing PRJ is bit-for-bit unaffected.
 TEST(RichardsMechanicsStrainedFilm, DefaultsAreOffAggregate)
 {
@@ -224,7 +224,7 @@ TEST(RichardsMechanicsStrainedFilm, LoadRaisesPotentialAtFixedWaterContent)
     EXPECT_GT(mu_high, mu_low);
 }
 
-// Anchor: baseline — with the strain coupling Off, the fold point
+// Anchor: baseline -- with the strain coupling Off, the fold point
 // must follow the existing (shipped) path: the integrable partner is active
 // and the result differs from the bare law only by that partner; with the
 // coupling ON the shipped partner must NOT also be applied (no double
@@ -282,8 +282,8 @@ TEST(RichardsMechanicsStrainedFilm, ReplacementIsExclusiveAtZeroStrain)
               mu_for(FilmStrainCouplingMode::Kinematic, eps_v, p_conf));
 }
 
-// ── Live K(rho_d) helper ────────────────────────────────────────────────
-// Physics anchor: analytical limit / derived identity — the helper must
+// -- Live K(rho_d) helper ------------------------------------------------
+// Physics anchor: analytical limit / derived identity -- the helper must
 // reproduce the table exactly at its knots (both schemes are
 // node-preserving) and hold the endpoint values outside the range; off-mode
 // must return the parse-time scalar bit-for-bit. The LIVE path interpolates
@@ -362,7 +362,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, TableLinearGetValueAnchorsFrozenKParsePath)
 }
 
 // Companion to the test above: the LIVE path evaluates the table
-// log-linearly — ln(K) linear in rho_d between knots (getValueLogLinear).
+// log-linearly -- ln(K) linear in rho_d between knots (getValueLogLinear).
 // Physics anchor (analytical limit): expected values derived in-file from
 // the log-linear identity K(x) = K_l * exp(t * ln(K_r/K_l)),
 // t = (x - 1000)/1000, on the structural knots K(1000)=10, K(2000)=30.
@@ -422,7 +422,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, ClampsAtTableRangeEnds)
                                params, phiForDryDensity(params, 2600.0)));
 }
 
-// ── Live K(rho_d) analytic tangent ─────────────────────────────────────
+// -- Live K(rho_d) analytic tangent -------------------------------------
 // Physics anchor: FD-vs-analytic agreement (derived identity) of the
 // live-K tangent against a central finite difference of the VALUE
 // actually used in the residual. Inside a table segment the value is
@@ -602,8 +602,8 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
     //     come back through the endpoint-hold clamp, and at the interior
     //     knot 1500 the round-trip 10*exp(1*ln(16/10)) happens to land
     //     exactly on 16 (confirmed by evaluating the same expression
-    //     standalone under both toolchains, Apple clang 21.0.0 — which
-    //     builds this test — and Homebrew clang 22.1.8, arm64, -O0 and
+    //     standalone under both toolchains, Apple clang 21.0.0 -- which
+    //     builds this test -- and Homebrew clang 22.1.8, arm64, -O0 and
     //     -O2 each), so they hold with OR
     //     without the t == 1 branch of
     //     logLinearValueOnSegment(). They therefore do not pin that
@@ -660,7 +660,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 
 // -- Interior-knot bit-exactness, on a knot pair whose log/exp round-trip
 // actually misses ---------------------------------------------------------
-// Physics anchor: analytical limit / interpolation identity — node
+// Physics anchor: analytical limit / interpolation identity -- node
 // preservation, K(x_i) = K_i exactly at every knot of the table, which is
 // what the t == 1 (and t == 0) branch of
 // AugmentationPrefactorTable::logLinearValueOnSegment() exists to make
@@ -671,7 +671,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 // dd900 is being asserted. Nothing below depends on K(900) being a
 // calibrated value -- only on the pair being one whose round-trip misses.
 // Sources of the three numbers:
-//   K(900)  = 4367.227700212952 J/kg — a historical dd900 calibration
+//   K(900)  = 4367.227700212952 J/kg -- a historical dd900 calibration
 //             value, kept on record in the provenance block of the
 //             author's ANCHORS MS33 Model I dd900 project file, which is
 //             not part of this repository. The value that later
@@ -688,7 +688,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 // four knots of the shipped table round-trip exactly too (confirmed by
 // evaluating the same expressions standalone, Homebrew clang 22.1.8
 // arm64, -O0 and -O2). Bit-exactness assertions on those knots pass with
-// or without the t == 1 branch, so they cannot pin it — the defect the
+// or without the t == 1 branch, so they cannot pin it -- the defect the
 // branch removes is latent on the shipped table. On the 900 -> 1400 pair
 // below the round-trip K_l*exp(1*ln(K_r/K_l)) returns 45999.999999999993
 // instead of 46000.0 (rel -1.58e-16; the same miss recorded elsewhere as
@@ -700,12 +700,12 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 // and the shipped table's four knots pass either way. That standalone
 // verdict was re-confirmed under BOTH toolchains present on the build
 // machine, at -O0 and -O2 each: Apple clang 21.0.0
-// (arm64-apple-darwin25.6.0, /usr/bin/c++ — the compiler that actually
+// (arm64-apple-darwin25.6.0, /usr/bin/c++ -- the compiler that actually
 // builds this test) and Homebrew clang 22.1.8. Measured through the
 // built test binary (Release, Apple clang 21.0.0): this test PASSES in
 // testrunner (--gtest_filter='RichardsMechanics*', 46 tests, 44 passed, 2
-// pre-existing skips, 0 failures). The FAILING half — the pre-fix
-// accessor going red — is measurable only in the standalone harness,
+// pre-existing skips, 0 failures). The FAILING half -- the pre-fix
+// accessor going red -- is measurable only in the standalone harness,
 // since reproducing it in-binary would mean removing the branch from the
 // shipped header; it is harness-measured, not a testrunner observation.
 //
@@ -761,9 +761,9 @@ TEST(RichardsMechanicsLiveKOfRhoD, InteriorKnotBitExactWhereRoundTripMisses)
     EXPECT_EQ(K_1600, table.getValueLogLinear(1600.0));
 }
 
-// ── Assembled displacement-channel Jacobian consistency for exact +
-// kinematic + live-K at a finite-eps_v compliant state ────────────────────
-// Physics anchor: symmetry / derived identity — the analytic displacement
+// -- Assembled displacement-channel Jacobian consistency for exact +
+// kinematic + live-K at a finite-eps_v compliant state --------------------
+// Physics anchor: symmetry / derived identity -- the analytic displacement
 // (eps_v) tangents the assembly inserts into the Jacobian must equal the
 // central finite difference of the residual quantities they linearize. No
 // independently sourced expected value is asserted here; tolerances
@@ -843,8 +843,8 @@ TEST(RichardsMechanicsLiveKOfRhoD,
     double const active_nS = 1.0 - n_l;
     double const kappa = active_nS;  // Aggregate
 
-    // ── (A) H2/M1 — exact-route mu_lR eps_v tangent
-    // ─────────────────────────── Assembled exact mu_lR(eps_v) = bare(n_l; K) +
+    // -- (A) H2/M1 -- exact-route mu_lR eps_v tangent
+    // --------------------------- Assembled exact mu_lR(eps_v) = bare(n_l; K) +
     // g_cut * pair.mu_mech, with g_cut = bare/pair.mu_bare_pre (== 1 here,
     // cutoff inactive). Phi held fixed to isolate the explicit eps_v channel
     // (the live-K phi channel is part (B)).
@@ -881,8 +881,8 @@ TEST(RichardsMechanicsLiveKOfRhoD,
             << "exact-route mu_lR eps_v tangent (H2/M1)";
     }
 
-    // ── (B) M2 — live-K swelling-eigenstress eps_v tangent (through phi)
-    // ─────── The residual delta_sigma_sw uses K =
+    // -- (B) M2 -- live-K swelling-eigenstress eps_v tangent (through phi)
+    // ------- The residual delta_sigma_sw uses K =
     // effectiveAugmentationPrefactor(phi); with the live-K table phi(eps_v)
     // couples sigma_sw to displacement. FD the residual increment w.r.t. eps_v
     // THROUGH the live-K channel only (phi moved by the PorosityFromMassBalance

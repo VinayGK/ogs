@@ -1888,7 +1888,7 @@ TEST(RichardsMechanics, PotentialExchangeTangentRepresentativeStates)
     }
 }
 
-// ── Film-pressure micro potential (flag ON)
+// -- Film-pressure micro potential (flag ON)
 //
 // -----------------------------------------------------------------------------
 // The three tests below exercise the FLAG-ON film-pressure physics that
@@ -2062,7 +2062,7 @@ TEST(RichardsMechanics, DSMFilmPressureDrain)
     // lowers mu_lR. (ii) STRICTLY increasing across every gate-OPEN step (i >=
     // 2): once p_conf > Pi_gate the film term grows with p_conf. The flat
     // segment mu_lR_seq[0] == mu_lR_seq[1] is the gate-closed plateau (g = 0
-    // for p_conf <= Pi_gate) — the committed gate physics, NOT a defect, so we
+    // for p_conf <= Pi_gate) -- the committed gate physics, NOT a defect, so we
     // do not (and cannot) assert a strict increase across it.
     for (std::size_t i = 1; i < mu_lR_seq.size(); ++i)
     {
@@ -2242,8 +2242,8 @@ TEST(RichardsMechanics, DSMFilmEigenstressSignDrains)
     EXPECT_EQ(std::signbit(fd), std::signbit(expected_slope));
 }
 
-// ── INTEGRABLE Maxwell web: partner helper analytic vs FD (calibration-blind)
-// ─ Physics anchor: (c) frame indifference / thermodynamic integrability — the
+// -- INTEGRABLE Maxwell web: partner helper analytic vs FD (calibration-blind)
+// - Physics anchor: (c) frame indifference / thermodynamic integrability -- the
 // strain dependence of mu_lR and the swelling eigenstress derive from ONE free
 // energy, so their cross-partials match. NO expected value is tuned: every
 // assertion is a central finite difference vs the analytic partial of the SAME
@@ -2287,7 +2287,7 @@ TEST(RichardsMechanics, DSMIntegrableMechanicalPotentialTangents)
     // Pi'', i.e. Pi, Pi' are themselves functions of n_l. So a correct FD MUST
     // move Pi and Pi' with n_l, NOT hold them fixed (perturbing only the n_l
     // argument captures only the explicit-n_l partial -(Pi'*eps_v)/rho_lR and
-    // would miss the leading Pi' from dPi/dn_l — exactly the out-of-scope
+    // would miss the leading Pi' from dPi/dn_l -- exactly the out-of-scope
     // single-argument FD the film-helper test warns about). We supply a
     // synthetic, parameter-free quadratic Pi(n_l) Taylor model around n_l whose
     // value/slope/curvature equal the supplied Pi/dPi_dnl/d2Pi_dnl2 AT n_l, and
@@ -2337,8 +2337,8 @@ TEST(RichardsMechanics, DSMIntegrableMechanicalPotentialTangents)
     }
 }
 
-// ── INTEGRABLE Maxwell web: the integrability identity (calibration-blind)
-// ──── Physics anchor: (c) frame indifference / thermodynamic integrability. On
+// -- INTEGRABLE Maxwell web: the integrability identity (calibration-blind)
+// ---- Physics anchor: (c) frame indifference / thermodynamic integrability. On
 // the drained elastic line p_conf = -K_drained*eps_v, the spec's Maxwell
 // identity
 //   d sigma_sw,m/d n_l = n_S * rho_lR * d mu_lR/d eps_v
