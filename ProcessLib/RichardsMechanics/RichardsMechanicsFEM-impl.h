@@ -1902,7 +1902,7 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
 }
 
 inline double computeImplicitNlDpL(
-    double const n_l_prev, double const p_L_ip, double const dt,
+    double const n_l_prev, double const /*p_L_ip*/, double const dt,
     double const rho_LR, double const drho_LR_dpL, double const alpha_bar,
     double const mu, YoungLaplaceMacroPotentialData const& macro_potential,
     VanDerWaalsMicroPotentialData const& micro_potential,
