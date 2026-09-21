@@ -88,6 +88,19 @@ block is present (a floor of `0.0` reproduces the unfloored behaviour
 exactly); they cap the disjoining pressure and the macro-to-micro porosity
 split respectively.
 
+### Extension points no deck below exercises
+
+Three further options parse and are unit-tested but are switched off in every
+deck listed here, and none of them is part of what these benchmarks
+demonstrate: `film_strain_coupling` (`off` by default; the strained-film
+kinematic and equilibrium modes), `film_energy_route` (`operational` by
+default; the closed-form exact energy pair) and
+`potential_augmentation_prefactor_live_dry_density` (the per-dry-density
+$K(\rho_d)$ interpolation table, unset by default). They are reachable only
+from a project file that sets them explicitly; their coverage is the unit
+tests under `Tests/ProcessLib/RichardsMechanics`, not the benchmark decks
+below.
+
 ## Benchmark cases
 
 Five decks exercise the feature: micro-macro exchange plumbing tests on
