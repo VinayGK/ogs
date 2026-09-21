@@ -71,7 +71,7 @@ StrainedFilmStateData state(StrainedFilmSampleState const& st,
 // existing PRJ is bit-for-bit unaffected.
 TEST(RichardsMechanicsStrainedFilm, DefaultsAreOffAggregate)
 {
-    PotentialExchangeParameters params;
+    PotentialExchangeParameters const params;
     EXPECT_EQ(params.film_strain_coupling, FilmStrainCouplingMode::Off);
     EXPECT_EQ(params.film_strain_kappa, FilmStrainKappaMode::Aggregate);
 }
@@ -79,7 +79,7 @@ TEST(RichardsMechanicsStrainedFilm, DefaultsAreOffAggregate)
 // Anchor: derived identity -- FD-vs-analytic chains of the kinematic state.
 TEST(RichardsMechanicsStrainedFilm, KinematicChainsFDConsistent)
 {
-    StrainedFilmSampleState st;
+    StrainedFilmSampleState const st;
     double const eps_v = -0.02;  // compression
     double const p_conf = 1.0e6;
     double const d = 1e-7;
@@ -122,7 +122,7 @@ TEST(RichardsMechanicsStrainedFilm, KinematicChainsFDConsistent)
 // scale (1e-9 relative; the Newton terminates at 1e-12 relative).
 TEST(RichardsMechanicsStrainedFilm, EquilibriumInversionSolvesForceBalance)
 {
-    StrainedFilmSampleState st;
+    StrainedFilmSampleState const st;
     double const Pi_unloaded = barePi(st, st.n_l);
     ASSERT_GT(Pi_unloaded, 0.0);
 
@@ -168,7 +168,7 @@ TEST(RichardsMechanicsStrainedFilm, EquilibriumInversionWithAugmentation)
 // strained modes reduce EXACTLY to the frozen-geometry evaluation point.
 TEST(RichardsMechanicsStrainedFilm, ZeroStrainZeroLoadReducesToBareState)
 {
-    StrainedFilmSampleState st;
+    StrainedFilmSampleState const st;
     for (auto const mode : {FilmStrainCouplingMode::Kinematic,
                             FilmStrainCouplingMode::Equilibrium})
     {
@@ -190,7 +190,7 @@ TEST(RichardsMechanicsStrainedFilm, ZeroStrainZeroLoadReducesToBareState)
 // expulsion channel). No magnitude asserted.
 TEST(RichardsMechanicsStrainedFilm, LoadRaisesPotentialAtFixedWaterContent)
 {
-    StrainedFilmSampleState st;
+    StrainedFilmSampleState const st;
     PotentialExchangeParameters params;
     params.enabled = true;
     params.hamaker_constant = st.hamaker;
@@ -234,7 +234,7 @@ TEST(RichardsMechanicsStrainedFilm, LoadRaisesPotentialAtFixedWaterContent)
 // bare law + (zero) partner = bare law as well.
 TEST(RichardsMechanicsStrainedFilm, ReplacementIsExclusiveAtZeroStrain)
 {
-    StrainedFilmSampleState st;
+    StrainedFilmSampleState const st;
     PotentialExchangeParameters params;
     params.enabled = true;
     params.hamaker_constant = st.hamaker;

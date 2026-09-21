@@ -85,7 +85,7 @@ ExactPairSampleState withAug()
 // every existing PRJ is bit-for-bit unaffected (T-1 run-level counterpart).
 TEST(RichardsMechanicsExactFilmPair, DefaultRouteIsOperational)
 {
-    PotentialExchangeParameters params;
+    PotentialExchangeParameters const params;
     EXPECT_EQ(params.film_energy_route, FilmEnergyRoute::Operational);
 }
 

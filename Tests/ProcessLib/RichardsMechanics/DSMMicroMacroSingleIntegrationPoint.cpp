@@ -995,7 +995,7 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
-    KM C_el = KM::Identity();  // unused by the new law; kept for ABI.
+    KM const C_el = KM::Identity();  // unused by the new law; kept for ABI.
 
     double const sign = microPotentialSignFactor(
         potential_exchange_params.micro_potential_convention);
@@ -1143,7 +1143,7 @@ TEST(RichardsMechanics, DSMMicroMacroSwellingStressFullDisjoiningSign)
 
     auto const& identity2 = MathLib::KelvinVector::Invariants<
         MathLib::KelvinVector::kelvin_vector_dimensions(2)>::identity2;
-    KM C_el = KM::Identity();
+    KM const C_el = KM::Identity();
 
     double const sign = microPotentialSignFactor(
         potential_exchange_params.micro_potential_convention);
