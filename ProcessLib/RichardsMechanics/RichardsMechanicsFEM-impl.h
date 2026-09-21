@@ -463,7 +463,8 @@ inline TransportPorosityUpdateData computeTransportPorosityUpdate(
 // at low n_l, down to -50% near saturation). The same fix is applied to
 // the mfront bridge in RichardsMechanicsDSMMicroMacroBridge.mfront.
 inline double computeActiveMicroSolidVolumeFraction(
-    double const n_l, PotentialExchangeLocalSolveContext const& local_context,
+    double const n_l,
+    PotentialExchangeLocalSolveContext const& /*local_context*/,
     PotentialExchangeParameters const& potential_exchange_params)
 {
     if (potential_exchange_params.micro_solid_volume_fraction_mode ==
