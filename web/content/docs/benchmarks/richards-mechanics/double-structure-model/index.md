@@ -43,7 +43,8 @@ An optional exponential augmentation term, scaled by a prefactor `K`
 (`potential_augmentation_prefactor`, J/kg, default `0.0`) and a decay length
 `lambda` (`potential_augmentation_exponent`, m), can be added to the bare van
 der Waals term; setting `K` to its default of `0.0` removes that augmentation
-and leaves the bare van der Waals core above (`PotentialExchange.h:124`).
+and leaves the bare van der Waals core above (see the derivation comment
+above `computeVanDerWaalsMicroPotential` in `PotentialExchange.h`).
 None of the five decks below configures `potential_augmentation_prefactor`,
 so all five run in this default, unaugmented regime.
 
@@ -57,7 +58,9 @@ decks below, an integrable mechanical partner
 $\mu_{lR}^{\mathrm{mech}} = -[(\Pi + n_l\Pi')\,\varepsilon_v +
 \tfrac{1}{2} b\,K_\mathrm{drained}\,\varepsilon_v^2]/\rho_{lR}$ is added
 to $\mu_{lR}$, independently of `K`. The equation above is therefore the
-disjoining core, not the full potential the shipped decks integrate. A per-material `<medium id="...">` block below
+disjoining core, not the full potential the shipped decks integrate.
+
+A per-material `<medium id="...">` block below
 `<potential_exchange>` lets an individual medium override its own micro
 reference state — used for the block/pellet media in
 `beacon_1c_dsm_micromacro_smoke.prj`.
