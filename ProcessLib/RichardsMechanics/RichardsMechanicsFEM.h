@@ -229,7 +229,7 @@ private:
         ConstitutiveData<DisplacementDim>& constitutive_data,
         StatefulData<DisplacementDim>& state_current,
         StatefulDataPrev<DisplacementDim> const& state_previous,
-        OutputData<DisplacementDim>& OD,
+        OutputData<DisplacementDim>& output_data,
         std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
         PotentialExchangeParameters const* const potential_exchange_parameters,
         MaterialLib::Solids::MechanicsBase<DisplacementDim> const&
