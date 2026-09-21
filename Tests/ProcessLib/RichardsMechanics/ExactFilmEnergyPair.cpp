@@ -4,7 +4,7 @@
 // EXACT one-Psi strained-film energy pair (film_energy_route = exact) --
 // unit tests covering tests T-2..T-5 and T-7 below (T-1 is a run-level
 // counterpart outside this file; T-6 and T-8 are skipped, each blocked on
-// an open modelling decision — see the per-test comments and skip
+// an open modelling decision -- see the per-test comments and skip
 // messages below).
 //
 // Physics anchors: analytical limits (zero strain, kappa->0 reduction to
@@ -81,7 +81,7 @@ ExactPairSampleState withAug()
 }
 }  // namespace
 
-// Anchor: default-route baseline — default route must stay Operational so
+// Anchor: default-route baseline -- default route must stay Operational so
 // every existing PRJ is bit-for-bit unaffected (T-1 run-level counterpart).
 TEST(RichardsMechanicsExactFilmPair, DefaultRouteIsOperational)
 {
@@ -413,7 +413,7 @@ TEST(RichardsMechanicsExactFilmPair,
     EXPECT_GE(std::abs(W_op), 100.0 * rel_bound * Wabs_op);
 }
 
-// T-6 — skipped: blocked on two open modelling decisions, the
+// T-6 -- skipped: blocked on two open modelling decisions, the
 // mass-derivative treatment (fixed-volume vs kinematic) and the K_liq
 // value and its source.
 TEST(RichardsMechanicsExactFilmPair, LiquidCarrierEnergyPressureConsistency)
