@@ -35,6 +35,8 @@ namespace ProcessLib::RichardsMechanics
 // Jacobian needs the slope of the VALUE actually fed into the residual, so
 // this thin subclass exposes exact segment slopes via the protected knot
 // vectors. That reason is unchanged -- it now covers both pairs.
+/// Piecewise-linear table of the augmentation prefactor K over dry density,
+/// exposing exact per-segment slopes for the live Jacobian.
 class AugmentationPrefactorTable final
     : public MathLib::PiecewiseLinearInterpolation
 {
@@ -226,12 +228,14 @@ private:
     }
 };
 
+/// Sign convention used for the micro potential.
 enum class MicroPotentialConvention
 {
     PositiveReduced,
     NegativeAttractive
 };
 
+/// Unknown set and storage form of the local micro-macro Newton solve.
 enum class LocalNonlinearSolveMode
 {
     ScalarExchange,
@@ -239,12 +243,14 @@ enum class LocalNonlinearSolveMode
     ScalarReferenceMassStorage
 };
 
+/// How the macro porosity is advanced from the exchanged liquid mass.
 enum class MacroPorosityUpdateMode
 {
     AlgebraicSplit,
     ReferenceAdditiveRate
 };
 
+/// Which solid volume fraction n_S the micro potentials are evaluated at.
 enum class MicroSolidVolumeFractionMode
 {
     Reference,
@@ -260,6 +266,7 @@ enum class MicroSolidVolumeFractionMode
 //              can compress the film: w_eff solves Pi(w_eff) = p_conf on the
 //              loaded branch (p_conf > Pi(n_l)), else w_eff = n_l (emergent
 //              branch point; no bolted-on gate).
+/// Coupling of the film spacing h(w_m, eps_v) to the volumetric strain.
 enum class FilmStrainCouplingMode
 {
     Off,
@@ -272,6 +279,7 @@ enum class FilmStrainCouplingMode
 //            completion of the existing eigenstress scale (recommended).
 // Unity:     kappa = 1 -- naive geometric reading (spacing follows REV strain
 //            one-to-one); kept PRJ-selectable for discrimination.
+/// Spacing-strain weighting kappa in dh/deps_v = kappa*h0.
 enum class FilmStrainKappaMode
 {
     Aggregate,
@@ -288,6 +296,7 @@ enum class FilmStrainKappaMode
 //              identically; kappa->0 reduces EXACTLY to the shipped integrable
 //              partner. Requires film_strain_coupling == Kinematic (the closed
 //              forms are for the kinematic h-law).
+/// Which film energy route supplies the mechanical micro potential.
 enum class FilmEnergyRoute
 {
     Operational,
@@ -401,6 +410,7 @@ inline constexpr char const* toString(FilmEnergyRoute const route)
     return "unknown";
 }
 
+/// All project-file settings of the micro-macro potential exchange.
 struct PotentialExchangeParameters
 {
     bool enabled = false;
@@ -578,6 +588,9 @@ struct PotentialExchangeParameters
 // [kg/m^3] (rho_SR = micro_solid_density_reference; phi = current TOTAL
 // porosity). Any other case (mode off, no table, phi sentinel/NaN) -> the
 // parse-time scalar, bit-for-bit (unchanged).
+/// Augmentation prefactor K at the current state: the log-linear table
+/// value at rho_d = rho_SR*(1 - phi) in live mode, else the parse-time
+/// scalar.
 inline double effectiveAugmentationPrefactor(
     PotentialExchangeParameters const& params, double const phi)
 {
@@ -610,6 +623,8 @@ inline double effectiveAugmentationPrefactor(
 // convention documented on getSegmentSlopeLogLinear, unchanged from the
 // standing getSegmentSlope convention. The RESIDUAL is untouched by this
 // helper; it feeds the Jacobian only.
+/// d K_eff/d phi of effectiveAugmentationPrefactor at the same state; feeds
+/// the Jacobian only.
 inline double effectiveAugmentationPrefactorPhiDerivative(
     PotentialExchangeParameters const& params, double const phi)
 {
