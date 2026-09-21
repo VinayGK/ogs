@@ -3351,7 +3351,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     transport_porosity_update.phi_M_prev;
 
                 // Correct the micro liquid density initial state.
-                // micro_liquid_density_reference (used above, line ~2015) is a
+                // micro_liquid_density_reference (used above as the
+                // micro-density initial value) is a
                 // trivial EOS placeholder (e.g. 1e-6 kg/m³), NOT the physical
                 // initial density.  In the first time step the exchange solve
                 // updates rho_lR to ~rho_LR (~1000 kg/m³), so rho_lR_prev =
@@ -3889,7 +3890,7 @@ void RichardsMechanicsLocalAssembler<
                 // micro-solve mu_lR (equipresence). Only under film coupling;
                 // NaN sentinel otherwise -> partner inert, flag-off
                 // bit-for-bit. C_el here is the elastic stiffness evaluated
-                // above in this assemble() ip loop (line ~2833).
+                // above in this assemble() ip loop.
                 double const K_drained_assembly =
                     film_pressure_coupling
                         ? drainedBulkModulusFromStiffness<DisplacementDim>(C_el)
@@ -5316,9 +5317,12 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // PotentialExchange.h says the same thing, and records
                     // "exactly zero" only as the superseded earlier reduced
                     // form -- so the two agree; neither is stale.
-                    // It is paired with the BULK drho_LR_dpL, matching both
-                    // computeImplicitNlDpL and the FD branch of
-                    // computePotentialExchangeUpdate. The
+                    // It is paired with the BULK drho_LR_dpL, matching
+                    // computeImplicitNlDpL and BOTH branches of
+                    // computePotentialExchangeUpdate: the analytic tangent
+                    // pairs dmu_lR_vdw_drho_lR with drho_LR_dpL, and the FD
+                    // branch perturbs the density by the same bulk
+                    // sensitivity. The
                     // dominant contribution is the implicit n_l(p_L) chain
                     // dmu_lR_dnl * dn_l_dpL.
                     // Film-pressure coupling (increment D-ii):
@@ -5713,8 +5717,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // --- DSM swelling-eigenstress u-p Jacobian (full p^disj) -
                     // Consistent-tangent completeness term for the swelling
                     // eigenstress that enters R_u through the mechanical strain
-                    // (eps_m = eps + C_el^{-1} : sigma_sw, see line ~3080 and
-                    // the swelling-state update at line ~1688). Differentiating
+                    // (eps_m = eps + C_el^{-1} : sigma_sw, as applied by the
+                    // swelling-state update). Differentiating
                     // the DSM eigenstress w.r.t. pL propagates as
                     //   dsigma'/dpL = C * C_el^{-1} * d(delta_sigma_sw)/dpL,
                     // where delta_sigma_sw =
@@ -5722,12 +5726,14 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // *_prev terms are frozen) and -n_l*Pi_curr =
                     //   +n_l * rho_d * mu_lR, with rho_d = micro liquid density
                     // (when use_micro_liquid_density_for_micro_pressure) else
-                    // bulk rho_LR (mirrors the residual, line ~1618). It reuses
+                    // bulk rho_LR (mirrors the p_L_m_density choice in
+                    // computeCompatibilityMicroHydraulicOutput). It reuses
                     // the analytic dn_l_dpL just computed, hence its placement
                     // inside this !use_fd_jacobian guard.
                     //
                     // CAVEAT (carried forward from the upstream authors, see
-                    // the commented block at line ~3315): for the classical
+                    // the commented-out block in this file's micro-pressure
+                    // initialisation): for the classical
                     // saturation_micro swelling path this u-p coupling "does
                     // not improve convergence and sometimes worsens it". It is
                     // included here only for consistent-tangent completeness on
@@ -5754,8 +5760,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // Scope: already inside `if (potential_exchange_enabled)`,
                     // which IS the p^disj (Pi-path) DSM path. Do NOT
                     // additionally gate on saturation_micro: the Pi-path models
-                    // REMOVE that MPL property as vestigial (see e.g.
-                    // ms33_modelI_dd1400.prj line ~205), so a
+                    // REMOVE that MPL property as vestigial (as the
+                    // author's MS33 decks do; those decks are not part of
+                    // this repository), so a
                     // hasProperty(saturation_micro) gate would make this term
                     // silently never fire on the real models.
                     if (enable_dsm_swelling_up_jacobian &&
@@ -5915,7 +5922,8 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
                         // rho_d and its pL-derivative: mirror the residual's
                         // p_L_m_density choice (micro liquid density when
-                        // enabled, bulk otherwise; line ~1618-1622). Inside
+                        // enabled, bulk otherwise, as in
+                        // computeCompatibilityMicroHydraulicOutput). Inside
                         // mu_lR the density argument is the MICRO rho_lR, so
                         // dmu_lR_drho_lR is paired with the MICRO drho_lR/dpL
                         // here (distinct from the bulk pairing used for the
@@ -5954,9 +5962,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                             DisplacementDim> const d_delta_sigma_sw_dpL =
                             d_delta_sigma_sw_dpL_scalar * identity2;
 
-                        // Consistent tangent C (as fetched at line ~3256) and
-                        // the elastic tangent C_el (reconstructed exactly as at
-                        // line ~3773; not a local in this function). For a
+                        // Consistent tangent C (as fetched above in this ip
+                        // loop) and the elastic tangent C_el (reconstructed
+                        // exactly as in the material update; not a local in
+                        // this function). For a
                         // linear-elastic solid C == C_el so C*C_el^{-1} ==
                         // Identity and this block reduces to B^T *
                         // d(delta_sigma_sw)/dpL * N_p * w; the remap factor
@@ -6315,7 +6324,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         // Drained bulk modulus for the INTEGRABLE Maxwell partner (mu_lR_mech),
         // assembleWithJacobian micro-solve path. Only under film coupling; NaN
         // sentinel otherwise -> partner inert, flag-off bit-for-bit. C_el is
-        // the elastic stiffness evaluated above in this ip loop (line ~4761).
+        // the elastic stiffness evaluated above in this ip loop.
         double const K_drained_micro_solve =
             isFilmPressureCouplingEnabled(
                 this->getPotentialExchangeParameters())

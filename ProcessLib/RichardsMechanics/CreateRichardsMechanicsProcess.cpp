@@ -89,7 +89,7 @@ FilmStrainCouplingMode parseFilmStrainCouplingMode(std::string const& mode)
     OGS_FATAL(
         "RichardsMechanics: unsupported potential_exchange "
         "film_strain_coupling '{}'. Currently supported: 'off', 'kinematic', "
-        "'equilibrium'. (DSM/STRAINED_FILM_IMPLEMENTATION.md)",
+        "'equilibrium'.",
         mode);
 }
 
@@ -127,8 +127,7 @@ FilmEnergyRoute parseFilmEnergyRoute(std::string const& route)
         "RichardsMechanics: unsupported potential_exchange "
         "film_energy_route '{}'. Currently supported: 'operational' (shipped "
         "Derjaguin cut, default) and 'exact' (one-Psi energy pair; requires "
-        "film_strain_coupling = 'kinematic'). "
-        "(DSM/PI_OF_NL_EV_IMPLEMENTATION.md)",
+        "film_strain_coupling = 'kinematic').",
         route);
 }
 
@@ -773,8 +772,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
     {
         OGS_FATAL(
             "RichardsMechanics: {} film_energy_route = 'exact' requires "
-            "film_strain_coupling = 'kinematic', got '{}'. "
-            "(DSM/PI_OF_NL_EV_IMPLEMENTATION.md §3 mode matrix)",
+            "film_strain_coupling = 'kinematic', got '{}'.",
             context, toString(film_strain_coupling));
     }
 

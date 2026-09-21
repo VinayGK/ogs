@@ -3,8 +3,8 @@ film spacing (interlayer water content) used to evaluate the disjoining law
 is displaced by the volumetric strain. `std::string`, optional, defaults to
 `"off"` (a `<medium>` override that omits it inherits the enclosing
 `<potential_exchange>` block's setting). Any other string than the three
-below makes project-file parsing fail with an error citing
-`DSM/STRAINED_FILM_IMPLEMENTATION.md`.
+below makes project-file parsing fail with an error listing the supported
+values.
 
 Possible values:
 
