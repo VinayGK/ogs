@@ -150,8 +150,8 @@ TEST(RichardsMechanicsStrainedFilm, EquilibriumInversionWithAugmentation)
     StrainedFilmSampleState st;
     // Augmentation amplitude/decay from the dd1600 PRJ family
     // (potential_augmentation_prefactor 103879 J/kg, exponent 7.5e-7 m) —
-    // citation source:
-    // Tests/Data/.../ANCHORS_MS33_ModelI/ms33_modelI_dd1600.prj.
+    // citation source: the author's ANCHORS MS33 Model I dd1600 project
+    // file, which is not part of this repository.
     st.K_aug = 103879.0;
     st.lambda_aug = 7.5e-7;
 
@@ -673,13 +673,15 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 // Sources of the three numbers:
 //   K(900)  = 4367.227700212952 J/kg — a historical dd900 calibration
 //             value, kept on record in the provenance block of
-//             Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelI/
-//             ms33_modelI_dd900.prj (lines 107/123/412). The value that
+//             value, kept on record in the provenance block of the
+//             author's ANCHORS MS33 Model I dd900 project file, which is
+//             not part of this repository. The value that
 //             later replaced it is deliberately not used here: with the
 //             current 900-knot the segment round-trips exactly and the
 //             test would stop discriminating (see below).
 //   K(1400) = 46000.0, K(1600) = 104689.9129 J/kg — the shipped live table
-//             <prefactors> (e.g. ms33_modelIII_gapswitch.prj:192-193).
+//             <prefactors> of that same deck family (also not part of
+//             this repository).
 //
 // Why this knot set and not the 10/16/30 one used by
 // AnalyticPhiTangentClampedEdgesAndKnots above: there
