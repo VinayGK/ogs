@@ -502,10 +502,11 @@ inline double computePreviousMicroSolidVolumeFraction(
 
 struct ReducedMicroLiquidDensityData
 {
-    double rho_lR = 0.0;
-    double omega_l = 0.0;
-    double drho_lR_dnl = 0.0;
-    double drho_l_dn_l = 0.0;
+    double rho_lR = 0.0;       // kg/m^3   (micro intrinsic liquid density)
+    double omega_l = 0.0;      // [-]      (micro water mass ratio n_l*rho_lR
+                               //           / (n_S*rho_SR))
+    double drho_lR_dnl = 0.0;  // kg/m^3   per unit n_l
+    double drho_l_dn_l = 0.0;  // kg/m^3   per unit n_l
 };
 
 inline ReducedMicroLiquidDensityData computeReducedMicroLiquidDensity(
@@ -524,18 +525,23 @@ inline ReducedMicroLiquidDensityData computeReducedMicroLiquidDensity(
         std::max(1e-16, potential_exchange_params.micro_liquid_density_b);
     double const denominator = nS_safe * rho_SR;
 
+    // omega_l = n_l*rho_lR / (n_S*rho_SR): (kg/m^3)/(kg/m^3) = [-], so
+    // omega_l^b and exp(-a*omega_l^b) are dimensionless and the returned
+    // rho_l0*exp_term + rho_LR is kg/m^3, matching rho_lR.
     auto const eval_rhs = [&](double const rho_lR)
     {
-        double const omega_l = std::max(1e-16, n_l_safe * rho_lR / denominator);
-        double const exp_term = std::exp(-a_rho * std::pow(omega_l, b_rho));
-        return std::pair{omega_l, rho_l0 * exp_term + rho_LR};
+        double const omega_l =
+            std::max(1e-16, n_l_safe * rho_lR / denominator);  // [-]
+        double const exp_term =
+            std::exp(-a_rho * std::pow(omega_l, b_rho));  // [-]
+        return std::pair{omega_l, rho_l0 * exp_term + rho_LR};  // [-], kg/m^3
     };
 
     double rho_lR =
         rho_LR +
         rho_l0 * std::exp(-a_rho * std::pow(std::max(1e-16, n_l_safe * rho_LR /
                                                                 denominator),
-                                            b_rho));
+                                            b_rho));  // kg/m^3
     constexpr int max_iterations = 30;
     constexpr double tolerance = 1e-14;
     bool converged = false;
@@ -1176,7 +1182,8 @@ solveReferenceMassStorageCoupledState(
                       local_context.phi_M_prev + local_context.phi_m_prev, 0.0,
                       1.0 - 1e-12);
         double const one_minus_n_l_cs = std::max(1e-12, 1.0 - n_l);
-        double const rho_l = (1.0 - phi_cs) / one_minus_n_l_cs * n_l * rho_lR;
+        double const rho_l = (1.0 - phi_cs) / one_minus_n_l_cs * n_l *
+                             rho_lR;  // [-]*[-]*kg/m^3 = kg/m^3
         double const mass_residual = rho_l - rho_l_prev -
                                      dt_safe * exchange.rho_l_hat -
                                      dt_safe * rho_l * volumetric_strain_rate;
