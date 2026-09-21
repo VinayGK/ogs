@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) OpenGeoSys Community (opengeosys.org)
 // SPDX-License-Identifier: BSD-3-Clause
 //
-// EXACT one-Psi strained-film energy pair (film_energy_route = exact) —
+// EXACT one-Psi strained-film energy pair (film_energy_route = exact) --
 // unit tests covering tests T-2..T-5 and T-7 below (T-1 is a run-level
 // counterpart outside this file; T-6 and T-8 are skipped, each blocked on
 // an open modelling decision — see the per-test comments and skip
@@ -105,7 +105,7 @@ TEST(RichardsMechanicsExactFilmPair, FilmEnergyRouteCombinationMatrix)
     EXPECT_FALSE(isValidFilmEnergyRouteCombination(M::Equilibrium, R::Exact));
 }
 
-// T-2. Anchor: analytical limit — at eps_v = 0 the strain integrals vanish
+// T-2. Anchor: analytical limit -- at eps_v = 0 the strain integrals vanish
 // identically (algebraic identity, no FD): mu_mech = 0, Psi_film = 0, and the
 // eigenstress half reduces to the unstrained -nS*n_l*Pi(n_l).
 TEST(RichardsMechanicsExactFilmPair, ZeroStrainReduction)
@@ -125,7 +125,7 @@ TEST(RichardsMechanicsExactFilmPair, ZeroStrainReduction)
     }
 }
 
-// T-3. Anchor: derived identity — FD-vs-analytic for all derivative blocks
+// T-3. Anchor: derived identity -- FD-vs-analytic for all derivative blocks
 // AND the Maxwell cross identity dsigma_sw/dn_l == nS*rho_lR*dmu_mech/deps_v
 // (exact for the one-Psi pair). FD tolerance derived from the central-
 // difference step: rel error O(d^2 * f'''/f') -> use 5e-5 relative at
@@ -140,7 +140,7 @@ TEST(RichardsMechanicsExactFilmPair, MaxwellIdentityAndFDChains)
             {
                 auto const p = pairAt(st, st.n_l, eps_v, kappa);
 
-                // Maxwell cross identity (analytic vs analytic — the pair is
+                // Maxwell cross identity (analytic vs analytic -- the pair is
                 // a gradient by construction; tolerance at rounding scale).
                 double const lhs = p.dsigma_sw_dnl;  // Pa per n_l
                 double const rhs =
@@ -159,7 +159,7 @@ TEST(RichardsMechanicsExactFilmPair, MaxwellIdentityAndFDChains)
 
                 // FD: d(mu_mech)/d(n_l). Absolute floor = FD-numerator
                 // roundoff eps_mach*|f|/(2*dn) with margin (the derivative can
-                // nearly cancel while |mu_mech| stays large — the floor must
+                // nearly cancel while |mu_mech| stays large -- the floor must
                 // scale with the FUNCTION value, not the derivative).
                 double const dn = 1e-7 * st.n_l;
                 double const fd_nl =
@@ -196,7 +196,7 @@ TEST(RichardsMechanicsExactFilmPair, MaxwellIdentityAndFDChains)
     }
 }
 
-// T-4. Anchor: analytical limit — kappa -> 0 reduces the exact pair EXACTLY
+// T-4. Anchor: analytical limit -- kappa -> 0 reduces the exact pair EXACTLY
 // to the shipped integrable partner (frozen-h limit). Series remainder is
 // O(kappa*eps_v) relative -> assert |diff| <= 10*kappa*|value| + abs floor
 // (C = 10 bounds the series coefficients 1.5, 2, xi0-products at this state).
@@ -227,7 +227,7 @@ TEST(RichardsMechanicsExactFilmPair, FrozenHLimitMatchesShippedPartner)
     }
 }
 
-// T-5. Anchor: conservation law — for the EXACT pair the work integral around
+// T-5. Anchor: conservation law -- for the EXACT pair the work integral around
 // a closed (eps_v, n_l) loop vanishes (gradient field); the OPERATIONAL cut
 // has a Maxwell defect O(Pi*kappa*eps_v) and must NOT vanish (a predicted
 // defect; this test measures it directly). Trapezoid quadrature is O(N^-2):
@@ -423,7 +423,7 @@ TEST(RichardsMechanicsExactFilmPair, LiquidCarrierEnergyPressureConsistency)
                     "and the liquid bulk modulus value with its source.";
 }
 
-// T-8 — run-level expulsion probe (drained oedometer ramp past the
+// T-8 -- run-level expulsion probe (drained oedometer ramp past the
 // crossover); magnitudes not yet specified.
 TEST(RichardsMechanicsExactFilmPair, ExpulsionProbeDrainedRamp)
 {
