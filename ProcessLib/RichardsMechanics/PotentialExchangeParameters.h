@@ -434,8 +434,16 @@ struct PotentialExchangeParameters
     bool use_fd_jacobian_for_exchange = false;
     double fd_jacobian_perturbation = 1e-8;
 
-    // Finite-difference step for the implicit n_l(p_L) chain-rule derivative
-    // used in ScalarReferenceMassStorage mode.
+    // Finite-difference step written for the implicit n_l(p_L) chain-rule
+    // derivative of the ScalarReferenceStorage / ScalarReferenceMassStorage
+    // modes. NOT READ BY THE ASSEMBLY CODE as currently wired: the value is
+    // parsed and range-checked in CreateRichardsMechanicsProcess.cpp and
+    // stored here, but the finite-difference dn_l/dp_L path it was written
+    // for was replaced by an analytic tangent -- see the "P2 fix" note at the
+    // ScalarReferenceStorage tangent site in RichardsMechanicsFEM-impl.h,
+    // which records the catastrophic cancellation that motivated the
+    // replacement. It survives in the unit-test fixtures only. The published
+    // tag page t_local_jacobian_perturbation.md carries the same disclosure.
     double local_jacobian_perturbation = 1e-8;
 
     // Lumped exponential force augmentation to the vdW micro-potential.
