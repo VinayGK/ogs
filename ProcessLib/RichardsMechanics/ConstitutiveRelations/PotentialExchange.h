@@ -501,14 +501,15 @@ inline FilmPressureMicroPotentialData computeFilmPressureMicroPotential(
     // form (matches the assembly-site convention dPi_dnl =
     // (Pi/mu_lR)*dmu_lR_dnl).
     double const mu_lR_vdw =
-        (rho_lR > 0.0) ? -Pi / rho_lR : 0.0;  // mu_lR_vdw = -Pi/rho_lR
+        (rho_lR > 0.0) ? -Pi / rho_lR : 0.0;  // Pa/(kg/m^3) = J/kg
     double const dPi_dnl = (std::abs(mu_lR_vdw) > 1e-300)
                                ? (Pi / mu_lR_vdw) * dmu_lR_vdw_dnl
-                               : 0.0;
+                               : 0.0;  // Pa/(J/kg) * (J/kg) = Pa, per unit n_l
 
     // REV-consistent gate threshold Pi_gate = phi_m*Pi = n_S*n_l*Pi.
-    double const Pi_gate = n_S * n_l * Pi;
-    double const dPi_gate_dnl = n_S * (Pi + n_l * dPi_dnl);
+    double const Pi_gate = n_S * n_l * Pi;  // [-]*[-]*Pa = Pa
+    double const dPi_gate_dnl =
+        n_S * (Pi + n_l * dPi_dnl);  // Pa, per unit n_l
     double const x = p_conf - Pi_gate;  // gate argument [Pa]
 
     // C1 activation g(x) and dg/dx.
@@ -543,13 +544,18 @@ inline FilmPressureMicroPotentialData computeFilmPressureMicroPotential(
 
     // Film delta D = g * b * p_conf / rho_lR  (= +b*p_conf/rho_lR when gate
     // open and saturated; turns mu_lR -Pi/rho_lR into -(Pi - b*p_conf)/rho_lR).
-    double const D = g * biot_b * p_conf / rho_lR;
+    double const D =
+        g * biot_b * p_conf / rho_lR;  // [-]*[-]*Pa/(kg/m^3) = J/kg
     out.mu_lR_film_delta = D;
     // dx/dp_conf = +1, dx/dn_l = -dPi_gate/dn_l.
     out.dmu_lR_film_dp_conf =
-        dg_dx * biot_b * p_conf / rho_lR + g * biot_b / rho_lR;
-    out.dmu_lR_film_dnl = dg_dx * (-dPi_gate_dnl) * biot_b * p_conf / rho_lR;
-    out.dmu_lR_film_drho_lR = -D / rho_lR;
+        dg_dx * biot_b * p_conf / rho_lR +
+        g * biot_b / rho_lR;  // (1/Pa)*Pa/(kg/m^3) = (J/kg)/Pa
+    out.dmu_lR_film_dnl =
+        dg_dx * (-dPi_gate_dnl) * biot_b * p_conf /
+        rho_lR;  // (1/Pa)*Pa*Pa/(kg/m^3) = J/kg, per unit n_l
+    out.dmu_lR_film_drho_lR =
+        -D / rho_lR;  // (J/kg)/(kg/m^3)
     return out;
 }
 
