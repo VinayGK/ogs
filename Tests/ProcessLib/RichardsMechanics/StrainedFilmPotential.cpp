@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) OpenGeoSys Community (opengeosys.org)
 // SPDX-License-Identifier: BSD-3-Clause
 //
-// Strained-film disjoining law h(w_m, eps_v) — unit tests.
+// Strained-film disjoining law h(w_m, eps_v) -- unit tests.
 // Physics anchors: derived identities (FD-vs-analytic chains,
 // force-balance inversion residual), analytical limits (zero strain + zero
 // load reduction), sign-only physical limits (load raises the potential).
@@ -76,7 +76,7 @@ TEST(RichardsMechanicsStrainedFilm, DefaultsAreOffAggregate)
     EXPECT_EQ(params.film_strain_kappa, FilmStrainKappaMode::Aggregate);
 }
 
-// Anchor: derived identity — FD-vs-analytic chains of the kinematic state.
+// Anchor: derived identity -- FD-vs-analytic chains of the kinematic state.
 TEST(RichardsMechanicsStrainedFilm, KinematicChainsFDConsistent)
 {
     StrainedFilmSampleState st;
@@ -117,7 +117,7 @@ TEST(RichardsMechanicsStrainedFilm, KinematicChainsFDConsistent)
     }
 }
 
-// Anchor: derived identity — on the loaded branch the inverted state must
+// Anchor: derived identity -- on the loaded branch the inverted state must
 // satisfy the film force balance Pi(w_eff) = p_conf to the solver residual
 // scale (1e-9 relative; the Newton terminates at 1e-12 relative).
 TEST(RichardsMechanicsStrainedFilm, EquilibriumInversionSolvesForceBalance)
@@ -143,13 +143,13 @@ TEST(RichardsMechanicsStrainedFilm, EquilibriumInversionSolvesForceBalance)
     EXPECT_DOUBLE_EQ(s_unloaded.dw_eff_dnl, 1.0);
 }
 
-// Anchor: derived identity — the equilibrium inversion with the exponential
+// Anchor: derived identity -- the equilibrium inversion with the exponential
 // augmentation active (exercises the Newton off the pure cubic seed).
 TEST(RichardsMechanicsStrainedFilm, EquilibriumInversionWithAugmentation)
 {
     StrainedFilmSampleState st;
     // Augmentation amplitude/decay from the dd1600 PRJ family
-    // (potential_augmentation_prefactor 103879 J/kg, exponent 7.5e-7 m) —
+    // (potential_augmentation_prefactor 103879 J/kg, exponent 7.5e-7 m) --
     // citation source: the author's ANCHORS MS33 Model I dd1600 project
     // file, which is not part of this repository.
     st.K_aug = 103879.0;
@@ -164,7 +164,7 @@ TEST(RichardsMechanicsStrainedFilm, EquilibriumInversionWithAugmentation)
     EXPECT_NEAR(barePi(st, s.w_eff), p_loaded, 1e-9 * p_loaded);
 }
 
-// Anchor: analytical limit — at zero strain and zero confining pressure both
+// Anchor: analytical limit -- at zero strain and zero confining pressure both
 // strained modes reduce EXACTLY to the frozen-geometry evaluation point.
 TEST(RichardsMechanicsStrainedFilm, ZeroStrainZeroLoadReducesToBareState)
 {
@@ -184,7 +184,7 @@ TEST(RichardsMechanicsStrainedFilm, ZeroStrainZeroLoadReducesToBareState)
     }
 }
 
-// Anchor: physical limit (sign only) — through the fold point, raising the
+// Anchor: physical limit (sign only) -- through the fold point, raising the
 // confining pressure at fixed water content must RAISE mu_lR (the Derjaguin
 // load term: squeezing confined liquid raises its chemical potential; the
 // expulsion channel). No magnitude asserted.
@@ -371,7 +371,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, LiveModeEvaluatesTableLogLinear)
     auto params = liveKSampleParams();
     params.potential_augmentation_prefactor_live_dry_density = true;
 
-    // At the knots: node-preserving — exact knot values (the boundary-knot
+    // At the knots: node-preserving -- exact knot values (the boundary-knot
     // clamp branches are byte-identical to getValue's).
     EXPECT_DOUBLE_EQ(10.0, effectiveAugmentationPrefactor(
                                params, phiForDryDensity(params, 1000.0)));
@@ -398,7 +398,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, LiveModeEvaluatesTableLogLinear)
                     params, phiForDryDensity(params, 1750.0)),
                 1e-12 * expected_1750);
 
-    // Non-finite phi (the context sentinel): fall back to the scalar —
+    // Non-finite phi (the context sentinel): fall back to the scalar --
     // dispatch is untouched by the interpolation scheme (also covered by
     // the linear test above).
     EXPECT_DOUBLE_EQ(7.0,
@@ -490,7 +490,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentMatchesFDLogLinear)
         (2.0 * d_phi);
     // The log-linear value is smooth (exponential) in phi inside a segment;
     // central-FD relative truncation error ~ (ln(3)/1000 * rho_SR*d_phi)^2/6
-    // ~ 1.4e-12 (derived in-file) — far inside the 1e-9 tolerance.
+    // ~ 1.4e-12 (derived in-file) -- far inside the 1e-9 tolerance.
     EXPECT_NEAR(fd, analytic, 1e-9 * std::abs(analytic));
 
     // Off mode / sentinel phi / no table: tangent identically zero
@@ -591,14 +591,14 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
     EXPECT_NEAR(expected_left_slope, table.getSegmentSlope(1500.0),
                 1e-12 * expected_left_slope);
 
-    // Same interior knot, LOG-LINEAR pair — the methods the LIVE path
+    // Same interior knot, LOG-LINEAR pair -- the methods the LIVE path
     // actually calls. Physics anchor: analytical limit / derived
     // identity; every expected number below is computed in-file from the
     // same structural knots constructed above.
     //
     // (1) Node preservation: getValueLogLinear returns the stored knot
     //     values. On THIS knot set that is the whole of what the three
-    //     assertions below establish — the boundary knots 1000 and 2000
+    //     assertions below establish -- the boundary knots 1000 and 2000
     //     come back through the endpoint-hold clamp, and at the interior
     //     knot 1500 the round-trip 10*exp(1*ln(16/10)) happens to land
     //     exactly on 16 (confirmed by evaluating the same expression
@@ -621,8 +621,8 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
     //       right [1500,2000]: dK/drho_d = K(1500)*ln(30/16)/(2000-1500)
     //     The convention must select the LEFT value. A lower_bound ->
     //     upper_bound regression would change the answer ONLY at an exact
-    //     knot — the FD checks below (1250/1750) live strictly inside one
-    //     segment and are blind to it — so the right-segment candidate is
+    //     knot -- the FD checks below (1250/1750) live strictly inside one
+    //     segment and are blind to it -- so the right-segment candidate is
     //     computed as well and asserted to lie far outside the tolerance
     //     used, which is what makes the assertion discriminating.
     //     Tolerance: the same 1e-12 relative used by the linear
@@ -658,8 +658,8 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
     }
 }
 
-// ── Interior-knot bit-exactness, on a knot pair whose log/exp round-trip
-// actually misses ─────────────────────────────────────────────────────────
+// -- Interior-knot bit-exactness, on a knot pair whose log/exp round-trip
+// actually misses ---------------------------------------------------------
 // Physics anchor: analytical limit / interpolation identity — node
 // preservation, K(x_i) = K_i exactly at every knot of the table, which is
 // what the t == 1 (and t == 0) branch of
@@ -669,7 +669,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 // The knots are STRUCTURAL: this pair is used because it exercises the
 // log/exp round-trip at t == 1, NOT because anything about the physics of
 // dd900 is being asserted. Nothing below depends on K(900) being a
-// calibrated value — only on the pair being one whose round-trip misses.
+// calibrated value -- only on the pair being one whose round-trip misses.
 // Sources of the three numbers:
 //   K(900)  = 4367.227700212952 J/kg — a historical dd900 calibration
 //             value, kept on record in the provenance block of the
@@ -678,7 +678,7 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 //             replaced it is deliberately not used here: with the
 //             current 900-knot the segment round-trips exactly and the
 //             test would stop discriminating (see below).
-//   K(1400) = 46000.0, K(1600) = 104689.9129 J/kg — the shipped live table
+//   K(1400) = 46000.0, K(1600) = 104689.9129 J/kg -- the shipped live table
 //             <prefactors> of that same deck family (also not part of
 //             this repository).
 //
@@ -710,13 +710,13 @@ TEST(RichardsMechanicsLiveKOfRhoD, AnalyticPhiTangentClampedEdgesAndKnots)
 // shipped header; it is harness-measured, not a testrunner observation.
 //
 // The second assertion pins the BRANCH rather than a number: the same knot
-// value reached through the endpoint-hold clamp of a two-knot table — a
-// path that returns the stored value verbatim, with no logarithm in it —
+// value reached through the endpoint-hold clamp of a two-knot table -- a
+// path that returns the stored value verbatim, with no logarithm in it --
 // must be bit-identical to what the interior-knot path returns, and its
 // expected side is produced by the table itself, so no expected literal is
-// written down at all. The other candidate form — computing
+// written down at all. The other candidate form -- computing
 // K_l*exp(1*ln(K_r/K_l)) inline and asserting that it DIFFERS from the
-// accessor — discriminates equally well on this toolchain (in the same
+// accessor -- discriminates equally well on this toolchain (in the same
 // measurement the inline round-trip reproduced the pre-fix accessor value
 // bit for bit, at -O0 and -O2), but is not used: once the branch is in
 // place that comparison no longer probes the accessor at all, only whether
@@ -771,13 +771,13 @@ TEST(RichardsMechanicsLiveKOfRhoD, InteriorKnotBitExactWhereRoundTripMisses)
 // structure.
 //
 // Covers the displacement-channel tangent FORMULAE the fixed assembly inserts:
-//   (A) H2/M1 — the exact-route mu_lR eps_v tangent
+//   (A) H2/M1 -- the exact-route mu_lR eps_v tangent
 //       g_cut * pair.dmu_mech_deps_v (the dispatch M1 wires into K[p,u]). The
 //       analytic uses the SAME effective K the bare mu_lR is built with (H2):
 //       FD of the assembled exact mu_lR(eps_v) must match it. With the pre-H2
 //       scalar-K passed into the pair, g_cut = bare_live / pair_bare_scalar
 //       diverges from 1 under live K, breaking this identity.
-//   (B) M2 — the live-K swelling-eigenstress eps_v tangent
+//   (B) M2 -- the live-K swelling-eigenstress eps_v tangent
 //       d(delta_sigma_sw)/dK * dK/dphi * dphi/deps_v. This is the term M2 adds
 //       to K[u,u]; pre-M2 the analytic side of this identity (the chain) was
 //       absent from the Jacobian entirely. The leg FDs the residual increment

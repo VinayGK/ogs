@@ -502,7 +502,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context, local_jacobian_perturbation);
     }
 
-    // ── Augmentation prefactor K, optionally as a function of dry density ──
+    // -- Augmentation prefactor K, optionally as a function of dry density --
     // Two mutually exclusive ways to set K (J/kg):
     //   (1) scalar  <potential_augmentation_prefactor>
     //   (2) table   <potential_augmentation_prefactor_vs_dry_density> with
@@ -589,7 +589,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         dry_density = defaults->dry_density;
     }
 
-    // ── Live K(rho_d) ────────────────────────────────────────────────────
+    // -- Live K(rho_d) ----------------------------------------------------
     // When true, the parse-time freeze below is SKIPPED for the live
     // evaluation path: the table stays live and K is re-evaluated at the
     // evolving rho_d = rho_SR*(1-phi) at run time (see
@@ -639,7 +639,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
                 "<dry_density> (rho_d, kg/m^3) to evaluate K(rho_d).",
                 context);
         }
-        // Live mode: this is NOT a freeze — the table stays live; the value
+        // Live mode: this is NOT a freeze -- the table stays live; the value
         // stored here is only the fallback K for phi-less evaluation sites
         // (initial/target rho_d if given, else inherited scalar / 0).
         potential_augmentation_prefactor =
@@ -694,7 +694,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context);
     }
 
-    // ── Film-pressure coupling; default ON ─────────────────────────────────
+    // -- Film-pressure coupling; default ON ---------------------------------
     // The OFF path is retired: the model is consolidated on the
     // film coupling (biot=alpha). The bare-Pi OFF formulation is no longer
     // selectable; if a PRJ requests false it is overridden to true with a
@@ -740,12 +740,12 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             context, film_pressure_swelling_modulus);
     }
 
-    // ── Strained-film disjoining law h(w_m, eps_v) ──────────────────────────
+    // -- Strained-film disjoining law h(w_m, eps_v) --------------------------
     // PRJ-selectable variants: 'off' (default, frozen geometry, bit-for-bit),
     // 'kinematic' (variant A, spacing follows the volumetric strain),
     // 'equilibrium' (variant B, spacing tracks the film force balance
     // Pi = p_conf). When ON, the strained law REPLACES the shipped integrable
-    // mechanical partner (its frozen-h truncation) — never both (no double
+    // mechanical partner (its frozen-h truncation) -- never both (no double
     // counting).
     auto const film_strain_coupling =
         //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__potential_exchange__film_strain_coupling}
@@ -758,7 +758,7 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
             "film_strain_kappa",
             defaults ? toString(defaults->film_strain_kappa) : "aggregate"));
 
-    // ── Film energy route ───────────────────────────────────────────────
+    // -- Film energy route -----------------------------------------------
     // 'operational' (default, bit-for-bit): shipped Derjaguin cut. 'exact':
     // the one-Psi pair; admissible only with film_strain_coupling='kinematic'
     // (the closed-form strain integrals are for the kinematic h-law).

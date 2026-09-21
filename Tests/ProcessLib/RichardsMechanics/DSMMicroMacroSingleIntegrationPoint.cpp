@@ -976,7 +976,7 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
     // Expected values are reconstructed FROM THE FORMULA by re-evaluating
     // computeVanDerWaalsMicroPotential with exactly the arguments the
     // production helper feeds it (same active_nS, same rho_SR/A/Sa/sign/K/
-    // lambda) — never hand-fitted to a run.
+    // lambda) -- never hand-fitted to a run.
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
     potential_exchange_params.hamaker_constant = 6.0e-20;
@@ -1128,7 +1128,7 @@ TEST(RichardsMechanics, DSMMicroMacroSwellingStressFullDisjoiningSign)
     // active (positive Hamaker / specific surface / rho_SR / n_S reference).
     // The full-p^disj law has NO fallback branch, so the increment must be a
     // pure vdW disjoining-pressure eigenstress: NON-ZERO, with the sign the
-    // formula gives — we do not pre-judge compressive vs tensile.
+    // formula gives -- we do not pre-judge compressive vs tensile.
     PotentialExchangeParameters potential_exchange_params;
     potential_exchange_params.enabled = true;
     potential_exchange_params.hamaker_constant = 6.0e-20;
@@ -1890,7 +1890,7 @@ TEST(RichardsMechanics, PotentialExchangeTangentRepresentativeStates)
 
 // ── Film-pressure micro potential (flag ON)
 //
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // The three tests below exercise the FLAG-ON film-pressure physics that
 // computeFilmPressureMicroPotential / the eigenstrain swelling branch add:
 //   mu_lR = mu_lR_vdw + delta,  delta = +g * b * p_conf / rho_lR,
@@ -1993,7 +1993,7 @@ TEST(RichardsMechanics, DSMFilmPressureDrain)
     // confining pressure large enough that the film term b*p_conf/rho_lR lifts
     // mu_lR ABOVE mu_LR (DRAIN). A 4000 m^2/g specific surface (the same value
     // used in DSMMicroMacroCurrentPorositySplitMicroSolidFractionMode above) at
-    // n_l = 0.05 gives mu_vdw = -26 J/kg (Pi = 26 kPa) — squarely in that
+    // n_l = 0.05 gives mu_vdw = -26 J/kg (Pi = 26 kPa) -- squarely in that
     // regime. specific_surface here only sets the test's energy scale; it is a
     // documented vdW material input, not a fitted quantity.
     PotentialExchangeParameters potential_exchange_params;
@@ -2251,7 +2251,7 @@ TEST(RichardsMechanics, DSMFilmEigenstressSignDrains)
 TEST(RichardsMechanics, DSMIntegrableMechanicalPotentialTangents)
 {
     // Representative state (synthetic; values only set the energy scale of the
-    // FD-vs-analytic check — none is asserted against a target).
+    // FD-vs-analytic check -- none is asserted against a target).
     double const Pi = 5.0e6;         // Pa, disjoining pressure
     double const dPi_dnl = -1.2e8;   // Pa per n_l (cubic core slope sign)
     double const d2Pi_dnl2 = 4.0e9;  // Pa per n_l^2

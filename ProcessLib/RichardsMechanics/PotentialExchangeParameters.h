@@ -64,8 +64,8 @@ public:
         return (s->K_r - s->K_l) / (s->x_r - s->x_l);  // (J/kg)/(kg/m^3)
     }
 
-    // ── Log-linear interpolant (production for the live K(rho_d) path)
-    // ──────────────────────────────────────────────────────────────────
+    // -- Log-linear interpolant (production for the live K(rho_d) path)
+    // ------------------------------------------------------------------
     // ln(K) linear in rho_d between knots instead of the K-linear chord
     // used by getValue() above (Dixon 2023's own exponential
     // swelling-pressure-vs-density law is the physical motivation). The
@@ -251,12 +251,12 @@ enum class MicroSolidVolumeFractionMode
     CurrentPorositySplit
 };
 
-// ── Strained-film disjoining law h(w_m, eps_v) ── Off: film geometry frozen
-// (current behavior, bit-for-bit). Kinematic:   variant A — spacing follows the
+// -- Strained-film disjoining law h(w_m, eps_v) -- Off: film geometry frozen
+// (current behavior, bit-for-bit). Kinematic:   variant A - spacing follows the
 // volumetric strain,
 //              h = h0(n_l)*(1 + kappa*eps_v)  <=>  evaluate the bare law at
 //              w_eff = n_l*(1 + kappa*eps_v).
-// Equilibrium: variant B — spacing tracks the film force balance once the load
+// Equilibrium: variant B -- spacing tracks the film force balance once the load
 //              can compress the film: w_eff solves Pi(w_eff) = p_conf on the
 //              loaded branch (p_conf > Pi(n_l)), else w_eff = n_l (emergent
 //              branch point; no bolted-on gate).
@@ -268,9 +268,9 @@ enum class FilmStrainCouplingMode
 };
 
 // Spacing-strain weighting kappa in dh/deps_v = kappa*h0:
-// Aggregate: kappa = (1 - phi_M) (active_nS at the GP) — the integrable
+// Aggregate: kappa = (1 - phi_M) (active_nS at the GP) -- the integrable
 //            completion of the existing eigenstress scale (recommended).
-// Unity:     kappa = 1 — naive geometric reading (spacing follows REV strain
+// Unity:     kappa = 1 -- naive geometric reading (spacing follows REV strain
 //            one-to-one); kept PRJ-selectable for discrimination.
 enum class FilmStrainKappaMode
 {
@@ -278,11 +278,11 @@ enum class FilmStrainKappaMode
     Unity
 };
 
-// ── Film energy route ──────────────────────────────────────────────────
-// Operational: the shipped Derjaguin cut — bare law evaluated at w_eff plus the
+// -- Film energy route --------------------------------------------------
+// Operational: the shipped Derjaguin cut - bare law evaluated at w_eff plus the
 //              hand-added load term +b*p_conf/rho_lR (NOT Maxwell-exact; defect
 //              O(Pi*eps_v)). Default, bit-for-bit.
-// Exact:       the one-Psi energy route — Psi_film(n_l, eps_v) with closed-form
+// Exact:       the one-Psi energy route - Psi_film(n_l, eps_v) with closed-form
 //              strain integrals of the disjoining law along the kinematic
 //              h-law; mu_mech = (1/(nS*rho_lR)) dPsi/dn_l. Maxwell holds
 //              identically; kappa->0 reduces EXACTLY to the shipped integrable
@@ -454,8 +454,8 @@ struct PotentialExchangeParameters
     double potential_augmentation_prefactor = 0.0;     // K      [J/kg], must be >= 0
     double potential_augmentation_exponent = 0.0;  // lambda [m],    must be > 0 if K > 0
 
-    // ── Disjoining-pressure FLOOR via a micro-water-content lower bound
-    // ─────── Optional lower bound n_l,min [-] on the water content USED IN THE
+    // -- Disjoining-pressure FLOOR via a micro-water-content lower bound
+    // ------- Optional lower bound n_l,min [-] on the water content USED IN THE
     // vdW DISJOINING LAW ONLY (Pi ~ 1/n_l^3). When > 0, the law is evaluated at
     // max(n_l, micro_water_content_floor), so Pi is CAPPED at Pi(floor) instead
     // of diverging as n_l -> 0. This is local to the disjoining evaluation: it
@@ -474,7 +474,7 @@ struct PotentialExchangeParameters
     // Default micro-pressure density is the confined micro-liquid density.
     bool use_micro_liquid_density_for_micro_pressure = true;
 
-    // ── Film-pressure coupling ────────────────────────────────────────────
+    // -- Film-pressure coupling --------------------------------------------
     // Default ON: the model is CONSOLIDATED on the film
     // coupling. mu_lR carries the effective-stress (film) term mu_lR(p_film =
     // p_disj + sigma') in ALL local solves and the macro exchange, the swelling
@@ -494,7 +494,7 @@ struct PotentialExchangeParameters
     // is unused.
     double film_pressure_swelling_modulus = 0.0;  // eigenstrain modulus K_sw [Pa]; 0 -> drained K
 
-    // ── Macro-porosity floor ────────────────────────────────────────────
+    // -- Macro-porosity floor --------------------------------------------
     // phi_M,min (REV macro porosity). Prevents the macro pore from collapsing
     // into the interlayer: the interlayer water n_l is capped at
     // n_l_cap = (phi - macro_porosity_floor)/(1 - macro_porosity_floor), so the
@@ -507,29 +507,29 @@ struct PotentialExchangeParameters
     double macro_porosity_floor = 0.0;
     double macro_floor_cutoff_width = 0.0;  // film-to-bulk cutoff width in n_l [-]; 0 -> default 5% of n_l_cap
 
-    // ── Strained-film disjoining law ──────────────────────────────────────
+    // -- Strained-film disjoining law --------------------------------------
     // When != Off, the bare disjoining law is evaluated at the strained film
     // state w_eff and mu_lR gains the load term +b*p_conf/rho_lR; the shipped
     // integrable mechanical partner is REPLACED (it is the frozen-h, O(eps_v)
-    // truncation of the same physics — running both double-counts; this
+    // truncation of the same physics -- running both double-counts; this
     // remains provisional, demonstrated by the shipped-limit unit test). Off
     // (default) is bit-for-bit the current behavior.
     FilmStrainCouplingMode film_strain_coupling = FilmStrainCouplingMode::Off;
     FilmStrainKappaMode film_strain_kappa = FilmStrainKappaMode::Aggregate;
 
-    // ── Film energy route ───────────────────────────────────────────────────
+    // -- Film energy route ---------------------------------------------------
     // Operational (default): shipped Derjaguin cut, bit-for-bit. Exact: the
-    // one-Psi pair — REPLACES the operational mu assembly when ON (kinematic
+    // one-Psi pair -- REPLACES the operational mu assembly when ON (kinematic
     // only; create-time validated). The eigenstress half is identical in both
     // routes (Pi at w_eff with the actual p_conf), so only the fold-point mu
     // assembly differs.
     FilmEnergyRoute film_energy_route = FilmEnergyRoute::Operational;
 
-    // ── K(rho_d): augmentation prefactor as a function of dry density ──────
+    // -- K(rho_d): augmentation prefactor as a function of dry density ------
     // Optional piecewise-linear table K = K(rho_d) [J/kg vs kg/m^3]. When set
     // together with `dry_density`, the augmentation prefactor above is
     // RESOLVED at parse time to K(dry_density) and stored back into
-    // `potential_augmentation_prefactor` — i.e. K is the *initial/target*
+    // `potential_augmentation_prefactor` -- i.e. K is the *initial/target*
     // dry-density value, a per-material constant in time.
     // Because resolution is parse-time and time-constant, the downstream
     // potential/exchange tangent is unchanged (no dK/drho_d term). The table
@@ -540,7 +540,7 @@ struct PotentialExchangeParameters
         potential_augmentation_prefactor_vs_dry_density = nullptr;
     std::optional<double> dry_density;  // rho_d [kg/m^3], initial/target
 
-    // ── Live K(rho_d) ────────────────────────────────────────────────────
+    // -- Live K(rho_d) ----------------------------------------------------
     // When true, the table above is NOT frozen at parse time;
     // instead K is re-evaluated at the EVOLVING dry density rho_d =
     // rho_SR*(1-phi) at every evaluation site that has the current total

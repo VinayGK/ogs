@@ -101,9 +101,9 @@ struct VanDerWaalsMicroPotentialData
 //                                      Literature:
 //                                      montmorillonite-water-montmorillonite A
 //                                      = 2.2e-20 J (Israelachvili & Adams 1978,
-//                                      SFA mica proxy) Range: 1–5e-20 J
+//                                      SFA mica proxy) Range: 1-5e-20 J
 //                                      (smectite, DLVO literature) DO NOT
-//                                      calibrate A — it is a material constant.
+//                                      calibrate A - it is a material constant.
 //
 // Dimensional derivation:
 //   Film thickness h = n_l / (nS * rho_SR * Sa)                         [m]
@@ -126,7 +126,7 @@ struct VanDerWaalsMicroPotentialData
 //   K      = potential_augmentation_prefactor    [J/kg]  augmentation amplitude
 //   (calibrate to Villar) lambda = potential_augmentation_exponent [m]
 //   characteristic film thickness (calibrate)
-// Total: mu_lR = sign * (mu_lR_vdW + mu_lR_aug)   — ADDITIVE, augmentation
+// Total: mu_lR = sign * (mu_lR_vdW + mu_lR_aug)   -- ADDITIVE, augmentation
 // never replaces vdW Setting K = 0 (default) reduces exactly to the pure vdW
 // form.
 //
@@ -234,12 +234,12 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     double const prefactor = hamaker_constant * specific_surface *
                              specific_surface * specific_surface / (6.0 * pi);
     // Units (n_l, nS are dimensionless volume fractions, so [1]):
-    //   A · Sa^3 · nS^3 · rho_SR^3 / (n_l^3 · rho_lR)
-    //   [J] · [m^2/kg]^3 · [1] · [kg/m^3]^3 / ([1] · [kg/m^3])
-    //   = [J · m^6/kg^3 · kg^3/m^9] / [kg/m^3]
+    //   A * Sa^3 * nS^3 * rho_SR^3 / (n_l^3 * rho_lR)
+    //   [J] * [m^2/kg]^3 * [1] * [kg/m^3]^3 / ([1] * [kg/m^3])
+    //   = [J * m^6/kg^3 * kg^3/m^9] / [kg/m^3]
     //   = [J/m^3] / [kg/m^3]
-    //   = J/kg  ✓
-    // The leading /rho_lR converts J/m^3 (Pa) to J/kg — dimensionally
+    //   = J/kg  OK
+    // The leading /rho_lR converts J/m^3 (Pa) to J/kg -- dimensionally
     // required by the exchange equation rho_l_hat = alpha * (mu_LR - mu_lR).
     //
     // MAGNITUDE (Sa, nS and rho_SR all enter cubed here, so a scale error is
@@ -303,7 +303,7 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
         // n_l-derivative: 0 when clamped (mu_aug flat in n_l), else the exact
         // -mu_aug*xi/n_l_eff form.
         out.dmu_lR_dnl += clamped ? 0.0 : -mu_aug * xi / n_l_eff;  // J/kg
-        // xi = n_l_eff / (lambda * nS * rho_SR * Sa) — independent of rho_lR,
+        // xi = n_l_eff / (lambda * nS * rho_SR * Sa) -- independent of rho_lR,
         // so mu_aug has no rho_lR dependence; dmu_lR_drho_lR from vdW term only
         out.dmu_lR_dnS += mu_aug * xi / nS;
         out.dmu_lR_drho_SR += mu_aug * xi / rho_SR;
@@ -320,7 +320,7 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
             clamped ? 0.0 : -out.dmu_lR_dK * xi / n_l_eff;  // [1/n_l]
     }
 
-    // ── Live-nS chain for dmu_lR/dnl (tangent-only) ──────────────────────────
+    // -- Live-nS chain for dmu_lR/dnl (tangent-only) --------------------------
     // Under current_porosity_split nS = 1 - n_l is a function of n_l, so the
     // TOTAL derivative is dmu_lR/dnl + dmu_lR/dnS * dnS/dnl. The caller passes
     // dnS_dnl = -1 in that mode (and 0 in reference mode, where nS is constant
@@ -330,8 +330,8 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     // a finite-difference Jacobian and is unaffected.
     //
     // Disjoining floor: when clamped, the disjoining law is held at
-    // Pi(n_l_floor) and is FLAT in n_l — the n_l-derivatives of the clamped
-    // value are 0 — so the TOTAL n_l-tangent is 0 -> skip the live-nS chain as
+    // Pi(n_l_floor) and is FLAT in n_l -- the n_l-derivatives of the clamped
+    // value are 0 -- so the TOTAL n_l-tangent is 0 -> skip the live-nS chain as
     // well. Unclamped (incl. the default floor = 0) -> unchanged.
     if (!clamped)
     {
@@ -343,18 +343,18 @@ inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
 
 // Deprecated: computeIntegrableMechanicalMicroPotential replaces this unit;
 // nothing currently calls it. The whole computeMaxwellConjugateMicroPotential
-// unit below (struct + function) is kept for the historical record only — the
+// unit below (struct + function) is kept for the historical record only -- the
 // macro-exchange residual + Jacobian now route the mechanical Maxwell partner
 // through the INTEGRABLE, ungated form (single mu_lR everywhere,
 // equipresence). Do NOT add new callers.
-// ── DSM Maxwell-conjugate term ──────────────────────────────────────────────
-// Restores the mean-effective-stress dependence of mu_lR — the Maxwell partner
-// of the swelling eigenstress sigma_sw = -phi_m * Pi — so that (sigma, mu_lR)
+// -- DSM Maxwell-conjugate term ----------------------------------------------
+// Restores the mean-effective-stress dependence of mu_lR -- the Maxwell partner
+// of the swelling eigenstress sigma_sw = -phi_m * Pi -- so that (sigma, mu_lR)
 // derive from ONE free energy Psi.
 //
 //   mu_lR_mech = (1/rho_lR) * S1 * eps_v        for p_conf >= Pi   (sharp gate)
 //              = 0                              otherwise
-//   S1 = d sigma_sw,m / d n_l  (phi frozen) [Pa] — supplied by the caller
+//   S1 = d sigma_sw,m / d n_l  (phi frozen) [Pa] -- supplied by the caller
 //        from the eigenstress site (S1 = -n_S*(Pi + n_l*dPi_dnl)).
 //
 // Constitutive choices: load EXPELS micro water; OGS effective stress,
@@ -433,7 +433,7 @@ inline MaxwellConjugateMicroPotentialData computeMaxwellConjugateMicroPotential(
     return out;
 }
 
-// ── Film-pressure micro potential (consolidated form) ────────────────────────
+// -- Film-pressure micro potential (consolidated form) ------------------------
 // SUPERSEDES the strain-view computeMaxwellConjugateMicroPotential above when
 // the film_pressure_coupling flag is ON. The two halves (disjoining + the
 // mechanical Maxwell partner) fuse into ONE potential of the *film pressure*
@@ -469,7 +469,7 @@ inline MaxwellConjugateMicroPotentialData computeMaxwellConjugateMicroPotential(
 // Equipresence note: the (1 - phi_M) contact-area factor that the eigenstress
 // carries CANCELS the per-REV-mass referencing of mu_lR, so the SPECIFIC
 // potential mu_lR = -p_film/rho_lR carries NO explicit (1-phi_M) and divides
-// by the intrinsic rho_lR — exactly mirroring
+// by the intrinsic rho_lR -- exactly mirroring
 // the disjoining term mu_lR_vdw = -Pi/rho_lR it augments. n_S enters ONLY
 // through the gate threshold Pi_gate = phi_m*Pi. (Contrast the strain-view
 // helper above, whose conjugate divides by rho_lR*n_S because its driver S1 is
@@ -528,7 +528,7 @@ inline FilmPressureMicroPotentialData computeFilmPressureMicroPotential(
     if (!(gate_width_w > 0.0))
     {
         // Sharp fallback (w == 0): Heaviside step. dg/dx = 0 a.e. (the delta at
-        // x = 0 is not represented — the constitutive choice of a sharp gate).
+        // x = 0 is not represented -- the constitutive choice of a sharp gate).
         g = (x >= 0.0) ? 1.0 : 0.0;
         dg_dx = 0.0;
     }
@@ -569,7 +569,7 @@ inline FilmPressureMicroPotentialData computeFilmPressureMicroPotential(
     return out;
 }
 
-// ── INTEGRABLE Maxwell mechanical micro potential ────────────────────────────
+// -- INTEGRABLE Maxwell mechanical micro potential ----------------------------
 // REPLACES the non-integrable film bolt-on (computeFilmPressureMicroPotential's
 // +g*b*p_conf/rho_lR delta) when film_pressure_coupling is ON. It is the RIGHT
 // half of the Maxwell pair: the strain (eps_v) dependence of mu_lR that derives
@@ -654,7 +654,7 @@ computeIntegrableMechanicalMicroPotential(double const Pi, double const dPi_dnl,
     return out;
 }
 
-// ── Strained-film disjoining state — h(w_m, eps_v) ──────────────────────────
+// -- Strained-film disjoining state -- h(w_m, eps_v) --------------------------
 // Both variants reduce to evaluating the EXISTING bare law at an effective
 // micro water content w_eff (the law depends on n_l only through the film
 // thickness h = n_l/(nS*rho_SR*Sa), so straining h is straining the
@@ -662,7 +662,7 @@ computeIntegrableMechanicalMicroPotential(double const Pi, double const dPi_dnl,
 //   Kinematic   (A): w_eff = n_l*(1 + kappa*eps_v), kappa = active_nS
 //                    (Aggregate, the integrable completion of the existing
 //                    eigenstress scale) or 1 (Unity). kappa is FROZEN at the
-//                    GP — no d(kappa)/d(eps_v) chain.
+//                    GP -- no d(kappa)/d(eps_v) chain.
 //   Equilibrium (B): on the loaded branch (p_conf > Pi(n_l) > 0) w_eff solves
 //                    Pi(w_eff) = p_conf (film force balance; emergent branch
 //                    point, no bolted-on gate); else w_eff = n_l.
@@ -823,7 +823,7 @@ inline StrainedFilmStateData computeStrainedFilmState(
     return out;
 }
 
-// ── EXACT one-Psi strained-film energy pair (film_energy_route = exact) ─────
+// -- EXACT one-Psi strained-film energy pair (film_energy_route = exact) -----
 // Kinematic h-law only:
 // w(e) = n_l*(1 + kappa*e). One energy
 //
@@ -847,9 +847,9 @@ inline StrainedFilmStateData computeStrainedFilmState(
 //   dmu_mech/drho = -(vdW part + S part)/rho_lR   (mu_a carries no rho_lR)
 //
 // kappa->0 limits: G3, Gx -> eps_v and the pair reduces EXACTLY to
-// computeIntegrableMechanicalMicroPotential (unit-tested) — unlike the
+// computeIntegrableMechanicalMicroPotential (unit-tested) -- unlike the
 // OPERATIONAL route. Eigenstress half (for tests; the FEM eigenstress site is
-// unchanged — it already evaluates Pi(w_eff) with the actual p_conf):
+// unchanged -- it already evaluates Pi(w_eff) with the actual p_conf):
 //   sigma_sw_m = -(1-phi_M)*n_l*[ Pi(w_eff) + b*K_d*eps_v ]   (drained line)
 struct StrainedFilmEnergyPairData
 {
@@ -879,7 +879,7 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
     StrainedFilmEnergyPairData out;
 
     // Per-term bare values at the TRUE n_l (floor handled inside the law).
-    // vdW-only call (augmentation off) + full call; aug term by subtraction —
+    // vdW-only call (augmentation off) + full call; aug term by subtraction --
     // keeps the split in sync with any future change of the bare law.
     auto const full = computeVanDerWaalsMicroPotential(
         n_l, rho_lR, nS, rho_SR, hamaker_constant, specific_surface,
@@ -915,7 +915,7 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
                            : 0.0;  // unused when no augmentation
 
     // Stable strain integrals (series switch 1e-5: relative series error
-    // < 1e-10 at the switch — a scoped numeric default).
+    // < 1e-10 at the switch -- a scoped numeric default).
     double const y = xi0 * x;
     double G3;  // [-]; G3 -> eps_v as kappa -> 0
     if (std::abs(x) > 1e-5)
@@ -946,7 +946,7 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
     double const K_d =
         (include_S && std::isfinite(K_drained)) ? K_drained : 0.0;
 
-    // ── mu half (J/kg; see derivation in the comment block above) ──────────
+    // -- mu half (J/kg; see derivation in the comment block above) ----------
     double const mu_mech_vdw = -2.0 * mu_v * G3;  // J/kg
     double const mu_mech_aug = (potential_augmentation_prefactor > 0.0)
                                    ? mu_a * (x_over_kappa * E - xi0 * Gx)
@@ -985,14 +985,14 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
     // augmentation mu_a carries no rho_lR.   [(J/kg)/(kg/m^3)]
     out.dmu_mech_drho_lR = -(mu_mech_vdw + mu_mech_S) / rho_lR;
 
-    // ── eigenstress half (drained line; for the Maxwell/loop tests) ────────
+    // -- eigenstress half (drained line; for the Maxwell/loop tests) --------
     // Pi(w_eff) = -rho_lR*[mu_v*(1+x)^-3 + mu_a*E]   [Pa]
     double const Pi_weff =
         -rho_lR *
         (mu_v / (f * f * f) +
          ((potential_augmentation_prefactor > 0.0) ? mu_a * E : 0.0));  // Pa
     out.sigma_sw_m = -nS * n_l * (Pi_weff + biot_b * K_d * eps);        // Pa
-    // d(sigma_sw)/d(n_l) — exact chain through BOTH the n_l prefactor and
+    // d(sigma_sw)/d(n_l) -- exact chain through BOTH the n_l prefactor and
     // w_eff = n_l*(1+x):  d/dn_l[n_l*Pi_T(n_l*f)]:
     //   vdW: (1-3)*Pi_v(w_eff) = -2*Pi_v(w_eff)
     //   aug: Pi_a(w_eff)*(1 - xi0*f)
@@ -1011,7 +1011,7 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
         out.dsigma_sw_dnl = -nS * (Pi_weff + biot_b * K_d * eps);  // Pa per n_l
     }
 
-    // ── energy (drained-line S-form; for the loop test) ────────────────────
+    // -- energy (drained-line S-form; for the loop test) --------------------
     // Psi_film = -(1-phi_M)*n_l*[I_vdw + I_aug + S], I_T = -rho_lR*M_T.
     out.Psi_film =
         -nS * n_l *
