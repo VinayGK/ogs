@@ -526,9 +526,8 @@ inline FilmPressureMicroPotentialData computeFilmPressureMicroPotential(
                                : 0.0;  // Pa/(J/kg) * (J/kg) = Pa, per unit n_l
 
     // REV-consistent gate threshold Pi_gate = phi_m*Pi = n_S*n_l*Pi.
-    double const Pi_gate = n_S * n_l * Pi;  // [-]*[-]*Pa = Pa
-    double const dPi_gate_dnl =
-        n_S * (Pi + n_l * dPi_dnl);  // Pa, per unit n_l
+    double const Pi_gate = n_S * n_l * Pi;                   // [-]*[-]*Pa = Pa
+    double const dPi_gate_dnl = n_S * (Pi + n_l * dPi_dnl);  // Pa, per unit n_l
     double const x = p_conf - Pi_gate;  // gate argument [Pa]
 
     // C1 activation g(x) and dg/dx.
@@ -570,11 +569,9 @@ inline FilmPressureMicroPotentialData computeFilmPressureMicroPotential(
     out.dmu_lR_film_dp_conf =
         dg_dx * biot_b * p_conf / rho_lR +
         g * biot_b / rho_lR;  // (1/Pa)*Pa/(kg/m^3) = (J/kg)/Pa
-    out.dmu_lR_film_dnl =
-        dg_dx * (-dPi_gate_dnl) * biot_b * p_conf /
-        rho_lR;  // (1/Pa)*Pa*Pa/(kg/m^3) = J/kg, per unit n_l
-    out.dmu_lR_film_drho_lR =
-        -D / rho_lR;  // (J/kg)/(kg/m^3)
+    out.dmu_lR_film_dnl = dg_dx * (-dPi_gate_dnl) * biot_b * p_conf /
+                          rho_lR;  // (1/Pa)*Pa*Pa/(kg/m^3) = J/kg, per unit n_l
+    out.dmu_lR_film_drho_lR = -D / rho_lR;  // (J/kg)/(kg/m^3)
     return out;
 }
 
@@ -967,7 +964,7 @@ inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
     double const mu_mech_vdw = -2.0 * mu_v * G3;  // J/kg
     double const mu_mech_aug = (potential_augmentation_prefactor > 0.0)
                                    ? mu_a * (x_over_kappa * E - xi0 * Gx)
-                                   : 0.0;                               // J/kg
+                                   : 0.0;  // J/kg
     // MAGNITUDE (eps enters squared here and again in Psi_film
     // below). Same state as computeIntegrableMechanicalMicroPotential above -
     // K_d = 27.8 MPa, b = 1, eps = 1e-2, rho_lR = 1e3 kg/m^3 - gives

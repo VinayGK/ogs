@@ -534,7 +534,7 @@ inline ReducedMicroLiquidDensityData computeReducedMicroLiquidDensity(
         double const omega_l =
             std::max(1e-16, n_l_safe * rho_lR / denominator);  // [-]
         double const exp_term =
-            std::exp(-a_rho * std::pow(omega_l, b_rho));  // [-]
+            std::exp(-a_rho * std::pow(omega_l, b_rho));        // [-]
         return std::pair{omega_l, rho_l0 * exp_term + rho_LR};  // [-], kg/m^3
     };
 
