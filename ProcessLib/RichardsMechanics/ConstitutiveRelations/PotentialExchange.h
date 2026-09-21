@@ -66,7 +66,8 @@ struct VanDerWaalsMicroPotentialData
     double dmu_lR_dnl = 0.0;
     double dmu_lR_drho_lR =
         0.0;  // NON-zero in the current form: computed as
-              // -mu_lR/rho_lR (see line ~181, "/rho_lR fix"),
+              // -mu_lR/rho_lR in computeVanDerWaalsMicroPotential (the
+              // assignment carrying the "non-zero after /rho_lR fix" note),
               // because mu_lR carries an explicit 1/rho_lR.
               // (Was exactly zero in the earlier reduced form.)
     double dmu_lR_dnS = 0.0;
@@ -110,8 +111,13 @@ struct VanDerWaalsMicroPotentialData
 //   Specific free energy: mu_lR_vdW = E * (nS*rho_SR*Sa) / (nS*rho_lR)  [J/kg]
 //   = -A*Sa^3*nS^3*rho_SR^3 / (12*pi*n_l^3*rho_lR) (adsorption sign)
 //   Disjoining pressure Pi=-dE/dh gives factor 2: A*Sa^3*nS^3*rho_SR^3 /
-//   (6*pi*n_l^3*rho_lR) Consistent with p_L_m = -rho_lR * mu_lR  [Pa]  (impl.h
-//   lines 276, 1044)
+//   (6*pi*n_l^3*rho_lR) Consistent with p_L_m = -rho_lR * mu_lR  [Pa]
+//   (RichardsMechanicsFEM-impl.h: the conversion is applied in
+//   computeCompatibilityMicroHydraulicOutput, which returns
+//   .p_L_m = -p_L_m_density * micro_potential.mu_lR; the comment block
+//   immediately above that return says which density p_L_m_density carries,
+//   i.e. the confined micro rho_lR unless
+//   use_micro_liquid_density_for_micro_pressure is false.)
 //
 // Optional lumped exponential augmentation (activated when
 // potential_augmentation_prefactor > 0):

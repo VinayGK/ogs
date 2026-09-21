@@ -154,8 +154,10 @@ public:
     // reached from BOTH live-K tangent sites. Those are two DIFFERENT
     // blocks of that integration-point loop, not one (in
     // RichardsMechanicsFEM-impl.h): the p-u augmentation exchange tangent
-    // around line 5052, and the displacement-side swelling-eigenstress
-    // tangent around line 5223.
+    // and the displacement-side swelling-eigenstress tangent. Both are
+    // reached through effectiveAugmentationPrefactorPhiDerivative below,
+    // so grepping that name in RichardsMechanicsFEM-impl.h locates exactly
+    // the two call sites.
     double getSegmentSlopeLogLinear(double const x) const
     {
         auto const s = locateSegment(x);
@@ -538,8 +540,9 @@ struct PotentialExchangeParameters
     // Sites without phi fall back to the scalar `potential_augmentation_
     // prefactor`. The analytic dK/dphi tangent is wired into TWO Jacobian
     // blocks, not one: the p-u augmentation exchange tangent and the
-    // displacement-side swelling-eigenstress tangent
-    // (RichardsMechanicsFEM-impl.h, around lines 5052 and 5223). Under the
+    // displacement-side swelling-eigenstress tangent (the two
+    // effectiveAugmentationPrefactorPhiDerivative call sites in
+    // RichardsMechanicsFEM-impl.h). Under the
     // log-linear scheme that tangent is
     //   dK/dphi = -rho_SR * K(rho_d) * ln(K_r/K_l)/(x_r - x_l),
     // i.e. PROPORTIONAL TO THE LOCAL K value -- NOT the

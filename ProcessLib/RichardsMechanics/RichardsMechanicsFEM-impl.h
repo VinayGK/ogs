@@ -859,6 +859,17 @@ inline void applyFilmPressureMicroPotential(
         double const b_sf = local_context.biot_coefficient;
         double const mu_load = b_sf * p_conf_sf / rho_lR_used;  // J/kg
 
+        // REPLACEMENT, not accumulation (CLAUDE.md §4.1 awareness note): the
+        // six writes below overwrite `out` with the law re-evaluated at the
+        // strained state w_eff, so the unconditional
+        // applyMacroFloorCutoff(out, ...) at the top of this function is
+        // discarded on this path -- deliberately, because `strained` carries
+        // its own cutoff (applied a few lines above, after the w_eff chain
+        // rule). No cutoff contribution is lost. NOTE the two fields NOT
+        // rewritten here, out.dmu_lR_dK and out.ddmu_lR_dnl_dK: they retain
+        // the values computed at the TRUE n_l by the caller, not the w_eff
+        // values in `strained`. See the review question parked against this
+        // line before relying on the live-K tangent in a strained mode.
         out.mu_lR = strained.mu_lR + mu_load;      // J/kg
         out.dmu_lR_dnl = strained.dmu_lR_dnl;      // J/kg per n_l
         out.d2mu_lR_dnl2 = strained.d2mu_lR_dnl2;  // J/kg per n_l^2
@@ -2046,8 +2057,12 @@ inline double computeImplicitNlDpL(
     // finite-difference dn_l/dp_L here (perturbing the full coupled solve by
     // h ~ 1e-8*|p_L|). At a dry IC the two perturbed coupled solves barely move
     // -> catastrophic cancellation -> random-sign ~3e-13 noise -> corrupts the
-    // global pressure-block diagonal (drho_L_hat_dpL_direct, ~line 3824) ->
-    // step-1 macro-pressure blow-up. Fall through to the ANALYTIC tangent
+    // global pressure-block diagonal (via PotentialExchangeUpdateData::
+    // drho_L_hat_dpL_direct, which assembleWithJacobian adds into the
+    // pressure-pressure block) -> step-1 macro-pressure blow-up. The
+    // FD/analytic producers of that member are in
+    // computePotentialExchangeUpdate.
+    // Fall through to the ANALYTIC tangent
     // below. This is TANGENT-ONLY: the converged mass-conserving forward solve
     // is unchanged; only the Newton Jacobian gets a clean, correctly-signed
     // value.
@@ -5293,13 +5308,17 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                         /*rho_lR_micro=*/rho_lR_exchange_input);
 
                     // Full total derivative of the vdW micro potential w.r.t.
-                    // pL. NOTE (on-disk): dmu_lR_drho_lR is NON-zero here
-                    // (= -mu_lR/rho_lR; PotentialExchange.h line 181, "non-zero
-                    // after /rho_lR fix"), despite the stale struct comment at
-                    // line 64 ("exactly zero in the reduced algebraic form").
+                    // pL. NOTE: dmu_lR_drho_lR is NON-zero here
+                    // (= -mu_lR/rho_lR, assigned in
+                    // computeVanDerWaalsMicroPotential with the "non-zero
+                    // after /rho_lR fix" note). The declaration of
+                    // VanDerWaalsMicroPotentialData::dmu_lR_drho_lR in
+                    // PotentialExchange.h says the same thing, and records
+                    // "exactly zero" only as the superseded earlier reduced
+                    // form -- so the two agree; neither is stale.
                     // It is paired with the BULK drho_LR_dpL, matching both
-                    // computeImplicitNlDpL (line ~1327) and the
-                    // computePotentialExchangeUpdate fallback (line ~217). The
+                    // computeImplicitNlDpL and the FD branch of
+                    // computePotentialExchangeUpdate. The
                     // dominant contribution is the implicit n_l(p_L) chain
                     // dmu_lR_dnl * dn_l_dpL.
                     // Film-pressure coupling (increment D-ii):
