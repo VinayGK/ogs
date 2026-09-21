@@ -4036,7 +4036,7 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         ConstitutiveData<DisplacementDim>& constitutive_data,
         StatefulData<DisplacementDim>& state_current,
         StatefulDataPrev<DisplacementDim> const& state_previous,
-        OutputData<DisplacementDim>& OD,
+        OutputData<DisplacementDim>& output_data,
         std::optional<MicroPorosityParameters> const& micro_porosity_parameters,
         PotentialExchangeParameters const* const potential_exchange_parameters,
         MaterialLib::Solids::MechanicsBase<DisplacementDim> const&
@@ -4377,11 +4377,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
     std::get<
         ProcessLib::ThermoRichardsMechanics::PermeabilityData<DisplacementDim>>(
-        OD)
+        output_data)
         .k_rel = k_rel;
     std::get<
         ProcessLib::ThermoRichardsMechanics::PermeabilityData<DisplacementDim>>(
-        OD)
+        output_data)
         .Ki = K_intrinsic;
 
     //
