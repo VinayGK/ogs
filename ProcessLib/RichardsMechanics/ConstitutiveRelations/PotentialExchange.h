@@ -22,6 +22,8 @@ struct YoungLaplaceMacroPotentialData
 // DSM dsm_micromacro Phase-2 macro potential helper (Young-Laplace side):
 // mu_LR = 0            for pLR > -ptol
 // mu_LR = pLR / rho_LR otherwise
+/// Macro (Young-Laplace) liquid chemical potential mu_LR = p_LR/rho_LR,
+/// with a saturated branch mu_LR = 0 for p_LR > -pressure_tolerance.
 inline YoungLaplaceMacroPotentialData computeYoungLaplaceMacroPotential(
     double const p_LR, double const rho_LR,
     double const pressure_tolerance = 0.0)
@@ -138,6 +140,9 @@ struct VanDerWaalsMicroPotentialData
 // n_l-derivatives (dmu_lR_dnl, d2mu_lR_dnl2 and the augmentation chain) are 0;
 // when n_l >= n_l_floor (incl. the default n_l_floor = 0) every formula and
 // derivative is byte-identical to the unfloored form.
+/// Micro liquid chemical potential of the van der Waals disjoining law plus
+/// the optional exponential augmentation (additive, never replacing the vdW
+/// core), evaluated at n_l_eff = max(n_l, n_l_floor).
 inline VanDerWaalsMicroPotentialData computeVanDerWaalsMicroPotential(
     double const n_l, double const rho_lR, double const nS, double const rho_SR,
     double const hamaker_constant, double const specific_surface,
@@ -379,6 +384,8 @@ struct MaxwellConjugateMicroPotentialData
 // (only documentation and this function's own FATAL strings reference its
 // name). The definition is kept on disk rather than removed, as a historical
 // record; this banner records that it is deprecated.
+/// \deprecated Superseded by computeIntegrableMechanicalMicroPotential and
+/// no longer called; retained as a historical record. Do not re-wire it.
 inline MaxwellConjugateMicroPotentialData computeMaxwellConjugateMicroPotential(
     double const S1, double const dS1_dnl, double const eps_v,
     double const p_conf, double const Pi, double const rho_lR, double const n_S)
@@ -484,6 +491,8 @@ struct FilmPressureMicroPotentialData
     bool gate_open = false;            // g > 0
 };
 
+/// Gated film-pressure increment added to the van der Waals micro potential,
+/// with gate threshold Pi_gate = phi_m*Pi and smoothing width gate_width_w.
 inline FilmPressureMicroPotentialData computeFilmPressureMicroPotential(
     double const Pi, double const p_conf, double const rho_lR, double const n_S,
     double const n_l, double const dmu_lR_vdw_dnl, double const gate_width_w,
@@ -610,6 +619,8 @@ struct IntegrableMechanicalMicroPotentialData
     double dmu_lR_mech_drho_lR = 0.0;  // (J/kg)/(kg/m^3)
 };
 
+/// Integrable mechanical micro potential: the strain conjugate of the
+/// disjoining law, with analytic n_l and eps_v derivatives.
 inline IntegrableMechanicalMicroPotentialData
 computeIntegrableMechanicalMicroPotential(double const Pi, double const dPi_dnl,
                                           double const d2Pi_dnl2,
@@ -683,6 +694,8 @@ struct StrainedFilmStateData
 // p_target with the analytic dPi/dw from the law, seeded by the cubic-core
 // inverse and guarded by bisection on the bracket. All law arguments mirror
 // computeVanDerWaalsMicroPotential.
+/// Invert the bare disjoining law Pi(w) for the water content w at a target
+/// pressure (equilibrium-spacing variant B), by bisection-guarded Newton.
 inline double invertDisjoiningPressure(
     double const p_target, double const w_upper, double const rho_lR,
     double const nS, double const rho_SR, double const hamaker_constant,
@@ -757,6 +770,8 @@ inline double invertDisjoiningPressure(
     return w;
 }
 
+/// Effective water content w_eff fed to the bare disjoining law under the
+/// selected film-strain coupling and kappa modes, with its derivatives.
 inline StrainedFilmStateData computeStrainedFilmState(
     FilmStrainCouplingMode const mode, FilmStrainKappaMode const kappa_mode,
     double const n_l, double const active_nS, double const eps_v,
@@ -866,6 +881,8 @@ struct StrainedFilmEnergyPairData
     double dmu_bare_dnl_pre = 0.0;  // J/kg per unit n_l
 };
 
+/// Exact one-Psi film energy route: Psi_film(n_l, eps_v) together with the
+/// mechanical micro potential and drained-line eigenstress it implies.
 inline StrainedFilmEnergyPairData computeStrainedFilmEnergyPair(
     double const n_l, double const eps_v, double const kappa,
     double const biot_b, double const K_drained, bool const include_S,
@@ -1036,6 +1053,8 @@ struct PotentialDrivenMassExchangeData
 // DSM dsm_micromacro sign convention:
 // rho_l_hat = alpha_M * (mu_LR - mu_lR)
 // rho_L_hat = -rho_l_hat
+/// Potential-driven micro-macro mass exchange
+/// rho_l_hat = alpha_M*(mu_LR - mu_lR), with rho_L_hat = -rho_l_hat.
 inline PotentialDrivenMassExchangeData computePotentialDrivenMassExchange(
     double const alpha_M, double const mu_LR, double const mu_lR)
 {
