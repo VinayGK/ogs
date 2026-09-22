@@ -11,7 +11,7 @@ namespace ProcessLib::RichardsMechanics
 {
 using MicroPorosity = BaseLib::StrongType<double, struct MicroPorosityTag>;
 
-constexpr std::string_view ioName(struct MicroPorosityTag*)
+constexpr std::string_view ioName(struct MicroPorosityTag* /*unused*/)
 {
     return "micro_porosity";
 }

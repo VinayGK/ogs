@@ -12,7 +12,7 @@ namespace ProcessLib::RichardsMechanics
 using MicroWaterContent =
     BaseLib::StrongType<double, struct MicroWaterContentTag>;
 
-constexpr std::string_view ioName(struct MicroWaterContentTag*)
+constexpr std::string_view ioName(struct MicroWaterContentTag* /*unused*/)
 {
     return "micro_water_content";
 }
@@ -20,7 +20,7 @@ constexpr std::string_view ioName(struct MicroWaterContentTag*)
 using MicroExchangeSource =
     BaseLib::StrongType<double, struct MicroExchangeSourceTag>;
 
-constexpr std::string_view ioName(struct MicroExchangeSourceTag*)
+constexpr std::string_view ioName(struct MicroExchangeSourceTag* /*unused*/)
 {
     return "micro_exchange_source";
 }
