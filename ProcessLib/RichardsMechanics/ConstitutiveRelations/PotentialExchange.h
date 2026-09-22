@@ -753,7 +753,12 @@ inline double invertDisjoiningPressure(
                                 ? -f / dPi_dw
                                 : 0.0;
         double w_next = w + step;
-        if (!(w_next > w_lo && w_next < w_hi))
+        // Not De Morgan'd: a NaN w_next makes both comparisons false, so the
+        // conjunction is false and the bisection fallback fires. The negated
+        // form (w_next <= w_lo || w_next >= w_hi) is false for NaN and would
+        // let it through.
+        bool const w_next_in_bracket = w_next > w_lo && w_next < w_hi;
+        if (!w_next_in_bracket)
         {
             w_next = 0.5 * (w_lo + w_hi);  // bisection fallback
         }
@@ -803,7 +808,9 @@ inline StrainedFilmStateData computeStrainedFilmState(
         }
         case FilmStrainCouplingMode::Equilibrium:
         {
-            if (!(std::isfinite(p_conf) && p_conf > 0.0))
+            bool const has_confining_load =
+                std::isfinite(p_conf) && p_conf > 0.0;
+            if (!has_confining_load)
             {
                 return out;  // no load supplied -> unloaded branch
             }
@@ -813,7 +820,12 @@ inline StrainedFilmStateData computeStrainedFilmState(
                 potential_augmentation_prefactor,
                 potential_augmentation_exponent, 0.0 /*dnS_dnl*/, n_l_floor);
             double const Pi_unloaded = -rho_pi * bare.mu_lR;
-            if (!(Pi_unloaded > 0.0 && p_conf > Pi_unloaded))
+            // Not De Morgan'd: a NaN Pi_unloaded makes both comparisons false,
+            // so the conjunction is false and we take the unloaded branch. The
+            // negated form is false for NaN and would enter the loaded branch.
+            bool const above_branch_point =
+                Pi_unloaded > 0.0 && p_conf > Pi_unloaded;
+            if (!above_branch_point)
             {
                 return out;  // below the branch point: film carries the load
             }

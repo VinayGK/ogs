@@ -789,7 +789,12 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
                                                 defaults->macro_porosity_floor)
             //! \ogs_file_param{prj__processes__process__RICHARDS_MECHANICS__potential_exchange__macro_porosity_floor}
             : config.getConfigParameter<double>("macro_porosity_floor");
-    if (!(macro_porosity_floor >= 0.0 && macro_porosity_floor < 1.0))
+    // Not De Morgan'd: a NaN from the project file makes both comparisons
+    // false, so the conjunction is false and the fatal fires. The negated form
+    // (< 0.0 || >= 1.0) is false for NaN and would accept it.
+    bool const macro_porosity_floor_in_range =
+        macro_porosity_floor >= 0.0 && macro_porosity_floor < 1.0;
+    if (!macro_porosity_floor_in_range)
     {
         OGS_FATAL(
             "RichardsMechanics: {} macro_porosity_floor must be in [0, 1), got "

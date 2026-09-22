@@ -228,7 +228,9 @@ ReducedMicroLiquidDensityData solveReferenceReducedMicroLiquidDensity(
             double const jacobian = (g_plus - g_minus) / (rho_plus - rho_minus);
             EXPECT_TRUE(std::isfinite(jacobian));
             EXPECT_GT(std::abs(jacobian), 1e-20);
-            if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
+            bool const jacobian_usable =
+                std::isfinite(jacobian) && std::abs(jacobian) > 1e-20;
+            if (!jacobian_usable)
             {
                 break;
             }
@@ -437,7 +439,9 @@ DsmMicromacroReferenceSinglePointData solveDsmMicromacroReferenceSinglePoint(
             (residual(n_l_plus) - residual(n_l_minus)) / denom;
         EXPECT_TRUE(std::isfinite(jacobian));
         EXPECT_GT(std::abs(jacobian), 1e-20);
-        if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
+        bool const jacobian_usable =
+            std::isfinite(jacobian) && std::abs(jacobian) > 1e-20;
+        if (!jacobian_usable)
         {
             return {};
         }

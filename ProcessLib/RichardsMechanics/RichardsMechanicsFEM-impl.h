@@ -100,7 +100,8 @@ inline double getPotentialPressureTolerance(
 
 inline void requirePositiveViscosity(char const* caller, double const mu)
 {
-    if (!(std::isfinite(mu) && mu > 0.0))
+    bool const mu_is_positive_finite = std::isfinite(mu) && mu > 0.0;
+    if (!mu_is_positive_finite)
     {
         OGS_FATAL("{} requires finite mu > 0, got {:g}.", caller, mu);
     }
@@ -560,7 +561,9 @@ inline ReducedMicroLiquidDensityData computeReducedMicroLiquidDensity(
         double const common =
             (rhs - rho_LR) * a_rho * b_rho * std::pow(omega_l, b_rho - 1.0);
         double const jacobian = 1.0 + common * (n_l_safe / denominator);
-        if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
+        bool const jacobian_usable =
+            std::isfinite(jacobian) && std::abs(jacobian) > 1e-20;
+        if (!jacobian_usable)
         {
             break;
         }
@@ -664,7 +667,12 @@ inline void applyMacroFloorCutoff(
     PotentialExchangeParameters const& params)
 {
     double const floor = params.macro_porosity_floor;
-    if (!(floor > 0.0 && std::isfinite(local_context.phi)))
+    // Not De Morgan'd: a NaN floor makes `floor > 0.0` false, so the
+    // conjunction is false and the cutoff is skipped. The negated form
+    // (floor <= 0.0 || !isfinite(phi)) is false for a NaN floor with finite
+    // phi and would carry the NaN into the cutoff.
+    bool const cutoff_applies = floor > 0.0 && std::isfinite(local_context.phi);
+    if (!cutoff_applies)
     {
         return;
     }
@@ -1059,7 +1067,9 @@ solveReferenceMassStoragePredictorState(
         double const jacobian =
             drho_l_REV_dn_l - dt_safe * drho_l_hat_dn_l -
             dt_safe * drho_l_REV_dn_l * volumetric_strain_rate;
-        if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
+        bool const jacobian_usable =
+            std::isfinite(jacobian) && std::abs(jacobian) > 1e-20;
+        if (!jacobian_usable)
         {
             break;
         }
@@ -1455,7 +1465,12 @@ solveReferenceMassStorageCoupledState(
             double const denom_n = (n_l + h_n) - std::max(n_l_floor, n_l - h_n);
             double const denom_rho =
                 (rho_lR + h_rho) - std::max(rho_floor, rho_lR - h_rho);
-            if (!(denom_n > 0.0 && denom_rho > 0.0))
+            // Not De Morgan'd: a NaN denominator makes its comparison false,
+            // so the conjunction is false and the solve breaks out. The
+            // negated form (denom_n <= 0.0 || denom_rho <= 0.0) is false for
+            // NaN and would divide by it below.
+            bool const denominators_positive = denom_n > 0.0 && denom_rho > 0.0;
+            if (!denominators_positive)
             {
                 break;
             }
@@ -1477,7 +1492,8 @@ solveReferenceMassStorageCoupledState(
         }
 
         double const det = J11 * J22 - J12 * J21;
-        if (!(std::isfinite(det) && std::abs(det) > 1e-24))
+        bool const det_usable = std::isfinite(det) && std::abs(det) > 1e-24;
+        if (!det_usable)
         {
             break;
         }
@@ -1825,7 +1841,9 @@ inline ImplicitMicroWaterContentUpdateData solveImplicitMicroWaterContent(
             break;
         }
 
-        if (!(std::isfinite(jacobian) && std::abs(jacobian) > 1e-20))
+        bool const jacobian_usable =
+            std::isfinite(jacobian) && std::abs(jacobian) > 1e-20;
+        if (!jacobian_usable)
         {
             break;
         }
@@ -1983,7 +2001,9 @@ inline double computeImplicitNlDpL(
 
         double const dr_dn_l =
             drho_l_dn_l * time_factor - dt_safe * drho_l_hat_dn_l;
-        if (!(std::isfinite(dr_dn_l) && std::abs(dr_dn_l) > 1e-20))
+        bool const rev_dr_dn_l_usable =
+            std::isfinite(dr_dn_l) && std::abs(dr_dn_l) > 1e-20;
+        if (!rev_dr_dn_l_usable)
         {
             return 0.0;
         }
@@ -2094,7 +2114,9 @@ inline double computeImplicitNlDpL(
             dt_safe;
         dr_dn_l -= dt_safe * volumetric_strain_rate;
     }
-    if (!(std::isfinite(dr_dn_l) && std::abs(dr_dn_l) > 1e-20))
+    bool const dr_dn_l_usable =
+        std::isfinite(dr_dn_l) && std::abs(dr_dn_l) > 1e-20;
+    if (!dr_dn_l_usable)
     {
         return 0.0;
     }
@@ -2192,7 +2214,9 @@ inline double computeImplicitNlDK(
         exchange.drho_l_hat_dmu_lR * dmu_lR_dn_l_tot;  // (kg/m^3/s) per n_l
     double const dr_dn_l = drho_l_dn_l * time_factor -
                            dt_safe * drho_l_hat_dn_l;  // kg/m^3 per n_l
-    if (!(std::isfinite(dr_dn_l) && std::abs(dr_dn_l) > 1e-20))
+    bool const dr_dn_l_usable =
+        std::isfinite(dr_dn_l) && std::abs(dr_dn_l) > 1e-20;
+    if (!dr_dn_l_usable)
     {
         return 0.0;
     }
@@ -2395,8 +2419,10 @@ computeReferenceMicroPorositySwellingStressIncrement(
 
     KV delta_sigma_sw = KV::Zero();
     double const delta_n_l = n_l - n_l_prev;
-    if (!(std::isfinite(delta_n_l) &&
-          std::abs(delta_n_l) > std::numeric_limits<double>::epsilon()))
+    bool const delta_n_l_significant =
+        std::isfinite(delta_n_l) &&
+        std::abs(delta_n_l) > std::numeric_limits<double>::epsilon();
+    if (!delta_n_l_significant)
     {
         return delta_sigma_sw;
     }
