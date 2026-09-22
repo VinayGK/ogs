@@ -1094,12 +1094,15 @@ TEST(RichardsMechanics, DSMMicroMacroMicroPorositySwellingStressIncrement)
     EXPECT_LT(forward_trace * reverse_trace, 0.0);
 
     // Zero water-content step => zero increment (delta_n_l guard).
+    // n_l_prev == n_l makes delta_n_l exactly 0.0, so the guard returns the
+    // freshly zero-initialised KelvinVector: the increment is EXACTLY zero,
+    // not zero to within a tolerance. Assert the exact contract.
     {
         auto const no_step_increment =
             computeReferenceMicroPorositySwellingStressIncrement<2>(
                 0.25, 0.25, 0.7, 1000.0, 1000.0, 1000.0, C_el,
                 potential_exchange_params);
-        EXPECT_NEAR(no_step_increment.norm(), 0.0, 1e-14);
+        EXPECT_DOUBLE_EQ(no_step_increment.norm(), 0.0);
     }
 
     // Bulk-density Pi branch (use_micro_liquid_density_for_micro_pressure =
@@ -1307,7 +1310,10 @@ TEST(RichardsMechanics, DSMMicroMacroCurrentPorositySplitMicroSolidFractionMode)
     // implementation used nS = 1 - phi_M (= 5/6 here), which is incorrect for
     // this mode.
     // n_l = 0.1 -> active_nS = 0.9.
-    EXPECT_NEAR(active_nS, 1.0 - n_l, 1e-12);
+    // At this n_l neither the clamp (0, 1-1e-12) nor the 1e-16 floor binds, so
+    // computeActiveMicroSolidVolumeFraction evaluates the same 1.0 - n_l
+    // subtraction as the expectation: the equality is exact, not banded.
+    EXPECT_DOUBLE_EQ(active_nS, 1.0 - n_l);
 
     auto const active_output = computeCompatibilityMicroHydraulicOutput(
         n_l, rho_LR, local_context, potential_exchange_params);
