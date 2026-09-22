@@ -200,3 +200,100 @@ python3 ~/.claude/skills/review-fix-loop/scripts/ledger.py \
   one in `BUILD-NOTES.md`.
 - The loop has not converged. Round 2 still produced 14 new findings, so more
   remain to be found; 8 rounds of budget are left.
+
+---
+
+# Session 2 — mac mini, 2026-09-21/22
+
+Rounds 3–10 run here; the 10-round budget is now spent. Run id and ledger are the
+same; nothing was re-initialised.
+
+| | |
+|---|---|
+| Host | `macmini.fritz.box`, macOS 27.0, Apple clang 21.0.0, SDK 27.0, 10 cores |
+| Worktree | `~/git/ogs-worktrees/dsm_mr_s2_20260921` (fresh; local branch `mr_s2_2026-09-21`) |
+| Build dir | `~/git/build/dsm_mr_s2_20260921`, `-D_LIBCPP_TEMPLATE_VIS=` (the SDK-27 check in BUILD-NOTES §7 fires on this host too) |
+| Tip at close | `c268ac583d` — 25 commits over `c41ada5f75` |
+| Rounds run | 3, 4, 5, 6, 7, 8, 9, 10 |
+| Stop reason | **budget exhausted** — not converged |
+| Verification | green in **every** round: 46 tests / 4 suites, 44 passed, 2 pre-existing skips, 0 failed |
+
+## Rounds at a glance
+
+| round | new | fixed | verify |
+|---|---|---|---|
+| 3 | 5 | 0 | pass |
+| 4 | 8 | 6 | pass |
+| 5 | 2 | 1 | pass |
+| 6 | 6 | 6 | pass |
+| 7 | 7 | 4 | pass |
+| 8 | 9 | 5 | pass |
+| 9 | 5 | 1 | pass |
+| 10 | 1 | 1 | pass |
+
+Session 2 added **14 fixup commits**. Every one is comment, prose, formatting,
+`const`, or rename only — **no expression, literal, unit value, tolerance or
+expected value was changed by any round.** Verified at the gate: across all of
+session 2's commits, not one floating-point literal was removed or altered; the
+only numbers added are §4.3 magnitude figures, and all of them sit inside
+comments (checked: zero on a non-comment line).
+
+## What session 2 covered that session 1 did not
+
+- **The upstream `ogs-ai` review criteria** (`git@gitlab.opengeosys.org:ogs/inf/ogs-ai.git`
+  @ `f5592e1`), folded in at Vinay's instruction on 2026-09-22 and applied in
+  rounds 8–10. Treated as additive: it opened an axis, it did not retract any
+  earlier finding, and its narrower scope rules (C++ only, `+` lines only) were
+  applied to *new* findings only. Biggest yields: **183 added lines carrying
+  non-ASCII** in comments (now transliterated; zero were in string literals),
+  **Doxygen-invisible `//` documentation** on 9 new public functions, the
+  **`OD` → `output_data`** rename, and 15 clang-format violations.
+- The N/A sections were *verified*, not assumed: PETSc/MPI, OpenMP, exprtk,
+  autocheck and staggered/monolithic are all genuinely absent from the diff.
+  `IterationNumberBasedTimeStepping` **does** apply (beacon_1a01 inflow and
+  stressprobe) and was checked line by line — no `1.0` multiplier.
+- Rounds repeatedly audited their predecessors. Round 6 found three defects the
+  loop had introduced itself (including a magnitude claim that did not
+  reproduce); round 5 found that round 1's own fixup had leaked internal
+  `CLAUDE.md` references into source destined for upstream; round 10 found round
+  9's "const-correctness: zero findings" was incomplete and fixed 9 real cases.
+
+## Open items you inherit
+
+1. **q1–q24, all unanswered.** Session 1 left ten, session 2 added fourteen.
+   Every one is guardrail-blocked — a formulation call, a cited parameter, an
+   assertion value, a tolerance, a breaking config rename, or a precedence call
+   between `CLAUDE.md` and `ogs-ai`. **No further round can clear them.** Full
+   text per question is in `report.md`.
+2. **The autosquash does NOT replay clean** — this supersedes session 1's note
+   that it did (true then, before eleven more fixups landed). Rehearsed in a
+   throwaway worktree: it stops on conflict **four times**, first on
+   `b1f170c9b9` in `StrainedFilmPotential.cpp`, because round 4 and round 6 edit
+   the same comment lines. Worse, resolving mechanically by taking the tip's
+   whole-file content *does* reach an empty tree diff but **corrupts the commit
+   structure** — three commits instead of four, with contents under the wrong
+   messages. So an empty diff alone is not proof of a good squash. Per-hunk
+   resolution is needed and is **yours**: which comment wording survives, and
+   which commit each hunk belongs to, is an authorship call (§7, §9). The branch
+   is therefore pushed with fixups **unsquashed**, which is a valid MR state.
+3. **Two axes no round ever covered.** Integration/benchmark **ctests were never
+   run** — verification was the unit binary only, so nothing here speaks to
+   benchmark or reference-VTU status. And the five **beacon reference VTUs were
+   never regenerated** or checked against a live run; they ship in the same MR as
+   the decks that produce them.
+
+## Harness note — read before resuming
+
+The `review-fix-loop` skill and its `scripts/ledger.py` **do not exist on this
+host**; they were never pushed off the laptop. Session 2 drove the loop manually
+against this same append-only ledger using `ledger_s2.py`, committed next to it.
+That reconstruction was validated adversarially: regenerating `report.md` from
+the untouched round-1/2 ledger reproduced the laptop's file **byte for byte**.
+Use it as `python3 ledger_s2.py --run <run dir> report|append|answer`. It has no
+`init` subcommand by design.
+
+One incident worth carrying: an interrupted agent left the loop worktree
+**suspended mid-interactive-rebase**, having started the squash rehearsal in
+place. It was recovered with `git rebase --quit` (not `--abort`, which would have
+discarded two rounds of work) after tagging every sha as `rescue/*`. **The
+rehearsal belongs in a throwaway worktree, always.**
