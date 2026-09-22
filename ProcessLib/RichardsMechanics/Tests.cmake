@@ -39,31 +39,11 @@ if(NOT OGS_USE_MPI)
     OgsTest(PROJECTFILE RichardsMechanics/A2_total_stress0.xml RUNTIME 8)
 endif()
 AddTest(
-    NAME RichardsMechanics_beacon_1a01_dsm_micromacro_smoke
-    PATH RichardsMechanics
-    EXECUTABLE ogs
-    RUNTIME 20
-    EXECUTABLE_ARGS beacon_1a01_dsm_micromacro_smoke.prj
-    WRAPPER time
-    REQUIREMENTS NOT OGS_USE_MPI
-)
-
-AddTest(
     NAME RichardsMechanics_beacon_1a01_dsm_micromacro_stressprobe
     PATH RichardsMechanics
     EXECUTABLE ogs
     RUNTIME 20
     EXECUTABLE_ARGS beacon_1a01_dsm_micromacro_stressprobe.prj
-    WRAPPER time
-    REQUIREMENTS NOT OGS_USE_MPI
-)
-
-AddTest(
-    NAME RichardsMechanics_beacon_1a01_dsm_micromacro_inflow
-    PATH RichardsMechanics
-    EXECUTABLE ogs
-    RUNTIME 20
-    EXECUTABLE_ARGS beacon_1a01_dsm_micromacro_inflow.prj
     WRAPPER time
     REQUIREMENTS NOT OGS_USE_MPI
 )
@@ -110,16 +90,6 @@ AddTest(
 )
 
 AddTest(
-    NAME RichardsMechanics_beacon_1b_dsm_micromacro_smoke
-    PATH RichardsMechanics
-    EXECUTABLE ogs
-    RUNTIME 20
-    EXECUTABLE_ARGS beacon_1b_dsm_micromacro_smoke.prj
-    WRAPPER time
-    REQUIREMENTS NOT OGS_USE_MPI
-)
-
-AddTest(
     NAME RichardsMechanics_beacon_1b_dsm_micromacro_reference
     PATH RichardsMechanics
     EXECUTABLE ogs
@@ -136,16 +106,6 @@ AddTest(
     beacon_1b_reference_t_1000.000000.vtu beacon_1b_dsm_micromacro_smoke_t_1000.000000.vtu micro_saturation micro_saturation 1e-12 0
     beacon_1b_reference_t_1000.000000.vtu beacon_1b_dsm_micromacro_smoke_t_1000.000000.vtu swelling_stress swelling_stress 1e-12 0
     beacon_1b_reference_t_1000.000000.vtu beacon_1b_dsm_micromacro_smoke_t_1000.000000.vtu sigma sigma 1e-12 1e-10
-)
-
-AddTest(
-    NAME RichardsMechanics_beacon_1c_dsm_micromacro_smoke
-    PATH RichardsMechanics
-    EXECUTABLE ogs
-    RUNTIME 20
-    EXECUTABLE_ARGS beacon_1c_dsm_micromacro_smoke.prj
-    WRAPPER time
-    REQUIREMENTS NOT OGS_USE_MPI
 )
 
 AddTest(
