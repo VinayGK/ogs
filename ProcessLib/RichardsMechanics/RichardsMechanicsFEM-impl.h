@@ -1125,6 +1125,18 @@ solveReferenceMassStoragePredictorState(
     out.micro_potential = micro_potential;
     out.exchange = exchange;
     out.converged = false;
+
+    static std::once_flag once;
+    std::call_once(
+        once,
+        []
+        {
+            WARN(
+                "DSM: reference-mass-storage predictor n_l solve did not "
+                "converge at least once; using the last Newton iterate. The "
+                "caller then returns this predictor state directly and skips "
+                "the coupled (n_l, rho_lR) solve.");
+        });
     return out;
 }
 
@@ -1560,6 +1572,17 @@ solveReferenceMassStorageCoupledState(
     out.micro_potential = micro_potential;
     out.exchange = exchange;
     out.converged = false;
+
+    static std::once_flag once;
+    std::call_once(
+        once,
+        []
+        {
+            WARN(
+                "DSM: coupled (n_l, rho_lR) reference-mass-storage solve did "
+                "not converge at least once; the decoupled predictor state is "
+                "substituted for the non-converged 2x2 iterate.");
+        });
     return out.converged ? out : predictor;
 }
 
