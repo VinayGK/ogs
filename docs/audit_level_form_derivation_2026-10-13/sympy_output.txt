@@ -1,0 +1,18 @@
+OK   film energy: integral = closed text
+OK   film energy: dPsi/deps = -(1-phiM) n_l (Pi + b K eps) (eq BGR_dv_sw on drained line)
+OK   partner mu_mech (BGR_dv_partner)
+OK   partner = code PotentialExchange.h l.584-587
+OK   Maxwell ident: dsigma_sw/dn_l = (1-phiM) rho dmu/deps
+OK   Maxwell ident: = -(1-phiM)(Pi + n_l Pi' + b K eps)
+OK   code closed form L(1+c) = -nS nl Pi - c(m_hat + s_prev - L_prev)
+OK   closed form BGR_dv_closed from L = -phim[Pi + b m], m = s0+K eps+s, s = L-L0
+OK   code closed form with m_hat = s0 + K eps, s_prev - L_prev = -L0 gives BGR_dv_closed
+OK   dPsi_cpl/deps - L0 = sigma_sw (closed form)
+OK   mu_need (BGR_dv_need)
+OK   mu_need == branch-tip partner (design doc l.35 / sympy test l.33)
+OK   Maxwell for Psi_cpl: dsigma_sw/dn_l = (1-phiM) rho dmu_need/deps
+OK   miss BGR_dv_miss
+OK   mu_mech(eps=0) = 0
+OK   mu_need(eps=0) = 0
+OK   miss vanishes at b = 0
+miss at eps = 0: n_S*(b*(L0 - sigma_0) - n_l*(b*n_S*n_l + 1)*Derivative(Pi(n_l), n_l) + (n_l*Derivative(Pi(n_l), n_l) + Pi(n_l))*(b*n_S*n_l + 1)**2 - Pi(n_l))/(b*n_S*n_l + 1)**2
