@@ -1145,6 +1145,39 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
                   "at dn_l = 0."
                 : "");
     }
+    // Z-weighted strain partner of the level-form stress (2026-10-13; see
+    // PotentialExchangeParameters.h). Default off = bit-identical to the tag.
+    auto const micro_potential_partner_z_weight =
+        config.getConfigParameter<bool>(
+            "micro_potential_partner_z_weight",
+            defaults ? defaults->micro_potential_partner_z_weight : false);
+    if (micro_potential_partner_z_weight)
+    {
+        if (swelling_stress_form != SwellingStressForm::Level)
+        {
+            OGS_FATAL(
+                "RichardsMechanics: {} micro_potential_partner_z_weight = true "
+                "is the strain partner of the LEVEL-form stress and requires "
+                "swelling_stress_form = level.",
+                context);
+        }
+        if (film_energy_route == FilmEnergyRoute::Exact ||
+            film_strain_coupling != FilmStrainCouplingMode::Off)
+        {
+            OGS_FATAL(
+                "RichardsMechanics: {} micro_potential_partner_z_weight = true "
+                "is implemented for the operational film route with "
+                "film_strain_coupling = 'off' only.",
+                context);
+        }
+        INFO(
+            "DIAGNOSTIC, NOT ADOPTED (Z-weighted partner, 2026-10-13): "
+            "micro_potential_partner_z_weight = true. The strain partner of "
+            "the micro potential is that of the level-form stress, rho_lR "
+            "mu_m = -[(Pi + b (s_0 - L_0)) eps_v + 1/2 b K_sk eps_v^2]/Z^2 "
+            "- n_l Pi' eps_v / Z, Z = 1 + b (1 - phi_M) n_l, instead of the "
+            "drained-line partner.");
+    }
     std::string micro_ceiling_trace_elements_default;
     if (defaults)
     {
@@ -1481,7 +1514,8 @@ PotentialExchangeParameters parsePotentialExchangeParameters(
         darcy_kirchhoff_cells_per_decade,
         macro_storage_exact_time_levels,
         swelling_stress_K_level,
-        swelling_stress_form};
+        swelling_stress_form,
+        micro_potential_partner_z_weight};
 }
 
 template <int DisplacementDim>

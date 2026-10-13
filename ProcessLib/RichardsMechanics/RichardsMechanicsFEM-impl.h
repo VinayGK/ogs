@@ -346,6 +346,15 @@ struct PotentialExchangeLocalSolveContext
     // and tests that have no stiffness in scope get this reduced, finite form).
     // Set at the assembly / micro-solve context sites from the elastic stiffness.
     double drained_bulk_modulus = std::numeric_limits<double>::quiet_NaN();
+    // Z-weighted partner (micro_potential_partner_z_weight, 2026-10-13) only:
+    // the REV solid fraction n_S = 1 - phi_M of the state (the level's weight)
+    // and the level reference offset s_0 - L_0 [Pa, tension positive], read
+    // from the previous accepted state as mean(sigma'_prev) - K_sk eps_v,prev
+    // - L_prev (identical to s_0 - L_0 for a linear skeleton). NaN = not
+    // supplied -> the Z partner FATALs; the drained-line partner never reads
+    // them. Set by levelFormPartnerInputs at the context sites.
+    double rev_solid_fraction = std::numeric_limits<double>::quiet_NaN();
+    double level_reference_offset = std::numeric_limits<double>::quiet_NaN();
 };
 
 inline double boundedMicroWaterContentCeiling(
@@ -996,9 +1005,11 @@ inline void applyFilmPressureMicroPotential(
         std::isfinite(local_context.drained_bulk_modulus)
             ? local_context.drained_bulk_modulus
             : 0.0;
-    auto const mech = computeIntegrableMechanicalMicroPotential(
-        Pi, dPi_dnl, d2Pi_dnl2, n_l, eps_v, local_context.biot_coefficient,
-        K_drained, rho_lR_used);
+    auto const mech = computeMechanicalMicroPotentialPartner(
+        potential_exchange_params.micro_potential_partner_z_weight, Pi,
+        dPi_dnl, d2Pi_dnl2, n_l, local_context.rev_solid_fraction, eps_v,
+        local_context.biot_coefficient, K_drained,
+        local_context.level_reference_offset, rho_lR_used);
     out.mu_lR += mech.mu_lR_mech;              // J/kg, additive
     out.dmu_lR_dnl += mech.dmu_lR_mech_dnl;    // J/kg per n_l
     out.dmu_lR_drho_lR += mech.dmu_lR_mech_drho_lR;  // (J/kg)/(kg/m^3)
@@ -3878,6 +3889,54 @@ inline int iterateSwellingLevelWithStressUpdate(
     return passes;
 }
 
+// Z-weighted partner (micro_potential_partner_z_weight, 2026-10-13): the two
+// state inputs of the partner. n_S = 1 - phi_M of the current state (the
+// weight the level form uses, floored as in the swelling correction loop) and
+// the level reference offset s_0 - L_0 = mean(sigma'_prev) - K_sk eps_v,prev
+// - L_prev, all of the previous accepted state (for a linear skeleton sigma' =
+// s_0 + K_sk eps_v + L - L_0 at every accepted state, so this is s_0 - L_0
+// exactly; L_prev = 0 before the first step, where the partner is zero anyway
+// at eps_v = 0). NaN pair when the switch is off (never read).
+struct LevelFormPartnerInputs
+{
+    double rev_solid_fraction = std::numeric_limits<double>::quiet_NaN();
+    double level_reference_offset = std::numeric_limits<double>::quiet_NaN();
+};
+
+template <int DisplacementDim>
+inline LevelFormPartnerInputs levelFormPartnerInputs(
+    PotentialExchangeParameters const* const potential_exchange_params,
+    StatefulData<DisplacementDim> const& state_current,
+    StatefulDataPrev<DisplacementDim> const& state_previous,
+    double const volumetric_strain_prev, double const K_drained)
+{
+    LevelFormPartnerInputs out;
+    if (!isZWeightedPartner(potential_exchange_params))
+    {
+        return out;
+    }
+    auto const& identity2 = MathLib::KelvinVector::Invariants<
+        MathLib::KelvinVector::kelvin_vector_dimensions(
+            DisplacementDim)>::identity2;
+    out.rev_solid_fraction = std::max(
+        1e-16,
+        1.0 - std::get<ProcessLib::ThermoRichardsMechanics::
+                           TransportPorosityData>(state_current)
+                  .phi);  // [-]
+    double const sigma_mean_prev =
+        std::get<PrevState<ProcessLib::ConstitutiveRelations::
+                               EffectiveStressData<DisplacementDim>>>(
+            state_previous)
+            ->sigma_eff.dot(identity2) /
+        3.0;  // Pa
+    double const L_prev =
+        **std::get<PrevState<SwellingLevelUsed>>(state_previous);  // Pa
+    double const K_sk = std::isfinite(K_drained) ? K_drained : 0.0;  // Pa
+    out.level_reference_offset =
+        sigma_mean_prev - K_sk * volumetric_strain_prev - L_prev;  // Pa
+    return out;
+}
+
 template <int DisplacementDim>
 inline void updateSwellingState(
     MaterialPropertyLib::Phase const& solid_phase,
@@ -5204,7 +5263,21 @@ void RichardsMechanicsLocalAssembler<
                     .volumetric_strain_prev = variables_prev.volumetric_strain,
                     .confining_pressure_p_conf = p_conf_assembly,
                     .biot_coefficient = alpha,
-                    .drained_bulk_modulus = K_drained_assembly};
+                    .drained_bulk_modulus = K_drained_assembly,
+                    .rev_solid_fraction =
+                        levelFormPartnerInputs<DisplacementDim>(
+                            potential_exchange_params_ptr,
+                            this->current_states_[ip], this->prev_states_[ip],
+                            variables_prev.volumetric_strain,
+                            K_drained_assembly)
+                            .rev_solid_fraction,
+                    .level_reference_offset =
+                        levelFormPartnerInputs<DisplacementDim>(
+                            potential_exchange_params_ptr,
+                            this->current_states_[ip], this->prev_states_[ip],
+                            variables_prev.volumetric_strain,
+                            K_drained_assembly)
+                            .level_reference_offset};
                 // DIAGNOSTIC B: rho_L_hat_B = -(booked micro gain) [kg/(m^3 s)]
                 // at a clamped IP (see assembleWithJacobian / the micro state
                 // update for the definition and the tangent).
@@ -5291,10 +5364,19 @@ void RichardsMechanicsLocalAssembler<
                     // from the elastic stiffness C_el evaluated in this ip loop.
                     double const K_drained_mc =
                         drainedBulkModulusFromStiffness<DisplacementDim>(C_el);
-                    auto const mc = computeIntegrableMechanicalMicroPotential(
+                    auto const z_inputs_mc =
+                        levelFormPartnerInputs<DisplacementDim>(
+                            potential_exchange_params_ptr,
+                            this->current_states_[ip], this->prev_states_[ip],
+                            variables_prev.volumetric_strain, K_drained_mc);
+                    auto const mc = computeMechanicalMicroPotentialPartner(
+                        potential_exchange_params_ptr
+                            ->micro_potential_partner_z_weight,
                         Pi_mc, dPi_dnl_mc, d2Pi_dnl2_mc, n_l,
+                        z_inputs_mc.rev_solid_fraction,
                         variables.volumetric_strain, /*biot_b=*/alpha,
-                        K_drained_mc, rho_mc);
+                        K_drained_mc, z_inputs_mc.level_reference_offset,
+                        rho_mc);
                     mu_lR_vdw += mc.mu_lR_mech;  // J/kg, additive (ungated)
                     dmu_lR_vdw_drho_lR += mc.dmu_lR_mech_drho_lR;
                 }
@@ -5563,6 +5645,9 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
         isFilmPressureCouplingEnabled(potential_exchange_parameters)
             ? drainedBulkModulusFromStiffness<DisplacementDim>(C_el)
             : std::numeric_limits<double>::quiet_NaN();
+    auto const z_inputs_micro_solve = levelFormPartnerInputs<DisplacementDim>(
+        potential_exchange_parameters, state_current, state_previous,
+        variables_prev.volumetric_strain, K_drained_micro_solve);
     updateMicroscaleHydraulicState<DisplacementDim>(
         state_current, state_previous, p_cap_ip, rho_LR, mu, dt, t, variables, variables_prev,
         {.phi = phi,
@@ -5572,7 +5657,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
          .volumetric_strain_prev = variables_prev.volumetric_strain,
          .confining_pressure_p_conf = p_conf_micro_solve,
          .biot_coefficient = alpha,
-         .drained_bulk_modulus = K_drained_micro_solve},
+         .drained_bulk_modulus = K_drained_micro_solve,
+         .rev_solid_fraction = z_inputs_micro_solve.rev_solid_fraction,
+         .level_reference_offset =
+             z_inputs_micro_solve.level_reference_offset},
         micro_porosity_parameters, potential_exchange_parameters, trace_tag);
 
     // Latched saturation gate (micro_ceiling_saturation_gate; branch
@@ -6573,7 +6661,21 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     .volumetric_strain_prev = variables_prev.volumetric_strain,
                     .confining_pressure_p_conf = p_conf_assembly,
                     .biot_coefficient = alpha,
-                    .drained_bulk_modulus = K_drained_assembly};
+                    .drained_bulk_modulus = K_drained_assembly,
+                    .rev_solid_fraction =
+                        levelFormPartnerInputs<DisplacementDim>(
+                            potential_exchange_params_ptr,
+                            this->current_states_[ip], this->prev_states_[ip],
+                            variables_prev.volumetric_strain,
+                            K_drained_assembly)
+                            .rev_solid_fraction,
+                    .level_reference_offset =
+                        levelFormPartnerInputs<DisplacementDim>(
+                            potential_exchange_params_ptr,
+                            this->current_states_[ip], this->prev_states_[ip],
+                            variables_prev.volumetric_strain,
+                            K_drained_assembly)
+                            .level_reference_offset};
                 // ── DIAGNOSTIC B (2026-09-30) ────────────────────────────────
                 // Actual micro storage rate at a clamped IP, with its tangent.
                 //   rho_l = phi_m * rho_lR   [kg/m^3 REV], same definition as the
@@ -6818,10 +6920,19 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     // Heaviside) -- mirrors the L717 micro-solve fold so the
                     // macro-exchange mu_lR equals the micro-solve mu_lR
                     // (equipresence). PARAMETER-FREE.
-                    auto const mc = computeIntegrableMechanicalMicroPotential(
+                    auto const z_inputs_mc =
+                        levelFormPartnerInputs<DisplacementDim>(
+                            potential_exchange_params_ptr,
+                            this->current_states_[ip], this->prev_states_[ip],
+                            variables_prev.volumetric_strain, K_drained_mc);
+                    auto const mc = computeMechanicalMicroPotentialPartner(
+                        potential_exchange_params_ptr
+                            ->micro_potential_partner_z_weight,
                         Pi_mc, dPi_dnl_mc, d2Pi_dnl2_mc, n_l,
+                        z_inputs_mc.rev_solid_fraction,
                         variables.volumetric_strain, /*biot_b=*/alpha,
-                        K_drained_mc, rho_mc);
+                        K_drained_mc, z_inputs_mc.level_reference_offset,
+                        rho_mc);
                     mu_lR_vdw += mc.mu_lR_mech;  // J/kg, additive (ungated)
                     dmu_lR_vdw_drho_lR += mc.dmu_lR_mech_drho_lR;
                     // DSM Maxwell-conjugate: exchange<->displacement tangent --
@@ -6928,11 +7039,19 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                     double const K_drained =
                         drainedBulkModulusFromStiffness<DisplacementDim>(
                             C_el_film);
-                    auto const mech_pu =
-                        computeIntegrableMechanicalMicroPotential(
-                            Pi_pu, dPi_dnl_pu, d2Pi_dnl2_pu, n_l,
-                            variables.volumetric_strain, /*biot_b=*/alpha,
-                            K_drained, rho_film);
+                    auto const z_inputs_pu =
+                        levelFormPartnerInputs<DisplacementDim>(
+                            potential_exchange_params_ptr,
+                            this->current_states_[ip], this->prev_states_[ip],
+                            variables_prev.volumetric_strain, K_drained);
+                    auto const mech_pu = computeMechanicalMicroPotentialPartner(
+                        potential_exchange_params_ptr
+                            ->micro_potential_partner_z_weight,
+                        Pi_pu, dPi_dnl_pu, d2Pi_dnl2_pu, n_l,
+                        z_inputs_pu.rev_solid_fraction,
+                        variables.volumetric_strain, /*biot_b=*/alpha,
+                        K_drained, z_inputs_pu.level_reference_offset,
+                        rho_film);
                     double const alpha_M_eff_film = alpha_bar * rho_LR / mu;
 
                     // ── M1 route dispatch (review fix 2026-06-14) ────────────
@@ -9030,6 +9149,11 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
                 .output_reevaluation = true};
             trace_tag = &trace_tag_storage;
         }
+        auto const z_inputs_secondary =
+            levelFormPartnerInputs<DisplacementDim>(
+                this->getPotentialExchangeParameters(),
+                this->current_states_[ip], this->prev_states_[ip],
+                variables_prev.volumetric_strain, K_drained_micro_solve);
         updateMicroscaleHydraulicState<DisplacementDim>(
             this->current_states_[ip], this->prev_states_[ip], p_cap_ip,
             rho_LR, mu, dt, t, variables, variables_prev,
@@ -9040,7 +9164,10 @@ void RichardsMechanicsLocalAssembler<ShapeFunctionDisplacement,
              .volumetric_strain_prev = variables_prev.volumetric_strain,
              .confining_pressure_p_conf = p_conf_micro_solve,
              .biot_coefficient = alpha,
-             .drained_bulk_modulus = K_drained_micro_solve},
+             .drained_bulk_modulus = K_drained_micro_solve,
+             .rev_solid_fraction = z_inputs_secondary.rev_solid_fraction,
+             .level_reference_offset =
+                 z_inputs_secondary.level_reference_offset},
             this->process_data_.micro_porosity_parameters,
             this->getPotentialExchangeParameters(), trace_tag);
 

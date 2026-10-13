@@ -1,0 +1,722 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+EURAD-2 MS33 Theoretical Benchmarking — Model VII
+Free swelling, loading and unloading
+BGR / DSM native hierarchical vdW-augmented model
+
+Reference configuration: rho_d=1600 kg/m³, phi0=0.424460.
+  K IS NOT A SCALAR IN THIS DECK. It is supplied by the live K(rho_d) table below
+  (potential_augmentation_prefactor_vs_dry_density: knots 900/1400/1600/1800 =
+  24241.938995 / 46000.3269694 / 104698.192423 / 265909.813902 J/kg), interpolated log-linearly at the
+  evolving dry density, with potential_augmentation_prefactor_live_dry_density = true.
+  The knot in force at rho_d=1600 is 104698.192423 J/kg.
+  K-FIX SET (E = 52 MPa), SUBMISSION CANDIDATE, 2026-10-05: Mass-conserving A (2a) + the K-fix + the always-on corrected clamp guard.
+    Branch gen5_masscons_1a_kfix_guard_E52_conformant_2026-10-05, cut from dsm_kfix_guard_production_2026-10-05 (the K-fix and the guard
+    as two production commits on fc14f19fb9). Added in this deck, inside <potential_exchange>, one line:
+      swelling_stress_k_level = true (lower-case k, the spelling the input parser reads): the Pi of the previous level is evaluated at its own
+      K_aug(rho_d,prev), so the change of K with dry density is booked in the swelling-stress step.
+    The clamp guard of the live-K swelling tangent is code, not a deck switch; it is always on. Every other switch line and every material and
+    numerical value of this deck (the elastic constants included) are unchanged from the 2a block below; this is the E = 52 MPa set.
+    Rulings (Vinay Kumar): 2026-10-04 "ok, then i agree to the K-fix" and "run model IV under the K-fix, k-fix is submission";
+    2026-10-05 "Submission: re-run the K-fix suite with the corrected guard. always on."
+    RUN WITH THIS DECK: record run 1a/suite/VII_240, MacBook Pro, 2026-10-05, OMP 1, bin/ogs md5 ad1d8b16b52fba77874a0166391f109d, libRichardsMechanics md5 7452094c2200330fb63724a238fc01f9
+    (built from 3739b7ec03 + guard_always_on.diff; its source tree equals the tree of the code commit of this branch, git rev-parse checked).
+    The run deck equals this deck with XML comments, test_definition and blank lines removed. 881 accepted / 0 rejected steps, last step ends at t = 2.0736e+07 s,
+    wall 217 s. Record CANONICAL_RESULTS_2026-10-05_gen5_masscons_1a_kfix_guard_v0.json, md5 ee36f00a77ffd89df0e1467fb4b1b047.
+    The MASS-CONSERVATION STATUS and the R_L/I value of the 2a block below were measured for 2a; they are NOT re-measured for this
+    configuration here and are not claimed for it.
+  MASS-CONSERVING DSM, SUBMISSION CANDIDATE 2a, 2026-10-02 (Vinay 2026-10-02 "do both": candidate 2 is cut twice,
+    2a = variant 1a, 2b = variant 1b, each end to end like candidate 1). Branch gen5_masscons_1a_conformant_2026-10-02,
+    cut from 3101058538 (v5 probe tip); MS33 test tree from gen5_icfix_conformant_2026-09-30 (d64c47cb30).
+    CONFIGURATION (switch lines inside <potential_exchange> below; default of every switch = the shipped code):
+      micro_ceiling_treatment = kkt, micro_ceiling_pu_tangent = kkt_active (carried forward with the F3 ruling, 2026-10-01);
+      micro_mass_strain_term_eulerian = true (F3, RULED 2026-10-01); micro_ceiling_sw_tangent = kkt_active (Model IV
+      tangent, ordered 2026-10-01); micro_ceiling_saturation_gate = bishop_relperm (Fix B, RULED 2026-10-01);
+      macro_storage_uses_macro_porosity = true (Q2, RULED 2026-09-30); macro_balance_drops_micro_biot_term = true
+      (T_m dropped, RULED 2026-10-02 "go with L + drop T_m"); darcy_relative_permeability_mobility = kirchhoff_element_mean (1a: element-mean Kirchhoff k_rel in the Darcy term);
+      macro_storage_exact_time_levels = true (exact P; MAIN-LOOP READING of "do both", open for Vinay's check).
+    K table: K_fix of the IC-FIX V0 block below, unchanged (D3 default). No every-step output, no diagnostic _ip variables.
+    MASS-CONSERVATION STATUS (MEASURED on the v5 probe run V5a_VII_240, the same switch lines with every-step output,
+    Shilpa's MBP; books_table_v5.json md5 d480471922bf188d904ac04e3e64c25e in ~/ogs-models/scratch/2026-10-02_kkt_v5_compare/):
+      water books under definition L (RULED): R_L/I = +7.821e-07 at t = 240 d; the macro storage product term P is removed
+      by construction, what is left is MS + BTerr - Cl (NOTE_V5.md section 0 items 1 to 3).
+      RUN WITH THIS DECK (header refreshed 2026-10-02, OGS fixes stage; replaces 'Not yet run with this deck'):
+        candidate-2a record run 1a/suite/VII_240, Shilpa's MBP, 2026-10-02, bin/ogs md5 fd2e4e76e51d490e45c15b3861c7471d; the run deck equals
+        this deck with comments and blank lines removed. 887 accepted / 0 rejected steps to t = 240 d. All 57 record
+        frames are bitwise equal to those of the v5 probe run named above (P3f), so the status above holds for this deck
+        (record BOOKS_2026-10-02_gen5_masscons_1a_v0.json, md5 bea6cab8803d17c8a6b09a47d6badc85).
+  IC-FIX V0 RE-FIT 2026-09-30 (Vinay 2026-09-30 ~22:00 "elevate the consistent IC to submission"; K_fix accepted,
+  "your choices 1: ok"). Branch gen5_icfix_conformant_2026-09-30 = gen5_conformant_2026-09-08 (486235c679) + cherry-pick of
+  686fcd6ef8 (RichardsMechanics DSM: the declared initial_micro_water_content is realised in the previous micro porosity).
+  K re-fitted with that binary (ogs archive/dsm_native_Pi_fofnlev_branchtip_2026-08-11-50-g686fcd6e, bin/ogs md5 23640465bff1ef6ce5c83d6c5dcd48d3)
+  by the SHIPPED procedure (13-point sweep 0.70-1.30 x previous knot, log-linear secant, tolerance |Ps/target - 1| <= 1e-9).
+  Ps = target is CALIBRATION, not validation. Record: ANCHORS_MS33_ModelI/icfix_2026-09-30/K_fix.json (md5 e6f29bd492a5011c8f8a6f7688d6980e), K_fix.md, K_fix_attribution.md (same folder).
+  PREVIOUS table (gen 5, 2026-09-07): 24241.892204 / 46000.0 / 104689.9129 / 265905.06 J/kg; the texts below that cite it are history.
+  (900 knot: 24241.938995 is the IC-FIX V0 re-fit of 2026-09-30; 24241.892204 was the GEN 5 re-fit of 2026-09-07 at macro_porosity_floor = 0.0; when
+  this block was first written on 2026-09-03 it read 18469.144929, the gen-4 knot fit at 0.08.)
+  HISTORICAL (annotated 2026-09-03, retained per CLAUDE.md 6.3/6.4, not deleted): this line
+  previously read "K=103879 J/kg (Dixon 2023 Fig.1, EMDD=rho_d, 14.161 MPa; supersedes earlier
+  27371.90)". That scalar was correct when written (2026-06-15, commit a08f1aabd0d) and was
+  SUPERSEDED at the 2026-08-17 live-K switch, exactly as the section 12 provenance block below
+  already records under "fitted K". It went stale on THIS line only; rho_d and phi0 here remain
+  live, which is why the stale K read as current. Found by the provenance sweep of 2026-09-03
+  (CLAUDE.md 6.7.1); correction approved by Vinay (2026-09-03 09:13, "fix the VII deck line 7,
+  annotate"); the edit sat uncommitted in the shipped worktree and is carried into this branch
+  on 2026-09-07 (audit 2026-09-04 item B11).
+Geometry: 50mm diam × 70mm height axisymmetric cylinder (r=0–0.025m, z=0–0.070m)
+  Mesh: ms33_cylinder_r25_h70.vtu (this directory's 1066-node / 1000-quad, 1 x 1.75 mm version) + _left/_right/_bottom/_top;
+  right face carries NO boundary condition (free). (Mesh name added to the header 2026-09-08, CLAUDE.md 6.7.1.)
+
+Free swelling under constant axial stress = 0.2 MPa (1-D oedometer-like):
+  Left  (r=0): u_r = 0  (axis of symmetry)
+  Right (r=0.025): u_r FREE  (no radial confinement → free lateral swelling)
+  Bottom (z=0): u_z = 0 (fixed base), pressure BC (suction ramp)
+  Top   (z=0.07): Neumann (applied axial stress, time-varying)
+
+Loading/unloading path per MSXX Table Loading_unloading_path (STEP-AND-HOLD since 2026-09-08,
+spec-conformance fix 3; each rung reached by a 0.1 d ramp then HELD for the rest of its 5 d):
+  0   – 17280000 s (200 d): saturation under 0.2 MPa
+  17280000 – 17712000 s (200–205 d): hold at 0.2 MPa
+  17712000 – 18144000 s (205–210 d): 0.4 MPa (ramp 205-205.1 d, hold to 210 d)
+  18144000 – 18576000 s (210–215 d): 1.0 MPa (ramp 210-210.1 d, hold to 215 d)
+  18576000 – 19008000 s (215–220 d): 2.5 MPa (ramp, hold)
+  19008000 – 19440000 s (220–225 d): 5.0 MPa (ramp, hold)
+  19440000 – 19872000 s (225–230 d): 2.5 MPa (ramp, hold)
+  19872000 – 20304000 s (230–235 d): 1.0 MPa (ramp, hold)
+  20304000 – 20736000 s (235–240 d): 0.4 MPa (ramp, hold)
+  HISTORY: through gen 4 (2026-08-31) the curve had one knot per rung boundary and therefore RAMPED
+  linearly across each 5-d interval (mid-interval error up to 1.25 MPa vs the held spec value);
+  see the traction_ramp curve comment.
+
+Traction sign convention: compression = negative (σ_zz < 0 → traction t_z < 0).
+Curve traction_ramp gives the Neumann z-traction on the top face.
+
+IC note: Initial suction is kept benchmark-compliant at 100 MPa.
+For consistency with the benchmark-aligned Pi-path initialization used in Models I/III/IV,
+initial micro water content is set to the 99 MPa-equilibrium value.
+-->
+<!-- VARIANT 2026-10-13 (task E of BRIEF_Z_weight_cloud_2026-10-13.md): identical to ms33_modelVII_freeswelling.prj except swelling_stress_form = level AND micro_potential_partner_z_weight = true added, the output prefix and no test_definition. Not a submission deck. -->
+<OpenGeoSysProject>
+<!-- CAMPAIGN v2 2026-09-08 (Vinay: '3x audit against specs ... results ground up'): output grid set to the data-collection template's
+     5-day rows (audit 2026-09-08_spec_audit_3x LANE2 finding 3); physics, BCs and numerics unchanged from the 2026-09-08 conformant deck. -->
+
+  <!-- GUARDRAIL §12.5 audit (2026-08-17, Vinay-approved): intrinsic permeability
+       set to 160x the deck's Kozeny-Carman base 5.8703e-21 m^2 = 9.39248e-19 m^2
+       (same multiplier and same absolute value as ms33_modelIII_gapswitch.prj;
+       167.73x the MS33 spec LITERAL k0=5.6e-21 at phi_ref=0.42; state the baseline
+       whenever quoting a multiplier). SUPERSEDES the 80x value 4.696240e-19 set
+       earlier the same day: that 80x figure was measured under FROZEN K (before
+       VII was switched to live-K, this same session); re-measured after the
+       live-K switch, three parallel runs {80x, 160x, 320x} showed 320x plateauing
+       EXACTLY flat from 100 d onward (e_top identical at 100/150/200 d = 1.13705,
+       a converged asymptote), 80x sitting 0.83 percent short of that asymptote AT
+       the 200 d horizon itself (no safety margin; fails the same standard that
+       rejected III's 100x), and 160x matching the 320x asymptote to 0.015 percent
+       with Aitken-extrapolated t_eq(1 percent) <= 100 d, i.e. a >=100-day safety
+       margin (measured, this session; see DSM/AGENTS.md for the dated entry).
+       REASON, same mechanism as Model III (DSM/AGENTS.md section 7): macro
+       saturation collapses to ~0, so relative_permeability sits pinned on its
+       1e-2 floor throughout, making the effective conductivity k0*1e-2; the
+       acceleration compensates for that, it is not a change of physics.
+       NO RADIAL CONFINEMENT (Vinay 2026-08-17, checked against spec and
+       cross-team descriptions: CIMNE-UPC treats a confined VII as a separate
+       ADDITIONAL exercise, UCLM's own VII assumes radial confinement, teams
+       disagree; kept unconfined per Vinay's explicit call, DSM/AGENTS.md
+       section 14). -->
+  <!-- SUPERSEDED GUARDRAIL §12.5 audit (2026-08-17 morning, Vinay-approved), kept
+       for lineage: intrinsic permeability set to 80x the deck's Kozeny-Carman base
+       5.8703e-21 m^2 = 4.696240e-19 m^2. This measurement was taken under FIXED/
+       FROZEN K (before the live-K switch documented in the provenance block
+       above): 20x gave t_eq(1 percent, Richardson) = 300 d, NOT converged by the
+       200 d team horizon (2.0 percent short at 200 d, corroborating the independent
+       2026-06-17 record: runs/2026-06-15_1410_.../EQUILIBRATED_LE_VII_2026-06-17.md);
+       80x gave t_eq=75 d, a 125-day safety margin under FROZEN K. That margin does
+       NOT carry over to live-K (re-measured above); LEGITIMACY sweep
+       {5,10,80,100,160,320,640,1280}x was likewise measured under frozen-K. -->
+  <!-- ORIGINAL GUARDRAIL §12.5 audit (2026-06-09, Vinay-approved), superseded
+       above, kept for lineage. The "clay/pellet" wording below is Model IV
+       boilerplate that was copied into this file in error and never described
+       this deck: intrinsic permeability set to 20x spec (k0=1.17406e-19 m^2
+       clay; 1.17406e-18 pellet). Rationale: spec-perm = unconverged transient
+       at reporting horizon; 20x equilibrates and is the MAX stable factor on
+       dsm_native_maxwell_conjugate (50x diverges ~11d, Model III, always-on
+       Maxwell-term wetting-rate ceiling). IV/VII endpoints perm-insensitive
+       (20x vs 50x under 1 percent). -->
+    <!--
+      DSM provenance (CLAUDE.md §12.2). Authoritative; supersedes any older inline
+      "Villar" calibration wording elsewhere in this file.
+      Benchmark family : MS LE  (gating regression standard, §12.3)
+      Geometry / BC    : axisym cylinder 50 mm diam x 70 mm; FREE radial swelling (right face
+                         u_r free), fixed base, time-varying axial traction (load/unload path
+                         to 240 d); bottom suction ramp 100->0 MPa / 20 d. Source: EURAD-2 MS33
+                         spec (Table Loading_unloading_path).
+                         SPEC-CONFORMANCE FIX 3 (2026-09-08, Vinay "approve all five, run them as
+                         one campaign"; audit audits/2026-09-08_spec_conformance_full/AUDIT.md §5 +
+                         VERIFY_refutation §1(a)): the traction ladder is now STEP-AND-HOLD (each
+                         rung held for its 5 d; 0.1 d ramps at the jumps, a numerics choice) instead
+                         of the gen-4 linear ramp between rung boundaries; 7 half-interval output
+                         frames added. Reference re-baselined on this campaign.
+      Constitutive note : delivered in LINEAR ELASTIC. MCC fails at the cam-clay dry-side tension
+                         apex under free swelling (documented limit); sigma0 from the
+                         free-boundary rule sigma0 = alpha*chi*p_L,initial.
+      Calibration anchor:
+        source       : Dixon (2023)   [CLAUDE.md 12.1-compliant]
+        locator      : Dixon et al. (2023), "Measured swelling, hydraulic and thermal
+                       properties of MX-80 bentonite", Applied Clay Science 241:106998;
+                       median fit sigma_swell [MPa] = 0.003 * exp(5.2883 * EMDD [Mg/m3]).
+        dataset row  : MX-80 Fig.1 median, EMDD == rho_d (WG agreement 2026-05-27), rho_d=1600 kg/m3
+        target sigma : 14.161 MPa
+        fitted K     : live K(rho_d) table (see the K TABLE block below): 900/1400/1600/1800 ->
+                       24241.938995 / 46000.3269694 / 104698.192423 / 265909.813902 J/kg; the knot in force at
+                       rho_d=1600 is 104698.192423 J/kg (IC-FIX V0 RE-FIT 2026-09-30, Vinay-approved K_fix, binary md5 23640465bff1ef6ce5c83d6c5dcd48d3,
+                       record ANCHORS_MS33_ModelI/icfix_2026-09-30/K_fix.json; PREVIOUS table 24241.892204 / 46000.0 / 104689.9129 / 265905.06, sigma0=0 "Option C" form-(a) recalibration).
+                       Line re-led 2026-09-07 (audit 2026-09-04 item B7). HISTORY, kept for lineage:
+                       103879.0 J/kg (potential_augmentation_prefactor) at sigma0=-1.5e5.
+                       SUPERSEDED 2026-08-17 for live evaluation by 104689.9129 J/kg, the
+                       sigma0=0 "Option C" form-(a) recalibration at rho_d=1600 (same value
+                       ms33_modelIII_gapswitch.prj uses); see the K TABLE block below.
+                       sigma0 itself stays -1.5e5 (unchanged, same known convention gap as
+                       III/IV; not this decision, see DSM/AGENTS.md section 17).
+
+      K(rho_d) TABLE + LIVE EVALUATION (Vinay's ruling 2026-08-17 for III/IV, extended to
+      VII 2026-08-17 same session, Vinay-approved): VII reports LIVE-K. K is re-read from
+      the table at the EVOLVING rho_d = rho_SR*(1-phi) during the run; VII is the
+      free-swelling geometry with the LARGEST density excursion of the whole suite (no
+      radial confinement; e climbs from ~0.73 to ~1.50), so the physical argument for III/IV
+      ("a swelling material loses swelling potential; pricing it at the emplacement density
+      is wrong") applies at least as strongly here. Identical Dixon-propagated knots as III:
+          rho_d =  900 -> K =  24241.938995 (target 0.3500522009 MPa)   IC-FIX V0 RE-FIT 2026-09-30 (previous 24241.892204, GEN 5 RE-FIT 2026-09-07 at
+          macro_porosity_floor = 0.0 (Vinay "i approve gen 5"), supersedes 18469.144929 (gen 4,
+          RE-FIT 2026-08-28 at floor 0.08, audit 2026-09-04 B1), which superseded 4367.2277
+          (contaminated fit, see dd900.prj/DSM/AGENTS.md entry 27-28)
+          rho_d = 1400 -> K =  46000.3269694 (target  4.9    MPa)   IC-FIX V0 (previous 46000.0)
+          rho_d = 1600 -> K = 104698.192423  (target 14.161  MPa)   IC-FIX V0 (previous 104689.9129)
+          rho_d = 1800 -> K = 265909.813902  (target 40.6    MPa)   IC-FIX V0 (previous 265905.06)
+      VII's own operating range stays within the table (rho_d falls to ~1113 kg/m3 at the
+      top probe under the prior fixed-K run; no extrapolation beyond the 900-1800 knots).
+      Same CAVEAT as III (open, Vinay's call): linear PiecewiseLinearInterpolation vs Dixon's
+      exponential law overshoots across the wide 900-1400 chord.
+      RESOLVED 2026-08-26 (Vinay's decision, commit bed3e395da): the LIVE K(rho_d) path now
+      interpolates LOG-LINEARLY between knots (node-preserving, fitted K values untouched);
+      the caveat above describes the superseded linear scheme and is kept as history
+      (line added 2026-09-07, audit 2026-09-04 item B7).
+      Material parameters (source per group): as Model I dd1600; elastic E,nu: see the
+        dedicated "elastic — Young/Poisson" warning block at the end of this provenance comment
+        (SINGLE material, E=52 MPa Constant, no per-material split needed; 2026-06-08 correction
+        left VII E untouched; nu=0.3). geometry = 50 mm
+        reference cell (r25 mesh). rel.perm S_e^3; rho_s=2780;
+        macro retention               : SaturationTuller.  *** HEADER CORRECTED 2026-08-31
+                       (§6.7(1) header–value consistency). *** This block previously read
+                       "retention P0=27MPa,a=0.45", i.e. it documented a van Genuchten curve
+                       that this file does NOT implement: no van-Genuchten property exists in
+                       this deck and the literals 27e6 / 2.7e7 / 27000000 / 0.45 occur ZERO
+                       times in it.  The LIVE macro retention property is
+                       <type>SaturationTuller</type>, with
+                           area_factor_tuller           = 1.0
+                           pore_area_shapefactor_tuller = 0.8584073464102069
+                           characteristic_pore_size     = 1e-5   m
+                           surface_tension              = 0.0715 N/m
+                           cavitation_pressure          = 1.4e8  Pa
+                       Source status, per parameter: cavitation_pressure = 1.4e8 Pa is Or and
+                       Tuller (2002), WRR 38(5) 1061.  The Tuller pore geometry
+                       (area_factor_tuller, pore_area_shapefactor_tuller,
+                       characteristic_pore_size) and surface_tension are ported from the
+                       dsm_mfront_hierarchical parity PRJs, as the inline comment at the
+                       property itself records.  A parity or port branch is NOT one of
+                       §12.1's six allowed source families (Beacon / EPFL / Dixon / Villar /
+                       EURAD-MS / FEBEX); it is recorded here as historical provenance only.
+                       TODO(Vinay) — §12.1-admissible source required; live value documented, provenance outstanding.
+                       No numeric literal was changed by this correction; the live values above
+                       are transcribed from the property block itself.
+        cavitation 1.4e8 Or-Tuller 2002; A_Hamaker 2.2e-20 Israelachvili & Adams 1978; lambda=7.5e-7
+        co-calibrated; micro EOS / Tuller geom [TODO(Vinay): primary locators]; alpha_M
+        phenomenological.
+        specific_surface=523 m2/g     : EPFL family (CLAUDE.md 12.1 family 2): Seiphoori, Ferrari & Laloui
+                       (2014), Geotechnique 64(9):721-734, Tab. 1 p. 724, in m2/g. RULED Vinay
+                       2026-09-02; corroborated Tang & Cui (2005) CGJ Tab. 3 and Saiyouri et al.
+                       (1998) at 522 m2/g. UNIT CLASH, disclosed not changed: declared m2/g here,
+                       consumed as m2/kg by PotentialExchange.h (CLAUDE.md 1.3 incident 2026-09-02).
+                       Locator entered 2026-09-07 (audit 2026-09-04 item B9); the previous text of
+                       this line was "literature MX-80  [TODO(Vinay): primary locator]".
+        elastic — Poisson nu=0.3      : EURAD-MS / CIMNE-UPC (CIMNE-UPC.tex Tab. tab:CIMNE_BBM L283).
+        elastic — Young E=52 MPa      : *** WARNING: UNCITED WORKING VALUE — NOT A §12.1 MATERIAL
+                       CONSTANT. *** Vinay-approved 2026-06-15 for use WITH this explicit warning
+                       (§1.1 source = user approval). NO literature/spec source for E=52 MPa: ABSENT
+                       from the EURAD-2 MS33/MSXX spec (TH-G lists only hydraulic/thermal params; the
+                       spec states mechanical params are TEAM-CALIBRATED against a lab test) and from
+                       the thm-lit library. Borrow/working value, NOT calibrated. USE WITH CAUTION;
+                       supersede if a real §12.1 source (Beacon/EPFL/Dixon/Villar/EURAD-MS/FEBEX) or
+                       a Model-I lab calibration appears. SUPERSEDES the prior incorrect "EURAD-2 MS33
+                       spec TH-G" attribution of E (that value is NOT in the spec).
+      NOTE: swelling pressure K-governed (BishopsSaturationCutoff=1).
+    -->
+    <meshes>
+        <mesh axially_symmetric="true">ms33_cylinder_r25_h70.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_cylinder_r25_h70_left.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_cylinder_r25_h70_right.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_cylinder_r25_h70_bottom.vtu</mesh>
+        <mesh axially_symmetric="true">ms33_cylinder_r25_h70_top.vtu</mesh>
+    </meshes>
+    <processes>
+        <process>
+            <name>RM</name>
+            <type>RICHARDS_MECHANICS</type>
+            <integration_order>2</integration_order>
+            <micro_porosity>
+                <mass_exchange_coefficient>1e-13</mass_exchange_coefficient>
+                <nonlinear_solver>
+                    <maximum_iterations>100</maximum_iterations>
+                    <residuum_tolerance>1e-8</residuum_tolerance>
+                    <increment_tolerance>1e-20</increment_tolerance>
+                </nonlinear_solver>
+            </micro_porosity>
+            <potential_exchange>
+                <enabled>true</enabled>
+                <pressure_tolerance>1e-12</pressure_tolerance>
+                <hamaker_constant>2.2e-20</hamaker_constant>
+                <specific_surface>523.0</specific_surface>
+                <micro_solid_density_reference>2780.0</micro_solid_density_reference>
+                <!-- n_s = 1 - phi0 = 0.575540 -->
+                <micro_solid_volume_fraction_reference>0.5755395683453237</micro_solid_volume_fraction_reference>
+                <!-- rho_l0=100 → rho_lR = 100·exp(-1e-16·ω) + 1000 ≈ 1100 kg/m³
+                     (1W-hydration-state interlayer water; MD: Boek & Sprik 2003, Marry et al. 2008) -->
+                <micro_liquid_density_reference>100.0</micro_liquid_density_reference>
+                <micro_liquid_density_a>1e-16</micro_liquid_density_a>
+                <micro_liquid_density_b>1.0</micro_liquid_density_b>
+                <!-- n_l0 from vdW equilibrium at ~99 MPa suction (benchmark-compliant start). -->
+                <initial_micro_water_content>1.1699e-3</initial_micro_water_content>
+                <local_nonlinear_solve_mode>scalar_micro_macro_mass_storage_mode</local_nonlinear_solve_mode>
+                <!-- fd_jacobian_for_exchange omitted: default false (analytic Jacobian). -->
+                <micro_potential_convention>negative_attractive</micro_potential_convention>
+                <!-- micro_water_content_swelling_slope omitted: default 0.0 (Pi-only swelling;
+                     set >0 to add phenomenological n_l coupling). -->
+                <use_micro_liquid_density_for_micro_pressure>true</use_micro_liquid_density_for_micro_pressure>
+                <!-- K [Villar-calibrated; SUPERSEDED 2026-06-01 -> Dixon recalibrated value below] at rho_d=1600 kg/m³ via Pi-path;
+                     Π uses bulk ρ_LR (Gibbs–Duhem consistent); steps 2+3, 2026-05-21 -->
+                <!-- K recalibrated 2026-06-01: dt-converged Dixon(2023) reference K (P* basis); prev value 71900 -->
+                <!-- FIXED K=103879.0 SUPERSEDED 2026-08-17 (Vinay's ruling extended from III/IV to VII,
+                     same session): a swelling material loses swelling potential; VII is the free-swelling
+                     geometry with the LARGEST density excursion in the suite (rho_d falls to ~1113 kg/m3 at
+                     the top probe, e_top=1.4958), so pricing it at the frozen rho_d=1600 emplacement value
+                     is the same physically-wrong branch identified for III/IV. Replaced by the identical
+                     live-K table already adopted on ms33_modelIII_gapswitch.prj (same Dixon-propagated,
+                     sigma0=0 Option-C form-(a) chain; see that PRJ's provenance block for the full
+                     derivation and the linear-vs-exponential interpolation caveat, which applies here too). -->
+                <!-- K-TABLE UPDATE RATIFIED 2026-08-31 (Vinay, live conversation): adopted
+                     per Vinay's go-ahead to bring this file's 900-knot into line with the
+                     corrected dd900 re-fit (18469.144929 J/kg, supersedes the n_s-contaminated
+                     4367.227700212952 J/kg; DSM/AGENTS.md 2026-08-28 entry 28). Fresh
+                     end-to-end run cross-validated bit-for-bit against the independently
+                     recovered 2026-08-28 run (21 extracted quantities, exact match to full
+                     double precision). Reference rebaselined ts_883 -> ts_920 (t=20736000 s).
+                     Full record: DSM/AGENTS.md 2026-08-31 entry 29. -->
+                <!-- GEN 5 (Vinay 2026-09-07, "i approve gen 5"): 900 knot 18469.144929 -> 24241.892204 J/kg,
+                     re-fit in the dd900 cell at macro_porosity_floor = 0.0 (this deck's own floor) instead
+                     of 0.08; 1400/1600/1800 knots untouched. Same table byte-identical in III/IV/VII.
+                     Re-run and reference rebaselined the same day; record
+                     CANONICAL_RESULTS_2026-09-07_gen5.json and DSM/AGENTS.md gen-5 entry. -->
+                <!-- IC-FIX V0 RE-FIT 2026-09-30 (Vinay-approved K_fix; binary md5 23640465bff1ef6ce5c83d6c5dcd48d3, commit 686fcd6ef8): knots 900/1400/1600/1800 = 24241.938995 46000.3269694 104698.192423 265909.813902 J/kg;
+                     previous table 24241.892204 46000.0 104689.9129 265905.06 (gen 5). Record: ANCHORS_MS33_ModelI/icfix_2026-09-30/K_fix.json.  -->
+                <potential_augmentation_prefactor_vs_dry_density>
+                    <dry_densities>900 1400 1600 1800</dry_densities>
+                    <prefactors>24241.938995 46000.3269694 104698.192423 265909.813902</prefactors>
+                </potential_augmentation_prefactor_vs_dry_density>
+                <potential_augmentation_prefactor_live_dry_density>true</potential_augmentation_prefactor_live_dry_density>
+                <!-- lambda=7.5e-7 code units = physical 0.75 nm decay length
+                     (smectite long-range exponential regime h>1.4 nm; Leneveu & Rand 1977,
+                      Israelachvili & Adams 1978 as reviewed in Israelachvili 2011 §13) -->
+                <potential_augmentation_exponent>7.5e-7</potential_augmentation_exponent>
+                  <micro_water_content_floor>7.06e-5</micro_water_content_floor> <!-- 1W crystalline-hydration interlayer-water floor; Boek & Sprik 2003 (MD) / Marry et al. 2008 (1W Na-montmorillonite hydration); derivation in task13 TASK13_MCC_BLOCKAGE.md; adopted Vinay 2026-06-17 (commit 9e5459d00b). Caps Pi at the 1W minimum. -->
+                  <macro_porosity_floor>0.0</macro_porosity_floor> <!-- INERT for the LE submission suite (restores audited Dixon-exact config: 6/6 green, I=4.9218/14.1602/40.8448 verified 2026-06-23; HISTORICAL sigma0=-1.5e5-era numbers, current Model I values are in the 12.2 provenance block: 4.899970/14.159948/40.600313 MPa, gen 4 record CANONICAL_RESULTS_2026-08-31_cascade.json, unchanged in gen 5). Active 0.08 (Vinay 2026-06-17) broke dd1600/IV/III convergence + pulled dd1800 -8% off Dixon (measured 2026-06-23); 0.08 remains the experimental form-(b)/expulsion floor. Revert per "make submission ready"; countermandable. GEN 5 (Vinay 2026-09-07, "i approve gen 5"): the floor is 0.0 in ALL seven MS33 decks now, INCLUDING the dd900 calibration cell (was 0.08 there through gen 4, audit 2026-09-04 blocker B1); the live table's 900 knot is therefore fit in the same constitutive state this deck consumes it in. -->
+    <micro_ceiling_treatment>kkt</micro_ceiling_treatment>
+                <macro_storage_uses_macro_porosity>true</macro_storage_uses_macro_porosity>
+                <micro_mass_strain_term_eulerian>true</micro_mass_strain_term_eulerian>
+                <micro_ceiling_pu_tangent>kkt_active</micro_ceiling_pu_tangent>
+                <micro_ceiling_sw_tangent>kkt_active</micro_ceiling_sw_tangent>
+                <micro_ceiling_saturation_gate>bishop_relperm</micro_ceiling_saturation_gate>
+                <macro_balance_drops_micro_biot_term>true</macro_balance_drops_micro_biot_term>
+                <darcy_relative_permeability_mobility>kirchhoff_element_mean</darcy_relative_permeability_mobility>
+                <macro_storage_exact_time_levels>true</macro_storage_exact_time_levels>
+                <swelling_stress_k_level>true</swelling_stress_k_level>
+                <swelling_stress_form>level</swelling_stress_form>
+                <micro_potential_partner_z_weight>true</micro_potential_partner_z_weight>
+            </potential_exchange>
+            <constitutive_relation>
+                <type>LinearElasticIsotropic</type>
+                <youngs_modulus>E</youngs_modulus>
+                <poissons_ratio>nu</poissons_ratio>
+            </constitutive_relation>
+            <process_variables>
+                <pressure>pressure</pressure>
+                <displacement>displacement</displacement>
+            </process_variables>
+            <secondary_variables>
+                <secondary_variable name="sigma"/>
+                <secondary_variable name="swelling_stress"/>
+                <secondary_variable name="epsilon"/>
+                <secondary_variable name="saturation"/>
+                <secondary_variable name="porosity"/>
+                <secondary_variable name="transport_porosity"/>
+                <secondary_variable name="dry_density_solid"/>
+                <secondary_variable name="intrinsic_permeability"/>
+                <secondary_variable name="relative_permeability"/>
+                <!-- micro_saturation removed: Pi-path model has no capillary micro-saturation;
+                     the adsorbed water content is tracked by micro_water_content (n_l) instead -->
+                <secondary_variable name="micro_pressure"/>
+                <secondary_variable name="micro_water_content"/>
+                <secondary_variable name="micro_porosity"/>
+                <secondary_variable name="micro_exchange_source"/>
+            </secondary_variables>
+            <specific_body_force>0 0</specific_body_force>
+            <initial_stress>sigma0</initial_stress>
+            <mass_lumping>true</mass_lumping>
+        </process>
+    </processes>
+    <media>
+        <medium id="0">
+            <phases>
+                <phase>
+                    <type>AqueousLiquid</type>
+                    <properties>
+                        <property><name>viscosity</name><type>Constant</type><value>1e-3</value></property>
+                        <property><name>density</name><type>Constant</type><value>1000.0</value></property>
+                    </properties>
+                </phase>
+                <phase>
+                    <type>Solid</type>
+                    <properties>
+                        <property><name>density</name><type>Constant</type><value>2780.0</value></property>
+                        <!-- swelling_stress_rate (SaturationDependentSwelling, pressures=0) removed:
+                             Pi-path swelling is driven by disjoining pressure Pi, not phenomenological S_L coupling.
+                             swelling_stress_active remains true via isPotentialExchangeEnabled. -->
+                    </properties>
+                </phase>
+            </phases>
+            <properties>
+                <!-- transport_porosity (TransportPorosityFromMassBalance) removed:
+                     phi_M is computed by the hierarchical split phi_M=(phi-n_l)/(1-n_l) in
+                     computeTransportPorosityUpdate. Sentinel no longer needed after C++ else-branch fix. -->
+                <property><name>biot_coefficient</name><type>Constant</type><value>1.0</value></property>
+                <property>
+                    <name>permeability</name>
+                    <type>Constant</type><value>9.39248e-19</value>
+                </property>
+                <property>
+                    <name>porosity</name>
+                    <type>PorosityFromMassBalance</type>
+                    <initial_porosity>phi0</initial_porosity>
+                    <minimal_porosity>0</minimal_porosity>
+                    <maximal_porosity>1</maximal_porosity>
+                </property>
+                <property><name>reference_temperature</name><type>Constant</type><value>293.15</value></property>
+                <property>
+                    <!-- Benchmark-spec relative permeability: k_r = S_e^3 (RelativePermeabilityGeneralizedPower,
+                         enhancement A=1, exponent n=3). Restored from the parity-branch VG(exp=0.01) per
+                         Vinay 2026-05-29: the deliverable must use the spec relperm, not the numerical
+                         parity choice. NOTE (hiccup): with the Tuller macro (S_L->0 at high suction) S_e^3
+                         is floored at min_relative_permeability=1e-2 (Vinay 2026-05-29) so the drained
+                         macro cannot give a singular k_rel=0 at step 1. -->
+                    <name>relative_permeability</name>
+                    <type>RelativePermeabilityGeneralizedPower</type>
+                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
+                    <residual_gas_saturation>0.0</residual_gas_saturation>
+                    <min_relative_permeability>1e-2</min_relative_permeability>
+                    <enhancement_factor>1.0</enhancement_factor>
+                    <exponent>3</exponent>
+                </property>
+                <property>
+                    <!-- Tuller macro retention ported from dsm_mfront_hierarchical (parity prjs);
+                         params: area_factor=1.0, shapefactor=0.8584073464102069, char_pore_size=1e-5 m,
+                         surface_tension=0.0715 N/m (water). cavitation_pressure=1.4e8 Pa = homogeneous-
+                         nucleation tensile strength of water (Or & Tuller 2002 WRR 38(5) 1061); NOTE
+                         (audit): not present in dsm_mfront_hierarchical; inert at <=100 MPa suction.
+                         The dsm_mfront_hierarchical port origin of the geometry params and
+                         surface_tension is NOT one of the six source families allowed by
+                         CLAUDE.md 12.1 (Beacon / EPFL / Dixon / Villar / EURAD-MS / FEBEX):
+                         historical provenance only.
+                         TODO(Vinay) — §12.1-admissible source required; live value documented, provenance outstanding.
+                         Source-status line added 2026-08-31; no value changed. -->
+                    <name>saturation</name>
+                    <type>SaturationTuller</type>
+                    <residual_liquid_saturation>0.0</residual_liquid_saturation>
+                    <residual_gas_saturation>0.0</residual_gas_saturation>
+                    <area_factor_tuller>1.0</area_factor_tuller>
+                    <pore_area_shapefactor_tuller>0.8584073464102069</pore_area_shapefactor_tuller>
+                    <characteristic_pore_size>1e-5</characteristic_pore_size>
+                    <surface_tension>0.0715</surface_tension>
+                    <cavitation_pressure>1.4e8</cavitation_pressure>
+                </property>
+                <!-- saturation_micro (VGM, p_b=2.7e8) removed: vestigial in Pi-path mode.
+                     micro_pressure = Pi = rho_lR*K*exp(-xi) (disjoining pressure).
+                     micro_water_content = n_l (adsorbed water per unit solid volume). -->
+                <property><name>bishops_effective_stress</name><type>BishopsSaturationCutoff</type><cutoff_value>1</cutoff_value></property>
+            </properties>
+        </medium>
+    </media>
+    <time_loop>
+        <processes>
+            <process ref="RM">
+                <nonlinear_solver>basic_newton</nonlinear_solver>
+                <convergence_criterion>
+                    <type>PerComponentDeltaX</type>
+                    <norm_type>NORM2</norm_type>
+                    <abstols>1 1e-12 1e-12</abstols>
+                    <!-- reltols 1e-6 added 2026-05-30 (Vinay approved): abstol-only criterion (1 Pa on |p|~1.7e9, 1 pm disp) traps the IterationNumberBased dt at the wetting front; a relative tol opens it (sandbox IV tolerance sweep: Newton 11 to 9 iters, dt 2s to 5e4s, Model IV completes 200d in 443 steps vs stalled). -->
+                    <reltols>1e-6 1e-6 1e-6</reltols>
+                </convergence_criterion>
+                <time_discretization><type>BackwardEuler</type></time_discretization>
+                <time_stepping>
+                    <type>IterationNumberBasedTimeStepping</type>
+                    <t_initial>0.0</t_initial>
+                    <!-- 240 days = 20736000 s (200 d saturation + 40 d load/unload) -->
+                    <t_end>20736000</t_end>
+                    <initial_dt>10</initial_dt>
+                    <minimum_dt>0.1</minimum_dt>
+                    <maximum_dt>86400</maximum_dt>
+                    <number_iterations>1 2 3 4 5 6 7 8 9 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25</number_iterations>
+                    <multiplier>1.225 1.2 1.175 1.15 1.125 1.1 1.075 1.05 1.025 0.975 0.95 0.925 0.9 0.875 0.85 0.825 0.8 0.775 0.75 0.725 0.7 0.675 0.65 0.625</multiplier>
+                </time_stepping>
+            </process>
+        </processes>
+        <output>
+            <type>VTK</type>
+            <prefix>ms33_modelVII_freeswelling_levelz</prefix>
+            <suffix>_ts_{:timestep}_t_{:time}</suffix>
+            <!-- Output at: 20d (ramp end), 100d, 200d (end saturation), each loading step, each unloading step -->
+            <!-- half-interval frames 207.5/212.5/.../237.5 d (17928000 ... 20520000 s) added 2026-09-08 with the
+                 step-and-hold ladder so the HELD traction can be verified in an output frame (§13); they
+                 force a step to land at each of these times (output choice, stated in the header). -->
+            <fixed_output_times>86400 432000 864000 1296000 1728000 2160000 2592000 3024000 3456000 3888000 4320000 4752000 5184000 5616000 6048000 6480000 6912000 7344000 7776000 8208000 8640000 9072000 9504000 9936000 10368000 10800000 11232000 11664000 12096000 12528000 12960000 13392000 13824000 14256000 14688000 15120000 15552000 15984000 16416000 16848000 17280000 17712000 17928000 18144000 18360000 18576000 18792000 19008000 19224000 19440000 19656000 19872000 20088000 20304000 20520000 20736000</fixed_output_times>
+            <variables>
+                <variable>pressure</variable>
+                <variable>displacement</variable>
+                <variable>sigma</variable>
+                <variable>swelling_stress</variable>
+                <variable>saturation</variable>
+                <variable>porosity</variable>
+                <variable>transport_porosity</variable>
+                <variable>dry_density_solid</variable>
+                <variable>intrinsic_permeability</variable>
+                <variable>relative_permeability</variable>
+                <variable>micro_pressure</variable>
+                <!-- micro_saturation removed: not physical in Pi-path model -->
+                <variable>micro_water_content</variable>
+                <variable>micro_porosity</variable>
+                <variable>micro_exchange_source</variable>
+                <variable>epsilon</variable>
+            </variables>
+        </output>
+    </time_loop>
+    <parameters>
+        <!-- Initial stress: Biot-consistent with benchmark suction level.
+             At 100 MPa suction, S_w≈0.3292, chi≈0.3292, p_L=-1e8:
+             sigma0_eff_rr = sigma0_eff_θθ = α*χ*p_L ≈ -1.5e5 Pa
+             sigma0_eff_zz = α*χ*p_L + σ_Neumann ≈ -1.5e5 Pa -->
+        <parameter><name>sigma0</name><type>Function</type>
+            <expression>-1.5e5</expression><expression>-1.5e5</expression>
+            <expression>-1.5e5</expression><expression>0</expression>
+        </parameter>
+        <parameter><name>E</name><type>Constant</type><value>52e6</value></parameter>
+        <parameter><name>nu</name><type>Constant</type><value>0.3</value></parameter>
+        <!-- phi0 = 1 - 1600/2780 = 0.424460 -->
+        <parameter><name>phi0</name><type>Constant</type><value>0.4244604316546763</value></parameter>
+        <!-- phi_tr0 removed: was initial_porosity for TransportPorosityFromMassBalance (now removed).
+             Initial phi_M is computed from phi0 and initial_micro_water_content by the hierarchical split. -->
+        <!-- k0 at phi0=0.4245 from Kozeny-Carman -->
+        <parameter><name>k0</name><type>Constant</type><value>9.39248e-19</value></parameter>
+        <parameter><name>displacement0</name><type>Constant</type><values>0 0</values></parameter>
+        <!-- Initial suction = 100 MPa (benchmark specification) -->
+        <parameter><name>pressure_ic</name><type>Constant</type><value>-1e8</value></parameter>
+        <parameter><name>zero</name><type>Constant</type><value>0.0</value></parameter>
+        <!-- Pressure BC scale = 1 -->
+        <parameter><name>p_bc_scale</name><type>Constant</type><value>1</value></parameter>
+        <parameter><name>pressure_bc</name><type>CurveScaled</type><curve>suction_ramp</curve><parameter>p_bc_scale</parameter></parameter>
+        <!-- Neumann traction scale = 1 -->
+        <parameter><name>traction_scale</name><type>Constant</type><value>1</value></parameter>
+        <parameter><name>traction_top</name><type>CurveScaled</type><curve>traction_ramp</curve><parameter>traction_scale</parameter></parameter>
+    </parameters>
+    <process_variables>
+        <process_variable>
+            <name>displacement</name>
+            <components>2</components>
+            <order>1</order>
+            <initial_condition>displacement0</initial_condition>
+            <boundary_conditions>
+                <!-- Axis of symmetry: u_r = 0 -->
+                <boundary_condition><mesh>ms33_cylinder_r25_h70_left</mesh><type>Dirichlet</type><component>0</component><parameter>zero</parameter></boundary_condition>
+                <!-- Fixed base: u_z = 0 -->
+                <boundary_condition><mesh>ms33_cylinder_r25_h70_bottom</mesh><type>Dirichlet</type><component>1</component><parameter>zero</parameter></boundary_condition>
+                <!-- Top face: applied axial traction (compression = negative) -->
+                <boundary_condition><mesh>ms33_cylinder_r25_h70_top</mesh><type>Neumann</type><component>1</component><parameter>traction_top</parameter></boundary_condition>
+                <!-- Right face (r=0.025): FREE  (no BC → natural Neumann = zero traction) -->
+            </boundary_conditions>
+        </process_variable>
+        <process_variable>
+            <name>pressure</name>
+            <components>1</components>
+            <order>1</order>
+            <initial_condition>pressure_ic</initial_condition>
+            <boundary_conditions>
+                <!-- Hydration from bottom (0–200 days), then drained at 0 Pa (200–240 days) -->
+                <boundary_condition><mesh>ms33_cylinder_r25_h70_bottom</mesh><type>Dirichlet</type><parameter>pressure_bc</parameter></boundary_condition>
+            </boundary_conditions>
+        </process_variable>
+    </process_variables>
+    <nonlinear_solvers>
+        <nonlinear_solver><name>basic_newton</name><type>Newton</type><max_iter>60</max_iter><linear_solver>ls</linear_solver></nonlinear_solver>
+    </nonlinear_solvers>
+    <linear_solvers>
+        <linear_solver><name>ls</name><eigen><solver_type>SparseLU</solver_type><scaling>false</scaling></eigen></linear_solver>
+    </linear_solvers>
+    <curves>
+        <curve>
+            <name>suction_ramp</name>
+            <!-- Suction ramp 100→0 MPa in 20 days; constant 0 for remaining 220 days. -->
+            <coords>0 1728000 20736000</coords>
+            <values>-1e8 0 0</values>
+        </curve>
+        <curve>
+            <name>traction_ramp</name>
+            <!-- Axial traction on top face (negative = compression, OGS sign convention).
+                 STEP-AND-HOLD ladder per the spec Table Loading_unloading_path
+                 (theoretical_benchmarking.tex L361-390; L344: "Each loading and unloading step will be
+                 applied over a duration of 5 days ... until pore pressure dissipation"). Rewritten
+                 2026-09-08 (spec-conformance fix 3, Vinay ruling 2026-09-08 "approve all five"):
+                 OGS builds every <curve> as MathLib::PiecewiseLinearInterpolation (ProjectData.cpp:1488),
+                 so the previous 10-knot curve (one knot per rung boundary) RAMPED LINEARLY between rungs
+                 and the earlier comment here, "Piecewise constant steps ... hold for 5 days", misdescribed
+                 it (audit 2026-09-08 §5; refutation §1(a): mid-interval error up to +-1.25 MPa).
+                 NOW: each rung is HELD at its spec value; the jump to the next rung is realised over a
+                 0.1 d = 8640 s ramp (a NUMERICS choice - a strict duplicate-knot step is not
+                 representable by a strictly increasing support; the rung is then held 4.9 d):
+                   0         - 17280000 s (0-200 d)    : -0.2 MPa (saturation phase)
+                   17280000  - 17712000 s (200-205 d)  : -0.2 MPa (hold)
+                   17712000  - 17720640 s (205-205.1 d): ramp -0.2 -> -0.4 MPa
+                   17720640  - 18144000 s (to 210 d)   : -0.4 MPa (hold)
+                   18144000  - 18152640 s              : ramp -> -1.0 MPa;  hold to 18576000 s (215 d)
+                   18576000  - 18584640 s              : ramp -> -2.5 MPa;  hold to 19008000 s (220 d)
+                   19008000  - 19016640 s              : ramp -> -5.0 MPa;  hold to 19440000 s (225 d)
+                   19440000  - 19448640 s              : ramp -> -2.5 MPa;  hold to 19872000 s (230 d)
+                   19872000  - 19880640 s              : ramp -> -1.0 MPa;  hold to 20304000 s (235 d)
+                   20304000  - 20312640 s              : ramp -> -0.4 MPa;  hold to 20736000 s (240 d)
+                 SUPERSEDED curve (gen 4 and earlier, kept for lineage, NOT deleted):
+                   coords 0 17280000 17712000 18144000 18576000 19008000 19440000 19872000 20304000 20736000
+                   values -2e5 -2e5 -4e5 -1e6 -2.5e6 -5e6 -2.5e6 -1e6 -4e5 -4e5
+            -->
+            <coords>0 17280000 17712000 17720640 18144000 18152640 18576000 18584640 19008000 19016640 19440000 19448640 19872000 19880640 20304000 20312640 20736000</coords>
+            <values>-2e5 -2e5 -2e5 -4e5 -4e5 -1e6 -1e6 -2.5e6 -2.5e6 -5e6 -5e6 -2.5e6 -2.5e6 -1e6 -1e6 -4e5 -4e5</values>
+        </curve>
+    </curves>
+    <!--
+      ============================================================
+      REGRESSION BASELINE (CLAUDE.md s3) - approved by Vinay 2026-06-23.
+      RE-BASELINED 2026-08-12 (ratified by Vinay): the analytic micro 2x2
+      Jacobian is re-enabled as default, which changes the adaptive step path
+      of this model only; the live reference became ms33_modelVII_freeswelling_ts_669_t_20736000.000000.vtu
+      (run-to-run and cross-build bit-identical, exact 0.0). The former
+      reference ms33_modelVII_freeswelling_ts_676_t_20736000.000000.vtu was SUPERSEDED and moved
+      (git mv, never deleted) to superseded_references_2026-08-12/ in this
+      directory: the ctest wrapper enumerates every REFERENCE-side file matching
+      the ts_.* regex and requires a same-named output for each (measured
+      2026-08-12), so a superseded reference left beside the PRJ fails the test
+      by construction.
+      RE-BASELINED AGAIN 2026-08-17, commit 55e39b53b8 (constant permeability
+      everywhere, VII unconfined): reference became ts_510_t_20736000.000000.vtu
+      under FIXED/FROZEN K. This comment block was not updated at that landing;
+      corrected now while documenting the next rebaseline below.
+      RE-BASELINED AGAIN 2026-08-17, same session (VII switched to live-K, the
+      2026-08-17 ruling extended from III/IV, Vinay-approved; permeability
+      re-verified at 160x, see the GUARDRAIL section 12.5 block above): the live
+      reference is now ms33_modelVII_freeswelling_ts_829_t_20736000.000000.vtu.
+      The former reference ts_510_t_20736000.000000.vtu is SUPERSEDED and moved
+      (git mv, never deleted) to superseded_references_2026-08-17/ in this
+      directory. The text below still holds: exactly one LIVE final-time
+      reference sits beside this PRJ.
+      RE-BASELINED AGAIN 2026-08-26, commit bed3e395da (live K(rho_d)
+      interpolation switched linear -> log-linear, Vinay's decision 2026-08-26):
+      the live reference is now
+      ms33_modelVII_freeswelling_ts_883_t_20736000.000000.vtu
+      (md5 e1cafac2a3cd079d78074b10b2ae3ce2; that file is ITSELF SUPERSEDED
+      as of 2026-08-31 and now lives in superseded_references_2026-08-31/ in
+      this directory, see the RE-BASELINED AGAIN paragraph below), from the
+      reconciled double-run
+      campaign _round2_modelVII_fullrigor_2026-08-26_successful — two
+      independent full runs byte-identical (same md5), 883/883 steps accepted,
+      binary maxwell-conjugate-20260602 @ bed3e395da. Headline shift vs the
+      linear-K baseline: e_top(240 d) 1.133733 -> 1.109573 (-2.131%), measured.
+      The former reference ts_829_t_20736000.000000.vtu
+      (md5 9258af81b110ecfb9e1d378bb47c0d3e, linear-K) is SUPERSEDED and moved
+      (git mv, never deleted) to superseded_references_2026-08-26/ in this
+      directory.
+      RE-BASELINED AGAIN 2026-08-31, commit 2c066ce187 (corrected dd900 K knot,
+      18469.144929 J/kg, adopted into this file's live K(rho_d) table; see the
+      K-TABLE UPDATE RATIFIED 2026-08-31 comment at the <prefactors> block
+      above): the LIVE reference is now
+      ms33_modelVII_freeswelling_ts_920_t_20736000.000000.vtu
+      (md5 f6c5ab0816df428c3a28fa5146f0bda6, recomputed 2026-08-31 from the
+      committed file; the same md5 is recorded in DSM/AGENTS.md entry 29).
+      Fresh run completed ts_920 at t=20736000 s (240 d) and was cross-validated
+      against the independently recovered 2026-08-28 replica: 21 extracted
+      quantities matched exactly to full double precision (abs and rel diff 0),
+      with identical node count (1066) and identical timestep index. The former
+      reference ts_883_t_20736000.000000.vtu
+      (md5 e1cafac2a3cd079d78074b10b2ae3ce2) is SUPERSEDED and was moved
+      (git mv, never deleted) to superseded_references_2026-08-31/ in this
+      directory. Full record: DSM/AGENTS.md entry 29.
+      RE-BASELINED 2026-09-08, gen5_conformant campaign (spec-conformance fix 3, Vinay's ruling of 2026-09-08 "approve all
+      five, run them as one campaign": the step-and-hold traction ladder of the spec table replaced the monotone ramp):
+      reference became ms33_modelVII_freeswelling_ts_973_t_20736000.000000.vtu (md5 22c865d5d77d767296de28a0946437ce; ITSELF
+      SUPERSEDED by the same day's campaign v2, see below, now in superseded_references_2026-09-08_v2/). Run: 973 accepted
+      steps, 0 rejected, 217.77 s. The former reference ts_920_t_20736000.000000.vtu (md5 f6c5ab0816df428c3a28fa5146f0bda6)
+      is SUPERSEDED and was moved (git mv, never deleted) to superseded_references_2026-09-08/ in this directory.
+      RE-BASELINED AGAIN 2026-09-08, campaign v2 (the ONLY change to this deck is <fixed_output_times> set to the organizers'
+      data-collection 5-day grid plus the ramp-end frames, audit 2026-09-08_spec_audit_3x LANE2 finding 3; physics, BCs, mesh
+      and numerics unchanged): the reference at that date was (HISTORY, SUPERSEDED 2026-09-30, see RE-BASELINED AGAIN 2026-09-30 (IC-FIX V0) below) ms33_modelVII_freeswelling_ts_1023_t_20736000.000000.vtu
+      (md5 5509fa9e33df94a6b2456dfa63325f7e, recomputed 2026-09-08 from the committed file), = the campaign-v2 run frame
+      (~/ogs-models/scratch/2026-09-08_0936_gen5_conformant_v2_inflight/runs/VII_240/out, same md5). Run: 1023 accepted
+      steps, 0 rejected, 233.64 s at OMP 2, binary maxwell-conjugate-20260602 (md5 cea9d7d81972f732385b41a71e50f20e). The
+      former reference ts_973_t_20736000.000000.vtu is SUPERSEDED and was moved (git mv, never deleted) to
+      superseded_references_2026-09-08_v2/. Same physical time (240 d); vtkdiff old-vs-new (MEASURED) in the campaign's
+      OGS_TREE_LANE_2026-09-08.md: the TIGHT tier fails on displacement and the porosity family. This deck keeps the 240-d
+      Q&A schedule; the CURRENT spec ladder (50-d holds to 550 d) is the SUPPLEMENT deck ms33_modelVII_freeswelling_ladder550.prj
+      beside it (CLAUDE.md 3: supplement, never replace). Headline ladder: RULED 2026-09-12 (Vinay: keep both variants of
+      model vii): both ladders registered and reported, neither is the headline.
+      RE-BASELINED AGAIN 2026-09-30 (IC-FIX V0): the LIVE reference is now ms33_modelVII_freeswelling_ts_1006_t_20736000.000000.vtu
+      (md5 a30214d8c8505abe059bf89f9e3fa2ad), = the last frame of run fx_VII_240 of the IC-fix readiness suite (Shilpa's MBP,
+      ~/ogs-models/scratch/2026-09-30_readiness_icfix/runs/fx_VII_240/out/, full copy on the WD_elements drive under
+      run_outputs_2026-09-30/shilpas-macbook-pro/, same md5). Run: 1006 accepted steps, 0 rejected, rc 0, 368.7 s (OMP 2),
+      patched binary bin/ogs md5 23640465bff1ef6ce5c83d6c5dcd48d3, OGS commit 686fcd6ef8 = the declared initial_micro_water_content realised in the previous micro porosity, with the K_fix table of this deck (K only; comment-stripped, this deck differs from
+      486235c679 in the K prefactor lines and nowhere else; physics, BCs, mesh, numerics, output times, tolerances unchanged).
+      The former reference ms33_modelVII_freeswelling_ts_1023_t_20736000.000000.vtu (md5 5509fa9e33df94a6b2456dfa63325f7e) is SUPERSEDED and was moved (git mv, never deleted) to
+      superseded_references_2026-09-30_icfix/ in this directory (README_fx_VII_240.md); it cannot pass by construction (the ctest wrapper pairs
+      output and reference by IDENTICAL file name and the step index changed) and, with this deck's own tolerances, passes 4 of 11 checks against the new frame
+      (MEASURED with vtkdiff on the mac mini, tables in that README). The sentence above that names the older frame as LIVE is HISTORY.
+      NOT run through ctest (the mini has no ctest, the patched binary was built with OGS_BUILD_TESTING=OFF): passing on the MBP is PREDICTED, not verified.
+      Ps = Dixon target after the K refit is CALIBRATION, not validation. Record: ~/ogs-models/scratch/2026-09-30_icfix_v0_recut/OGS_GATE.md and REPAIR_2.md.
+      Physics anchor: (f) regression baseline previously approved by user.
+      Reference = the SINGLE final-time output VTU committed beside this PRJ
+      (timestep at t_end). vtkdiff (Applications/ApplicationsLib/
+      TestDefinition.cpp) matches <regex> against the reference dir, then
+      compares output<->reference of IDENTICAL filename. The adaptive
+      IterationNumberBasedTimeStepping makes the ts_NNN index reproducible
+      only on the canonical binary/toolchain (build maxwell_floor_20260619,
+      ogs @ 71366ac0d3); a different toolchain may change the substep count
+      and require reference regeneration. Ties to the documented ~1% Model-I
+      non-reproducibility (see DSM run-status board / submission README).
+
+      TWO-TIER TOLERANCES (Vinay's choice 2026-06-23):
+        * TIGHT - geometry/equilibrium-pinned, reproducible to ~1e-7..1e-8:
+            displacement, saturation, porosity, transport_porosity,
+            micro_porosity, micro_water_content, dry_density_solid.
+        * LOOSE - calibration / stress-path-sensitive; INTENTIONALLY loose
+            at rel=1e-2, abs=1e3 Pa to tolerate the documented ~1% scatter.
+            THESE FIELDS ARE NOT BIT-CHECKED - they catch gross drift only,
+            not last-bit changes:  sigma, swelling_stress, pressure,
+            micro_pressure.
+        abs floors derived from problem scale (extracted final-state max|.|);
+        the 1e3 Pa pressure floor is safely above the s3 machine-eps floor
+        (>=1 Pa at the 1e8 Pa suction scale).
+      ============================================================
+    -->
+    
+</OpenGeoSysProject>

@@ -2381,3 +2381,178 @@ TEST(RichardsMechanics, DSMMaxwellPairIntegrabilityIdentity)
                 1e-3 + 1e-5 * std::max(std::abs(lhs), std::abs(rhs)));
     EXPECT_EQ(std::signbit(lhs), std::signbit(rhs));
 }
+
+// ── Z-weighted partner of the LEVEL-form stress (2026-10-13) ─────────────────
+// The level form books sigma_sw = -phi_m [Pi + b sigma'_mean] with the ACTUAL
+// mean effective stress; solved for sigma_sw (closed form of
+// computeReferenceMicroPorositySwellingStressIncrement) it is
+//   sigma_sw = -(phi_m/Z) [Pi + b (s_0 - L_0) + b K eps_v] - L_0,  Z = 1 + b phi_m.
+// Its strain partner (computeZWeightedMechanicalMicroPotential) must satisfy the
+// Maxwell identity d sigma_sw/d n_l = n_S rho_lR d mu_m/d eps_v at EVERY state,
+// not only on the drained line. LHS by central FD of the level-form stress
+// assembled by the SAME function the FEM uses (closed form, m_hat = s_0 + K eps_v,
+// s_prev = L_prev - L_0); RHS analytic from the partner, built from the same
+// bare-vdW Pi, Pi'. NO expected value: both sides come from the implementation.
+// Also checked: (i) the partner's own tangents (eps_v, n_l, rho_lR) against FD;
+// (ii) b = 0 and s_0 = L_0 reduce it to the drained-line partner.
+TEST(RichardsMechanics, DSMZWeightedPartnerMaxwellIdentity)
+{
+    PotentialExchangeParameters params;
+    params.enabled = true;
+    params.film_pressure_coupling = true;
+    params.hamaker_constant = 6.0e-20;
+    params.specific_surface = 1000.0;
+    params.micro_solid_density_reference = 2650.0;
+    params.micro_solid_volume_fraction_reference = 0.6;
+    params.micro_potential_convention =
+        MicroPotentialConvention::NegativeAttractive;
+    params.swelling_stress_form = SwellingStressForm::Level;
+    params.micro_potential_partner_z_weight = true;
+
+    double const n_S = 0.63;
+    double const n_l_prev = 0.10;
+    double const rho_lR = 1000.0;
+    double const rho_lR_prev = 1000.0;
+    double const rho_LR = 1000.0;
+    double const b = 0.9;
+    double const K_drained = 1.5e8;  // Pa
+    double const eps_v = -2.0e-3;
+    double const eps_v_prev = -1.0e-3;
+    double const s_0 = -2.0e5;   // Pa, initial mean effective stress (tension +)
+    double const L_0 = -3.0e5;   // Pa, level of the initial state
+    double const L_prev = -8.0e5;  // Pa, level of the previous accepted step
+    double const offset = s_0 - L_0;  // Pa
+
+    using KM = MathLib::KelvinVector::KelvinMatrixType<2>;
+    KM const C_el = KM::Identity();
+    double const sign =
+        microPotentialSignFactor(params.micro_potential_convention);
+
+    auto const bare_Pi = [&](double const n_l_eval)
+    {
+        double const active_nS = computeActiveMicroSolidVolumeFraction(
+            n_l_eval, PotentialExchangeLocalSolveContext{}, params);
+        double const mu_vdw =
+            computeVanDerWaalsMicroPotential(
+                n_l_eval, rho_lR, active_nS,
+                params.micro_solid_density_reference, params.hamaker_constant,
+                params.specific_surface, sign,
+                params.potential_augmentation_prefactor,
+                params.potential_augmentation_exponent)
+                .mu_lR;
+        return -rho_lR * mu_vdw;  // Pa
+    };
+
+    double const n_l = 0.15;
+    double const h = 1e-7;
+
+    // Level-form stress at (n_l_eval, eps_v) from the FEM function: closed form
+    // with the elastic prediction m_hat = s_0 + K eps_v and s_prev = L_prev - L_0.
+    auto const sigma_sw_level_at = [&](double const n_l_eval)
+    {
+        double L_curr = std::numeric_limits<double>::quiet_NaN();
+        double const m_hat = s_0 + K_drained * eps_v;  // Pa
+        double const p_conf = -(m_hat);                // lagged, not used by the closed form
+        (void)computeReferenceMicroPorositySwellingStressIncrement<2>(
+            n_l_prev, n_l_eval, n_S, rho_lR, rho_lR_prev, rho_LR, C_el, params,
+            b, p_conf, eps_v, eps_v_prev,
+            /*total_porosity=*/std::numeric_limits<double>::quiet_NaN(),
+            /*total_porosity_prev=*/std::numeric_limits<double>::quiet_NaN(),
+            /*n_S_prev=*/n_S, /*p_conf_prev=*/p_conf,
+            /*level_prev_used=*/L_prev, &L_curr, m_hat,
+            /*sigma_sw_prev_mean=*/L_prev - L_0);
+        EXPECT_TRUE(std::isfinite(L_curr));
+        return L_curr - L_0;  // Pa, sigma_sw = L - L_0
+    };
+
+    // Sanity of the reading of the closed form: sigma_sw = -(phi_m/Z)[Pi + b
+    // offset + b K eps_v] - L_0 (the derivation's step 5 with s_0 -> s_0 - L_0).
+    {
+        double const phi_m = n_S * n_l;
+        double const Z = 1.0 + b * phi_m;
+        double const expected =
+            -(phi_m / Z) * (bare_Pi(n_l) + b * offset + b * K_drained * eps_v) -
+            L_0;
+        double const got = sigma_sw_level_at(n_l);
+        EXPECT_NEAR(got, expected, 1e-6 * std::abs(expected) + 1e-3);
+    }
+
+    double const lhs =
+        (sigma_sw_level_at(n_l + h) - sigma_sw_level_at(n_l - h)) / (2.0 * h);
+
+    double const Pi_at = bare_Pi(n_l);
+    double const dPi_dnl_fd = (bare_Pi(n_l + h) - bare_Pi(n_l - h)) / (2.0 * h);
+    double const d2Pi_dnl2_fd =
+        (bare_Pi(n_l + h) - 2.0 * bare_Pi(n_l) + bare_Pi(n_l - h)) / (h * h);
+    auto const z = computeZWeightedMechanicalMicroPotential(
+        Pi_at, dPi_dnl_fd, d2Pi_dnl2_fd, n_l, n_S, eps_v, b, K_drained, offset,
+        rho_lR);
+    double const rhs = n_S * rho_lR * z.dmu_lR_mech_deps_v;
+
+    ASSERT_NE(rhs, 0.0);
+    EXPECT_NEAR(lhs, rhs,
+                1e-3 + 1e-5 * std::max(std::abs(lhs), std::abs(rhs)));
+    EXPECT_EQ(std::signbit(lhs), std::signbit(rhs));
+
+    // The drained-line partner does NOT close this identity off the drained
+    // line (the miss the Z partner repairs): report, assert it differs.
+    {
+        auto const drained = computeIntegrableMechanicalMicroPotential(
+            Pi_at, dPi_dnl_fd, d2Pi_dnl2_fd, n_l, eps_v, b, K_drained, rho_lR);
+        double const rhs_drained = n_S * rho_lR * drained.dmu_lR_mech_deps_v;
+        EXPECT_GT(std::abs(lhs - rhs_drained),
+                  1e-2 * std::max(std::abs(lhs), std::abs(rhs_drained)));
+    }
+
+    // (i) tangents of the partner against central FD.
+    {
+        auto const at = [&](double const Pi_, double const dPi_, double const n_,
+                            double const e_, double const r_)
+        {
+            return computeZWeightedMechanicalMicroPotential(
+                       Pi_, dPi_, d2Pi_dnl2_fd, n_, n_S, e_, b, K_drained,
+                       offset, r_)
+                .mu_lR_mech;
+        };
+        double const fd_e = (at(Pi_at, dPi_dnl_fd, n_l, eps_v + h, rho_lR) -
+                             at(Pi_at, dPi_dnl_fd, n_l, eps_v - h, rho_lR)) /
+                            (2.0 * h);
+        EXPECT_NEAR(fd_e, z.dmu_lR_mech_deps_v,
+                    1e-9 + 1e-6 * std::abs(z.dmu_lR_mech_deps_v));
+        // n_l total derivative: Pi and Pi' move (quadratic Taylor model, as in
+        // DSMIntegrableMechanicalPotentialTangents).
+        auto const Pi_model = [&](double const n)
+        {
+            double const s = n - n_l;
+            return Pi_at + dPi_dnl_fd * s + 0.5 * d2Pi_dnl2_fd * s * s;
+        };
+        auto const dPi_model = [&](double const n)
+        { return dPi_dnl_fd + d2Pi_dnl2_fd * (n - n_l); };
+        double const fd_n =
+            (at(Pi_model(n_l + h), dPi_model(n_l + h), n_l + h, eps_v, rho_lR) -
+             at(Pi_model(n_l - h), dPi_model(n_l - h), n_l - h, eps_v, rho_lR)) /
+            (2.0 * h);
+        EXPECT_NEAR(fd_n, z.dmu_lR_mech_dnl,
+                    1e-9 + 1e-6 * std::abs(z.dmu_lR_mech_dnl));
+        double const hr = 1e-4 * rho_lR;
+        double const fd_r = (at(Pi_at, dPi_dnl_fd, n_l, eps_v, rho_lR + hr) -
+                             at(Pi_at, dPi_dnl_fd, n_l, eps_v, rho_lR - hr)) /
+                            (2.0 * hr);
+        EXPECT_NEAR(fd_r, z.dmu_lR_mech_drho_lR,
+                    1e-9 + 1e-6 * std::abs(z.dmu_lR_mech_drho_lR));
+    }
+
+    // (ii) b = 0 (Z = 1) and offset = 0: the Z partner is the drained-line one.
+    {
+        auto const z0 = computeZWeightedMechanicalMicroPotential(
+            Pi_at, dPi_dnl_fd, d2Pi_dnl2_fd, n_l, n_S, eps_v, 0.0, K_drained,
+            0.0, rho_lR);
+        auto const d0 = computeIntegrableMechanicalMicroPotential(
+            Pi_at, dPi_dnl_fd, d2Pi_dnl2_fd, n_l, eps_v, 0.0, K_drained, rho_lR);
+        EXPECT_NEAR(z0.mu_lR_mech, d0.mu_lR_mech, 1e-12 * std::abs(d0.mu_lR_mech));
+        EXPECT_NEAR(z0.dmu_lR_mech_deps_v, d0.dmu_lR_mech_deps_v,
+                    1e-12 * std::abs(d0.dmu_lR_mech_deps_v));
+        EXPECT_NEAR(z0.dmu_lR_mech_dnl, d0.dmu_lR_mech_dnl,
+                    1e-12 * std::abs(d0.dmu_lR_mech_dnl) + 1e-12);
+    }
+}

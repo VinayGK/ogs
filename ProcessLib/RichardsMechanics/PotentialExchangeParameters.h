@@ -774,7 +774,28 @@ struct PotentialExchangeParameters
     bool swelling_stress_K_level = false;
     // (b) swelling_stress_form: step | level, see SwellingStressForm.
     SwellingStressForm swelling_stress_form = SwellingStressForm::Step;
+    // ── Z-weighted strain partner of the level-form stress (2026-10-13;
+    // Vinay: "hand this to the other session over", the implementation). The
+    // drained-line partner computeIntegrableMechanicalMicroPotential is the
+    // strain partner of the stress -phi_m (Pi + b K_sk eps_v). The level form
+    // books the stress -phi_m [Pi + b sigma'_mean] with sigma'_mean = s_0 +
+    // K_sk eps_v + sigma_sw, i.e. sigma_sw = -phi_m [Pi + b (s_0 - L_0 +
+    // K_sk eps_v)] / Z - L_0 with Z = 1 + b phi_m. The partner of THAT stress
+    // (one film energy, Maxwell identity closes at every state; derivation
+    // docs/dsm_z_weight_design_2026-10.md) is computeZWeightedMechanicalMicro-
+    // Potential. true -> the Z partner replaces the drained-line partner at
+    // every fold point and Jacobian site; false (default) -> bit-identical to
+    // the tag. Requires swelling_stress_form = level. DIAGNOSTIC, NOT
+    // ADOPTED: which partner is the physics is Vinay's call.
+    bool micro_potential_partner_z_weight = false;
 };
+
+// True when the strain partner of the micro potential is the Z-weighted
+// partner of the level-form stress (micro_potential_partner_z_weight).
+inline bool isZWeightedPartner(PotentialExchangeParameters const* p)
+{
+    return p != nullptr && p->micro_potential_partner_z_weight;
+}
 
 // True when the previous level of the swelling stress is evaluated at its own
 // K(rho_d): switch (a), or implied by the level form (b).

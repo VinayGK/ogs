@@ -596,6 +596,92 @@ computeIntegrableMechanicalMicroPotential(
     return out;
 }
 
+// ── Z-weighted strain partner of the LEVEL-form stress (2026-10-13) ─────────
+// The level form books sigma_sw = -phi_m [Pi + b sigma'_mean] with the actual
+// mean effective stress sigma'_mean = s_0 + K_sk eps_v + sigma_sw (linear
+// skeleton). Solved for sigma_sw (the closed form of
+// computeReferenceMicroPorositySwellingStressIncrement, L (1 + c) = ...):
+//   sigma_sw = -(phi_m/Z) [Pi + b (s_0 - L_0) + b K_sk eps_v] - L_0,
+//   Z = 1 + b phi_m,   phi_m = n_S n_l,   n_S = 1 - phi_M.
+// Integrating over eps_v at fixed n_l (n_S, rho_lR, K_aug, s_0, L_0 held):
+//   Psi = -(phi_m/Z) [(Pi + b (s_0 - L_0)) eps_v + 1/2 b K_sk eps_v^2],
+// and the partner rho_lR mu_m = (1/n_S) dPsi/dn_l, with d(phi_m/Z)/dn_l =
+// n_S/Z^2 and Pi = Pi(n_l):
+//   rho_lR mu_m = -[(Pi + b (s_0 - L_0)) eps_v + 1/2 b K_sk eps_v^2]/Z^2
+//                 - n_l Pi' eps_v / Z.
+// Maxwell identity d sigma_sw/d n_l = n_S rho_lR d mu_m/d eps_v closes at every
+// state (unit test DSMZWeightedPartnerMaxwellIdentity; sympy check
+// Tests/Python/dsm_z_weight_partner_sympy.py). With b = 0 or phi_m -> 0 (Z = 1)
+// and s_0 = L_0 the partner reduces to the drained-line one above.
+// Derivatives: n_S is held (the level's weight is the state's 1 - phi_M);
+// d(n_l)/d(n_l) total, Pi and Pi' move with n_l (as the drained-line helper).
+// Inputs: Pi, Pi', Pi'' [Pa], n_l, n_S [-], eps_v [-], b [-], K_sk [Pa],
+// s0_minus_L0 = s_0 - L_0 [Pa, OGS sign, tension positive], rho_lR [kg/m^3].
+inline IntegrableMechanicalMicroPotentialData
+computeZWeightedMechanicalMicroPotential(
+    double const Pi, double const dPi_dnl, double const d2Pi_dnl2,
+    double const n_l, double const n_S, double const eps_v,
+    double const biot_b, double const K_drained, double const s0_minus_L0,
+    double const rho_lR)
+{
+    if (!(rho_lR > 0.0))
+    {
+        OGS_FATAL(
+            "computeZWeightedMechanicalMicroPotential requires rho_lR > 0, got "
+            "{:g}.",
+            rho_lR);
+    }
+    if (!std::isfinite(n_S) || !std::isfinite(s0_minus_L0))
+    {
+        OGS_FATAL(
+            "computeZWeightedMechanicalMicroPotential: the REV solid fraction "
+            "({:g}) and the level reference offset s_0 - L_0 ({:g}) must be "
+            "supplied (finite) when micro_potential_partner_z_weight is on.",
+            n_S, s0_minus_L0);
+    }
+    IntegrableMechanicalMicroPotentialData out;
+    double const Z = 1.0 + biot_b * n_S * n_l;         // [-]
+    double const dZ_dnl = biot_b * n_S;                 // [-] per n_l
+    double const A2 = Pi + biot_b * s0_minus_L0;        // Pa
+    double const Bmod = biot_b * K_drained;             // Pa
+    double const Q = A2 * eps_v + 0.5 * Bmod * eps_v * eps_v;  // Pa
+    double const Z2 = Z * Z;
+    // rho mu = -Q/Z^2 - n_l Pi' eps_v / Z
+    out.mu_lR_mech = -(Q / Z2 + n_l * dPi_dnl * eps_v / Z) / rho_lR;  // J/kg
+    // d/d eps_v: -(A2 + B eps_v)/Z^2 - n_l Pi'/Z
+    out.dmu_lR_mech_deps_v =
+        -((A2 + Bmod * eps_v) / Z2 + n_l * dPi_dnl / Z) / rho_lR;
+    // d/d n_l (total; Pi, Pi' move, n_S held):
+    //   -Pi' eps_v/Z^2 + 2 Q dZ/Z^3 - (Pi' + n_l Pi'') eps_v/Z
+    //   + n_l Pi' eps_v dZ/Z^2
+    out.dmu_lR_mech_dnl =
+        -(-dPi_dnl * eps_v / Z2 + 2.0 * Q * dZ_dnl / (Z2 * Z) -
+          (dPi_dnl + n_l * d2Pi_dnl2) * eps_v / Z +
+          n_l * dPi_dnl * eps_v * dZ_dnl / Z2) *
+        (-1.0) / rho_lR;
+    out.dmu_lR_mech_drho_lR = -out.mu_lR_mech / rho_lR;
+    return out;
+}
+
+// One fold point for the strain partner: the drained-line partner (default,
+// bit-identical to the tag) or the Z-weighted partner of the level form.
+inline IntegrableMechanicalMicroPotentialData
+computeMechanicalMicroPotentialPartner(
+    bool const z_weight, double const Pi, double const dPi_dnl,
+    double const d2Pi_dnl2, double const n_l, double const n_S,
+    double const eps_v, double const biot_b, double const K_drained,
+    double const s0_minus_L0, double const rho_lR)
+{
+    if (z_weight)
+    {
+        return computeZWeightedMechanicalMicroPotential(
+            Pi, dPi_dnl, d2Pi_dnl2, n_l, n_S, eps_v, biot_b, K_drained,
+            s0_minus_L0, rho_lR);
+    }
+    return computeIntegrableMechanicalMicroPotential(
+        Pi, dPi_dnl, d2Pi_dnl2, n_l, eps_v, biot_b, K_drained, rho_lR);
+}
+
 // ── Strained-film disjoining state — h(w_m, eps_v) ──────────────────────────
 // Design: ProcessLib/RichardsMechanics/DSM/STRAINED_FILM_IMPLEMENTATION.md.
 // Both variants reduce to evaluating the EXISTING bare law at an effective
