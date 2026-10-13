@@ -1,0 +1,134 @@
+Note: Google Test filter = RichardsMechanics.DSMElementJacobianFD
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RichardsMechanics
+[ RUN      ] RichardsMechanics.DSMElementJacobianFD
+
+DSM element Jacobian vs central FD, max_rel = max|J_an - J_fd| / max(max|J_an|, max|J_fd|) per block
+switch_set        state         h             kkt  pp         pu         up         uu         fro_rel    
+deck_step_klevel  dry           abs           0    1.01e-05   1.00e+00   1.00e+00   1.77e-04   6.58e-01   
+deck_step_klevel  dry           abs+relag5    0    1.01e-05   1.00e+00   1.00e+00   1.80e-04   6.58e-01   
+deck_step_klevel  dry           rel1e-2       0    1.25e-08   1.00e+00   1.00e+00   1.77e-04   6.58e-01   
+deck_step_klevel  dry           rel1e-7       0    1.67e-06   1.00e+00   1.00e+00   1.77e-04   6.58e-01   
+deck_step_klevel  mid           abs           0    1.72e-08   1.00e+00   1.00e+00   1.02e-03   6.58e-01   
+deck_step_klevel  mid           abs+relag5    0    1.72e-08   1.00e+00   1.00e+00   2.76e-02   6.62e-01   
+deck_step_klevel  mid           rel1e-2       0    4.86e-07   1.00e+00   1.00e+00   1.02e-03   6.58e-01   
+deck_step_klevel  mid           rel1e-7       0    7.19e-09   1.00e+00   1.00e+00   1.02e-03   6.58e-01   
+deck_step_klevel  mid_eps_step  abs           0    2.06e-08   1.00e+00   1.00e+00   1.01e-03   6.58e-01   
+deck_step_klevel  mid_eps_step  abs+relag5    0    2.06e-08   1.00e+00   1.00e+00   2.73e-02   6.62e-01   
+deck_step_klevel  mid_eps_step  rel1e-2       0    4.88e-07   1.00e+00   1.00e+00   1.01e-03   6.58e-01   
+deck_step_klevel  mid_eps_step  rel1e-7       0    6.81e-09   1.00e+00   1.00e+00   1.01e-03   6.58e-01   
+deck_step_klevel  wet_ceiling   abs           4    0.00e+00   8.02e-11   2.94e-09   5.46e-10   3.64e-10   
+deck_step_klevel  wet_ceiling   abs+relag5    4    0.00e+00   8.02e-11   2.94e-09   3.53e-10   2.99e-10   
+deck_step_klevel  wet_ceiling   rel1e-2       4    0.00e+00   1.74e-13   2.33e-15   2.27e-08   1.53e-08   
+deck_step_klevel  wet_ceiling   rel1e-7       4    0.00e+00   2.62e-08   3.21e-10   4.12e-08   3.47e-08   
+deck_step_klevel  mid_eps_hist  abs           0    1.35e-08   1.00e+00   1.00e+00   9.42e-04   6.58e-01   
+deck_step_klevel  mid_eps_hist  abs+relag5    0    1.35e-08   1.00e+00   1.00e+00   2.79e-02   6.62e-01   
+deck_step_klevel  mid_eps_hist  rel1e-2       0    4.82e-07   1.00e+00   1.00e+00   9.42e-04   6.58e-01   
+deck_step_klevel  mid_eps_hist  rel1e-7       0    6.92e-09   1.00e+00   1.00e+00   9.42e-04   6.58e-01   
+level             dry           abs           0    1.01e-05   1.00e+00   1.00e+00   1.86e-04   6.58e-01   
+level             dry           abs+relag5    0    1.01e-05   1.00e+00   1.00e+00   1.86e-04   6.58e-01   
+level             dry           rel1e-2       0    1.25e-08   1.00e+00   1.00e+00   1.86e-04   6.58e-01   
+level             dry           rel1e-7       0    1.67e-06   1.00e+00   1.00e+00   1.86e-04   6.58e-01   
+level             mid           abs           0    1.72e-08   1.00e+00   1.00e+00   2.26e-02   6.62e-01   
+level             mid           abs+relag5    0    1.72e-08   1.00e+00   1.00e+00   2.26e-02   6.62e-01   
+level             mid           rel1e-2       0    4.86e-07   1.00e+00   1.00e+00   2.26e-02   6.62e-01   
+level             mid           rel1e-7       0    7.19e-09   1.00e+00   1.00e+00   2.26e-02   6.62e-01   
+level             mid_eps_step  abs           0    2.06e-08   1.00e+00   1.00e+00   1.95e-01   6.78e-01   
+level             mid_eps_step  abs+relag5    0    2.06e-08   1.00e+00   1.00e+00   1.95e-01   6.78e-01   
+level             mid_eps_step  rel1e-2       0    4.88e-07   1.00e+00   1.00e+00   1.95e-01   6.78e-01   
+level             mid_eps_step  rel1e-7       0    6.81e-09   1.00e+00   1.00e+00   1.95e-01   6.78e-01   
+level             wet_ceiling   abs           4    0.00e+00   8.02e-11   2.94e-09   5.90e-10   4.84e-10   
+level             wet_ceiling   abs+relag5    4    0.00e+00   8.02e-11   2.94e-09   8.18e-10   5.00e-10   
+level             wet_ceiling   rel1e-2       4    0.00e+00   1.74e-13   2.33e-15   1.21e-08   8.47e-09   
+level             wet_ceiling   rel1e-7       4    0.00e+00   2.62e-08   3.21e-10   3.16e-08   4.38e-08   
+level             mid_eps_hist  abs           0    1.35e-08   1.00e+00   1.00e+00   2.24e-02   6.62e-01   
+level             mid_eps_hist  abs+relag5    0    1.35e-08   1.00e+00   1.00e+00   2.24e-02   6.62e-01   
+level             mid_eps_hist  rel1e-2       0    4.82e-07   1.00e+00   1.00e+00   2.24e-02   6.62e-01   
+level             mid_eps_hist  rel1e-7       0    6.92e-09   1.00e+00   1.00e+00   2.24e-02   6.62e-01   
+level_z           dry           abs           0    1.01e-05   1.00e+00   1.00e+00   1.86e-04   6.58e-01   
+level_z           dry           abs+relag5    0    1.01e-05   1.00e+00   1.00e+00   1.86e-04   6.58e-01   
+level_z           dry           rel1e-2       0    1.25e-08   1.00e+00   1.00e+00   1.86e-04   6.58e-01   
+level_z           dry           rel1e-7       0    1.67e-06   1.00e+00   1.00e+00   1.86e-04   6.58e-01   
+level_z           mid           abs           0    1.72e-08   1.00e+00   1.00e+00   3.10e-03   6.59e-01   
+level_z           mid           abs+relag5    0    1.72e-08   1.00e+00   1.00e+00   2.46e-03   6.59e-01   
+level_z           mid           rel1e-2       0    4.86e-07   1.00e+00   1.00e+00   3.10e-03   6.59e-01   
+level_z           mid           rel1e-7       0    7.19e-09   1.00e+00   1.00e+00   3.10e-03   6.59e-01   
+level_z           mid_eps_step  abs           0    5.47e-04   1.00e+00   1.00e+00   2.13e-01   6.78e-01   
+level_z           mid_eps_step  abs+relag5    0    4.46e-04   1.00e+00   1.00e+00   2.13e-01   6.78e-01   
+level_z           mid_eps_step  rel1e-2       0    5.46e-04   1.00e+00   1.00e+00   2.13e-01   6.78e-01   
+level_z           mid_eps_step  rel1e-7       0    5.47e-04   1.00e+00   1.00e+00   2.13e-01   6.78e-01   
+level_z           wet_ceiling   abs           4    0.00e+00   8.02e-11   2.94e-09   5.90e-10   4.84e-10   
+level_z           wet_ceiling   abs+relag5    4    0.00e+00   8.02e-11   2.94e-09   8.18e-10   5.00e-10   
+level_z           wet_ceiling   rel1e-2       4    0.00e+00   1.74e-13   2.33e-15   1.21e-08   8.47e-09   
+level_z           wet_ceiling   rel1e-7       4    0.00e+00   2.62e-08   3.21e-10   3.16e-08   4.38e-08   
+level_z           mid_eps_hist  abs           0    5.49e-04   1.00e+00   1.00e+00   2.89e-03   6.59e-01   
+level_z           mid_eps_hist  abs+relag5    0    4.42e-04   1.00e+00   1.00e+00   2.16e-03   6.59e-01   
+level_z           mid_eps_hist  rel1e-2       0    5.49e-04   1.00e+00   1.00e+00   2.89e-03   6.59e-01   
+level_z           mid_eps_hist  rel1e-7       0    5.49e-04   1.00e+00   1.00e+00   2.89e-03   6.59e-01   
+diag_deck_pu_all_exchangedry           abs           0    1.01e-05   1.79e-03   1.00e+00   1.77e-04   1.19e-03   
+diag_deck_pu_all_exchangedry           abs+relag5    0    1.01e-05   1.79e-03   1.00e+00   1.80e-04   1.19e-03   
+diag_deck_pu_all_exchangedry           rel1e-2       0    1.25e-08   1.79e-03   1.00e+00   1.77e-04   1.19e-03   
+diag_deck_pu_all_exchangedry           rel1e-7       0    1.67e-06   1.79e-03   1.00e+00   1.77e-04   1.19e-03   
+diag_deck_pu_all_exchangemid           abs           0    1.72e-08   2.63e-01   1.00e+00   1.02e-03   2.34e-01   
+diag_deck_pu_all_exchangemid           abs+relag5    0    1.72e-08   2.63e-01   1.00e+00   2.76e-02   2.37e-01   
+diag_deck_pu_all_exchangemid           rel1e-2       0    4.86e-07   2.63e-01   1.00e+00   1.02e-03   2.34e-01   
+diag_deck_pu_all_exchangemid           rel1e-7       0    7.19e-09   2.63e-01   1.00e+00   1.02e-03   2.34e-01   
+diag_deck_pu_all_exchangemid_eps_step  abs           0    2.06e-08   2.60e-01   1.00e+00   1.01e-03   2.32e-01   
+diag_deck_pu_all_exchangemid_eps_step  abs+relag5    0    2.06e-08   2.60e-01   1.00e+00   2.73e-02   2.34e-01   
+diag_deck_pu_all_exchangemid_eps_step  rel1e-2       0    4.88e-07   2.60e-01   1.00e+00   1.01e-03   2.32e-01   
+diag_deck_pu_all_exchangemid_eps_step  rel1e-7       0    6.81e-09   2.60e-01   1.00e+00   1.01e-03   2.32e-01   
+diag_deck_pu_all_exchangewet_ceiling   abs           4    0.00e+00   8.02e-11   2.94e-09   5.46e-10   3.64e-10   
+diag_deck_pu_all_exchangewet_ceiling   abs+relag5    4    0.00e+00   8.02e-11   2.94e-09   3.53e-10   2.99e-10   
+diag_deck_pu_all_exchangewet_ceiling   rel1e-2       4    0.00e+00   1.74e-13   2.33e-15   2.27e-08   1.53e-08   
+diag_deck_pu_all_exchangewet_ceiling   rel1e-7       4    0.00e+00   2.62e-08   3.21e-10   4.12e-08   3.47e-08   
+diag_deck_pu_all_exchangemid_eps_hist  abs           0    1.35e-08   2.61e-01   1.00e+00   9.42e-04   2.32e-01   
+diag_deck_pu_all_exchangemid_eps_hist  abs+relag5    0    1.35e-08   2.61e-01   1.00e+00   2.79e-02   2.34e-01   
+diag_deck_pu_all_exchangemid_eps_hist  rel1e-2       0    4.82e-07   2.61e-01   1.00e+00   9.42e-04   2.32e-01   
+diag_deck_pu_all_exchangemid_eps_hist  rel1e-7       0    6.92e-09   2.61e-01   1.00e+00   9.42e-04   2.32e-01   
+diag_level_pu_all_exchangedry           abs           0    1.01e-05   1.79e-03   1.00e+00   1.86e-04   1.19e-03   
+diag_level_pu_all_exchangedry           abs+relag5    0    1.01e-05   1.79e-03   1.00e+00   1.86e-04   1.19e-03   
+diag_level_pu_all_exchangedry           rel1e-2       0    1.25e-08   1.79e-03   1.00e+00   1.86e-04   1.19e-03   
+diag_level_pu_all_exchangedry           rel1e-7       0    1.67e-06   1.79e-03   1.00e+00   1.86e-04   1.19e-03   
+diag_level_pu_all_exchangemid           abs           0    1.72e-08   2.63e-01   1.00e+00   2.26e-02   2.36e-01   
+diag_level_pu_all_exchangemid           abs+relag5    0    1.72e-08   2.63e-01   1.00e+00   2.26e-02   2.36e-01   
+diag_level_pu_all_exchangemid           rel1e-2       0    4.86e-07   2.63e-01   1.00e+00   2.26e-02   2.36e-01   
+diag_level_pu_all_exchangemid           rel1e-7       0    7.19e-09   2.63e-01   1.00e+00   2.26e-02   2.36e-01   
+diag_level_pu_all_exchangemid_eps_step  abs           0    2.06e-08   2.60e-01   1.00e+00   1.95e-01   2.75e-01   
+diag_level_pu_all_exchangemid_eps_step  abs+relag5    0    2.06e-08   2.60e-01   1.00e+00   1.95e-01   2.75e-01   
+diag_level_pu_all_exchangemid_eps_step  rel1e-2       0    4.88e-07   2.60e-01   1.00e+00   1.95e-01   2.75e-01   
+diag_level_pu_all_exchangemid_eps_step  rel1e-7       0    6.81e-09   2.60e-01   1.00e+00   1.95e-01   2.75e-01   
+diag_level_pu_all_exchangewet_ceiling   abs           4    0.00e+00   8.02e-11   2.94e-09   5.90e-10   4.84e-10   
+diag_level_pu_all_exchangewet_ceiling   abs+relag5    4    0.00e+00   8.02e-11   2.94e-09   8.18e-10   5.00e-10   
+diag_level_pu_all_exchangewet_ceiling   rel1e-2       4    0.00e+00   1.74e-13   2.33e-15   1.21e-08   8.47e-09   
+diag_level_pu_all_exchangewet_ceiling   rel1e-7       4    0.00e+00   2.62e-08   3.21e-10   3.16e-08   4.38e-08   
+diag_level_pu_all_exchangemid_eps_hist  abs           0    1.35e-08   2.61e-01   1.00e+00   2.24e-02   2.34e-01   
+diag_level_pu_all_exchangemid_eps_hist  abs+relag5    0    1.35e-08   2.61e-01   1.00e+00   2.24e-02   2.34e-01   
+diag_level_pu_all_exchangemid_eps_hist  rel1e-2       0    4.82e-07   2.61e-01   1.00e+00   2.24e-02   2.34e-01   
+diag_level_pu_all_exchangemid_eps_hist  rel1e-7       0    6.92e-09   2.61e-01   1.00e+00   2.24e-02   2.34e-01   
+diag_level_z_pu_all_exchangedry           abs           0    1.01e-05   1.79e-03   1.00e+00   1.86e-04   1.19e-03   
+diag_level_z_pu_all_exchangedry           abs+relag5    0    1.01e-05   1.79e-03   1.00e+00   1.86e-04   1.19e-03   
+diag_level_z_pu_all_exchangedry           rel1e-2       0    1.25e-08   1.79e-03   1.00e+00   1.86e-04   1.19e-03   
+diag_level_z_pu_all_exchangedry           rel1e-7       0    1.67e-06   1.79e-03   1.00e+00   1.86e-04   1.19e-03   
+diag_level_z_pu_all_exchangemid           abs           0    1.72e-08   3.32e-01   1.00e+00   3.10e-03   3.27e-01   
+diag_level_z_pu_all_exchangemid           abs+relag5    0    1.72e-08   2.63e-01   1.00e+00   2.46e-03   2.35e-01   
+diag_level_z_pu_all_exchangemid           rel1e-2       0    4.86e-07   3.32e-01   1.00e+00   3.10e-03   3.27e-01   
+diag_level_z_pu_all_exchangemid           rel1e-7       0    7.19e-09   3.32e-01   1.00e+00   3.10e-03   3.27e-01   
+diag_level_z_pu_all_exchangemid_eps_step  abs           0    5.47e-04   4.01e-01   1.00e+00   2.13e-01   4.68e-01   
+diag_level_z_pu_all_exchangemid_eps_step  abs+relag5    0    4.46e-04   2.98e-01   1.00e+00   2.13e-01   3.22e-01   
+diag_level_z_pu_all_exchangemid_eps_step  rel1e-2       0    5.46e-04   4.01e-01   1.00e+00   2.13e-01   4.68e-01   
+diag_level_z_pu_all_exchangemid_eps_step  rel1e-7       0    5.47e-04   4.01e-01   1.00e+00   2.13e-01   4.68e-01   
+diag_level_z_pu_all_exchangewet_ceiling   abs           4    0.00e+00   8.02e-11   2.94e-09   5.90e-10   4.84e-10   
+diag_level_z_pu_all_exchangewet_ceiling   abs+relag5    4    0.00e+00   8.02e-11   2.94e-09   8.18e-10   5.00e-10   
+diag_level_z_pu_all_exchangewet_ceiling   rel1e-2       4    0.00e+00   1.74e-13   2.33e-15   1.21e-08   8.47e-09   
+diag_level_z_pu_all_exchangewet_ceiling   rel1e-7       4    0.00e+00   2.62e-08   3.21e-10   3.16e-08   4.38e-08   
+diag_level_z_pu_all_exchangemid_eps_hist  abs           0    5.49e-04   3.78e-01   1.00e+00   2.89e-03   4.01e-01   
+diag_level_z_pu_all_exchangemid_eps_hist  abs+relag5    0    4.42e-04   2.94e-01   1.00e+00   2.16e-03   2.74e-01   
+diag_level_z_pu_all_exchangemid_eps_hist  rel1e-2       0    5.49e-04   3.78e-01   1.00e+00   2.89e-03   4.01e-01   
+diag_level_z_pu_all_exchangemid_eps_hist  rel1e-7       0    5.49e-04   3.78e-01   1.00e+00   2.89e-03   4.01e-01   
+[       OK ] RichardsMechanics.DSMElementJacobianFD (1255 ms)
+[----------] 1 test from RichardsMechanics (1255 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (1255 ms total)
+[  PASSED  ] 1 test.
