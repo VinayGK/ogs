@@ -1,0 +1,15 @@
+warning: OMP_NUM_THREADS is not set, falling back to: 18
+info: Eigen use 18 threads
+Note: Google Test filter = RichardsMechanics.DSMZWeighted*:RichardsMechanics.DSMMaxwellPair*
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from RichardsMechanics
+[ RUN      ] RichardsMechanics.DSMMaxwellPairIntegrabilityIdentity
+[       OK ] RichardsMechanics.DSMMaxwellPairIntegrabilityIdentity (0 ms)
+[ RUN      ] RichardsMechanics.DSMZWeightedPartnerMaxwellIdentity
+[       OK ] RichardsMechanics.DSMZWeightedPartnerMaxwellIdentity (0 ms)
+[----------] 2 tests from RichardsMechanics (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 2 tests.

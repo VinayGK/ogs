@@ -1,0 +1,286 @@
+### ms33_modelVII_freeswelling displacement abs=1e-9 rel=1e-7
+Comparing data array `displacement' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `displacement' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00, 0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00, 0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling displacement rc=0
+### ms33_modelVII_freeswelling saturation abs=1e-8 rel=1e-8
+Comparing data array `saturation' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `saturation' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling saturation rc=0
+### ms33_modelVII_freeswelling porosity abs=1e-8 rel=1e-7
+Comparing data array `porosity' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `porosity' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling porosity rc=0
+### ms33_modelVII_freeswelling transport_porosity abs=1e-8 rel=1e-7
+Comparing data array `transport_porosity' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `transport_porosity' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling transport_porosity rc=0
+### ms33_modelVII_freeswelling micro_porosity abs=1e-8 rel=1e-7
+Comparing data array `micro_porosity' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `micro_porosity' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling micro_porosity rc=0
+### ms33_modelVII_freeswelling micro_water_content abs=1e-8 rel=1e-7
+Comparing data array `micro_water_content' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `micro_water_content' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling micro_water_content rc=0
+### ms33_modelVII_freeswelling dry_density_solid abs=1e-5 rel=1e-8
+Comparing data array `dry_density_solid' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `dry_density_solid' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling dry_density_solid rc=0
+### ms33_modelVII_freeswelling sigma abs=1e3 rel=1e-2
+Comparing data array `sigma' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `sigma' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling sigma rc=0
+### ms33_modelVII_freeswelling swelling_stress abs=1e3 rel=1e-2
+Comparing data array `swelling_stress' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `swelling_stress' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling swelling_stress rc=0
+### ms33_modelVII_freeswelling pressure abs=1e3 rel=1e-2
+Comparing data array `pressure' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `pressure' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling pressure rc=0
+### ms33_modelVII_freeswelling micro_pressure abs=1e3 rel=1e-2
+Comparing data array `micro_pressure' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu' to data array `micro_pressure' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling/ms33_modelVII_freeswelling_ts_881_t_20736000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling micro_pressure rc=0
+### ms33_modelVII_freeswelling_ladder550 displacement abs=1e-9 rel=1e-7
+Comparing data array `displacement' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `displacement' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00, 0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00, 0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 displacement rc=0
+### ms33_modelVII_freeswelling_ladder550 saturation abs=1e-8 rel=1e-8
+Comparing data array `saturation' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `saturation' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 saturation rc=0
+### ms33_modelVII_freeswelling_ladder550 porosity abs=1e-8 rel=1e-7
+Comparing data array `porosity' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `porosity' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 porosity rc=0
+### ms33_modelVII_freeswelling_ladder550 transport_porosity abs=1e-8 rel=1e-7
+Comparing data array `transport_porosity' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `transport_porosity' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 transport_porosity rc=0
+### ms33_modelVII_freeswelling_ladder550 micro_porosity abs=1e-8 rel=1e-7
+Comparing data array `micro_porosity' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `micro_porosity' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 micro_porosity rc=0
+### ms33_modelVII_freeswelling_ladder550 micro_water_content abs=1e-8 rel=1e-7
+Comparing data array `micro_water_content' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `micro_water_content' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 micro_water_content rc=0
+### ms33_modelVII_freeswelling_ladder550 dry_density_solid abs=1e-5 rel=1e-8
+Comparing data array `dry_density_solid' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `dry_density_solid' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 dry_density_solid rc=0
+### ms33_modelVII_freeswelling_ladder550 sigma abs=1e3 rel=1e-2
+Comparing data array `sigma' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `sigma' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 sigma rc=0
+### ms33_modelVII_freeswelling_ladder550 swelling_stress abs=1e3 rel=1e-2
+Comparing data array `swelling_stress' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `swelling_stress' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00, 0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 swelling_stress rc=0
+### ms33_modelVII_freeswelling_ladder550 pressure abs=1e3 rel=1e-2
+Comparing data array `pressure' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `pressure' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 pressure rc=0
+### ms33_modelVII_freeswelling_ladder550 micro_pressure abs=1e3 rel=1e-2
+Comparing data array `micro_pressure' from file `/Users/vinaykumar/git/ogs-worktrees/dsm_z_weight_2026-10_taskE_wt/Tests/Data/RichardsMechanics/ANCHORS_MS33_ModelVII/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu' to data array `micro_pressure' from file `/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550/ms33_modelVII_freeswelling_ladder550_ts_1150_t_47520000.000000.vtu'.
+Computed difference between data arrays:
+abs l1 norm      = [0.000000000000000e+00]
+abs l2-norm^2    = [0.000000000000000e+00]
+abs l2-norm      = [0.000000000000000e+00]
+abs maximum norm = [0.000000000000000e+00]
+
+rel l1 norm      = [0.000000000000000e+00]
+rel l2-norm^2    = [0.000000000000000e+00]
+rel l2-norm      = [0.000000000000000e+00]
+rel maximum norm = [0.000000000000000e+00]
+RESULT ms33_modelVII_freeswelling_ladder550 micro_pressure rc=0

@@ -1,0 +1,139 @@
+{
+ "run_dir": "/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_level/",
+ "prefix": "ms33_modelVII_freeswelling_level",
+ "n_frames": 57,
+ "probes": {
+  "top": {
+   "node": 1040,
+   "r": 0.0,
+   "z": 0.07,
+   "end": {
+    "time_s": 20736000.0,
+    "time_d": 240.0,
+    "dry_density_solid": 1277.953457391335,
+    "void_ratio": 1.1753530881122756,
+    "transport_porosity": 0.0,
+    "micro_water_content": 0.5403045117297349,
+    "porosity": 0.5403045117297349,
+    "nl_over_phi": 1.0,
+    "swelling_stress_mean_comp_pos_Pa": 9734577.705572303,
+    "sigma_mean_comp_pos_Pa": 134700.59742480013
+   },
+   "phi_M_zero_first_frame_time_s": 6480000.0,
+   "at": {
+    "200d": {
+     "time_s": 17280000.0,
+     "time_d": 200.0,
+     "dry_density_solid": 1275.5131845127205,
+     "void_ratio": 1.1795149072191151,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5411823077292366,
+     "porosity": 0.5411823077292366,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9742624.375387326,
+     "sigma_mean_comp_pos_Pa": 66687.1698024258
+    },
+    "240d": {
+     "time_s": 20736000.0,
+     "time_d": 240.0,
+     "dry_density_solid": 1277.953457391335,
+     "void_ratio": 1.1753530881122756,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5403045117297349,
+     "porosity": 0.5403045117297349,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9734577.705572303,
+     "sigma_mean_comp_pos_Pa": 134700.59742480013
+    }
+   }
+  },
+  "centre": {
+   "node": 598,
+   "r": 0.0,
+   "z": 0.04025000000000001,
+   "end": {
+    "time_s": 20736000.0,
+    "time_d": 240.0,
+    "dry_density_solid": 1277.9665406478748,
+    "void_ratio": 1.1753308178089372,
+    "transport_porosity": 0.0,
+    "micro_water_content": 0.5402998055223466,
+    "porosity": 0.5402998055223466,
+    "nl_over_phi": 1.0,
+    "swelling_stress_mean_comp_pos_Pa": 9734972.928038396,
+    "sigma_mean_comp_pos_Pa": 134254.78996998924
+   },
+   "phi_M_zero_first_frame_time_s": 5184000.0,
+   "at": {
+    "200d": {
+     "time_s": 17280000.0,
+     "time_d": 200.0,
+     "dry_density_solid": 1275.5100514604278,
+     "void_ratio": 1.1795202607905506,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5411834347264641,
+     "porosity": 0.5411834347264641,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9742609.505604744,
+     "sigma_mean_comp_pos_Pa": 66646.62360840004
+    },
+    "240d": {
+     "time_s": 20736000.0,
+     "time_d": 240.0,
+     "dry_density_solid": 1277.9665406478748,
+     "void_ratio": 1.1753308178089372,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5402998055223466,
+     "porosity": 0.5402998055223466,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9734972.928038396,
+     "sigma_mean_comp_pos_Pa": 134254.78996998924
+    }
+   }
+  },
+  "bottom": {
+   "node": 156,
+   "r": 0.0,
+   "z": 0.010500000000000002,
+   "end": {
+    "time_s": 20736000.0,
+    "time_d": 240.0,
+    "dry_density_solid": 1278.1493106466487,
+    "void_ratio": 1.1750197546118661,
+    "transport_porosity": 0.0,
+    "micro_water_content": 0.5402340609184714,
+    "porosity": 0.5402340609184714,
+    "nl_over_phi": 1.0,
+    "swelling_stress_mean_comp_pos_Pa": 9737473.089062426,
+    "sigma_mean_comp_pos_Pa": 133618.49700852693
+   },
+   "phi_M_zero_first_frame_time_s": 2160000.0,
+   "at": {
+    "200d": {
+     "time_s": 17280000.0,
+     "time_d": 200.0,
+     "dry_density_solid": 1275.5224169539367,
+     "void_ratio": 1.1794991315314491,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5411789867072165,
+     "porosity": 0.5411789867072165,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9742765.880949091,
+     "sigma_mean_comp_pos_Pa": 66626.14424180952
+    },
+    "240d": {
+     "time_s": 20736000.0,
+     "time_d": 240.0,
+     "dry_density_solid": 1278.1493106466487,
+     "void_ratio": 1.1750197546118661,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5402340609184714,
+     "porosity": 0.5402340609184714,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9737473.089062426,
+     "sigma_mean_comp_pos_Pa": 133618.49700852693
+    }
+   }
+  }
+ }
+}

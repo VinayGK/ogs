@@ -1,0 +1,175 @@
+{
+ "run_dir": "/Users/vinaykumar/git/build/zweight_taskE_runs/ms33_modelVII_freeswelling_ladder550_levelz/",
+ "prefix": "ms33_modelVII_freeswelling_ladder550_levelz",
+ "n_frames": 112,
+ "probes": {
+  "top": {
+   "node": 1040,
+   "r": 0.0,
+   "z": 0.07,
+   "end": {
+    "time_s": 47520000.0,
+    "time_d": 550.0,
+    "dry_density_solid": 1277.8003763068227,
+    "void_ratio": 1.1756136964327144,
+    "transport_porosity": 0.0,
+    "micro_water_content": 0.5403595768680485,
+    "porosity": 0.5403595768680485,
+    "nl_over_phi": 1.0,
+    "swelling_stress_mean_comp_pos_Pa": 9733502.593902867,
+    "sigma_mean_comp_pos_Pa": 133348.2083630735
+   },
+   "phi_M_zero_first_frame_time_s": 6912000.0,
+   "at": {
+    "200d": {
+     "time_s": 17280000.0,
+     "time_d": 200.0,
+     "dry_density_solid": 1275.4986858610598,
+     "void_ratio": 1.1795396818643415,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5411875230715604,
+     "porosity": 0.5411875230715604,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9742457.427269459,
+     "sigma_mean_comp_pos_Pa": 66680.8739442909
+    },
+    "240d": {
+     "time_s": 20736000.0,
+     "time_d": 240.0,
+     "dry_density_solid": 1277.7457011764864,
+     "void_ratio": 1.1757067916098727,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5403792441811194,
+     "porosity": 0.5403792441811194,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9732857.99377838,
+     "sigma_mean_comp_pos_Pa": 133347.61994605555
+    },
+    "550d": {
+     "time_s": 47520000.0,
+     "time_d": 550.0,
+     "dry_density_solid": 1277.8003763068227,
+     "void_ratio": 1.1756136964327144,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5403595768680485,
+     "porosity": 0.5403595768680485,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9733502.593902867,
+     "sigma_mean_comp_pos_Pa": 133348.2083630735
+    }
+   }
+  },
+  "centre": {
+   "node": 598,
+   "r": 0.0,
+   "z": 0.04025000000000001,
+   "end": {
+    "time_s": 47520000.0,
+    "time_d": 550.0,
+    "dry_density_solid": 1277.7963857803968,
+    "void_ratio": 1.1756204908203371,
+    "transport_porosity": 0.0,
+    "micro_water_content": 0.5403610123092093,
+    "porosity": 0.5403610123092093,
+    "nl_over_phi": 1.0,
+    "swelling_stress_mean_comp_pos_Pa": 9733473.708732726,
+    "sigma_mean_comp_pos_Pa": 133314.5533160331
+   },
+   "phi_M_zero_first_frame_time_s": 5616000.0,
+   "at": {
+    "200d": {
+     "time_s": 17280000.0,
+     "time_d": 200.0,
+     "dry_density_solid": 1275.493864341318,
+     "void_ratio": 1.1795479207856707,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5411892574311802,
+     "porosity": 0.5411892574311802,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9742418.141410034,
+     "sigma_mean_comp_pos_Pa": 66648.78669621685
+    },
+    "240d": {
+     "time_s": 20736000.0,
+     "time_d": 240.0,
+     "dry_density_solid": 1277.7408751168823,
+     "void_ratio": 1.1757150093094562,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5403809801737829,
+     "porosity": 0.5403809801737829,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9732818.500949863,
+     "sigma_mean_comp_pos_Pa": 133315.36239787049
+    },
+    "550d": {
+     "time_s": 47520000.0,
+     "time_d": 550.0,
+     "dry_density_solid": 1277.7963857803968,
+     "void_ratio": 1.1756204908203371,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5403610123092093,
+     "porosity": 0.5403610123092093,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9733473.708732726,
+     "sigma_mean_comp_pos_Pa": 133314.5533160331
+    }
+   }
+  },
+  "bottom": {
+   "node": 156,
+   "r": 0.0,
+   "z": 0.010500000000000002,
+   "end": {
+    "time_s": 47520000.0,
+    "time_d": 550.0,
+    "dry_density_solid": 1277.8228638823787,
+    "void_ratio": 1.175575409218765,
+    "transport_porosity": 0.0,
+    "micro_water_content": 0.5403514878120936,
+    "porosity": 0.5403514878120936,
+    "nl_over_phi": 1.0,
+    "swelling_stress_mean_comp_pos_Pa": 9733786.575455632,
+    "sigma_mean_comp_pos_Pa": 133313.5604893058
+   },
+   "phi_M_zero_first_frame_time_s": 2592000.0,
+   "at": {
+    "200d": {
+     "time_s": 17280000.0,
+     "time_d": 200.0,
+     "dry_density_solid": 1275.5170573035196,
+     "void_ratio": 1.1795082896633318,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5411809146390213,
+     "porosity": 0.5411809146390213,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9742691.881646361,
+     "sigma_mean_comp_pos_Pa": 66646.51493415047
+    },
+    "240d": {
+     "time_s": 20736000.0,
+     "time_d": 240.0,
+     "dry_density_solid": 1277.76408282489,
+     "void_ratio": 1.1756754923443737,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5403726320773772,
+     "porosity": 0.5403726320773772,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9733093.474727057,
+     "sigma_mean_comp_pos_Pa": 133313.0804031001
+    },
+    "550d": {
+     "time_s": 47520000.0,
+     "time_d": 550.0,
+     "dry_density_solid": 1277.8228638823787,
+     "void_ratio": 1.175575409218765,
+     "transport_porosity": 0.0,
+     "micro_water_content": 0.5403514878120936,
+     "porosity": 0.5403514878120936,
+     "nl_over_phi": 1.0,
+     "swelling_stress_mean_comp_pos_Pa": 9733786.575455632,
+     "sigma_mean_comp_pos_Pa": 133313.5604893058
+    }
+   }
+  }
+ }
+}

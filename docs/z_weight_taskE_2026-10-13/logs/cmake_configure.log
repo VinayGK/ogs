@@ -1,0 +1,292 @@
+CMake Warning (deprecated) at CMakeLists.txt:3 (cmake_policy):
+  The OLD behavior for policy CMP0155 will be removed from a future version
+  of CMake.
+
+  The cmake-policies(7) manual explains that the OLD behaviors of all
+  policies are deprecated and that a policy should be set to OLD only under
+  specific short-term circumstances.  Projects should be ported to the NEW
+  behavior and not rely on setting a policy to OLD.
+This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+to suppress it.
+
+-- The C compiler identification is AppleClang 21.0.0.21000334
+-- The CXX compiler identification is AppleClang 21.0.0.21000334
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Generator: Ninja
+-- OGS VERSION: submission-config-anchors-T4.1-T4.2-2026-10-09-1-gcc5e71e1 (reported by git)
+-- Checking: /opt/homebrew/opt/llvm/bin
+-- Checking: /opt/homebrew/opt/llvm/bin
+-- Checking: /opt/anaconda3/bin
+-- Checking: /opt/anaconda3/condabin
+-- Checking: /opt/homebrew/opt/llvm/bin
+-- Checking: /opt/homebrew/bin
+-- Checking: /opt/homebrew/bin
+-- Checking: /opt/anaconda3/bin
+-- Checking: /usr/local/bin
+-- Checking: /System/Cryptexes/App/usr/bin
+-- Checking: /usr/bin
+-- Checking: /bin
+-- Checking: /usr/sbin
+-- Checking: /sbin
+-- Checking: /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin
+-- Checking: /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin
+-- Checking: /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin
+-- Checking: /pkg/env/global/bin
+-- Checking: /Library/Apple/usr/bin
+-- Checking: /Library/TeX/texbin
+-- Checking: /Applications/VMware Fusion.app/Contents/Public
+-- Checking: /usr/local/share/dotnet
+-- Checking: ~/.dotnet/tools
+-- Checking: /Library/Frameworks/Mono.framework/Versions/Current/Commands
+-- Checking: /Users/vinaykumar/.local/bin
+-- Checking: /Users/vinaykumar/.lmstudio/bin
+-- Checking: /Users/vinaykumar/bin
+-- ┌─ PythonSetup.cmake
+-- │    Found Python: /opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 (found suitable version "3.14.7", minimum required is "3.10") found components: Interpreter Development.Module Development.Embed
+-- └─ End PythonSetup.cmake
+-- Using lld linker
+-- Number of (logical) cores: 18, Free memory: 16498 MB
+--   Job pool light_tasks using 18 cores.
+--   Job pool heavy_tasks using 5 cores.
+-- Could NOT find Doxygen (missing: DOXYGEN_EXECUTABLE) (Required is at least version "1.14")
+-- Found TIFF: /opt/homebrew/lib/libtiff.dylib (found version "4.0.9")
+-- Could NOT find GEOTIFF (missing: libgeotiff_LIBRARY libgeotiff_INCLUDE_DIR xtiff_INCLUDE_DIR) 
+-- Found OpenMP_C: -Xclang -fopenmp (found version "5.1")
+-- Found OpenMP_CXX: -Xclang -fopenmp (found version "5.1")
+-- Found OpenMP: TRUE (found version "5.1") found components: C CXX
+-- Looking for sgemm_
+-- Looking for sgemm_ - not found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Looking for dgemm_
+-- Looking for dgemm_ - found
+-- Found BLAS: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Accelerate.framework
+-- Found ZLIB: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libz.tbd (found version "1.2.12")
+-- HDF5 C compiler wrapper is unable to compile a minimal HDF5 program.
+-- Found HDF5: /opt/homebrew/lib/libhdf5.dylib (found suitable version "2.2.0", minimum required is "1.10.7") found components: C
+-- VTK_OPTIONS: -DVTK_GROUP_ENABLE_Rendering=DONT_WANT;-DVTK_GROUP_ENABLE_StandAlone=DONT_WANT;-DBUILD_TESTING=OFF;-DVTK_BUILD_EXAMPLES=OFF;-DVTK_BUILD_TESTING=OFF;-DVTK_ENABLE_WRAPPING=OFF;-DVTK_USE_64BIT_IDS=ON;-DVTK_MODULE_ENABLE_VTK_IOXML=YES;-DVTK_MODULE_ENABLE_VTK_IOLegacy=YES;-DVTK_MODULE_ENABLE_VTK_FiltersGeneral=YES;-DVTK_MODULE_ENABLE_VTK_FiltersParallel=YES;-DVTK_MODULE_ENABLE_VTK_FiltersSources=YES;-DVTK_MODULE_ENABLE_VTK_FiltersExtraction=YES;-DBUILD_SHARED_LIBS=OFF;-DCMAKE_BUILD_TYPE=Release;-DCMAKE_OSX_DEPLOYMENT_TARGET=27.0
+-- Searching VTK on system with components: IOXML;IOLegacy;FiltersGeneral;FiltersParallel;FiltersSources;FiltersExtraction
+-- Found nlohmann_json: /opt/homebrew/share/cmake/nlohmann_json/nlohmann_jsonConfig.cmake (found version "3.12.0")
+-- Found utf8cpp: /opt/homebrew/include/utf8cpp
+-- Found JsonCpp: /opt/homebrew/lib/libjsoncpp.dylib (found suitable version "1.9.8", minimum required is "0.7.0")
+-- Found Eigen3: /opt/homebrew/include/eigen3 (found version "..")
+-- Found EXPAT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libexpat.tbd (found suitable version "2.2.5", minimum required is "2.2.1")
+-- Found LZ4: /opt/homebrew/lib/liblz4.dylib (found version "1.10.0")
+-- Found LZMA: /opt/homebrew/lib/liblzma.dylib (found version "5.8.3")
+-- ┌─ Dependencies.cmake
+-- │    Found Git: /opt/homebrew/bin/git (found version "2.55.0")
+-- │    CPM: Adding package googletest@1.16.0 (v1.16.0 at /Users/vinaykumar/git/build/shared_cpm_cache/googletest/c160)
+-- │    CPM: Adding package autocheck@0 (e388ecbb31c49fc2724c8d0436da313b6edca7fd at /Users/vinaykumar/git/build/shared_cpm_cache/autocheck/db07)
+-- │    Build spdlog: 1.15.3
+-- │    Build type: Release
+-- │    Looking for fwrite_unlocked
+-- │    Looking for fwrite_unlocked - not found
+-- │    CPM: Adding package spdlog@1.15.3 (v1.15.3 at /Users/vinaykumar/git/build/shared_cpm_cache/spdlog/42d4)
+-- │    CPM: Adding package tclap@1.4.0 (81b3d2a0c47895c22e9bb8c577f5ab521f76e5d2 at /Users/vinaykumar/git/build/shared_cpm_cache/tclap/ff54)
+-- │    pybind11 v2.13.6 
+-- │    Performing Test HAS_FLTO_THIN
+-- │    Performing Test HAS_FLTO_THIN - Success
+-- │    CPM: Adding package pybind11@2.13.6 (v2.13.6 at /Users/vinaykumar/git/build/shared_cpm_cache/pybind11/2840)
+-- │    CPM: Adding package iphreeqc@3.5.0 (3.5.0-1 at /Users/vinaykumar/git/build/shared_cpm_cache/iphreeqc/4011)
+-- │    CPM: Adding package Eigen3@3.4.90 (3.4.90 at /Users/vinaykumar/git/build/shared_cpm_cache/eigen3/f751)
+CMake Warning (policy) at scripts/cmake/CPM.cmake:307 (find_package):
+  Policy CMP0167 is not set: The FindBoost module is removed.  Run "cmake
+  --help-policy CMP0167" for policy details.  Use the cmake_policy command to
+  set the policy and suppress this warning.
+Call Stack (most recent call first):
+  scripts/cmake/CPM.cmake:376 (cpm_find_package)
+  scripts/cmake/Dependencies.cmake:238 (CPMFindPackage)
+  CMakeLists.txt:102 (include)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+-- │    CPM: Using local package Boost@1.92.0
+-- │    CPM: Using local package LibXml2@2.9.13
+-- │    Found LibXml2: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libxml2.tbd (found version "2.9.13")
+-- │    CPM: Adding package xmlpatch@0.4.2 (v0.4.2 at /Users/vinaykumar/git/build/shared_cpm_cache/xmlpatch/808d)
+-- │    CPM: Using local package nlohmann_json@3.12.0
+-- │    CPM: Adding package exprtk@0.0.3 (0.0.3 at /Users/vinaykumar/git/build/shared_cpm_cache/exprtk/a719)
+-- │    [range-v3]: C++ std=23
+-- │    Performing Test RANGES_HAS_CXXSTD
+-- │    Performing Test RANGES_HAS_CXXSTD - Success
+-- │    Performing Test RANGES_HAS_WALL
+-- │    Performing Test RANGES_HAS_WALL - Success
+-- │    Performing Test RANGES_HAS_WEXTRA
+-- │    Performing Test RANGES_HAS_WEXTRA - Success
+-- │    Performing Test RANGES_HAS_WERROR
+-- │    Performing Test RANGES_HAS_WERROR - Success
+-- │    Performing Test RANGES_HAS_FDIAGNOSTIC_SHOW_TEMPLATE_TREE
+-- │    Performing Test RANGES_HAS_FDIAGNOSTIC_SHOW_TEMPLATE_TREE - Success
+-- │    Performing Test RANGES_HAS_FTEMPLATE_BACKTRACE_LIMIT
+-- │    Performing Test RANGES_HAS_FTEMPLATE_BACKTRACE_LIMIT - Success
+-- │    Performing Test RANGES_HAS_FMACRO_BACKTRACE_LIMIT
+-- │    Performing Test RANGES_HAS_FMACRO_BACKTRACE_LIMIT - Success
+-- │    Performing Test RANGES_HAS_OMIT_FRAME_POINTER
+-- │    Performing Test RANGES_HAS_OMIT_FRAME_POINTER - Success
+-- │    Performing Test RANGES_HAS_OFAST
+-- │    Performing Test RANGES_HAS_OFAST - Success
+-- │    Performing Test RANGES_HAS_STRICT_ALIASING
+-- │    Performing Test RANGES_HAS_STRICT_ALIASING - Success
+-- │    Performing Test RANGES_HAS_STRICT_VTABLE_POINTERS
+-- │    Performing Test RANGES_HAS_STRICT_VTABLE_POINTERS - Success
+-- │    Performing Test RANGES_HAS_FAST_MATH
+-- │    Performing Test RANGES_HAS_FAST_MATH - Success
+-- │    Performing Test RANGES_HAS_VECTORIZE
+-- │    Performing Test RANGES_HAS_VECTORIZE - Success
+-- │    Performing Test RANGES_HAS_MARCH_NATIVE
+-- │    Performing Test RANGES_HAS_MARCH_NATIVE - Success
+-- │    Performing Test RANGES_HAS_MTUNE_NATIVE
+-- │    Performing Test RANGES_HAS_MTUNE_NATIVE - Success
+-- │    Performing Test RANGE_V3_ALIGNED_NEW_PROBE
+-- │    Performing Test RANGE_V3_ALIGNED_NEW_PROBE - Success
+-- │    Performing Test RANGES_HAS_FCOROUTINES_TS
+-- │    Performing Test RANGES_HAS_FCOROUTINES_TS - Failed
+-- │    Performing Test RANGE_V3_HAS_FCONCEPTS
+-- │    Performing Test RANGE_V3_HAS_FCONCEPTS - Failed
+-- │    CPM: Adding package range-v3@0.12.0 (0.12.0 at /Users/vinaykumar/git/build/shared_cpm_cache/range-v3/c704)
+-- │    CPM: Adding package vtkdiff@0 (628c4694783f865d7f0ab3ba9bdd5530ce4567e9 at /Users/vinaykumar/git/build/shared_cpm_cache/vtkdiff/4523)
+CMake Warning (policy) at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/core/CMakeLists.txt:23 (find_package):
+  Policy CMP0167 is not set: The FindBoost module is removed.  Run "cmake
+  --help-policy CMP0167" for policy details.  Use the cmake_policy command to
+  set the policy and suppress this warning.
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+-- │    Found Boost: /opt/homebrew/lib/cmake/Boost-1.92.0/BoostConfig.cmake (found version "1.92.0")
+-- │    Performing Test HAVE_BOOST_SHARED_DYNAMIC_CAST
+-- │    Performing Test HAVE_BOOST_SHARED_DYNAMIC_CAST - Failed
+CMake Warning (policy) at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMake/XdmfFunctions.cmake:5 (if):
+  Policy CMP0218 is not set: The CMAKE_WARN_DEPRECATED and
+  CMAKE_ERROR_DEPRECATED variables are ignored.  Run "cmake --help-policy
+  CMP0218" for policy details.  Use the cmake_policy command to set the
+  policy and suppress this warning.
+Call Stack (most recent call first):
+  /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMakeLists.txt:367 (xdmf_create_config_file)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+CMake Warning (policy) at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMake/XdmfFunctions.cmake:6 (string):
+  Policy CMP0218 is not set: The CMAKE_WARN_DEPRECATED and
+  CMAKE_ERROR_DEPRECATED variables are ignored.  Run "cmake --help-policy
+  CMP0218" for policy details.  Use the cmake_policy command to set the
+  policy and suppress this warning.
+Call Stack (most recent call first):
+  /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMakeLists.txt:367 (xdmf_create_config_file)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+CMake Warning (policy) at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMake/XdmfFunctions.cmake:6 (string):
+  Policy CMP0218 is not set: The CMAKE_WARN_DEPRECATED and
+  CMAKE_ERROR_DEPRECATED variables are ignored.  Run "cmake --help-policy
+  CMP0218" for policy details.  Use the cmake_policy command to set the
+  policy and suppress this warning.
+Call Stack (most recent call first):
+  /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMakeLists.txt:367 (xdmf_create_config_file)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+CMake Warning (policy) at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMake/XdmfFunctions.cmake:10 (set):
+  Policy CMP0218 is not set: The CMAKE_WARN_DEPRECATED and
+  CMAKE_ERROR_DEPRECATED variables are ignored.  Run "cmake --help-policy
+  CMP0218" for policy details.  Use the cmake_policy command to set the
+  policy and suppress this warning.
+Call Stack (most recent call first):
+  /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMakeLists.txt:367 (xdmf_create_config_file)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+CMake Warning (policy) at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMake/XdmfFunctions.cmake:5 (if):
+  Policy CMP0218 is not set: The CMAKE_WARN_DEPRECATED and
+  CMAKE_ERROR_DEPRECATED variables are ignored.  Run "cmake --help-policy
+  CMP0218" for policy details.  Use the cmake_policy command to set the
+  policy and suppress this warning.
+Call Stack (most recent call first):
+  /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMakeLists.txt:367 (xdmf_create_config_file)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+CMake Warning (policy) at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMake/XdmfFunctions.cmake:6 (string):
+  Policy CMP0218 is not set: The CMAKE_WARN_DEPRECATED and
+  CMAKE_ERROR_DEPRECATED variables are ignored.  Run "cmake --help-policy
+  CMP0218" for policy details.  Use the cmake_policy command to set the
+  policy and suppress this warning.
+Call Stack (most recent call first):
+  /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMakeLists.txt:367 (xdmf_create_config_file)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+CMake Warning (policy) at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMake/XdmfFunctions.cmake:6 (string):
+  Policy CMP0218 is not set: The CMAKE_WARN_DEPRECATED and
+  CMAKE_ERROR_DEPRECATED variables are ignored.  Run "cmake --help-policy
+  CMP0218" for policy details.  Use the cmake_policy command to set the
+  policy and suppress this warning.
+Call Stack (most recent call first):
+  /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMakeLists.txt:367 (xdmf_create_config_file)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+CMake Warning (policy) at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMake/XdmfFunctions.cmake:10 (set):
+  Policy CMP0218 is not set: The CMAKE_WARN_DEPRECATED and
+  CMAKE_ERROR_DEPRECATED variables are ignored.  Run "cmake --help-policy
+  CMP0218" for policy details.  Use the cmake_policy command to set the
+  policy and suppress this warning.
+Call Stack (most recent call first):
+  /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2/CMakeLists.txt:367 (xdmf_create_config_file)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+-- │    CPM: Adding package xdmf@3.0.0 (374ee63abf605ab4c6639989bebc5096881f4f57 at /Users/vinaykumar/git/build/shared_cpm_cache/xdmf/20d2)
+-- │    Looking for execinfo.h
+-- │    Looking for execinfo.h - found
+-- │    Looking for getline
+-- │    Looking for getline - found
+-- │    CPM: Adding package GKlib@5.1.1 (8bd6bad750b2b0d90800c632cf18e8ee93ad72d7 at /Users/vinaykumar/git/build/shared_cpm_cache/gklib/304f)
+-- │    CPM: Adding package metis@5.2.1 (v5.2.1 to /Users/vinaykumar/git/build/shared_cpm_cache/metis/ed00)
+-- │    Found Python: /opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 (found version "3.14.7") found components: Interpreter
+-- │    Format.cmake: cmake-format and/or git not found, adding dummy targets
+-- │    CPM: Adding package Format.cmake@1.7.0 (v1.7.0 at /Users/vinaykumar/git/build/shared_cpm_cache/format.cmake/e25a)
+-- │    Wrote licenses to /Users/vinaykumar/git/build/ogs-zweight-taskE-20261013/third_party_licenses.txt
+-- └─ End Dependencies.cmake
+-- Performing Test COMPILER_HAS_HIDDEN_VISIBILITY
+-- Performing Test COMPILER_HAS_HIDDEN_VISIBILITY - Success
+-- Performing Test COMPILER_HAS_HIDDEN_INLINE_VISIBILITY
+-- Performing Test COMPILER_HAS_HIDDEN_INLINE_VISIBILITY - Success
+-- Performing Test COMPILER_HAS_DEPRECATED_ATTR
+-- Performing Test COMPILER_HAS_DEPRECATED_ATTR - Success
+-- The following packages have been found:
+
+ * OpenMP
+ * BLAS
+ * HDF5 (required version >= 1.10.7)
+ * JsonCpp (required version >= 0.7.0)
+ * Threads
+ * TIFF
+ * boost_headers (required version == 1.92.0)
+ * Boost
+ * LibXml2
+ * Git
+ * Python
+
+-- The following features have been enabled:
+
+ * OGS, The OGS simulator (OGS_BUILD_CLI)
+ * Utilities, Command line tools (OGS_BUILD_UTILS)
+ * Tests, Unit and benchmarks tests (OGS_BUILD_TESTING)
+ * build-shared, Shared libraries (BUILD_SHARED_LIBS)
+ * build-unity, Unity build (OGS_USE_UNITY_BUILDS)
+
+-- All processes have been enabled.
+
+-- Configuring done (8.6s)
+-- Generating done (0.6s)
+-- Build files have been written to: /Users/vinaykumar/git/build/ogs-zweight-taskE-20261013
