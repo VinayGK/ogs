@@ -76,7 +76,8 @@
 #include "ProcessLib/RichardsMechanics/RichardsMechanicsProcess.h"
 #include "ProcessLib/TimeLoop.h"
 
-namespace
+// Named (not anonymous) namespace: this file is part of a unity build.
+namespace DSMElementJacobianFDTest
 {
 namespace RM = ProcessLib::RichardsMechanics;
 
@@ -489,8 +490,6 @@ StateSummary summarise(RM::LocalAssemblerInterface<2>& la)
     return s;
 }
 
-}  // namespace
-
 TEST(RichardsMechanics, DSMElementJacobianFD)
 {
     auto const tmp = std::filesystem::temp_directory_path() /
@@ -667,3 +666,4 @@ TEST(RichardsMechanics, DSMElementJacobianFD)
             << r.switch_set << " " << r.state;
     }
 }
+}  // namespace DSMElementJacobianFDTest
